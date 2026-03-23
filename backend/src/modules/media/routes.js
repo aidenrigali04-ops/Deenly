@@ -55,6 +55,7 @@ function createMediaRouter({ db, config, mediaStorage, analytics }) {
     asyncHandler(async (req, res) => {
       const postId = Number(req.params.postId);
       const mediaKey = requireString(req.body?.mediaKey, "mediaKey", 5, 512);
+      const mediaUrl = req.body?.mediaUrl ? String(req.body.mediaUrl) : mediaKey;
       const mimeType = requireString(req.body?.mimeType, "mimeType", 3, 128);
       const fileSizeBytes = Number(req.body?.fileSizeBytes);
       const durationSeconds = req.body?.durationSeconds
@@ -71,15 +72,16 @@ function createMediaRouter({ db, config, mediaStorage, analytics }) {
       const result = await db.query(
         `UPDATE posts
          SET media_upload_key = $1,
-             media_mime_type = $2,
-             media_size_bytes = $3,
-             media_duration_seconds = $4,
-             media_status = 'pending',
+             media_url = $2,
+             media_mime_type = $3,
+             media_size_bytes = $4,
+             media_duration_seconds = $5,
+             media_status = 'ready',
              updated_at = NOW()
-         WHERE id = $5
-           AND author_id = $6
-         RETURNING id, media_upload_key, media_status, updated_at`,
-        [mediaKey, mimeType, fileSizeBytes, durationSeconds, postId, req.user.id]
+         WHERE id = $6
+           AND author_id = $7
+         RETURNING id, media_upload_key, media_url, media_status, updated_at`,
+        [mediaKey, mediaUrl, mimeType, fileSizeBytes, durationSeconds, postId, req.user.id]
       );
 
       if (result.rowCount === 0) {

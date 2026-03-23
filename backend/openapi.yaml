@@ -2,6 +2,7 @@ openapi: 3.0.3
 info:
   title: Deenly Backend API
   version: 1.0.0
+  description: Stable v1 contract for frontend integration.
 servers:
   - url: /api/v1
 components:
@@ -62,6 +63,55 @@ paths:
       responses:
         "200":
           description: Current user
+  /users:
+    get:
+      summary: List users (stable profile surface)
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 50 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0 }
+      responses:
+        "200":
+          description: User list
+  /users/me:
+    get:
+      summary: Get current user profile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: User profile
+    put:
+      summary: Update current user profile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Updated profile
+  /users/{userId}:
+    get:
+      summary: Get user profile by id
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: User profile
+  /profiles:
+    get:
+      deprecated: true
+      summary: Deprecated alias for users list
+      responses:
+        "200":
+          description: Profile list
   /posts:
     post:
       summary: Create post
@@ -80,25 +130,77 @@ paths:
           name: limit
           schema: { type: integer, minimum: 1, maximum: 50 }
         - in: query
+          name: authorId
+          schema: { type: integer }
+        - in: query
           name: offset
           schema: { type: integer, minimum: 0 }
       responses:
         "200":
           description: Post list
+  /posts/{postId}:
+    get:
+      summary: Get post by id with metrics
+      parameters:
+        - in: path
+          name: postId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Post details
   /feed:
     get:
-      summary: Get ranked feed items
+      summary: Get ranked feed items (cursor pagination)
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 50 }
+        - in: query
+          name: cursor
+          schema: { type: string }
+        - in: query
+          name: postType
+          schema: { type: string }
+        - in: query
+          name: followingOnly
+          schema: { type: boolean }
+        - in: query
+          name: authorId
+          schema: { type: integer }
+        - in: query
+          name: minCreatedAt
+          schema: { type: string, format: date-time }
       responses:
         "200":
           description: Feed list
-  /media/upload-signature:
+  /interactions:
     post:
-      summary: Generate signed media upload URL
+      summary: Add interaction (benefited, reflect_later, comment)
       security:
         - bearerAuth: []
       responses:
+        "201":
+          description: Interaction stored
+  /interactions/view:
+    post:
+      summary: Track post view metrics
+      security:
+        - bearerAuth: []
+      responses:
+        "201":
+          description: View event stored
+  /interactions/post/{postId}:
+    get:
+      summary: Get interaction totals for a post
+      parameters:
+        - in: path
+          name: postId
+          required: true
+          schema: { type: integer }
+      responses:
         "200":
-          description: Signed upload data
+          description: Interaction totals
   /reports:
     post:
       summary: Submit moderation report
@@ -107,3 +209,24 @@ paths:
       responses:
         "201":
           description: Report created
+  /media/upload-signature:
+    post:
+      summary: Generate signed media upload URL
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Signed upload data
+  /media/posts/{postId}/attach:
+    post:
+      summary: Attach raw uploaded media to post
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: postId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Media attached

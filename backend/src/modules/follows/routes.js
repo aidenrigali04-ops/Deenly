@@ -29,7 +29,7 @@ function createFollowsRouter({ db, config, analytics }) {
         [req.user.id, followingId]
       );
       if (analytics) {
-        await analytics.trackEvent("user_followed", {
+        await analytics.trackEvent("follow_user", {
           followerId: req.user.id,
           followingId
         });

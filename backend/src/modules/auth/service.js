@@ -76,7 +76,7 @@ function createAuthService({ db, config, analytics }) {
       [user.id, await argon2.hash(tokens.refreshToken), refreshInterval]
     );
     if (analytics) {
-      await analytics.trackEvent("auth_signup", { userId: user.id });
+      await analytics.trackEvent("signup", { userId: user.id });
     }
 
     return {

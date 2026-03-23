@@ -30,10 +30,10 @@ function createPostsRouter({ db, config, analytics }) {
         `INSERT INTO posts (author_id, post_type, content, media_url, style_tag, media_status)
          VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING id, author_id, post_type, content, media_url, style_tag, media_status, visibility_status, created_at, updated_at`,
-        [req.user.id, postType, content, mediaUrl, styleTag, mediaUrl ? "pending" : "ready"]
+        [req.user.id, postType, content, mediaUrl, styleTag, "ready"]
       );
       if (analytics) {
-        await analytics.trackEvent("post_created", {
+        await analytics.trackEvent("create_post", {
           userId: req.user.id,
           postId: result.rows[0].id,
           postType
@@ -62,13 +62,24 @@ function createPostsRouter({ db, config, analytics }) {
       const result = await db.query(
         `SELECT p.id, p.author_id, p.post_type, p.content, p.media_url, p.style_tag, p.media_status,
                 p.visibility_status, p.created_at, p.updated_at,
-                pr.display_name AS author_display_name
+                pr.display_name AS author_display_name,
+                COALESCE(vs.view_count, 0)::int AS view_count,
+                COALESCE(vs.avg_watch_time_ms, 0)::int AS avg_watch_time_ms,
+                COALESCE(vs.avg_completion_rate, 0)::numeric AS avg_completion_rate
          FROM posts p
          JOIN profiles pr ON pr.user_id = p.author_id
+         LEFT JOIN (
+           SELECT post_id,
+                  COUNT(*)::int AS view_count,
+                  AVG(watch_time_ms)::int AS avg_watch_time_ms,
+                  ROUND(AVG(completion_rate), 2) AS avg_completion_rate
+           FROM post_views
+           GROUP BY post_id
+         ) vs ON vs.post_id = p.id
          WHERE ($1::text IS NULL OR p.post_type = $1::text)
            AND ($2::int IS NULL OR p.author_id = $2::int)
            AND p.visibility_status = 'visible'
-         ORDER BY p.created_at DESC
+         ORDER BY p.created_at DESC, p.id DESC
          LIMIT $3 OFFSET $4`,
         [postType, authorId, limit, offset]
       );
@@ -87,9 +98,20 @@ function createPostsRouter({ db, config, analytics }) {
 
       const result = await db.query(
         `SELECT p.id, p.author_id, p.post_type, p.content, p.media_url, p.style_tag, p.media_status, p.visibility_status, p.created_at, p.updated_at,
-                pr.display_name AS author_display_name
+                pr.display_name AS author_display_name,
+                COALESCE(vs.view_count, 0)::int AS view_count,
+                COALESCE(vs.avg_watch_time_ms, 0)::int AS avg_watch_time_ms,
+                COALESCE(vs.avg_completion_rate, 0)::numeric AS avg_completion_rate
          FROM posts p
          JOIN profiles pr ON pr.user_id = p.author_id
+         LEFT JOIN (
+           SELECT post_id,
+                  COUNT(*)::int AS view_count,
+                  AVG(watch_time_ms)::int AS avg_watch_time_ms,
+                  ROUND(AVG(completion_rate), 2) AS avg_completion_rate
+           FROM post_views
+           GROUP BY post_id
+         ) vs ON vs.post_id = p.id
          WHERE p.id = $1
            AND p.visibility_status = 'visible'
          LIMIT 1`,

@@ -8,6 +8,7 @@ const { asyncHandler } = require("./utils/async-handler");
 const { errorHandler, notFoundHandler } = require("./middleware/error-handler");
 const { createAuthRouter } = require("./modules/auth/routes");
 const { createProfileRouter } = require("./modules/profiles/routes");
+const { createUsersRouter } = require("./modules/users/routes");
 const { createPostsRouter } = require("./modules/posts/routes");
 const { createFeedRouter } = require("./modules/feed/routes");
 const { createInteractionsRouter } = require("./modules/interactions/routes");
@@ -15,6 +16,7 @@ const { createFollowsRouter } = require("./modules/follows/routes");
 const { createMediaRouter } = require("./modules/media/routes");
 const { createReportsRouter } = require("./modules/reports/routes");
 const { createSafetyRouter } = require("./modules/safety/routes");
+const { createAnalyticsRouter } = require("./modules/analytics/routes");
 const { createMetrics } = require("./observability/metrics");
 const { authenticate, authorize } = require("./middleware/auth");
 
@@ -131,9 +133,10 @@ function createApp({ config, logger, db, analytics, mediaStorage }) {
 
   const apiRouter = express.Router();
   apiRouter.use("/auth", createAuthRouter({ config, db, analytics: app.locals.analytics }));
+  apiRouter.use("/users", createUsersRouter({ db, config }));
   apiRouter.use("/profiles", createProfileRouter({ db, config }));
   apiRouter.use("/posts", createPostsRouter({ db, config, analytics: app.locals.analytics }));
-  apiRouter.use("/feed", createFeedRouter({ db }));
+  apiRouter.use("/feed", createFeedRouter({ db, config }));
   apiRouter.use(
     "/interactions",
     createInteractionsRouter({ db, config, analytics: app.locals.analytics })
@@ -142,6 +145,7 @@ function createApp({ config, logger, db, analytics, mediaStorage }) {
   apiRouter.use("/media", createMediaRouter({ db, config, mediaStorage: app.locals.mediaStorage, analytics: app.locals.analytics }));
   apiRouter.use("/reports", createReportsRouter({ db, config, analytics: app.locals.analytics }));
   apiRouter.use("/safety", createSafetyRouter({ db, config }));
+  apiRouter.use("/analytics", createAnalyticsRouter({ db, config }));
 
   app.use("/api", apiRouter);
   app.use("/api/v1", apiRouter);

@@ -76,14 +76,64 @@ function createInteractionsRouter({ db, config, analytics }) {
         [req.user.id, postId, interactionType, commentText]
       );
       if (analytics) {
-        await analytics.trackEvent("post_interaction", {
+        await analytics.trackEvent(
+          interactionType === "benefited" ? "like_post" : "engage_post",
+          {
           userId: req.user.id,
           postId,
           interactionType
-        });
+          }
+        );
       }
 
       return res.status(201).json(result.rows[0]);
+    })
+  );
+
+  router.post(
+    "/view",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const postId = Number(req.body?.postId);
+      const watchTimeMs = Number(req.body?.watchTimeMs);
+      const completionRate = Number(req.body?.completionRate);
+
+      if (!postId) {
+        throw httpError(400, "postId must be a number");
+      }
+      if (!Number.isFinite(watchTimeMs) || watchTimeMs < 0) {
+        throw httpError(400, "watchTimeMs must be a non-negative number");
+      }
+      if (
+        !Number.isFinite(completionRate) ||
+        completionRate < 0 ||
+        completionRate > 100
+      ) {
+        throw httpError(400, "completionRate must be a number between 0 and 100");
+      }
+
+      const exists = await db.query("SELECT id FROM posts WHERE id = $1 LIMIT 1", [postId]);
+      if (exists.rowCount === 0) {
+        throw httpError(404, "Post not found");
+      }
+
+      const result = await db.query(
+        `INSERT INTO post_views (user_id, post_id, watch_time_ms, completion_rate)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, user_id, post_id, watch_time_ms, completion_rate, viewed_at`,
+        [req.user.id, postId, Math.floor(watchTimeMs), Number(completionRate.toFixed(2))]
+      );
+
+      if (analytics) {
+        await analytics.trackEvent("view_post", {
+          userId: req.user.id,
+          postId,
+          watchTimeMs: Math.floor(watchTimeMs),
+          completionRate: Number(completionRate.toFixed(2))
+        });
+      }
+
+      res.status(201).json(result.rows[0]);
     })
   );
 
