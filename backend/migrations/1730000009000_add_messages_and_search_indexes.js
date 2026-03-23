@@ -81,16 +81,11 @@ exports.up = (pgm) => {
   pgm.createIndex("messages", ["conversation_id", "id"]);
   pgm.createIndex("messages", ["sender_id", "created_at"]);
   pgm.createIndex("conversations", ["updated_at", "id"]);
-
-  pgm.createIndex("profiles", "display_name");
-  pgm.createIndex("users", "username");
   pgm.createIndex("posts", "content");
 };
 
 exports.down = (pgm) => {
   pgm.dropIndex("posts", "content");
-  pgm.dropIndex("users", "username");
-  pgm.dropIndex("profiles", "display_name");
   pgm.dropTable("messages");
   pgm.dropTable("conversation_participants");
   pgm.dropTable("conversations");
