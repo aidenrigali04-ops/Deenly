@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ResizeMode, Video } from "expo-av";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { apiRequest } from "../../lib/api";
+import { ApiError, apiRequest } from "../../lib/api";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
+import { enqueueMutation } from "../../lib/mutation-queue";
 import { colors } from "../../theme";
 import type { FeedItem } from "../../types";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
@@ -20,6 +22,9 @@ export function PostDetailScreen({ route, navigation }: Props) {
   const { id: postId } = route.params;
   const [comment, setComment] = useState("");
   const [reportReason, setReportReason] = useState("");
+  const [reportCategory, setReportCategory] = useState("other");
+  const [reportEvidenceUrl, setReportEvidenceUrl] = useState("");
+  const [message, setMessage] = useState("");
 
   const postQuery = useQuery({
     queryKey: ["mobile-post-detail", postId],
@@ -64,6 +69,8 @@ export function PostDetailScreen({ route, navigation }: Props) {
           targetType: "post",
           targetId: String(postId),
           reason: reportReason,
+          category: reportCategory,
+          evidenceUrl: reportEvidenceUrl || undefined,
           notes: ""
         }
       })
@@ -77,7 +84,9 @@ export function PostDetailScreen({ route, navigation }: Props) {
     return [
       `Benefited: ${post.benefited_count || 0}`,
       `Comments: ${post.comment_count || 0}`,
-      `Views: ${post.view_count || 0}`
+      `Views: ${post.view_count || 0}`,
+      `Avg watch: ${post.avg_watch_time_ms || 0}ms`,
+      `Completion: ${post.avg_completion_rate || 0}%`
     ];
   }, [postQuery.data]);
 
@@ -98,6 +107,15 @@ export function PostDetailScreen({ route, navigation }: Props) {
       <View style={styles.card}>
         <Text style={styles.title}>{post.content}</Text>
         <Text style={styles.muted}>{post.author_display_name}</Text>
+        {post.media_url ? (
+          <Video
+            source={{ uri: post.media_url }}
+            style={styles.video}
+            useNativeControls
+            resizeMode={ResizeMode.COVER}
+            isLooping={false}
+          />
+        ) : null}
         <View style={styles.metrics}>
           {stats?.map((value) => (
             <Text key={value} style={styles.muted}>
@@ -108,13 +126,47 @@ export function PostDetailScreen({ route, navigation }: Props) {
         <View style={styles.row}>
           <Pressable
             style={styles.buttonSecondary}
-            onPress={() => interact.mutate({ interactionType: "benefited" })}
+            onPress={async () => {
+              try {
+                await interact.mutateAsync({ interactionType: "benefited" });
+                setMessage("Marked as benefited.");
+              } catch (error) {
+                if (error instanceof ApiError && error.status === 0) {
+                  await enqueueMutation({
+                    path: "/interactions",
+                    method: "POST",
+                    auth: true,
+                    body: { postId, interactionType: "benefited" }
+                  });
+                  setMessage("Offline: benefited action queued.");
+                  return;
+                }
+                setMessage((error as Error).message || "Unable to apply interaction.");
+              }
+            }}
           >
             <Text style={styles.buttonText}>Benefited</Text>
           </Pressable>
           <Pressable
             style={styles.buttonSecondary}
-            onPress={() => interact.mutate({ interactionType: "reflect_later" })}
+            onPress={async () => {
+              try {
+                await interact.mutateAsync({ interactionType: "reflect_later" });
+                setMessage("Saved to reflect later.");
+              } catch (error) {
+                if (error instanceof ApiError && error.status === 0) {
+                  await enqueueMutation({
+                    path: "/interactions",
+                    method: "POST",
+                    auth: true,
+                    body: { postId, interactionType: "reflect_later" }
+                  });
+                  setMessage("Offline: reflect-later action queued.");
+                  return;
+                }
+                setMessage((error as Error).message || "Unable to apply interaction.");
+              }
+            }}
           >
             <Text style={styles.buttonText}>Reflect Later</Text>
           </Pressable>
@@ -139,10 +191,26 @@ export function PostDetailScreen({ route, navigation }: Props) {
         />
         <Pressable
           style={styles.button}
-          onPress={() => {
+          onPress={async () => {
             if (!comment.trim()) return;
-            interact.mutate({ interactionType: "comment", commentText: comment });
-            setComment("");
+            try {
+              await interact.mutateAsync({ interactionType: "comment", commentText: comment });
+              setComment("");
+              setMessage("Comment posted.");
+            } catch (error) {
+              if (error instanceof ApiError && error.status === 0) {
+                await enqueueMutation({
+                  path: "/interactions",
+                  method: "POST",
+                  auth: true,
+                  body: { postId, interactionType: "comment", commentText: comment }
+                });
+                setComment("");
+                setMessage("Offline: comment queued for sync.");
+                return;
+              }
+              setMessage((error as Error).message || "Unable to post comment.");
+            }
           }}
         >
           <Text style={styles.buttonText}>Post comment</Text>
@@ -158,10 +226,52 @@ export function PostDetailScreen({ route, navigation }: Props) {
           value={reportReason}
           onChangeText={setReportReason}
         />
-        <Pressable style={styles.buttonSecondary} onPress={() => reportMutation.mutate()}>
+        <TextInput
+          style={styles.inputSingle}
+          placeholder="Category (haram_content, misinformation, harassment, spam, other)"
+          placeholderTextColor={colors.muted}
+          value={reportCategory}
+          onChangeText={setReportCategory}
+        />
+        <TextInput
+          style={styles.inputSingle}
+          placeholder="Evidence URL (optional)"
+          placeholderTextColor={colors.muted}
+          value={reportEvidenceUrl}
+          onChangeText={setReportEvidenceUrl}
+        />
+        <Pressable
+          style={styles.buttonSecondary}
+          onPress={async () => {
+            try {
+              await reportMutation.mutateAsync();
+              setMessage("Report submitted.");
+            } catch (error) {
+              if (error instanceof ApiError && error.status === 0) {
+                await enqueueMutation({
+                  path: "/reports",
+                  method: "POST",
+                  auth: true,
+                  body: {
+                    targetType: "post",
+                    targetId: String(postId),
+                    reason: reportReason,
+                    category: reportCategory,
+                    evidenceUrl: reportEvidenceUrl || undefined,
+                    notes: ""
+                  }
+                });
+                setMessage("Offline: report queued for sync.");
+                return;
+              }
+              setMessage((error as Error).message || "Unable to report post.");
+            }
+          }}
+        >
           <Text style={styles.buttonText}>Submit report</Text>
         </Pressable>
       </View>
+      {message ? <Text style={styles.muted}>{message}</Text> : null}
     </ScrollView>
   );
 }
@@ -195,6 +305,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
     flexWrap: "wrap"
+  },
+  video: {
+    width: "100%",
+    height: 240,
+    borderRadius: 10,
+    backgroundColor: colors.surface
   },
   row: {
     flexDirection: "row",

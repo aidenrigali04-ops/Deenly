@@ -17,6 +17,7 @@ type Props = CompositeScreenProps<
 
 export function ProfileScreen({ navigation }: Props) {
   const setUser = useSessionStore((state) => state.setUser);
+  const adminOwnerEmail = String(process.env.EXPO_PUBLIC_ADMIN_OWNER_EMAIL || "").toLowerCase();
   const sessionQuery = useQuery({
     queryKey: ["mobile-session-me"],
     queryFn: () => fetchSessionMe()
@@ -30,6 +31,11 @@ export function ProfileScreen({ navigation }: Props) {
     await logout();
     setUser(null);
   };
+
+  const isOwnerAdmin =
+    !!sessionQuery.data &&
+    ["admin", "moderator"].includes(sessionQuery.data.role) &&
+    String(sessionQuery.data.email || "").toLowerCase() === adminOwnerEmail;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -69,6 +75,49 @@ export function ProfileScreen({ navigation }: Props) {
           <Text style={styles.buttonText}>Logout</Text>
         </Pressable>
       </View>
+      <View style={styles.row}>
+        <Pressable style={styles.buttonSecondary} onPress={() => navigation.navigate("Beta")}>
+          <Text style={styles.buttonText}>Beta</Text>
+        </Pressable>
+        <Pressable style={styles.buttonSecondary} onPress={() => navigation.navigate("Support")}>
+          <Text style={styles.buttonText}>Support</Text>
+        </Pressable>
+        <Pressable style={styles.buttonSecondary} onPress={() => navigation.navigate("Guidelines")}>
+          <Text style={styles.buttonText}>Guidelines</Text>
+        </Pressable>
+      </View>
+      {isOwnerAdmin ? (
+        <>
+          <View style={styles.row}>
+            <Pressable
+              style={styles.buttonSecondary}
+              onPress={() => navigation.navigate("AdminModeration")}
+            >
+              <Text style={styles.buttonText}>Admin moderation</Text>
+            </Pressable>
+            <Pressable
+              style={styles.buttonSecondary}
+              onPress={() => navigation.navigate("AdminOperations")}
+            >
+              <Text style={styles.buttonText}>Admin operations</Text>
+            </Pressable>
+          </View>
+          <View style={styles.row}>
+            <Pressable
+              style={styles.buttonSecondary}
+              onPress={() => navigation.navigate("AdminAnalytics")}
+            >
+              <Text style={styles.buttonText}>Admin analytics</Text>
+            </Pressable>
+            <Pressable
+              style={styles.buttonSecondary}
+              onPress={() => navigation.navigate("AdminTables")}
+            >
+              <Text style={styles.buttonText}>Admin tables</Text>
+            </Pressable>
+          </View>
+        </>
+      ) : null}
     </ScrollView>
   );
 }

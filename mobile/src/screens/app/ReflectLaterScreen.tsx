@@ -9,12 +9,12 @@ import { colors } from "../../theme";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 
 type ReflectResponse = {
-  items: Array<{
+  items: {
     id: number;
     post_id: number;
     content: string;
     post_type: string;
-  }>;
+  }[];
 };
 
 type Props = CompositeScreenProps<

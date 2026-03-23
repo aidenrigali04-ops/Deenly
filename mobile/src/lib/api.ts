@@ -1,4 +1,5 @@
-import { getAccessToken } from "./storage";
+import NetInfo from "@react-native-community/netinfo";
+import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "./storage";
 
 const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000/api/v1";
@@ -24,6 +25,19 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+let refreshInFlight: Promise<string | null> | null = null;
+
+async function isOffline() {
+  const state = await NetInfo.fetch();
+  if (state.isConnected === false) {
+    return true;
+  }
+  if (state.isInternetReachable === false) {
+    return true;
+  }
+  return false;
+}
+
 async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: number) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -34,56 +48,122 @@ async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: num
   }
 }
 
-export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json"
-  };
-
-  if (options.auth) {
-    const token = await getAccessToken();
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
+async function refreshAccessToken(timeoutMs: number) {
+  if (refreshInFlight) {
+    return refreshInFlight;
   }
 
+  refreshInFlight = (async () => {
+    const refreshToken = await getRefreshToken();
+    if (!refreshToken) {
+      return null;
+    }
+
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/auth/refresh`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ refreshToken })
+      },
+      timeoutMs
+    );
+
+    if (!response.ok) {
+      await clearTokens();
+      return null;
+    }
+
+    const payload = await response.json().catch(() => null);
+    const accessToken = payload?.tokens?.accessToken;
+    const newRefreshToken = payload?.tokens?.refreshToken;
+    if (!accessToken || !newRefreshToken) {
+      await clearTokens();
+      return null;
+    }
+
+    await setTokens(accessToken, newRefreshToken);
+    return accessToken as string;
+  })()
+    .catch(async () => {
+      await clearTokens();
+      return null;
+    })
+    .finally(() => {
+      refreshInFlight = null;
+    });
+
+  return refreshInFlight;
+}
+
+export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const method = options.method || "GET";
   const timeoutMs = options.timeoutMs ?? 8000;
   const retries = options.retries ?? (method === "GET" ? 2 : 1);
-  const requestInit: RequestInit = {
-    method,
-    headers,
-    body: options.body ? JSON.stringify(options.body) : undefined
-  };
 
-  let lastError: Error | null = null;
-  for (let attempt = 0; attempt <= retries; attempt += 1) {
-    try {
-      const response = await fetchWithTimeout(
-        `${API_BASE_URL}${path}`,
-        requestInit,
-        timeoutMs
-      );
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        const apiError = new ApiError(payload.message || "Request failed", response.status);
-        if (response.status >= 500 && attempt < retries) {
+  if (method !== "GET" && (await isOffline())) {
+    throw new ApiError("You are offline. Please reconnect and try again.", 0);
+  }
+
+  const execute = async (authToken?: string) => {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json"
+    };
+
+    if (options.auth) {
+      const token = authToken || (await getAccessToken());
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+    }
+
+    const requestInit: RequestInit = {
+      method,
+      headers,
+      body: options.body ? JSON.stringify(options.body) : undefined
+    };
+
+    let didRefresh = false;
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+      try {
+        const response = await fetchWithTimeout(`${API_BASE_URL}${path}`, requestInit, timeoutMs);
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          if (response.status === 401 && options.auth && !didRefresh) {
+            didRefresh = true;
+            const token = await refreshAccessToken(timeoutMs);
+            if (token) {
+              headers.Authorization = `Bearer ${token}`;
+              continue;
+            }
+          }
+
+          const apiError = new ApiError(payload.message || "Request failed", response.status);
+          if (response.status >= 500 && attempt < retries) {
+            await sleep(250 * 2 ** attempt);
+            continue;
+          }
+          throw apiError;
+        }
+        return payload as T;
+      } catch (error) {
+        lastError = error as Error;
+        if (attempt < retries) {
           await sleep(250 * 2 ** attempt);
           continue;
         }
-        throw apiError;
-      }
-      return payload as T;
-    } catch (error) {
-      lastError = error as Error;
-      if (attempt < retries) {
-        await sleep(250 * 2 ** attempt);
-        continue;
       }
     }
-  }
 
-  if (lastError instanceof ApiError) {
-    throw lastError;
-  }
-  throw new ApiError("Network request failed. Please try again.", 0);
+    if (lastError instanceof ApiError) {
+      throw lastError;
+    }
+    throw new ApiError("Network request failed. Please try again.", 0);
+  };
+
+  return execute();
 }

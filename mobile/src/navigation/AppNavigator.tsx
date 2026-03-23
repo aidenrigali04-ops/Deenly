@@ -18,6 +18,13 @@ import { PostDetailScreen } from "../screens/app/PostDetailScreen";
 import { UserProfileScreen } from "../screens/app/UserProfileScreen";
 import { OnboardingScreen } from "../screens/app/OnboardingScreen";
 import { SessionsScreen } from "../screens/app/SessionsScreen";
+import { BetaScreen } from "../screens/app/BetaScreen";
+import { SupportScreen } from "../screens/app/SupportScreen";
+import { GuidelinesScreen } from "../screens/app/GuidelinesScreen";
+import { AdminModerationScreen } from "../screens/app/AdminModerationScreen";
+import { AdminOperationsScreen } from "../screens/app/AdminOperationsScreen";
+import { AdminAnalyticsScreen } from "../screens/app/AdminAnalyticsScreen";
+import { AdminTablesScreen } from "../screens/app/AdminTablesScreen";
 
 export type AppTabParamList = {
   FeedTab: undefined;
@@ -35,6 +42,13 @@ export type RootStackParamList = {
   UserProfile: { id: number };
   Onboarding: undefined;
   Sessions: undefined;
+  Beta: undefined;
+  Support: undefined;
+  Guidelines: undefined;
+  AdminModeration: undefined;
+  AdminOperations: undefined;
+  AdminAnalytics: undefined;
+  AdminTables: undefined;
 };
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
@@ -151,6 +165,37 @@ export function AppNavigator() {
               name="Sessions"
               component={SessionsScreen}
               options={{ title: "Sessions" }}
+            />
+            <RootStack.Screen name="Beta" component={BetaScreen} options={{ title: "Beta" }} />
+            <RootStack.Screen
+              name="Support"
+              component={SupportScreen}
+              options={{ title: "Support" }}
+            />
+            <RootStack.Screen
+              name="Guidelines"
+              component={GuidelinesScreen}
+              options={{ title: "Guidelines" }}
+            />
+            <RootStack.Screen
+              name="AdminModeration"
+              component={AdminModerationScreen}
+              options={{ title: "Admin Moderation" }}
+            />
+            <RootStack.Screen
+              name="AdminOperations"
+              component={AdminOperationsScreen}
+              options={{ title: "Admin Operations" }}
+            />
+            <RootStack.Screen
+              name="AdminAnalytics"
+              component={AdminAnalyticsScreen}
+              options={{ title: "Admin Analytics" }}
+            />
+            <RootStack.Screen
+              name="AdminTables"
+              component={AdminTablesScreen}
+              options={{ title: "Admin Tables" }}
             />
           </>
         )}

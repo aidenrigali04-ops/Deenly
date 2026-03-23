@@ -8,7 +8,7 @@ Production-oriented React Native mobile app for Deenly with parity-focused archi
 - React Navigation (native stack + bottom tabs)
 - TanStack Query
 - Zustand
-- AsyncStorage token/session persistence
+- SecureStore + AsyncStorage token/session persistence fallback
 
 ## Setup
 
@@ -22,6 +22,17 @@ Production-oriented React Native mobile app for Deenly with parity-focused archi
    - `npm run start`
    - `npm run ios` or `npm run android`
 
+## Release scaffolding (iOS + Android)
+
+- EAS profiles are defined in `eas.json` for both `preview` and `production`.
+- Ensure these env vars are set in EAS/CI:
+  - `EXPO_PUBLIC_API_BASE_URL`
+  - `EXPO_PUBLIC_ADMIN_OWNER_EMAIL`
+- CI workflows:
+  - `.github/workflows/mobile-ci.yml`
+  - `.github/workflows/mobile-release-gates.yml`
+  - `.github/workflows/mobile-e2e-smoke.yml`
+
 ## Scripts
 
 - `npm run start`
@@ -29,19 +40,25 @@ Production-oriented React Native mobile app for Deenly with parity-focused archi
 - `npm run android`
 - `npm run web`
 - `npm run typecheck`
+- `npm run lint`
+- `npm run test`
+- `npm run test:e2e:smoke`
+- `npm run doctor`
+- `npm run verify:release-gates`
 
 ## Implemented parity foundation
 
 - Auth: login/signup + session bootstrap
 - Feed: cursor pagination + detail navigation
-- Create: text post creation
+- Create: signed upload + media attach + post creation
 - Interactions: benefited/comment/report on post detail
 - Reflect later: list flow
 - Notifications inbox
 - Profile + follow/unfollow + sessions + onboarding interests
+- Reliability: offline banner + queued critical mutation sync
+- Admin/Beta/Support/Guidelines screens for parity coverage
 
 ## Next parity steps
 
-- Signed media upload flow in mobile create screen
-- Admin mobile surfaces (as needed by role)
-- Offline queue/retry UX polish and push notifications
+- Native device E2E runner (Maestro/Detox) for UI automation
+- Push notification delivery and background handling

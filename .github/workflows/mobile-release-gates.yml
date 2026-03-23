@@ -1,0 +1,37 @@
+name: mobile-release-gates
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "mobile/**"
+      - ".github/workflows/mobile-release-gates.yml"
+
+jobs:
+  release-gates:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify release gates
+        run: npm run verify:release-gates
+
+      - name: Validate iOS + Android build profiles
+        run: |
+          node -e "const eas=require('./eas.json'); if(!eas.build.preview.ios||!eas.build.preview.android||!eas.build.production.ios||!eas.build.production.android){process.exit(1)}"

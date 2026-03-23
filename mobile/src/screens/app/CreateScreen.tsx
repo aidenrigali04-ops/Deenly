@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import * as DocumentPicker from "expo-document-picker";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { CompositeScreenProps } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -8,6 +9,11 @@ import { colors } from "../../theme";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 
 type CreatePostResponse = { id: number };
+type UploadSignatureResponse = {
+  uploadUrl: string;
+  headers: Record<string, string>;
+  key: string;
+};
 type Props = CompositeScreenProps<
   BottomTabScreenProps<AppTabParamList, "CreateTab">,
   NativeStackScreenProps<RootStackParamList>
@@ -18,8 +24,19 @@ export function CreateScreen({ navigation }: Props) {
     "community"
   );
   const [content, setContent] = useState("");
+  const [selectedFile, setSelectedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  const pickMedia = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ["video/*", "audio/*"],
+      copyToCacheDirectory: true
+    });
+    if (!result.canceled && result.assets.length > 0) {
+      setSelectedFile(result.assets[0]);
+    }
+  };
 
   const createPost = async () => {
     setIsSubmitting(true);
@@ -33,7 +50,42 @@ export function CreateScreen({ navigation }: Props) {
           content
         }
       });
+
+      if (selectedFile) {
+        const signature = await apiRequest<UploadSignatureResponse>("/media/upload-signature", {
+          method: "POST",
+          auth: true,
+          body: {
+            mediaType: selectedFile.mimeType?.startsWith("audio/") ? "audio" : "video",
+            mimeType: selectedFile.mimeType || "video/mp4",
+            originalFilename: selectedFile.name,
+            fileSizeBytes: selectedFile.size || 0
+          }
+        });
+
+        const fileResponse = await fetch(selectedFile.uri);
+        const fileBlob = await fileResponse.blob();
+
+        await fetch(signature.uploadUrl, {
+          method: "PUT",
+          headers: signature.headers,
+          body: fileBlob
+        });
+
+        await apiRequest(`/media/posts/${post.id}/attach`, {
+          method: "POST",
+          auth: true,
+          body: {
+            mediaKey: signature.key,
+            mediaUrl: signature.key,
+            mimeType: selectedFile.mimeType || "video/mp4",
+            fileSizeBytes: selectedFile.size || fileBlob.size || 1
+          }
+        });
+      }
+
       setContent("");
+      setSelectedFile(null);
       navigation.navigate("PostDetail", { id: post.id });
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Unable to create post";
@@ -65,13 +117,22 @@ export function CreateScreen({ navigation }: Props) {
         value={content}
         onChangeText={setContent}
       />
+      <View style={styles.fileRow}>
+        <Pressable style={styles.buttonSecondary} onPress={pickMedia}>
+          <Text style={styles.buttonText}>Attach media</Text>
+        </Pressable>
+        {selectedFile ? (
+          <Text style={styles.muted} numberOfLines={1}>
+            {selectedFile.name}
+          </Text>
+        ) : (
+          <Text style={styles.muted}>Optional: video/audio upload</Text>
+        )}
+      </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Pressable style={styles.button} onPress={createPost} disabled={isSubmitting}>
-        <Text style={styles.buttonText}>{isSubmitting ? "Publishing..." : "Publish"}</Text>
+        <Text style={styles.buttonPrimaryText}>{isSubmitting ? "Publishing..." : "Publish"}</Text>
       </Pressable>
-      <Text style={styles.note}>
-        Mobile file upload is next (signed upload + attach). Text post creation is ready now.
-      </Text>
     </View>
   );
 }
@@ -124,14 +185,28 @@ const styles = StyleSheet.create({
     alignItems: "center"
   },
   buttonText: {
+    color: colors.text,
+    fontWeight: "700"
+  },
+  buttonPrimaryText: {
     color: colors.background,
     fontWeight: "700"
   },
-  error: {
-    color: colors.danger
+  buttonSecondary: {
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8
   },
-  note: {
+  fileRow: {
+    gap: 8
+  },
+  muted: {
     color: colors.muted,
     fontSize: 12
+  },
+  error: {
+    color: colors.danger
   }
 });

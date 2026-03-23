@@ -15,6 +15,14 @@ on:
         description: "Frontend origin (e.g. https://app.example.com)"
         required: false
         type: string
+      expo_public_api_base_url:
+        description: "Mobile EXPO_PUBLIC_API_BASE_URL"
+        required: true
+        type: string
+      expo_public_admin_owner_email:
+        description: "Mobile EXPO_PUBLIC_ADMIN_OWNER_EMAIL"
+        required: true
+        type: string
 
 jobs:
   parity-check:
@@ -45,4 +53,6 @@ jobs:
           JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
           NEXT_PUBLIC_API_BASE_URL: ${{ inputs.next_public_api_base_url }}
           NEXT_PUBLIC_ADMIN_OWNER_EMAIL: ${{ inputs.next_public_admin_owner_email }}
+          EXPO_PUBLIC_API_BASE_URL: ${{ inputs.expo_public_api_base_url }}
+          EXPO_PUBLIC_ADMIN_OWNER_EMAIL: ${{ inputs.expo_public_admin_owner_email }}
           FRONTEND_APP_ORIGIN: ${{ inputs.frontend_app_origin }}

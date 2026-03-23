@@ -11,6 +11,10 @@ const frontendApiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 const frontendAdminOwner = String(process.env.NEXT_PUBLIC_ADMIN_OWNER_EMAIL || "")
   .trim()
   .toLowerCase();
+const mobileApiBase = process.env.EXPO_PUBLIC_API_BASE_URL || "";
+const mobileAdminOwner = String(process.env.EXPO_PUBLIC_ADMIN_OWNER_EMAIL || "")
+  .trim()
+  .toLowerCase();
 const frontendOrigin = process.env.FRONTEND_APP_ORIGIN || "";
 
 if (!corsOriginsRaw) {
@@ -28,11 +32,23 @@ if (!frontendApiBase) {
 if (!frontendAdminOwner) {
   fail("NEXT_PUBLIC_ADMIN_OWNER_EMAIL is required for parity check");
 }
+if (!mobileApiBase) {
+  fail("EXPO_PUBLIC_API_BASE_URL is required for parity check");
+}
+if (!mobileAdminOwner) {
+  fail("EXPO_PUBLIC_ADMIN_OWNER_EMAIL is required for parity check");
+}
 if (adminOwnerEmail !== frontendAdminOwner) {
   fail("ADMIN_OWNER_EMAIL and NEXT_PUBLIC_ADMIN_OWNER_EMAIL must match");
 }
+if (adminOwnerEmail !== mobileAdminOwner) {
+  fail("ADMIN_OWNER_EMAIL and EXPO_PUBLIC_ADMIN_OWNER_EMAIL must match");
+}
 if (!frontendApiBase.endsWith("/api/v1")) {
   fail("NEXT_PUBLIC_API_BASE_URL must end with /api/v1");
+}
+if (!mobileApiBase.endsWith("/api/v1")) {
+  fail("EXPO_PUBLIC_API_BASE_URL must end with /api/v1");
 }
 
 if (frontendOrigin) {

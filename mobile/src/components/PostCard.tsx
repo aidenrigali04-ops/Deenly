@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { ResizeMode, Video } from "expo-av";
 import { colors } from "../theme";
 import type { FeedItem } from "../types";
 
@@ -19,6 +20,15 @@ export function PostCard({
       </View>
       <Text style={styles.type}>{item.post_type}</Text>
       <Text style={styles.content}>{item.content}</Text>
+      {item.media_url ? (
+        <Video
+          source={{ uri: item.media_url }}
+          style={styles.video}
+          useNativeControls
+          resizeMode={ResizeMode.COVER}
+          isLooping={false}
+        />
+      ) : null}
       <View style={styles.metricsRow}>
         <Text style={styles.muted}>Benefited: {item.benefited_count || 0}</Text>
         <Text style={styles.muted}>Comments: {item.comment_count || 0}</Text>
@@ -63,6 +73,12 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 14,
     lineHeight: 20
+  },
+  video: {
+    width: "100%",
+    height: 200,
+    borderRadius: 10,
+    backgroundColor: colors.surface
   },
   metricsRow: {
     flexDirection: "row",
