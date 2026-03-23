@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -7,7 +8,7 @@ import { ApiError } from "@/lib/api";
 import { fetchSessionMe, login } from "@/lib/auth";
 import { useSessionStore } from "@/store/session-store";
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const setUser = useSessionStore((state) => state.setUser);
@@ -69,5 +70,13 @@ export default function LoginPage() {
         </p>
       </form>
     </section>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<section className="mx-auto max-w-md py-10 text-sm text-muted">Loading...</section>}>
+      <LoginPageContent />
+    </Suspense>
   );
 }

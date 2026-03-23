@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -7,7 +8,7 @@ import { ApiError } from "@/lib/api";
 import { fetchSessionMe, signup } from "@/lib/auth";
 import { useSessionStore } from "@/store/session-store";
 
-export default function SignupPage() {
+function SignupPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const setUser = useSessionStore((state) => state.setUser);
@@ -89,5 +90,13 @@ export default function SignupPage() {
         </p>
       </form>
     </section>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<section className="mx-auto max-w-md py-10 text-sm text-muted">Loading...</section>}>
+      <SignupPageContent />
+    </Suspense>
   );
 }
