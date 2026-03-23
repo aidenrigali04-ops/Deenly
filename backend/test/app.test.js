@@ -25,7 +25,13 @@ describe("backend app", () => {
   };
 
   const logger = createLogger(config);
-  const app = createApp({ config, db, logger });
+  const mediaStorage = {
+    createUploadSignature: async () => ({ uploadUrl: "https://mock-upload.local/test" })
+  };
+  const analytics = {
+    trackEvent: async () => {}
+  };
+  const app = createApp({ config, db, logger, mediaStorage, analytics });
 
   it("returns health payload", async () => {
     const response = await request(app).get("/health");

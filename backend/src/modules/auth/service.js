@@ -25,7 +25,29 @@ function issueTokens(config, user) {
   return { accessToken, refreshToken };
 }
 
-function createAuthService({ db, config }) {
+function ttlIntervalExpr(ttlValue) {
+  const ttl = String(ttlValue || "30d").trim();
+  const match = ttl.match(/^(\d+)\s*([smhdw])$/i);
+  if (!match) {
+    return "30 days";
+  }
+
+  const amount = Number(match[1]);
+  const unit = match[2].toLowerCase();
+  const unitMap = {
+    s: "seconds",
+    m: "minutes",
+    h: "hours",
+    d: "days",
+    w: "weeks"
+  };
+
+  return `${amount} ${unitMap[unit]}`;
+}
+
+function createAuthService({ db, config, analytics }) {
+  const refreshInterval = ttlIntervalExpr(config.jwtRefreshTtl);
+
   async function register(input) {
     const email = requireString(input.email, "email", 5, 254).toLowerCase();
     const password = requireString(input.password, "password", 8, 128);
@@ -50,9 +72,12 @@ function createAuthService({ db, config }) {
     const tokens = issueTokens(config, user);
     await db.query(
       `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-       VALUES ($1, $2, NOW() + INTERVAL '30 days')`,
-      [user.id, await argon2.hash(tokens.refreshToken)]
+       VALUES ($1, $2, NOW() + $3::interval)`,
+      [user.id, await argon2.hash(tokens.refreshToken), refreshInterval]
     );
+    if (analytics) {
+      await analytics.trackEvent("auth_signup", { userId: user.id });
+    }
 
     return {
       user,
@@ -85,9 +110,12 @@ function createAuthService({ db, config }) {
     const tokens = issueTokens(config, user);
     await db.query(
       `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-       VALUES ($1, $2, NOW() + INTERVAL '30 days')`,
-      [user.id, await argon2.hash(tokens.refreshToken)]
+       VALUES ($1, $2, NOW() + $3::interval)`,
+      [user.id, await argon2.hash(tokens.refreshToken), refreshInterval]
     );
+    if (analytics) {
+      await analytics.trackEvent("auth_login", { userId: user.id });
+    }
 
     return {
       user: {
@@ -163,8 +191,8 @@ function createAuthService({ db, config }) {
     const tokens = issueTokens(config, user);
     await db.query(
       `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-       VALUES ($1, $2, NOW() + INTERVAL '30 days')`,
-      [user.id, await argon2.hash(tokens.refreshToken)]
+       VALUES ($1, $2, NOW() + $3::interval)`,
+      [user.id, await argon2.hash(tokens.refreshToken), refreshInterval]
     );
 
     return { tokens };

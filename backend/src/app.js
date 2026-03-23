@@ -12,6 +12,11 @@ const { createPostsRouter } = require("./modules/posts/routes");
 const { createFeedRouter } = require("./modules/feed/routes");
 const { createInteractionsRouter } = require("./modules/interactions/routes");
 const { createFollowsRouter } = require("./modules/follows/routes");
+const { createMediaRouter } = require("./modules/media/routes");
+const { createReportsRouter } = require("./modules/reports/routes");
+const { createSafetyRouter } = require("./modules/safety/routes");
+const { createMetrics } = require("./observability/metrics");
+const { authenticate, authorize } = require("./middleware/auth");
 
 function createCorsOptions(config) {
   if (config.corsOrigins.length === 0) {
@@ -31,8 +36,11 @@ function createCorsOptions(config) {
   };
 }
 
-function createApp({ config, logger, db }) {
+function createApp({ config, logger, db, analytics, mediaStorage }) {
   const app = express();
+  const metrics = createMetrics();
+  app.locals.analytics = analytics || null;
+  app.locals.mediaStorage = mediaStorage;
 
   if (config.trustProxy) {
     app.set("trust proxy", 1);
@@ -60,6 +68,7 @@ function createApp({ config, logger, db }) {
     })
   );
   app.use(express.json({ limit: "1mb" }));
+  app.use(metrics.middleware());
 
   app.get(
     "/health",
@@ -120,12 +129,33 @@ function createApp({ config, logger, db }) {
     });
   });
 
-  app.use("/api/auth", createAuthRouter({ config, db }));
-  app.use("/api/profiles", createProfileRouter({ db, config }));
-  app.use("/api/posts", createPostsRouter({ db, config }));
-  app.use("/api/feed", createFeedRouter({ db }));
-  app.use("/api/interactions", createInteractionsRouter({ db, config }));
-  app.use("/api/follows", createFollowsRouter({ db, config }));
+  const apiRouter = express.Router();
+  apiRouter.use("/auth", createAuthRouter({ config, db, analytics: app.locals.analytics }));
+  apiRouter.use("/profiles", createProfileRouter({ db, config }));
+  apiRouter.use("/posts", createPostsRouter({ db, config, analytics: app.locals.analytics }));
+  apiRouter.use("/feed", createFeedRouter({ db }));
+  apiRouter.use(
+    "/interactions",
+    createInteractionsRouter({ db, config, analytics: app.locals.analytics })
+  );
+  apiRouter.use("/follows", createFollowsRouter({ db, config, analytics: app.locals.analytics }));
+  apiRouter.use("/media", createMediaRouter({ db, config, mediaStorage: app.locals.mediaStorage, analytics: app.locals.analytics }));
+  apiRouter.use("/reports", createReportsRouter({ db, config, analytics: app.locals.analytics }));
+  apiRouter.use("/safety", createSafetyRouter({ db, config }));
+
+  app.use("/api", apiRouter);
+  app.use("/api/v1", apiRouter);
+
+  const authMiddleware = authenticate({ config, db });
+  const modGuard = authorize(["moderator", "admin"]);
+  app.get(
+    "/ops/metrics",
+    authMiddleware,
+    modGuard,
+    asyncHandler(async (_req, res) => {
+      res.status(200).json(metrics.snapshot());
+    })
+  );
 
   app.use(notFoundHandler);
   app.use(errorHandler(logger));

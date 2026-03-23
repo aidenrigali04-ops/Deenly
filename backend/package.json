@@ -17,6 +17,8 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.726.1",
+    "@aws-sdk/s3-request-presigner": "^3.726.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express-rate-limit": "^7.4.1",

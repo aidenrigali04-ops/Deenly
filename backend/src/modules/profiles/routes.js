@@ -82,6 +82,30 @@ function createProfileRouter({ db, config }) {
     })
   );
 
+  router.get(
+    "/",
+    asyncHandler(async (req, res) => {
+      const limit = Math.min(Number(req.query.limit) || 20, 50);
+      const offset = Math.max(Number(req.query.offset) || 0, 0);
+      const search = (req.query.search || "").toString().trim();
+
+      const result = await db.query(
+        `SELECT p.user_id, p.display_name, p.bio, p.avatar_url, p.created_at, p.updated_at
+         FROM profiles p
+         WHERE ($1::text = '' OR p.display_name ILIKE ('%' || $1 || '%'))
+         ORDER BY p.display_name ASC
+         LIMIT $2 OFFSET $3`,
+        [search, limit, offset]
+      );
+
+      res.status(200).json({
+        limit,
+        offset,
+        items: result.rows
+      });
+    })
+  );
+
   return router;
 }
 

@@ -3,7 +3,7 @@ const { authenticate } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
 const { httpError } = require("../../utils/http-error");
 
-function createFollowsRouter({ db, config }) {
+function createFollowsRouter({ db, config, analytics }) {
   const router = express.Router();
   const authMiddleware = authenticate({
     config: config || { jwtAccessSecret: process.env.JWT_ACCESS_SECRET || "" },
@@ -28,6 +28,12 @@ function createFollowsRouter({ db, config }) {
          ON CONFLICT (follower_id, following_id) DO NOTHING`,
         [req.user.id, followingId]
       );
+      if (analytics) {
+        await analytics.trackEvent("user_followed", {
+          followerId: req.user.id,
+          followingId
+        });
+      }
 
       res.status(201).json({
         status: "ok",

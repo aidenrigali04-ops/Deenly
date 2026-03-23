@@ -6,7 +6,15 @@ const { httpError } = require("../../utils/http-error");
 
 const INTERACTION_TYPES = new Set(["benefited", "reflect_later", "comment"]);
 
-function createInteractionsRouter({ db, config }) {
+function containsBlockedTerm(text, blockedTerms) {
+  if (!text || !blockedTerms || blockedTerms.length === 0) {
+    return false;
+  }
+  const content = text.toLowerCase();
+  return blockedTerms.some((term) => content.includes(term.toLowerCase()));
+}
+
+function createInteractionsRouter({ db, config, analytics }) {
   const router = express.Router();
   const authMiddleware = authenticate({
     config: config || { jwtAccessSecret: process.env.JWT_ACCESS_SECRET || "" },
@@ -36,6 +44,12 @@ function createInteractionsRouter({ db, config }) {
         interactionType === "comment"
           ? requireString(req.body?.commentText, "commentText", 1, 2000)
           : optionalString(req.body?.commentText, "commentText", 2000);
+      if (
+        interactionType === "comment" &&
+        containsBlockedTerm(commentText, config.commentBlockedTerms)
+      ) {
+        throw httpError(400, "Comment includes blocked language");
+      }
 
       const existing = await db.query(
         `SELECT id
@@ -61,6 +75,13 @@ function createInteractionsRouter({ db, config }) {
          RETURNING id, user_id, post_id, interaction_type, comment_text, created_at`,
         [req.user.id, postId, interactionType, commentText]
       );
+      if (analytics) {
+        await analytics.trackEvent("post_interaction", {
+          userId: req.user.id,
+          postId,
+          interactionType
+        });
+      }
 
       return res.status(201).json(result.rows[0]);
     })

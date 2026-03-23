@@ -51,11 +51,11 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Test
-        run: npm test
-
       - name: Migrations up
         run: npm run migrate:up
+
+      - name: Test
+        run: npm test
 
       - name: Migrations down
         run: npm run migrate:down

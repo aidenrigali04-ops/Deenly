@@ -14,7 +14,8 @@ module.exports = [
         require: "readonly",
         __dirname: "readonly",
         __filename: "readonly",
-        Buffer: "readonly"
+        Buffer: "readonly",
+        setTimeout: "readonly"
       }
     },
     rules: {
@@ -29,6 +30,7 @@ module.exports = [
         it: "readonly",
         expect: "readonly",
         beforeAll: "readonly",
+        beforeEach: "readonly",
         afterAll: "readonly",
         jest: "readonly"
       }

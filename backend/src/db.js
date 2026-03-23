@@ -46,10 +46,18 @@ function createDb(config) {
     return pool.query(text, params);
   }
 
+  async function close() {
+    if (!pool) {
+      return;
+    }
+    await pool.end();
+  }
+
   return {
     pool,
     query,
-    checkConnection
+    checkConnection,
+    close
   };
 }
 

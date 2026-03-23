@@ -1,6 +1,7 @@
 const DEFAULT_PORT = 3000;
 const VALID_NODE_ENVS = new Set(["development", "test", "production"]);
 const VALID_DB_SSL_MODES = new Set(["disable", "require", "no-verify"]);
+const VALID_MEDIA_PROVIDERS = new Set(["mock", "s3"]);
 
 function parsePort(value) {
   if (value === undefined || value === null || value === "") {
@@ -39,6 +40,24 @@ function parseBoolean(value, defaultValue = false) {
   return String(value).toLowerCase() === "true";
 }
 
+function parseNumber(value, defaultValue) {
+  if (value === undefined || value === null || value === "") {
+    return defaultValue;
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    throw new Error("Invalid numeric value in environment configuration");
+  }
+  return parsed;
+}
+
+function parseList(value) {
+  return String(value || "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
 function loadEnv(envSource = process.env) {
   const nodeEnv = envSource.NODE_ENV || "development";
   if (!VALID_NODE_ENVS.has(nodeEnv)) {
@@ -58,11 +77,32 @@ function loadEnv(envSource = process.env) {
     jwtAccessTtl: envSource.JWT_ACCESS_TTL || "15m",
     jwtRefreshTtl: envSource.JWT_REFRESH_TTL || "30d",
     logLevel: envSource.LOG_LEVEL || "info",
-    trustProxy: parseBoolean(envSource.TRUST_PROXY, false)
+    trustProxy: parseBoolean(envSource.TRUST_PROXY, false),
+    processingWebhookToken: envSource.PROCESSING_WEBHOOK_TOKEN || "",
+    mediaProvider: envSource.MEDIA_PROVIDER || "mock",
+    mediaMaxUploadBytes: parseNumber(envSource.MEDIA_MAX_UPLOAD_BYTES, 100 * 1024 * 1024),
+    mediaAllowedMimeTypes: parseList(
+      envSource.MEDIA_ALLOWED_MIME_TYPES ||
+        "video/mp4,video/quicktime,audio/mpeg,audio/wav,image/jpeg,image/png"
+    ),
+    awsRegion: envSource.AWS_REGION || "",
+    awsS3Bucket: envSource.AWS_S3_BUCKET || "",
+    commentBlockedTerms: parseList(envSource.COMMENT_BLOCKED_TERMS)
   };
 
   if (!VALID_DB_SSL_MODES.has(config.dbSslMode)) {
     throw new Error("DB_SSL_MODE must be disable, require, or no-verify");
+  }
+  if (!VALID_MEDIA_PROVIDERS.has(config.mediaProvider)) {
+    throw new Error("MEDIA_PROVIDER must be mock or s3");
+  }
+  if (config.mediaProvider === "s3") {
+    if (!config.awsRegion) {
+      throw new Error("AWS_REGION is required when MEDIA_PROVIDER=s3");
+    }
+    if (!config.awsS3Bucket) {
+      throw new Error("AWS_S3_BUCKET is required when MEDIA_PROVIDER=s3");
+    }
   }
 
   if (config.isProduction && !config.databaseUrl) {

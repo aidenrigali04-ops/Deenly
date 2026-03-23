@@ -1,0 +1,109 @@
+openapi: 3.0.3
+info:
+  title: Deenly Backend API
+  version: 1.0.0
+servers:
+  - url: /api/v1
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Error:
+      type: object
+      properties:
+        status:
+          type: string
+        message:
+          type: string
+        requestId:
+          type: string
+paths:
+  /auth/register:
+    post:
+      summary: Register user account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, displayName]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+                displayName: { type: string }
+      responses:
+        "201":
+          description: Registered
+  /auth/login:
+    post:
+      summary: Authenticate user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        "200":
+          description: Logged in
+  /auth/session/me:
+    get:
+      summary: Get authenticated session user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user
+  /posts:
+    post:
+      summary: Create post
+      security:
+        - bearerAuth: []
+      responses:
+        "201":
+          description: Post created
+    get:
+      summary: List posts
+      parameters:
+        - in: query
+          name: postType
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 50 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0 }
+      responses:
+        "200":
+          description: Post list
+  /feed:
+    get:
+      summary: Get ranked feed items
+      responses:
+        "200":
+          description: Feed list
+  /media/upload-signature:
+    post:
+      summary: Generate signed media upload URL
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Signed upload data
+  /reports:
+    post:
+      summary: Submit moderation report
+      security:
+        - bearerAuth: []
+      responses:
+        "201":
+          description: Report created

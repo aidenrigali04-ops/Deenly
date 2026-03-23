@@ -32,6 +32,8 @@ function createFeedRouter({ db }) {
          JOIN profiles pr ON pr.user_id = p.author_id
          LEFT JOIN interactions i ON i.post_id = p.id
          WHERE ($1::text IS NULL OR p.post_type = $1::text)
+           AND p.visibility_status = 'visible'
+           AND p.media_status IN ('ready', 'none')
          GROUP BY p.id, pr.display_name
          ORDER BY (p.created_at
            + ((COALESCE(SUM(CASE WHEN i.interaction_type = 'comment' THEN 1 ELSE 0 END), 0) * interval '2 minutes')
