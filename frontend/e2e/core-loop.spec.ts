@@ -14,12 +14,34 @@ async function register(
   return response.json();
 }
 
+async function ensureUser(
+  request: APIRequestContext,
+  payload: { email: string; username: string; password: string; displayName: string }
+) {
+  const registerResponse = await request.post(`${backendBaseUrl}/auth/register`, {
+    data: payload
+  });
+
+  if (registerResponse.ok()) {
+    return registerResponse.json();
+  }
+
+  const loginResponse = await request.post(`${backendBaseUrl}/auth/login`, {
+    data: {
+      email: payload.email,
+      password: payload.password
+    }
+  });
+  expect(loginResponse.ok()).toBeTruthy();
+  return loginResponse.json();
+}
+
 async function loginViaUi(page: Page, baseURL: string, email: string, password: string) {
   await page.goto(`${baseURL}/auth/login`);
   await page.getByPlaceholder("Email").fill(email);
   await page.getByPlaceholder("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/feed$/);
+  await expect(page).toHaveURL(/\/home$/);
 }
 
 test("core loop: signup/login, create+upload, feed pagination, interact/follow/report", async ({
@@ -57,7 +79,7 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
   await page.getByPlaceholder("Display name").fill("Viewer");
   await page.getByPlaceholder("Password").fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page).toHaveURL(/\/feed$/);
+  await expect(page).toHaveURL(/\/home$/);
 
   await page.getByRole("button", { name: "Logout" }).click();
   await expect(page).toHaveURL(/\/auth\/login$/);
@@ -65,7 +87,7 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
   await page.getByPlaceholder("Email").fill(`viewer-${timestamp}@example.com`);
   await page.getByPlaceholder("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/feed$/);
+  await expect(page).toHaveURL(/\/home$/);
 
   await expect(page.getByRole("button", { name: "Load more" })).toBeVisible();
   await page.getByRole("button", { name: "Load more" }).click();
@@ -98,18 +120,19 @@ test("admin feedback loop: owner access, tables, and operations form", async ({
   request,
   baseURL
 }) => {
+  const timestamp = Date.now();
   const password = "StrongPass123";
-  const adminEmail = "admin-e2e@example.com";
-  const target = await register(request, {
-    email: "target-e2e@example.com",
-    username: "target_e2e",
+  const adminEmail = process.env.E2E_ADMIN_OWNER_EMAIL || "admin-e2e@example.com";
+  const target = await ensureUser(request, {
+    email: `target-e2e-${timestamp}@example.com`,
+    username: `target_e2e_${timestamp}`,
     password,
     displayName: "Target User"
   });
 
-  await register(request, {
+  await ensureUser(request, {
     email: adminEmail,
-    username: "admin_e2e",
+    username: `admin_e2e_${timestamp}`,
     password,
     displayName: "Admin Owner"
   });

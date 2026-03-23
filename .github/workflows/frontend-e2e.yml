@@ -10,6 +10,8 @@ on:
 jobs:
   e2e:
     runs-on: ubuntu-latest
+    env:
+      E2E_ADMIN_OWNER_EMAIL: admin-e2e+${{ github.run_id }}-${{ github.run_attempt }}@example.com
     services:
       postgres:
         image: postgres:16
@@ -62,7 +64,7 @@ jobs:
         run: npm run build
         env:
           NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:4000/api/v1
-          NEXT_PUBLIC_ADMIN_OWNER_EMAIL: admin-e2e@example.com
+          NEXT_PUBLIC_ADMIN_OWNER_EMAIL: ${{ env.E2E_ADMIN_OWNER_EMAIL }}
 
       - name: Start backend
         working-directory: backend
@@ -75,7 +77,7 @@ jobs:
           CORS_ORIGINS: http://127.0.0.1:3001,http://localhost:3001
           JWT_ACCESS_SECRET: e2e-access-secret
           JWT_REFRESH_SECRET: e2e-refresh-secret
-          ADMIN_OWNER_EMAIL: admin-e2e@example.com
+          ADMIN_OWNER_EMAIL: ${{ env.E2E_ADMIN_OWNER_EMAIL }}
           MEDIA_PROVIDER: mock
           MOCK_UPLOAD_BASE_URL: http://127.0.0.1:4000
           TRUST_PROXY: false
@@ -85,12 +87,12 @@ jobs:
         run: npm run start -- -p 3001 &
         env:
           NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:4000/api/v1
-          NEXT_PUBLIC_ADMIN_OWNER_EMAIL: admin-e2e@example.com
+          NEXT_PUBLIC_ADMIN_OWNER_EMAIL: ${{ env.E2E_ADMIN_OWNER_EMAIL }}
 
       - name: Wait for services
         run: |
           npx wait-on http://127.0.0.1:4000/health
-          npx wait-on http://127.0.0.1:3001/feed
+          npx wait-on http://127.0.0.1:3001/home
 
       - name: Run E2E tests
         working-directory: frontend
@@ -98,3 +100,4 @@ jobs:
         env:
           E2E_BASE_URL: http://127.0.0.1:3001
           BACKEND_API_URL: http://127.0.0.1:4000/api/v1
+          E2E_ADMIN_OWNER_EMAIL: ${{ env.E2E_ADMIN_OWNER_EMAIL }}
