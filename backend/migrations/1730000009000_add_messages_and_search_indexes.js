@@ -22,6 +22,31 @@ exports.up = (pgm) => {
     }
   });
 
+  pgm.createTable("messages", {
+    id: "id",
+    conversation_id: {
+      type: "integer",
+      notNull: true,
+      references: "conversations(id)",
+      onDelete: "cascade"
+    },
+    sender_id: {
+      type: "integer",
+      notNull: true,
+      references: "users(id)",
+      onDelete: "cascade"
+    },
+    body: {
+      type: "text",
+      notNull: true
+    },
+    created_at: {
+      type: "timestamptz",
+      notNull: true,
+      default: pgm.func("current_timestamp")
+    }
+  });
+
   pgm.createTable("conversation_participants", {
     id: "id",
     conversation_id: {
@@ -43,31 +68,6 @@ exports.up = (pgm) => {
     },
     last_read_at: {
       type: "timestamptz"
-    },
-    created_at: {
-      type: "timestamptz",
-      notNull: true,
-      default: pgm.func("current_timestamp")
-    }
-  });
-
-  pgm.createTable("messages", {
-    id: "id",
-    conversation_id: {
-      type: "integer",
-      notNull: true,
-      references: "conversations(id)",
-      onDelete: "cascade"
-    },
-    sender_id: {
-      type: "integer",
-      notNull: true,
-      references: "users(id)",
-      onDelete: "cascade"
-    },
-    body: {
-      type: "text",
-      notNull: true
     },
     created_at: {
       type: "timestamptz",
