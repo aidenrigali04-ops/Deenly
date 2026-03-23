@@ -9,6 +9,9 @@ function createMediaStorage(config) {
       ? new S3Client({ region: config.awsRegion })
       : null;
 
+  const mockUploadBaseUrl =
+    config.mockUploadBaseUrl || `http://localhost:${config.port}`;
+
   async function createUploadSignature({
     userId,
     mediaType,
@@ -37,7 +40,7 @@ function createMediaStorage(config) {
         provider: "mock",
         key,
         method: "PUT",
-        uploadUrl: `https://mock-upload.local/${key}`,
+        uploadUrl: `${mockUploadBaseUrl}/mock-upload/${key}`,
         headers: {
           "content-type": mimeType
         },

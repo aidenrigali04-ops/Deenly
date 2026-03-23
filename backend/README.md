@@ -37,6 +37,26 @@ Production-focused Node/Express backend for the Deenly Muslim social platform.
 - Stable client routes are under `/api/v1/*`
 - Legacy routes remain under `/api/*` for compatibility
 - OpenAPI contract: [`openapi.yaml`](openapi.yaml)
+- Frozen route groups for frontend compatibility:
+  - `/api/v1/auth`
+  - `/api/v1/users`
+  - `/api/v1/posts`
+  - `/api/v1/feed`
+  - `/api/v1/interactions`
+  - `/api/v1/reports`
+
+## API Deprecation Policy
+
+- `/api/v1/*` is backward-compatible by default.
+- Breaking changes require:
+  - a new versioned route group,
+  - changelog entry in this README,
+  - migration guidance for frontend clients.
+- Deprecated fields or endpoints must stay available for at least one release cycle.
+
+## Changelog
+
+- 2026-03: Added post-MVP program foundations (admin table views, notifications, interests, support and beta flows, moderation warning/restriction/appeal lifecycle).
 
 ## API Surface (MVP + Safety + Media)
 
@@ -66,8 +86,11 @@ Production-focused Node/Express backend for the Deenly Muslim social platform.
 
 - `POST /api/v1/interactions` (auth)
 - `GET /api/v1/interactions/post/:postId`
+- `GET /api/v1/interactions/me?type=reflect_later` (auth)
 - `POST /api/v1/follows/:userId` (auth)
 - `DELETE /api/v1/follows/:userId` (auth)
+- `GET /api/v1/follows/:userId/followers`
+- `GET /api/v1/follows/:userId/following`
 
 ### Media Pipeline
 
@@ -80,10 +103,34 @@ Production-focused Node/Express backend for the Deenly Muslim social platform.
 - `POST /api/v1/reports` (auth)
 - `GET /api/v1/reports/queue?status=open` (moderator/admin)
 - `POST /api/v1/reports/:reportId/actions` (moderator/admin)
+- `GET /api/v1/reports/:reportId/actions` (moderator/admin)
+- `POST /api/v1/reports/appeals` (auth)
 - `POST /api/v1/safety/block/:userId` (auth)
 - `DELETE /api/v1/safety/block/:userId` (auth)
 - `POST /api/v1/safety/mute/:userId` (auth)
 - `DELETE /api/v1/safety/mute/:userId` (auth)
+
+### Notifications, Sessions, Beta, and Support
+
+- `GET /api/v1/notifications` (auth)
+- `POST /api/v1/notifications/:notificationId/read` (auth)
+- `GET /api/v1/users/me/interests` (auth)
+- `PUT /api/v1/users/me/interests` (auth)
+- `GET /api/v1/users/me/sessions` (auth)
+- `POST /api/v1/users/me/sessions/:sessionId/revoke` (auth)
+- `POST /api/v1/beta/waitlist`
+- `POST /api/v1/beta/invite/redeem` (auth)
+- `POST /api/v1/support/tickets`
+- `GET /api/v1/support/my-tickets` (auth)
+
+### Admin Console APIs (moderator/admin)
+
+- `GET /api/v1/admin/tables/:table` (full DB table coverage)
+- `POST /api/v1/admin/warnings`
+- `POST /api/v1/admin/restrictions`
+- `POST /api/v1/admin/appeals/:appealId/review`
+- `POST /api/v1/admin/invites`
+- `POST /api/v1/admin/support/:ticketId`
 
 ## Railway Deployment and Rollback Runbook
 
@@ -108,6 +155,7 @@ Rollback policy:
 - If deploy fails before migration: rollback service to previous image/revision.
 - If migration causes issue: run `npm run migrate:down` once, redeploy previous good revision, and verify smoke checks.
 - Never run multiple down migrations in production without data review.
+- Follow [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md) before and after every production release.
 
 ## CI/CD Guardrails
 

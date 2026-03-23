@@ -3,6 +3,7 @@ const { authenticate } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
 const { optionalString, requireString } = require("../../utils/validators");
 const { httpError } = require("../../utils/http-error");
+const { createNotification } = require("../../services/notifications");
 
 const INTERACTION_TYPES = new Set(["benefited", "reflect_later", "comment"]);
 
@@ -44,6 +45,21 @@ function createInteractionsRouter({ db, config, analytics }) {
         interactionType === "comment"
           ? requireString(req.body?.commentText, "commentText", 1, 2000)
           : optionalString(req.body?.commentText, "commentText", 2000);
+      if (interactionType === "comment") {
+        const restriction = await db.query(
+          `SELECT id
+           FROM user_restrictions
+           WHERE user_id = $1
+             AND is_active = true
+             AND restriction_type IN ('comment_suspended', 'account_suspended')
+             AND (ends_at IS NULL OR ends_at > NOW())
+           LIMIT 1`,
+          [req.user.id]
+        );
+        if (restriction.rowCount > 0) {
+          throw httpError(403, "Commenting is temporarily restricted");
+        }
+      }
       if (
         interactionType === "comment" &&
         containsBlockedTerm(commentText, config.commentBlockedTerms)
@@ -75,6 +91,17 @@ function createInteractionsRouter({ db, config, analytics }) {
          RETURNING id, user_id, post_id, interaction_type, comment_text, created_at`,
         [req.user.id, postId, interactionType, commentText]
       );
+      const postOwnerResult = await db.query(
+        "SELECT author_id FROM posts WHERE id = $1 LIMIT 1",
+        [postId]
+      );
+      const postOwnerId = postOwnerResult.rows[0]?.author_id || null;
+      if (postOwnerId && postOwnerId !== req.user.id) {
+        await createNotification(db, postOwnerId, `post_${interactionType}`, {
+          actorUserId: req.user.id,
+          postId
+        });
+      }
       if (analytics) {
         await analytics.trackEvent(
           interactionType === "benefited" ? "like_post" : "engage_post",
@@ -134,6 +161,38 @@ function createInteractionsRouter({ db, config, analytics }) {
       }
 
       res.status(201).json(result.rows[0]);
+    })
+  );
+
+  router.get(
+    "/me",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const type = req.query.type ? String(req.query.type) : null;
+      const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+      const offset = Math.max(Number(req.query.offset) || 0, 0);
+
+      if (type && !INTERACTION_TYPES.has(type)) {
+        throw httpError(400, "Unsupported interaction type");
+      }
+
+      const result = await db.query(
+        `SELECT i.id, i.post_id, i.interaction_type, i.comment_text, i.created_at,
+                p.content, p.post_type, p.media_url
+         FROM interactions i
+         JOIN posts p ON p.id = i.post_id
+         WHERE i.user_id = $1
+           AND ($2::text IS NULL OR i.interaction_type = $2::text)
+         ORDER BY i.created_at DESC
+         LIMIT $3 OFFSET $4`,
+        [req.user.id, type, limit, offset]
+      );
+
+      res.status(200).json({
+        limit,
+        offset,
+        items: result.rows
+      });
     })
   );
 

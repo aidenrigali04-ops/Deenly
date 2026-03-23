@@ -7,7 +7,15 @@ import { useSessionStore } from "@/store/session-store";
 
 const links = [
   { href: "/feed", label: "Feed" },
-  { href: "/create", label: "Create" }
+  { href: "/create", label: "Create" },
+  { href: "/reflect-later", label: "Reflect Later" },
+  { href: "/notifications", label: "Inbox" },
+  { href: "/onboarding", label: "Interests" },
+  { href: "/sessions", label: "Sessions" },
+  { href: "/beta", label: "Beta" },
+  { href: "/support", label: "Support" },
+  { href: "/admin", label: "Admin" },
+  { href: "/guidelines", label: "Guidelines" }
 ];
 
 export function Nav() {

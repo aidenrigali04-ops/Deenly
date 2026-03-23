@@ -3,6 +3,7 @@ const { authenticate } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
 const { optionalString, requireString } = require("../../utils/validators");
 const { httpError } = require("../../utils/http-error");
+const INTEREST_KEYS = new Set(["recitation", "community", "short_video"]);
 
 function createUsersRouter({ db, config }) {
   const router = express.Router();
@@ -25,6 +26,88 @@ function createUsersRouter({ db, config }) {
       );
       if (result.rowCount === 0) {
         throw httpError(404, "User profile not found");
+      }
+      res.status(200).json(result.rows[0]);
+    })
+  );
+
+  router.get(
+    "/me/interests",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const result = await db.query(
+        `SELECT interest_key, created_at
+         FROM user_interests
+         WHERE user_id = $1
+         ORDER BY created_at ASC`,
+        [req.user.id]
+      );
+
+      res.status(200).json({
+        items: result.rows.map((row) => row.interest_key)
+      });
+    })
+  );
+
+  router.put(
+    "/me/interests",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const interests = Array.isArray(req.body?.interests) ? req.body.interests : [];
+      const normalized = interests
+        .map((entry) => String(entry).trim())
+        .filter(Boolean)
+        .filter((entry) => INTEREST_KEYS.has(entry));
+
+      await db.query("DELETE FROM user_interests WHERE user_id = $1", [req.user.id]);
+      for (const interestKey of [...new Set(normalized)]) {
+        await db.query(
+          `INSERT INTO user_interests (user_id, interest_key)
+           VALUES ($1, $2)`,
+          [req.user.id, interestKey]
+        );
+      }
+
+      res.status(200).json({
+        items: [...new Set(normalized)]
+      });
+    })
+  );
+
+  router.get(
+    "/me/sessions",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const result = await db.query(
+        `SELECT id, user_id, expires_at, revoked_at, created_at
+         FROM refresh_tokens
+         WHERE user_id = $1
+         ORDER BY created_at DESC
+         LIMIT 50`,
+        [req.user.id]
+      );
+      res.status(200).json({ items: result.rows });
+    })
+  );
+
+  router.post(
+    "/me/sessions/:sessionId/revoke",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const sessionId = Number(req.params.sessionId);
+      if (!sessionId) {
+        throw httpError(400, "sessionId must be a number");
+      }
+      const result = await db.query(
+        `UPDATE refresh_tokens
+         SET revoked_at = NOW()
+         WHERE id = $1
+           AND user_id = $2
+         RETURNING id, revoked_at`,
+        [sessionId, req.user.id]
+      );
+      if (result.rowCount === 0) {
+        throw httpError(404, "Session not found");
       }
       res.status(200).json(result.rows[0]);
     })

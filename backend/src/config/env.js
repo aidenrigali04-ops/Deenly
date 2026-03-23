@@ -87,7 +87,8 @@ function loadEnv(envSource = process.env) {
     ),
     awsRegion: envSource.AWS_REGION || "",
     awsS3Bucket: envSource.AWS_S3_BUCKET || "",
-    commentBlockedTerms: parseList(envSource.COMMENT_BLOCKED_TERMS)
+    commentBlockedTerms: parseList(envSource.COMMENT_BLOCKED_TERMS),
+    mockUploadBaseUrl: envSource.MOCK_UPLOAD_BASE_URL || ""
   };
 
   if (!VALID_DB_SSL_MODES.has(config.dbSslMode)) {

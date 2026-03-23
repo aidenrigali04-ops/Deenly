@@ -24,6 +24,7 @@
 - `npm run lint`
 - `npm run typecheck`
 - `npm run build`
+- `npm run test:e2e`
 
 ## Implemented MVP Screens
 
@@ -33,3 +34,12 @@
 - `/create` (post + signed upload + attach)
 - `/posts/[id]` (detail + interactions + report)
 - `/users/[id]` (profile + follow/unfollow)
+- `/reflect-later` (saved reflections)
+- `/onboarding` (interest selection)
+- `/notifications` (in-app inbox)
+- `/sessions` (session security controls)
+- `/beta` (waitlist + invite redeem)
+- `/support` (support ticket intake)
+- `/admin` + `/admin/tables/[table]` (full backend table coverage)
+- `/admin/analytics` (funnel/retention/feed-health dashboard)
+- `/admin/moderation` + `/admin/operations` (warnings, restrictions, appeals, invites, support triage)

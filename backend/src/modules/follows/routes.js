@@ -2,6 +2,7 @@ const express = require("express");
 const { authenticate } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
 const { httpError } = require("../../utils/http-error");
+const { createNotification } = require("../../services/notifications");
 
 function createFollowsRouter({ db, config, analytics }) {
   const router = express.Router();
@@ -34,12 +35,65 @@ function createFollowsRouter({ db, config, analytics }) {
           followingId
         });
       }
+      await createNotification(db, followingId, "new_follower", {
+        actorUserId: req.user.id
+      });
 
       res.status(201).json({
         status: "ok",
         followerId: req.user.id,
         followingId
       });
+    })
+  );
+
+  router.get(
+    "/:userId/followers",
+    asyncHandler(async (req, res) => {
+      const userId = Number(req.params.userId);
+      if (!userId) {
+        throw httpError(400, "userId must be a number");
+      }
+      const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+      const offset = Math.max(Number(req.query.offset) || 0, 0);
+
+      const result = await db.query(
+        `SELECT f.follower_id AS user_id, p.display_name, u.username, f.created_at
+         FROM follows f
+         JOIN profiles p ON p.user_id = f.follower_id
+         JOIN users u ON u.id = f.follower_id
+         WHERE f.following_id = $1
+         ORDER BY f.created_at DESC
+         LIMIT $2 OFFSET $3`,
+        [userId, limit, offset]
+      );
+
+      res.status(200).json({ limit, offset, items: result.rows });
+    })
+  );
+
+  router.get(
+    "/:userId/following",
+    asyncHandler(async (req, res) => {
+      const userId = Number(req.params.userId);
+      if (!userId) {
+        throw httpError(400, "userId must be a number");
+      }
+      const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+      const offset = Math.max(Number(req.query.offset) || 0, 0);
+
+      const result = await db.query(
+        `SELECT f.following_id AS user_id, p.display_name, u.username, f.created_at
+         FROM follows f
+         JOIN profiles p ON p.user_id = f.following_id
+         JOIN users u ON u.id = f.following_id
+         WHERE f.follower_id = $1
+         ORDER BY f.created_at DESC
+         LIMIT $2 OFFSET $3`,
+        [userId, limit, offset]
+      );
+
+      res.status(200).json({ limit, offset, items: result.rows });
     })
   );
 

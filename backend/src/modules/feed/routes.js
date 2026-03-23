@@ -130,7 +130,17 @@ function createFeedRouter({ db, config }) {
                       AND ap.author_id = p.author_id
                       AND pi.interaction_type IN ('benefited', 'comment')
                   ), 0)
-                END AS affinity_score
+                END AS affinity_score,
+                CASE
+                  WHEN $1::int IS NULL THEN 0
+                  WHEN EXISTS (
+                    SELECT 1
+                    FROM user_interests ui
+                    WHERE ui.user_id = $1
+                      AND ui.interest_key = p.post_type
+                  ) THEN 1.8
+                  ELSE 0
+                END AS interest_boost
          FROM posts p
          JOIN profiles pr ON pr.user_id = p.author_id
          LEFT JOIN interactions i ON i.post_id = p.id
@@ -164,6 +174,7 @@ function createFeedRouter({ db, config }) {
                     + (avg_completion_rate * 2)
                     + (follow_boost * 300)
                     + (affinity_score * 45)
+                    + (interest_boost * 220)
                   )::numeric AS rank_score
            FROM post_agg
          )

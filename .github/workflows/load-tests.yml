@@ -1,0 +1,31 @@
+name: load-tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Base API URL (include /api/v1)"
+        required: true
+        type: string
+
+jobs:
+  run-load-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo apt-get update
+          sudo apt-get install -y gnupg2 ca-certificates
+          curl -s https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+
+      - name: Run feed load test
+        run: k6 run loadtests/feed-post.js
+        env:
+          BASE_URL: ${{ inputs.base_url }}

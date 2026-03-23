@@ -27,6 +27,14 @@ describeIfDatabase("integration api flows", () => {
   const app = createApp({ config, logger, db, analytics, mediaStorage });
 
   async function cleanDb() {
+    await db.query("TRUNCATE TABLE appeals RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE user_restrictions RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE user_warnings RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE notifications RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE user_interests RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE beta_invites RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE waitlist_entries RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE support_tickets RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE post_views RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE moderation_actions RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE reports RESTART IDENTITY CASCADE");
@@ -196,5 +204,57 @@ describeIfDatabase("integration api flows", () => {
     expect(postDetails.body.view_count).toBeGreaterThanOrEqual(1);
     expect(Number(postDetails.body.avg_watch_time_ms)).toBeGreaterThan(0);
     expect(Number(postDetails.body.avg_completion_rate)).toBeGreaterThan(0);
+  });
+
+  it("supports onboarding interests, notifications, beta flow, and support ticket", async () => {
+    const userRegister = await request(app).post("/api/v1/auth/register").send({
+      email: "growth-user@example.com",
+      username: "growth_user",
+      password: "StrongPass123",
+      displayName: "Growth User"
+    });
+    const adminRegister = await request(app).post("/api/v1/auth/register").send({
+      email: "admin-growth@example.com",
+      username: "growth_admin",
+      password: "StrongPass123",
+      displayName: "Growth Admin"
+    });
+
+    const userToken = userRegister.body.tokens.accessToken;
+    const adminToken = adminRegister.body.tokens.accessToken;
+    await db.query("UPDATE users SET role = 'admin' WHERE id = $1", [adminRegister.body.user.id]);
+
+    const updateInterests = await request(app)
+      .put("/api/v1/users/me/interests")
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({ interests: ["recitation", "community"] });
+    expect(updateInterests.statusCode).toBe(200);
+    expect(updateInterests.body.items).toContain("recitation");
+
+    const waitlist = await request(app).post("/api/v1/beta/waitlist").send({
+      email: "beta-user@example.com",
+      source: "test"
+    });
+    expect(waitlist.statusCode).toBe(201);
+
+    const invite = await request(app)
+      .post("/api/v1/admin/invites")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ email: "beta-user@example.com", maxUses: 1 });
+    expect(invite.statusCode).toBe(201);
+    expect(invite.body.code).toBeDefined();
+
+    const redeem = await request(app)
+      .post("/api/v1/beta/invite/redeem")
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({ code: invite.body.code });
+    expect(redeem.statusCode).toBe(200);
+
+    const ticket = await request(app).post("/api/v1/support/tickets").send({
+      email: "beta-user@example.com",
+      subject: "Need help",
+      message: "Cannot upload from my current browser."
+    });
+    expect(ticket.statusCode).toBe(201);
   });
 });

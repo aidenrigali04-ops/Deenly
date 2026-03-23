@@ -1,6 +1,7 @@
 import "./globals.css";
 import { Nav } from "@/components/nav";
 import { Providers } from "@/components/providers";
+import { ReliabilityBanner } from "@/components/reliability-banner";
 
 export const metadata = {
   title: "Deenly",
@@ -13,7 +14,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <Providers>
           <Nav />
-          <main className="container-shell py-6">{children}</main>
+          <main className="container-shell py-6">
+            <ReliabilityBanner />
+            {children}
+          </main>
         </Providers>
       </body>
     </html>

@@ -6,6 +6,8 @@ type RequestOptions = {
   method?: "GET" | "POST" | "PUT" | "DELETE";
   body?: unknown;
   auth?: boolean;
+  timeoutMs?: number;
+  retries?: number;
 };
 
 export class ApiError extends Error {
@@ -17,7 +19,27 @@ export class ApiError extends Error {
   }
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  if (typeof window !== "undefined" && options.method !== "GET" && navigator && !navigator.onLine) {
+    throw new ApiError("You appear to be offline. Please reconnect and try again.", 0);
+  }
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json"
   };
@@ -29,16 +51,39 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     }
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: options.method || "GET",
+  const method = options.method || "GET";
+  const timeoutMs = options.timeoutMs ?? 8000;
+  const retries = options.retries ?? (method === "GET" ? 2 : 1);
+  const requestInit: RequestInit = {
+    method,
     headers,
     body: options.body ? JSON.stringify(options.body) : undefined
-  });
+  };
 
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new ApiError(payload.message || "Request failed", response.status);
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      const response = await fetchWithTimeout(`${API_BASE_URL}${path}`, requestInit, timeoutMs);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const apiError = new ApiError(payload.message || "Request failed", response.status);
+        if (response.status >= 500 && attempt < retries) {
+          await sleep(250 * 2 ** attempt);
+          continue;
+        }
+        throw apiError;
+      }
+      return payload as T;
+    } catch (error) {
+      lastError = error as Error;
+      if (attempt < retries) {
+        await sleep(250 * 2 ** attempt);
+        continue;
+      }
+    }
   }
-
-  return payload as T;
+  if (lastError instanceof ApiError) {
+    throw lastError;
+  }
+  throw new ApiError("Network request failed. Please try again.", 0);
 }

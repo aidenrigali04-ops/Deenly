@@ -17,6 +17,20 @@ function createPostsRouter({ db, config, analytics }) {
     "/",
     authMiddleware,
     asyncHandler(async (req, res) => {
+      const restriction = await db.query(
+        `SELECT id
+         FROM user_restrictions
+         WHERE user_id = $1
+           AND is_active = true
+           AND restriction_type IN ('posting_suspended', 'account_suspended')
+           AND (ends_at IS NULL OR ends_at > NOW())
+         LIMIT 1`,
+        [req.user.id]
+      );
+      if (restriction.rowCount > 0) {
+        throw httpError(403, "Posting is temporarily restricted");
+      }
+
       const postType = requireString(req.body?.postType, "postType", 3, 32);
       if (!POST_TYPES.has(postType)) {
         throw httpError(400, "postType must be recitation, community, or short_video");

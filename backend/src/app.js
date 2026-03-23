@@ -17,6 +17,10 @@ const { createMediaRouter } = require("./modules/media/routes");
 const { createReportsRouter } = require("./modules/reports/routes");
 const { createSafetyRouter } = require("./modules/safety/routes");
 const { createAnalyticsRouter } = require("./modules/analytics/routes");
+const { createNotificationsRouter } = require("./modules/notifications/routes");
+const { createAdminRouter } = require("./modules/admin/routes");
+const { createBetaRouter } = require("./modules/beta/routes");
+const { createSupportRouter } = require("./modules/support/routes");
 const { createMetrics } = require("./observability/metrics");
 const { authenticate, authorize } = require("./middleware/auth");
 
@@ -131,6 +135,10 @@ function createApp({ config, logger, db, analytics, mediaStorage }) {
     });
   });
 
+  app.put("/mock-upload/*", (_req, res) => {
+    res.status(200).json({ status: "ok" });
+  });
+
   const apiRouter = express.Router();
   apiRouter.use("/auth", createAuthRouter({ config, db, analytics: app.locals.analytics }));
   apiRouter.use("/users", createUsersRouter({ db, config }));
@@ -146,6 +154,10 @@ function createApp({ config, logger, db, analytics, mediaStorage }) {
   apiRouter.use("/reports", createReportsRouter({ db, config, analytics: app.locals.analytics }));
   apiRouter.use("/safety", createSafetyRouter({ db, config }));
   apiRouter.use("/analytics", createAnalyticsRouter({ db, config }));
+  apiRouter.use("/notifications", createNotificationsRouter({ db, config }));
+  apiRouter.use("/admin", createAdminRouter({ db, config }));
+  apiRouter.use("/beta", createBetaRouter({ db, config }));
+  apiRouter.use("/support", createSupportRouter({ db, config }));
 
   app.use("/api", apiRouter);
   app.use("/api/v1", apiRouter);

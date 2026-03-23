@@ -7,6 +7,13 @@ const { optionalString, requireString } = require("../../utils/validators");
 const REPORT_TARGET_TYPES = new Set(["post", "user", "comment"]);
 const REPORT_STATUSES = new Set(["open", "reviewing", "resolved", "dismissed"]);
 const MOD_ACTIONS = new Set(["hide_post", "remove_post", "suspend_user", "restore_post"]);
+const REPORT_CATEGORIES = new Set([
+  "haram_content",
+  "misinformation",
+  "harassment",
+  "spam",
+  "other"
+]);
 
 function createReportsRouter({ db, config, analytics }) {
   const router = express.Router();
@@ -24,13 +31,19 @@ function createReportsRouter({ db, config, analytics }) {
 
       const targetId = requireString(req.body?.targetId, "targetId", 1, 64);
       const reason = requireString(req.body?.reason, "reason", 3, 200);
+      const category =
+        optionalString(req.body?.category, "category", 32) || "other";
+      if (!REPORT_CATEGORIES.has(category)) {
+        throw httpError(400, "Unsupported report category");
+      }
       const notes = optionalString(req.body?.notes, "notes", 1000);
+      const evidenceUrl = optionalString(req.body?.evidenceUrl, "evidenceUrl", 1000);
 
       const result = await db.query(
-        `INSERT INTO reports (reporter_user_id, target_type, target_id, reason, notes, status)
-         VALUES ($1, $2, $3, $4, $5, 'open')
-         RETURNING id, reporter_user_id, target_type, target_id, reason, notes, status, created_at`,
-        [req.user.id, targetType, targetId, reason, notes]
+        `INSERT INTO reports (reporter_user_id, target_type, target_id, reason, notes, status, category, evidence_url)
+         VALUES ($1, $2, $3, $4, $5, 'open', $6, $7)
+         RETURNING id, reporter_user_id, target_type, target_id, reason, notes, status, category, evidence_url, created_at`,
+        [req.user.id, targetType, targetId, reason, notes, category, evidenceUrl]
       );
 
       if (analytics) {
@@ -55,12 +68,34 @@ function createReportsRouter({ db, config, analytics }) {
       }
 
       const result = await db.query(
-        `SELECT id, reporter_user_id, target_type, target_id, reason, notes, status, reviewed_by, reviewed_at, created_at
+        `SELECT id, reporter_user_id, target_type, target_id, reason, notes, status, category, evidence_url, reviewed_by, reviewed_at, created_at
          FROM reports
          WHERE status = $1
          ORDER BY created_at ASC
          LIMIT 100`,
         [status]
+      );
+
+      res.status(200).json({ items: result.rows });
+    })
+  );
+
+  router.get(
+    "/:reportId/actions",
+    authMiddleware,
+    modGuard,
+    asyncHandler(async (req, res) => {
+      const reportId = Number(req.params.reportId);
+      if (!reportId) {
+        throw httpError(400, "reportId must be a number");
+      }
+
+      const result = await db.query(
+        `SELECT id, report_id, moderator_user_id, action_type, note, created_at
+         FROM moderation_actions
+         WHERE report_id = $1
+         ORDER BY created_at DESC`,
+        [reportId]
       );
 
       res.status(200).json({ items: result.rows });
@@ -144,6 +179,27 @@ function createReportsRouter({ db, config, analytics }) {
       }
 
       res.status(200).json(report.rows[0]);
+    })
+  );
+
+  router.post(
+    "/appeals",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const reportId = req.body?.reportId ? Number(req.body.reportId) : null;
+      const restrictionId = req.body?.restrictionId
+        ? Number(req.body.restrictionId)
+        : null;
+      const message = requireString(req.body?.message, "message", 10, 3000);
+
+      const result = await db.query(
+        `INSERT INTO appeals (user_id, report_id, restriction_id, message, status)
+         VALUES ($1, $2, $3, $4, 'open')
+         RETURNING id, user_id, report_id, restriction_id, message, status, created_at`,
+        [req.user.id, reportId, restrictionId, message]
+      );
+
+      res.status(201).json(result.rows[0]);
     })
   );
 

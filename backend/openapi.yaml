@@ -231,3 +231,47 @@ paths:
       responses:
         "200":
           description: Media attached
+  /notifications:
+    get:
+      summary: List in-app notifications
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Notifications list
+  /users/me/interests:
+    get:
+      summary: List current user interests
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Interests list
+    put:
+      summary: Replace current user interests
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Interests updated
+  /users/me/sessions:
+    get:
+      summary: List refresh sessions for current user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Sessions list
+  /admin/tables/{table}:
+    get:
+      summary: Admin table viewer endpoint
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: table
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Table rows
