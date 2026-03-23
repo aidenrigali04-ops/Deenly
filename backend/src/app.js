@@ -23,6 +23,7 @@ const { createBetaRouter } = require("./modules/beta/routes");
 const { createSupportRouter } = require("./modules/support/routes");
 const { createMetrics } = require("./observability/metrics");
 const { authenticate, authorize } = require("./middleware/auth");
+const { httpError } = require("./utils/http-error");
 
 function createCorsOptions(config) {
   if (config.corsOrigins.length === 0) {
@@ -43,6 +44,18 @@ function createCorsOptions(config) {
 }
 
 function createApp({ config, logger, db, analytics, mediaStorage }) {
+  function requireAdminOwner(req, _res, next) {
+    const ownerEmail = String(config.adminOwnerEmail || "").toLowerCase();
+    if (!ownerEmail) {
+      return next(httpError(503, "ADMIN_OWNER_EMAIL is not configured"));
+    }
+    const requesterEmail = String(req.user?.email || "").toLowerCase();
+    if (requesterEmail !== ownerEmail) {
+      return next(httpError(403, "Admin access is restricted"));
+    }
+    return next();
+  }
+
   const app = express();
   const metrics = createMetrics();
   app.locals.analytics = analytics || null;
@@ -155,7 +168,13 @@ function createApp({ config, logger, db, analytics, mediaStorage }) {
   apiRouter.use("/safety", createSafetyRouter({ db, config }));
   apiRouter.use("/analytics", createAnalyticsRouter({ db, config }));
   apiRouter.use("/notifications", createNotificationsRouter({ db, config }));
-  apiRouter.use("/admin", createAdminRouter({ db, config }));
+  apiRouter.use(
+    "/admin",
+    authenticate({ config, db }),
+    authorize(["moderator", "admin"]),
+    requireAdminOwner,
+    createAdminRouter({ db, config })
+  );
   apiRouter.use("/beta", createBetaRouter({ db, config }));
   apiRouter.use("/support", createSupportRouter({ db, config }));
 

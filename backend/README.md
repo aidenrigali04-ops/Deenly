@@ -141,6 +141,7 @@ Production-focused Node/Express backend for the Deenly Muslim social platform.
    - `DATABASE_URL=${{Postgres.DATABASE_URL}}`
    - `DB_SSL_MODE=no-verify` (Railway managed cert mode)
    - JWT secrets, CORS, media settings
+   - `ADMIN_OWNER_EMAIL` set to the only account allowed on `/api/v1/admin/*`
 4. Deploy service.
 5. Run `npm run migrate:up` against target DB.
 6. Smoke test:

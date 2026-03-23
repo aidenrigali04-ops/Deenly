@@ -78,6 +78,7 @@ function loadEnv(envSource = process.env) {
     jwtRefreshTtl: envSource.JWT_REFRESH_TTL || "30d",
     logLevel: envSource.LOG_LEVEL || "info",
     trustProxy: parseBoolean(envSource.TRUST_PROXY, false),
+    adminOwnerEmail: String(envSource.ADMIN_OWNER_EMAIL || "").trim().toLowerCase(),
     processingWebhookToken: envSource.PROCESSING_WEBHOOK_TOKEN || "",
     mediaProvider: envSource.MEDIA_PROVIDER || "mock",
     mediaMaxUploadBytes: parseNumber(envSource.MEDIA_MAX_UPLOAD_BYTES, 100 * 1024 * 1024),

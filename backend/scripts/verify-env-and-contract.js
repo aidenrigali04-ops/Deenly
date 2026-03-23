@@ -33,7 +33,12 @@ function main() {
   const backendKeys = parseEnvKeys(backendEnv);
   const frontendKeys = parseEnvKeys(frontendEnv);
 
-  const requiredBackend = ["CORS_ORIGINS", "JWT_ACCESS_SECRET", "JWT_REFRESH_SECRET"];
+  const requiredBackend = [
+    "CORS_ORIGINS",
+    "JWT_ACCESS_SECRET",
+    "JWT_REFRESH_SECRET",
+    "ADMIN_OWNER_EMAIL"
+  ];
   for (const key of requiredBackend) {
     if (!backendKeys.includes(key)) {
       fail(`Missing ${key} in backend/.env.example`);

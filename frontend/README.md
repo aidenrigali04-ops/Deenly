@@ -15,6 +15,7 @@
 2. Configure env:
    - `cp .env.example .env.local`
    - Set `NEXT_PUBLIC_API_BASE_URL`
+   - Set `NEXT_PUBLIC_ADMIN_OWNER_EMAIL` to the only account allowed to see admin navigation
 3. Run:
    - `npm run dev`
 
