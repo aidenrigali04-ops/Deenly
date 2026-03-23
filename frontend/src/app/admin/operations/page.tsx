@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/api";
+import { ApiError, apiRequest } from "@/lib/api";
 
 export default function AdminOperationsPage() {
   const [inviteEmail, setInviteEmail] = useState("");
@@ -11,6 +11,7 @@ export default function AdminOperationsPage() {
   const [status, setStatus] = useState("in_progress");
   const [priority, setPriority] = useState("normal");
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
   const inviteMutation = useMutation({
     mutationFn: () =>
@@ -19,7 +20,14 @@ export default function AdminOperationsPage() {
         auth: true,
         body: { email: inviteEmail || null, maxUses: Number(maxUses) }
       }),
-    onSuccess: (data: any) => setMessage(`Invite created: ${data.code}`)
+    onSuccess: (data: any) => setMessage(`Invite created: ${data.code}`),
+    onError: (mutationError) => {
+      const detail =
+        mutationError instanceof ApiError
+          ? mutationError.message
+          : "Unable to create invite";
+      setError(detail);
+    }
   });
 
   const supportMutation = useMutation({
@@ -29,17 +37,26 @@ export default function AdminOperationsPage() {
         auth: true,
         body: { status, priority }
       }),
-    onSuccess: () => setMessage("Support ticket updated.")
+    onSuccess: () => setMessage("Support ticket updated."),
+    onError: (mutationError) => {
+      const detail =
+        mutationError instanceof ApiError
+          ? mutationError.message
+          : "Unable to update support ticket";
+      setError(detail);
+    }
   });
 
   const submitInvite = (event: FormEvent) => {
     event.preventDefault();
     setMessage("");
+    setError("");
     inviteMutation.mutate();
   };
   const submitSupport = (event: FormEvent) => {
     event.preventDefault();
     setMessage("");
+    setError("");
     supportMutation.mutate();
   };
 
@@ -49,7 +66,9 @@ export default function AdminOperationsPage() {
         <h1 className="text-lg font-semibold">Create Beta Invite</h1>
         <input className="input" type="email" placeholder="Optional email" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} />
         <input className="input" type="number" min={1} max={1000} value={maxUses} onChange={(event) => setMaxUses(event.target.value)} />
-        <button className="btn-primary" type="submit">Create invite</button>
+        <button className="btn-primary" type="submit" disabled={inviteMutation.isPending}>
+          {inviteMutation.isPending ? "Creating..." : "Create invite"}
+        </button>
       </form>
       <form className="surface-card space-y-2" onSubmit={submitSupport}>
         <h2 className="text-lg font-semibold">Support Triage</h2>
@@ -65,8 +84,11 @@ export default function AdminOperationsPage() {
           <option value="high">High</option>
           <option value="urgent">Urgent</option>
         </select>
-        <button className="btn-primary" type="submit">Update ticket</button>
+        <button className="btn-primary" type="submit" disabled={supportMutation.isPending}>
+          {supportMutation.isPending ? "Updating..." : "Update ticket"}
+        </button>
       </form>
+      {error ? <p className="md:col-span-2 text-sm text-rose-300">{error}</p> : null}
       {message ? <p className="md:col-span-2 text-sm text-accent">{message}</p> : null}
     </section>
   );

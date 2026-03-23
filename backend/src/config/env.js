@@ -118,6 +118,9 @@ function loadEnv(envSource = process.env) {
     if (!config.jwtRefreshSecret) {
       throw new Error("JWT_REFRESH_SECRET is required in production");
     }
+    if (!config.adminOwnerEmail) {
+      throw new Error("ADMIN_OWNER_EMAIL is required in production");
+    }
   }
 
   return config;

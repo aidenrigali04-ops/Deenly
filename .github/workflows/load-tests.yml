@@ -7,6 +7,14 @@ on:
         description: "Base API URL (include /api/v1)"
         required: true
         type: string
+      loadtest_email:
+        description: "Optional test user email for authenticated scenario"
+        required: false
+        type: string
+      loadtest_post_id:
+        description: "Optional postId for view interaction scenario"
+        required: false
+        type: string
 
 jobs:
   run-load-test:
@@ -29,3 +37,6 @@ jobs:
         run: k6 run loadtests/feed-post.js
         env:
           BASE_URL: ${{ inputs.base_url }}
+          LOADTEST_EMAIL: ${{ inputs.loadtest_email }}
+          LOADTEST_PASSWORD: ${{ secrets.LOADTEST_PASSWORD }}
+          LOADTEST_POST_ID: ${{ inputs.loadtest_post_id }}

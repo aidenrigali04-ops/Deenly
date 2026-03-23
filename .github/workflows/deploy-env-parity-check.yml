@@ -1,0 +1,48 @@
+name: deploy-env-parity-check
+
+on:
+  workflow_dispatch:
+    inputs:
+      next_public_api_base_url:
+        description: "Frontend NEXT_PUBLIC_API_BASE_URL"
+        required: true
+        type: string
+      next_public_admin_owner_email:
+        description: "Frontend NEXT_PUBLIC_ADMIN_OWNER_EMAIL"
+        required: true
+        type: string
+      frontend_app_origin:
+        description: "Frontend origin (e.g. https://app.example.com)"
+        required: false
+        type: string
+
+jobs:
+  parity-check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify deploy env parity
+        run: npm run verify:deploy-env-parity
+        env:
+          CORS_ORIGINS: ${{ secrets.CORS_ORIGINS }}
+          ADMIN_OWNER_EMAIL: ${{ secrets.ADMIN_OWNER_EMAIL }}
+          JWT_ACCESS_SECRET: ${{ secrets.JWT_ACCESS_SECRET }}
+          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+          NEXT_PUBLIC_API_BASE_URL: ${{ inputs.next_public_api_base_url }}
+          NEXT_PUBLIC_ADMIN_OWNER_EMAIL: ${{ inputs.next_public_admin_owner_email }}
+          FRONTEND_APP_ORIGIN: ${{ inputs.frontend_app_origin }}

@@ -177,3 +177,18 @@ Recommended protections for `main`:
 ## Release Gates
 
 Measurable launch criteria are defined in [`RELEASE_GATES.md`](RELEASE_GATES.md).
+
+## Launch Hardening Artifacts
+
+- Weekly verification log: [`LAUNCH_HARDENING_REPORT.md`](LAUNCH_HARDENING_REPORT.md)
+- On-call response path: [`ONCALL_RUNBOOK.md`](ONCALL_RUNBOOK.md)
+- Incident report template: [`INCIDENT_TEMPLATE.md`](INCIDENT_TEMPLATE.md)
+- Private beta execution + next-phase entry criteria: [`PRIVATE_BETA_EXECUTION_PACK.md`](PRIVATE_BETA_EXECUTION_PACK.md)
+
+## Hardening Workflows
+
+- `backend-ci` for lint/migrations/tests and env contract checks.
+- `frontend-ci` + `frontend-e2e` for web quality gates.
+- `deploy-env-parity-check` for Railway/Vercel env parity before release.
+- `load-tests` for baseline and authenticated load scenarios.
+- `ops-metrics-alert-check` for scheduled latency/error-rate monitoring.

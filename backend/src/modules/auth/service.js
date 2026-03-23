@@ -65,14 +65,19 @@ function createAuthService({ db, config, analytics }) {
     const displayName = requireString(input.displayName, "displayName", 2, 64);
     const username = normalizeUsername(input.username);
 
+    const role =
+      config.adminOwnerEmail && email === String(config.adminOwnerEmail).toLowerCase()
+        ? "admin"
+        : "user";
+
     const passwordHash = await argon2.hash(password);
     let result;
     try {
       result = await db.query(
         `INSERT INTO users (email, username, password_hash, role)
-         VALUES ($1, $2, $3, 'user')
+         VALUES ($1, $2, $3, $4)
          RETURNING id, email, username, role, created_at`,
-        [email, username, passwordHash]
+        [email, username, passwordHash, role]
       );
     } catch (error) {
       if (error.code === "23505") {

@@ -2,9 +2,16 @@ const https = require("https");
 
 const metricsUrl = process.env.OPS_METRICS_URL;
 const authToken = process.env.OPS_METRICS_BEARER_TOKEN;
+const strict = String(process.env.OPS_METRICS_STRICT || "").toLowerCase() === "true";
 
 if (!metricsUrl || !authToken) {
-  console.log("Skipping ops metrics check (set OPS_METRICS_URL and OPS_METRICS_BEARER_TOKEN).");
+  const message =
+    "Missing OPS_METRICS_URL or OPS_METRICS_BEARER_TOKEN for ops metrics check.";
+  if (strict) {
+    console.error(message);
+    process.exit(1);
+  }
+  console.log(`${message} Skipping in non-strict mode.`);
   process.exit(0);
 }
 

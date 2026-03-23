@@ -1,0 +1,33 @@
+name: ops-metrics-alert-check
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  metrics-check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run strict ops metrics check
+        run: npm run ops:check-metrics
+        env:
+          OPS_METRICS_URL: ${{ secrets.OPS_METRICS_URL }}
+          OPS_METRICS_BEARER_TOKEN: ${{ secrets.OPS_METRICS_BEARER_TOKEN }}
+          OPS_METRICS_STRICT: true

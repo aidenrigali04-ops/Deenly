@@ -34,7 +34,7 @@ This file defines measurable criteria for progressing releases across environmen
   - `/ready`
   - register/login/session-me
   - create-post/feed
-- On-call runbook rehearsed with one rollback drill.
+- On-call runbook rehearsed with one rollback drill (see `ONCALL_RUNBOOK.md`).
 - Branch protection enabled on `main` with `backend-ci` required.
 
 ## Ongoing SLO monitoring
@@ -43,3 +43,4 @@ This file defines measurable criteria for progressing releases across environmen
 - p95 API latency: < 500ms.
 - Moderation SLA: 24h first action target.
 - Authentication abuse trend: monitor repeated failed attempts per IP/email.
+- Incident documentation must use `INCIDENT_TEMPLATE.md`.

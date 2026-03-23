@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/api";
+import { ApiError, apiRequest } from "@/lib/api";
 
 export default function AdminModerationPage() {
   const [userId, setUserId] = useState("");
@@ -11,6 +11,7 @@ export default function AdminModerationPage() {
   const [appealId, setAppealId] = useState("");
   const [appealStatus, setAppealStatus] = useState("reviewing");
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
   const warnMutation = useMutation({
     mutationFn: () =>
@@ -19,7 +20,14 @@ export default function AdminModerationPage() {
         auth: true,
         body: { userId: Number(userId), reason }
       }),
-    onSuccess: () => setMessage("Warning issued.")
+    onSuccess: () => setMessage("Warning issued."),
+    onError: (mutationError) => {
+      const detail =
+        mutationError instanceof ApiError
+          ? mutationError.message
+          : "Unable to issue warning";
+      setError(detail);
+    }
   });
 
   const restrictionMutation = useMutation({
@@ -29,7 +37,14 @@ export default function AdminModerationPage() {
         auth: true,
         body: { userId: Number(userId), restrictionType, reason }
       }),
-    onSuccess: () => setMessage("Restriction applied.")
+    onSuccess: () => setMessage("Restriction applied."),
+    onError: (mutationError) => {
+      const detail =
+        mutationError instanceof ApiError
+          ? mutationError.message
+          : "Unable to apply restriction";
+      setError(detail);
+    }
   });
 
   const appealMutation = useMutation({
@@ -39,22 +54,32 @@ export default function AdminModerationPage() {
         auth: true,
         body: { status: appealStatus }
       }),
-    onSuccess: () => setMessage("Appeal reviewed.")
+    onSuccess: () => setMessage("Appeal reviewed."),
+    onError: (mutationError) => {
+      const detail =
+        mutationError instanceof ApiError
+          ? mutationError.message
+          : "Unable to review appeal";
+      setError(detail);
+    }
   });
 
   const submitWarning = (event: FormEvent) => {
     event.preventDefault();
     setMessage("");
+    setError("");
     warnMutation.mutate();
   };
   const submitRestriction = (event: FormEvent) => {
     event.preventDefault();
     setMessage("");
+    setError("");
     restrictionMutation.mutate();
   };
   const submitAppealReview = (event: FormEvent) => {
     event.preventDefault();
     setMessage("");
+    setError("");
     appealMutation.mutate();
   };
 
@@ -64,7 +89,9 @@ export default function AdminModerationPage() {
         <h1 className="text-lg font-semibold">Issue Warning</h1>
         <input className="input" placeholder="User ID" value={userId} onChange={(event) => setUserId(event.target.value)} required />
         <input className="input" placeholder="Reason" value={reason} onChange={(event) => setReason(event.target.value)} required />
-        <button className="btn-primary" type="submit">Send warning</button>
+        <button className="btn-primary" type="submit" disabled={warnMutation.isPending}>
+          {warnMutation.isPending ? "Sending..." : "Send warning"}
+        </button>
       </form>
       <form className="surface-card space-y-2" onSubmit={submitRestriction}>
         <h2 className="text-lg font-semibold">Apply Restriction</h2>
@@ -75,7 +102,13 @@ export default function AdminModerationPage() {
           <option value="account_suspended">Account suspended</option>
         </select>
         <input className="input" placeholder="Reason" value={reason} onChange={(event) => setReason(event.target.value)} required />
-        <button className="btn-primary" type="submit">Apply restriction</button>
+        <button
+          className="btn-primary"
+          type="submit"
+          disabled={restrictionMutation.isPending}
+        >
+          {restrictionMutation.isPending ? "Applying..." : "Apply restriction"}
+        </button>
       </form>
       <form className="surface-card space-y-2" onSubmit={submitAppealReview}>
         <h2 className="text-lg font-semibold">Review Appeal</h2>
@@ -85,8 +118,11 @@ export default function AdminModerationPage() {
           <option value="approved">Approved</option>
           <option value="rejected">Rejected</option>
         </select>
-        <button className="btn-primary" type="submit">Update appeal</button>
+        <button className="btn-primary" type="submit" disabled={appealMutation.isPending}>
+          {appealMutation.isPending ? "Updating..." : "Update appeal"}
+        </button>
       </form>
+      {error ? <p className="lg:col-span-3 text-sm text-rose-300">{error}</p> : null}
       {message ? <p className="lg:col-span-3 text-sm text-accent">{message}</p> : null}
     </section>
   );
