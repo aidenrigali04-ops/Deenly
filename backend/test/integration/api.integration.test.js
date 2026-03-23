@@ -17,6 +17,7 @@ describeIfDatabase("integration api flows", () => {
     CORS_ORIGINS: process.env.CORS_ORIGINS || "http://localhost:3000",
     JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET || "test-access",
     JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || "test-refresh",
+    ADMIN_OWNER_EMAIL: process.env.ADMIN_OWNER_EMAIL || "admin-growth@example.com",
     MEDIA_PROVIDER: "mock"
   });
 
@@ -222,8 +223,6 @@ describeIfDatabase("integration api flows", () => {
 
     const userToken = userRegister.body.tokens.accessToken;
     const adminToken = adminRegister.body.tokens.accessToken;
-    await db.query("UPDATE users SET role = 'admin' WHERE id = $1", [adminRegister.body.user.id]);
-
     const updateInterests = await request(app)
       .put("/api/v1/users/me/interests")
       .set("Authorization", `Bearer ${userToken}`)
