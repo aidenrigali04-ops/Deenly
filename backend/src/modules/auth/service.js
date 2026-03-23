@@ -48,19 +48,44 @@ function ttlIntervalExpr(ttlValue) {
 function createAuthService({ db, config, analytics }) {
   const refreshInterval = ttlIntervalExpr(config.jwtRefreshTtl);
 
+  function normalizeUsername(rawValue) {
+    const username = requireString(rawValue, "username", 3, 32).toLowerCase();
+    if (!/^[a-z0-9_]{3,32}$/.test(username)) {
+      throw httpError(
+        400,
+        "username must be 3-32 chars and only contain lowercase letters, numbers, or underscore"
+      );
+    }
+    return username;
+  }
+
   async function register(input) {
     const email = requireString(input.email, "email", 5, 254).toLowerCase();
     const password = requireString(input.password, "password", 8, 128);
     const displayName = requireString(input.displayName, "displayName", 2, 64);
+    const username = normalizeUsername(input.username);
 
     const passwordHash = await argon2.hash(password);
-
-    const result = await db.query(
-      `INSERT INTO users (email, password_hash, role)
-       VALUES ($1, $2, 'user')
-       RETURNING id, email, role, created_at`,
-      [email, passwordHash]
-    );
+    let result;
+    try {
+      result = await db.query(
+        `INSERT INTO users (email, username, password_hash, role)
+         VALUES ($1, $2, $3, 'user')
+         RETURNING id, email, username, role, created_at`,
+        [email, username, passwordHash]
+      );
+    } catch (error) {
+      if (error.code === "23505") {
+        if (String(error.constraint || "").includes("email")) {
+          throw httpError(409, "email is already in use");
+        }
+        if (String(error.constraint || "").includes("username")) {
+          throw httpError(409, "username is already in use");
+        }
+        throw httpError(409, "account already exists");
+      }
+      throw error;
+    }
 
     const user = result.rows[0];
     await db.query(
@@ -90,7 +115,7 @@ function createAuthService({ db, config, analytics }) {
     const password = requireString(input.password, "password", 8, 128);
 
     const result = await db.query(
-      `SELECT id, email, role, password_hash, is_active, created_at
+      `SELECT id, email, username, role, password_hash, is_active, created_at
        FROM users
        WHERE email = $1
        LIMIT 1`,
@@ -121,6 +146,7 @@ function createAuthService({ db, config, analytics }) {
       user: {
         id: user.id,
         email: user.email,
+        username: user.username,
         role: user.role,
         created_at: user.created_at
       },
@@ -169,7 +195,7 @@ function createAuthService({ db, config, analytics }) {
     }
 
     const userResult = await db.query(
-      `SELECT id, email, role, is_active, created_at
+      `SELECT id, email, username, role, is_active, created_at
        FROM users
        WHERE id = $1
        LIMIT 1`,

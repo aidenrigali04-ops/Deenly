@@ -64,6 +64,7 @@ function createAuthRouter({ config, db, analytics }) {
         user: {
           id: req.user.id,
           email: req.user.email,
+          username: req.user.username,
           role: req.user.role,
           createdAt: req.user.created_at
         }

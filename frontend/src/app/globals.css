@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-background text-text antialiased;
+}
+
+a {
+  @apply text-inherit no-underline;
+}
+
+.container-shell {
+  @apply mx-auto max-w-4xl px-4;
+}
+
+.surface-card {
+  @apply rounded-2xl border border-white/10 bg-card/70 p-4 shadow-soft backdrop-blur;
+}
+
+.input {
+  @apply w-full rounded-xl border border-white/10 bg-surface px-3 py-2 text-sm text-text placeholder:text-muted focus:border-accent focus:outline-none;
+}
+
+.btn {
+  @apply rounded-xl px-4 py-2 text-sm font-semibold transition;
+}
+
+.btn-primary {
+  @apply btn bg-accent text-slate-900 hover:opacity-90;
+}
+
+.btn-secondary {
+  @apply btn bg-surface text-text hover:bg-card;
+}

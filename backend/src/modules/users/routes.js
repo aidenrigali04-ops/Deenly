@@ -16,8 +16,9 @@ function createUsersRouter({ db, config }) {
     authMiddleware,
     asyncHandler(async (req, res) => {
       const result = await db.query(
-        `SELECT p.user_id, p.display_name, p.bio, p.avatar_url, p.created_at, p.updated_at
+        `SELECT p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.created_at, p.updated_at
          FROM profiles p
+         JOIN users u ON u.id = p.user_id
          WHERE p.user_id = $1
          LIMIT 1`,
         [req.user.id]
@@ -38,10 +39,12 @@ function createUsersRouter({ db, config }) {
       const avatarUrl = optionalString(req.body?.avatarUrl, "avatarUrl", 2048);
 
       const result = await db.query(
-        `UPDATE profiles
+        `UPDATE profiles p
          SET display_name = $1, bio = $2, avatar_url = $3, updated_at = NOW()
-         WHERE user_id = $4
-         RETURNING user_id, display_name, bio, avatar_url, created_at, updated_at`,
+         FROM users u
+         WHERE p.user_id = $4
+           AND u.id = p.user_id
+         RETURNING p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.created_at, p.updated_at`,
         [displayName, bio, avatarUrl, req.user.id]
       );
 
@@ -61,8 +64,9 @@ function createUsersRouter({ db, config }) {
       }
 
       const result = await db.query(
-        `SELECT p.user_id, p.display_name, p.bio, p.avatar_url, p.created_at, p.updated_at
+        `SELECT p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.created_at, p.updated_at
          FROM profiles p
+         JOIN users u ON u.id = p.user_id
          WHERE p.user_id = $1
          LIMIT 1`,
         [userId]
@@ -82,9 +86,10 @@ function createUsersRouter({ db, config }) {
       const search = (req.query.search || "").toString().trim();
 
       const result = await db.query(
-        `SELECT p.user_id, p.display_name, p.bio, p.avatar_url, p.created_at, p.updated_at
+        `SELECT p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.created_at, p.updated_at
          FROM profiles p
-         WHERE ($1::text = '' OR p.display_name ILIKE ('%' || $1 || '%'))
+         JOIN users u ON u.id = p.user_id
+         WHERE ($1::text = '' OR p.display_name ILIKE ('%' || $1 || '%') OR u.username ILIKE ('%' || $1 || '%'))
          ORDER BY p.display_name ASC, p.user_id ASC
          LIMIT $2 OFFSET $3`,
         [search, limit, offset]

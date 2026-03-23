@@ -52,6 +52,7 @@ describeIfDatabase("integration api flows", () => {
   it("registers, logs in, and fetches session user", async () => {
     const register = await request(app).post("/api/v1/auth/register").send({
       email: "tester@example.com",
+      username: "tester_user",
       password: "StrongPass123",
       displayName: "Tester"
     });
@@ -70,6 +71,7 @@ describeIfDatabase("integration api flows", () => {
 
     expect(me.statusCode).toBe(200);
     expect(me.body.user.email).toBe("tester@example.com");
+    expect(me.body.user.username).toBe("tester_user");
 
     const userMe = await request(app)
       .get("/api/v1/users/me")
@@ -81,6 +83,7 @@ describeIfDatabase("integration api flows", () => {
   it("creates post and fetches feed items", async () => {
     const register = await request(app).post("/api/v1/auth/register").send({
       email: "poster@example.com",
+      username: "poster_user",
       password: "StrongPass123",
       displayName: "Poster"
     });
@@ -108,11 +111,13 @@ describeIfDatabase("integration api flows", () => {
   it("runs content alive loop with upload, follow, engagement, and cursor feed", async () => {
     const creatorRegister = await request(app).post("/api/v1/auth/register").send({
       email: "creator@example.com",
+      username: "creator_user",
       password: "StrongPass123",
       displayName: "Creator"
     });
     const viewerRegister = await request(app).post("/api/v1/auth/register").send({
       email: "viewer@example.com",
+      username: "viewer_user",
       password: "StrongPass123",
       displayName: "Viewer"
     });

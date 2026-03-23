@@ -15,7 +15,7 @@ function authenticate({ config, db }) {
     try {
       const payload = jwt.verify(token, config.jwtAccessSecret || "dev-access-secret");
       const result = await db.query(
-        "SELECT id, email, role, is_active, created_at FROM users WHERE id = $1 LIMIT 1",
+        "SELECT id, email, username, role, is_active, created_at FROM users WHERE id = $1 LIMIT 1",
         [payload.sub]
       );
 

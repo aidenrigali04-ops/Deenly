@@ -31,9 +31,10 @@ paths:
           application/json:
             schema:
               type: object
-              required: [email, password, displayName]
+              required: [email, username, password, displayName]
               properties:
                 email: { type: string, format: email }
+                username: { type: string, example: abdullah_01 }
                 password: { type: string, minLength: 8 }
                 displayName: { type: string }
       responses:
