@@ -86,7 +86,7 @@ exports.up = (pgm) => {
 
 exports.down = (pgm) => {
   pgm.dropIndex("posts", "content");
-  pgm.dropTable("messages");
   pgm.dropTable("conversation_participants");
+  pgm.dropTable("messages");
   pgm.dropTable("conversations");
 };
