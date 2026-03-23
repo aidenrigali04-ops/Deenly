@@ -1,4 +1,3 @@
-import { useMemo, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
@@ -17,31 +16,19 @@ type FeedResponse = {
 };
 
 type Props = CompositeScreenProps<
-  BottomTabScreenProps<AppTabParamList, "HomeTab">,
+  BottomTabScreenProps<AppTabParamList, "RecitationTab">,
   NativeStackScreenProps<RootStackParamList>
 >;
 
-export function FeedScreen({ navigation }: Props) {
-  const [postType, setPostType] = useState<"" | "recitation" | "community" | "short_video">("");
-  const [followingOnly, setFollowingOnly] = useState(false);
-  const feedQueryKey = useMemo(
-    () => ["mobile-feed", postType, followingOnly] as const,
-    [postType, followingOnly]
-  );
-
+export function RecitationScreen({ navigation }: Props) {
   const feedQuery = useInfiniteQuery({
-    queryKey: feedQueryKey,
+    queryKey: ["mobile-recitation-feed"],
     queryFn: ({ pageParam }) => {
       const query = new URLSearchParams();
       query.set("limit", "10");
+      query.set("postType", "recitation");
       if (pageParam) {
         query.set("cursor", String(pageParam));
-      }
-      if (postType) {
-        query.set("postType", postType);
-      }
-      if (followingOnly) {
-        query.set("followingOnly", "true");
       }
       return apiRequest<FeedResponse>(`/feed?${query.toString()}`, { auth: true });
     },
@@ -53,37 +40,13 @@ export function FeedScreen({ navigation }: Props) {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.heading}>Feed</Text>
-      <View style={styles.filters}>
-        {(["", "recitation", "community", "short_video"] as const).map((type) => {
-          const active = postType === type;
-          return (
-            <Pressable
-              key={type || "all"}
-              style={[styles.chip, active ? styles.chipActive : null]}
-              onPress={() => setPostType(type)}
-            >
-              <Text style={styles.chipText}>{type || "all"}</Text>
-            </Pressable>
-          );
-        })}
-        <Pressable
-          style={[styles.chip, followingOnly ? styles.chipActive : null]}
-          onPress={() => setFollowingOnly((value) => !value)}
-        >
-          <Text style={styles.chipText}>following</Text>
-        </Pressable>
-      </View>
-
-      {feedQuery.isLoading ? <LoadingState label="Loading feed..." /> : null}
+      <Text style={styles.heading}>Recitation</Text>
+      {feedQuery.isLoading ? <LoadingState label="Loading recitations..." /> : null}
       {feedQuery.error ? (
-        <ErrorState
-          message={(feedQuery.error as Error).message}
-          onRetry={() => feedQuery.refetch()}
-        />
+        <ErrorState message={(feedQuery.error as Error).message} onRetry={() => feedQuery.refetch()} />
       ) : null}
       {!feedQuery.isLoading && !feedQuery.error && items.length === 0 ? (
-        <EmptyState title="No posts yet" subtitle="Create the first beneficial post." />
+        <EmptyState title="No recitations yet" subtitle="Follow creators to personalize this reel." />
       ) : null}
 
       <View style={styles.stack}>
@@ -96,7 +59,6 @@ export function FeedScreen({ navigation }: Props) {
           />
         ))}
       </View>
-
       {feedQuery.hasNextPage ? (
         <Pressable
           style={styles.buttonSecondary}
@@ -113,42 +75,10 @@ export function FeedScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background
-  },
-  content: {
-    padding: 14,
-    gap: 12
-  },
-  heading: {
-    color: colors.text,
-    fontSize: 24,
-    fontWeight: "700"
-  },
-  filters: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8
-  },
-  chip: {
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6
-  },
-  chipActive: {
-    backgroundColor: colors.accent
-  },
-  chipText: {
-    color: colors.text,
-    fontSize: 12,
-    fontWeight: "700"
-  },
-  stack: {
-    gap: 10
-  },
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { padding: 14, gap: 12 },
+  heading: { color: colors.text, fontSize: 24, fontWeight: "700" },
+  stack: { gap: 10 },
   buttonSecondary: {
     borderColor: colors.border,
     borderWidth: 1,
@@ -157,8 +87,5 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     alignItems: "center"
   },
-  buttonText: {
-    color: colors.text,
-    fontWeight: "600"
-  }
+  buttonText: { color: colors.text, fontWeight: "600" }
 });

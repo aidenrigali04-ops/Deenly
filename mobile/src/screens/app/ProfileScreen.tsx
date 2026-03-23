@@ -11,7 +11,7 @@ import { colors } from "../../theme";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 
 type Props = CompositeScreenProps<
-  BottomTabScreenProps<AppTabParamList, "ProfileTab">,
+  BottomTabScreenProps<AppTabParamList, "AccountTab">,
   NativeStackScreenProps<RootStackParamList>
 >;
 

@@ -13,10 +13,10 @@ jobs:
         working-directory: backend
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: npm
@@ -28,6 +28,6 @@ jobs:
       - name: Run strict ops metrics check
         run: npm run ops:check-metrics
         env:
-          OPS_METRICS_URL: ${{ secrets.OPS_METRICS_URL }}
-          OPS_METRICS_BEARER_TOKEN: ${{ secrets.OPS_METRICS_BEARER_TOKEN }}
+          OPS_METRICS_URL: ${{ secrets.OPS_METRICS_URL || vars.OPS_METRICS_URL }}
+          OPS_METRICS_BEARER_TOKEN: ${{ secrets.OPS_METRICS_BEARER_TOKEN || vars.OPS_METRICS_BEARER_TOKEN }}
           OPS_METRICS_STRICT: true

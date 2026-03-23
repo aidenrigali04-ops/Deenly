@@ -2,13 +2,14 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ApiError } from "@/lib/api";
 import { fetchSessionMe, login } from "@/lib/auth";
 import { useSessionStore } from "@/store/session-store";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const setUser = useSessionStore((state) => state.setUser);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -23,7 +24,8 @@ export default function LoginPage() {
       await login({ email, password });
       const me = await fetchSessionMe();
       setUser(me);
-      router.push("/feed");
+      const next = searchParams.get("next") || "/home";
+      router.push(next);
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Unable to login";
       setError(message);

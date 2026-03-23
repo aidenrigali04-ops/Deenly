@@ -257,4 +257,71 @@ describeIfDatabase("integration api flows", () => {
     });
     expect(ticket.statusCode).toBe(201);
   });
+
+  it("supports messaging and search end-to-end for authenticated users", async () => {
+    const userA = await request(app).post("/api/v1/auth/register").send({
+      email: "search-a@example.com",
+      username: "search_a",
+      password: "StrongPass123",
+      displayName: "Search A"
+    });
+    const userB = await request(app).post("/api/v1/auth/register").send({
+      email: "search-b@example.com",
+      username: "search_b",
+      password: "StrongPass123",
+      displayName: "Search B"
+    });
+
+    const tokenA = userA.body.tokens.accessToken;
+    const tokenB = userB.body.tokens.accessToken;
+
+    const createdPost = await request(app)
+      .post("/api/v1/posts")
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({
+        postType: "community",
+        content: "This post is searchable in integration test"
+      });
+    expect(createdPost.statusCode).toBe(201);
+
+    const createdConversation = await request(app)
+      .post("/api/v1/messages/conversations")
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ participantUserId: userB.body.user.id });
+    expect([200, 201]).toContain(createdConversation.statusCode);
+
+    const conversationId = createdConversation.body.conversationId;
+    expect(conversationId).toBeDefined();
+
+    const sentMessage = await request(app)
+      .post(`/api/v1/messages/conversations/${conversationId}/messages`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ body: "Assalamu alaikum from user A" });
+    expect(sentMessage.statusCode).toBe(201);
+
+    const listConversations = await request(app)
+      .get("/api/v1/messages/conversations")
+      .set("Authorization", `Bearer ${tokenB}`);
+    expect(listConversations.statusCode).toBe(200);
+    expect(Array.isArray(listConversations.body.items)).toBe(true);
+    expect(listConversations.body.items.length).toBeGreaterThanOrEqual(1);
+
+    const listMessages = await request(app)
+      .get(`/api/v1/messages/conversations/${conversationId}/messages`)
+      .set("Authorization", `Bearer ${tokenB}`);
+    expect(listMessages.statusCode).toBe(200);
+    expect(listMessages.body.items[0].body).toContain("Assalamu alaikum");
+
+    const userSearch = await request(app)
+      .get("/api/v1/search/users?q=search_")
+      .set("Authorization", `Bearer ${tokenA}`);
+    expect(userSearch.statusCode).toBe(200);
+    expect(userSearch.body.items.some((item) => item.username === "search_b")).toBe(true);
+
+    const postSearch = await request(app)
+      .get("/api/v1/search/posts?q=searchable")
+      .set("Authorization", `Bearer ${tokenB}`);
+    expect(postSearch.statusCode).toBe(200);
+    expect(postSearch.body.items.length).toBeGreaterThanOrEqual(1);
+  });
 });

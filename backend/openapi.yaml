@@ -275,3 +275,121 @@ paths:
       responses:
         "200":
           description: Table rows
+  /messages/conversations:
+    get:
+      summary: List conversations for current user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Conversation list
+    post:
+      summary: Create or find direct conversation
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [participantUserId]
+              properties:
+                participantUserId: { type: integer }
+      responses:
+        "201":
+          description: Conversation created
+        "200":
+          description: Conversation already exists
+  /messages/conversations/{conversationId}/messages:
+    get:
+      summary: List messages for a conversation
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: conversationId
+          required: true
+          schema: { type: integer }
+        - in: query
+          name: beforeId
+          schema: { type: integer }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100 }
+      responses:
+        "200":
+          description: Message list
+    post:
+      summary: Send a message in conversation
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: conversationId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string }
+      responses:
+        "201":
+          description: Message sent
+  /messages/conversations/{conversationId}/read:
+    post:
+      summary: Mark conversation messages as read
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: conversationId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Read marker updated
+  /search/users:
+    get:
+      summary: Search users by display name or username
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 50 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0 }
+      responses:
+        "200":
+          description: User search results
+  /search/posts:
+    get:
+      summary: Search posts by content
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string }
+        - in: query
+          name: postType
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 50 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0 }
+      responses:
+        "200":
+          description: Post search results

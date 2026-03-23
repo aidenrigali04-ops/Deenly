@@ -18,6 +18,8 @@ const { createReportsRouter } = require("./modules/reports/routes");
 const { createSafetyRouter } = require("./modules/safety/routes");
 const { createAnalyticsRouter } = require("./modules/analytics/routes");
 const { createNotificationsRouter } = require("./modules/notifications/routes");
+const { createMessagesRouter } = require("./modules/messages/routes");
+const { createSearchRouter } = require("./modules/search/routes");
 const { createAdminRouter } = require("./modules/admin/routes");
 const { createBetaRouter } = require("./modules/beta/routes");
 const { createSupportRouter } = require("./modules/support/routes");
@@ -168,6 +170,8 @@ function createApp({ config, logger, db, analytics, mediaStorage }) {
   apiRouter.use("/safety", createSafetyRouter({ db, config }));
   apiRouter.use("/analytics", createAnalyticsRouter({ db, config }));
   apiRouter.use("/notifications", createNotificationsRouter({ db, config }));
+  apiRouter.use("/messages", createMessagesRouter({ db, config }));
+  apiRouter.use("/search", createSearchRouter({ db, config }));
   apiRouter.use(
     "/admin",
     authenticate({ config, db }),

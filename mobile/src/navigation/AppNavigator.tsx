@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, View } from "react-native";
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -9,10 +10,11 @@ import { useSessionStore } from "../store/session-store";
 import { colors } from "../theme";
 import { LoginScreen } from "../screens/auth/LoginScreen";
 import { SignupScreen } from "../screens/auth/SignupScreen";
+import { WelcomeScreen } from "../screens/auth/WelcomeScreen";
 import { FeedScreen } from "../screens/app/FeedScreen";
-import { CreateScreen } from "../screens/app/CreateScreen";
-import { ReflectLaterScreen } from "../screens/app/ReflectLaterScreen";
-import { NotificationsScreen } from "../screens/app/NotificationsScreen";
+import { RecitationScreen } from "../screens/app/RecitationScreen";
+import { MessagesScreen } from "../screens/app/MessagesScreen";
+import { SearchScreen } from "../screens/app/SearchScreen";
 import { ProfileScreen } from "../screens/app/ProfileScreen";
 import { PostDetailScreen } from "../screens/app/PostDetailScreen";
 import { UserProfileScreen } from "../screens/app/UserProfileScreen";
@@ -27,6 +29,11 @@ import { AdminAnalyticsScreen } from "../screens/app/AdminAnalyticsScreen";
 import { AdminTablesScreen } from "../screens/app/AdminTablesScreen";
 
 export type AppTabParamList = {
+  HomeTab: undefined;
+  RecitationTab: undefined;
+  MessagesTab: undefined;
+  SearchTab: undefined;
+  AccountTab: undefined;
   FeedTab: undefined;
   CreateTab: undefined;
   ReflectTab: undefined;
@@ -35,6 +42,7 @@ export type AppTabParamList = {
 };
 
 export type RootStackParamList = {
+  Welcome: undefined;
   Login: undefined;
   Signup: undefined;
   AppTabs: undefined;
@@ -67,15 +75,15 @@ function AppTabs() {
         tabBarInactiveTintColor: colors.muted
       }}
     >
-      <Tab.Screen name="FeedTab" component={FeedScreen} options={{ title: "Feed" }} />
-      <Tab.Screen name="CreateTab" component={CreateScreen} options={{ title: "Create" }} />
+      <Tab.Screen name="HomeTab" component={FeedScreen} options={{ title: "Home" }} />
       <Tab.Screen
-        name="ReflectTab"
-        component={ReflectLaterScreen}
-        options={{ title: "Reflect" }}
+        name="RecitationTab"
+        component={RecitationScreen}
+        options={{ title: "Recitation" }}
       />
-      <Tab.Screen name="InboxTab" component={NotificationsScreen} options={{ title: "Inbox" }} />
-      <Tab.Screen name="ProfileTab" component={ProfileScreen} options={{ title: "Profile" }} />
+      <Tab.Screen name="MessagesTab" component={MessagesScreen} options={{ title: "Messages" }} />
+      <Tab.Screen name="SearchTab" component={SearchScreen} options={{ title: "Search" }} />
+      <Tab.Screen name="AccountTab" component={ProfileScreen} options={{ title: "Account" }} />
     </Tab.Navigator>
   );
 }
@@ -83,6 +91,7 @@ function AppTabs() {
 export function AppNavigator() {
   const user = useSessionStore((state) => state.user);
   const setUser = useSessionStore((state) => state.setUser);
+  const [bootstrapping, setBootstrapping] = useState(true);
 
   const sessionQuery = useQuery({
     queryKey: ["mobile-bootstrap-session"],
@@ -93,18 +102,34 @@ export function AppNavigator() {
   useEffect(() => {
     let mounted = true;
     getAccessToken().then((token) => {
-      if (!mounted || !token) return;
+      if (!mounted || !token) {
+        if (mounted) setBootstrapping(false);
+        return;
+      }
       sessionQuery
         .refetch()
         .then((result) => {
           if (result.data) setUser(result.data);
         })
-        .catch(() => undefined);
+        .catch(() => {
+          if (mounted) setUser(null);
+        })
+        .finally(() => {
+          if (mounted) setBootstrapping(false);
+        });
     });
     return () => {
       mounted = false;
     };
   }, [sessionQuery, setUser]);
+
+  if (bootstrapping) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background }}>
+        <ActivityIndicator color={colors.accent} />
+      </View>
+    );
+  }
 
   return (
     <NavigationContainer
@@ -128,6 +153,11 @@ export function AppNavigator() {
       >
         {!user ? (
           <>
+            <RootStack.Screen
+              name="Welcome"
+              component={WelcomeScreen}
+              options={{ headerShown: false }}
+            />
             <RootStack.Screen
               name="Login"
               component={LoginScreen}

@@ -2,13 +2,14 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ApiError } from "@/lib/api";
 import { fetchSessionMe, signup } from "@/lib/auth";
 import { useSessionStore } from "@/store/session-store";
 
 export default function SignupPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const setUser = useSessionStore((state) => state.setUser);
   const [form, setForm] = useState({
     email: "",
@@ -27,7 +28,8 @@ export default function SignupPage() {
       await signup(form);
       const me = await fetchSessionMe();
       setUser(me);
-      router.push("/feed");
+      const next = searchParams.get("next") || "/home";
+      router.push(next);
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Unable to create account";
       setError(message);
