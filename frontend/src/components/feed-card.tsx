@@ -10,42 +10,59 @@ export function FeedCard({ item }: { item: FeedItem }) {
     .join("");
 
   return (
-    <article className="surface-card space-y-4">
-      <header className="flex items-center justify-between gap-3">
+    <article className="surface-card overflow-hidden p-0">
+      <header className="flex items-center justify-between gap-3 px-4 py-3">
         <div className="flex min-w-0 items-center gap-3">
           <span
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-surface text-xs font-semibold"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-surface text-xs font-semibold"
             aria-hidden="true"
           >
             {initials || "U"}
           </span>
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{item.author_display_name}</p>
+            <p className="truncate text-sm font-semibold">{item.author_display_name}</p>
             <time className="text-xs text-muted" dateTime={item.created_at}>
               {new Date(item.created_at).toLocaleString()}
             </time>
           </div>
         </div>
-        <button className="btn-secondary px-3 py-1.5 text-xs" aria-label="Post options">
-          More
+        <button className="rounded-full border border-white/10 px-3 py-1 text-xs font-medium text-muted hover:text-text">
+          Follow
         </button>
       </header>
-      <div>
-        <h3 className="text-xs uppercase tracking-[0.14em] text-accent">{item.post_type}</h3>
-        <p className="mt-2 text-sm leading-relaxed">{item.content}</p>
+
+      <div className="px-4 pb-3">
+        <p className="text-sm leading-relaxed">{item.content}</p>
       </div>
-      {item.media_url ? (
-        <video controls className="w-full rounded-xl border border-white/10">
-          <source src={item.media_url} />
-        </video>
-      ) : null}
-      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-        <button className="btn-secondary justify-center text-xs">Benefited</button>
-        <button className="btn-secondary justify-center text-xs">Comment</button>
-        <button className="btn-secondary justify-center text-xs">Reflect Later</button>
-        <button className="btn-secondary justify-center text-xs">Share</button>
+
+      <div className="mx-4 mb-3 overflow-hidden rounded-[1.4rem] border border-white/10 bg-surface">
+        {item.media_url ? (
+          <video controls className="feed-media-frame w-full">
+            <source src={item.media_url} />
+          </video>
+        ) : (
+          <div className="feed-media-frame flex items-center justify-center px-5 text-center text-sm text-muted">
+            {item.post_type.replace("_", " ")} reflection
+          </div>
+        )}
       </div>
-      <div className="flex flex-wrap gap-2 text-xs text-muted">
+
+      <div className="flex items-center gap-3 px-4 pb-2 text-muted">
+        <button className="feed-action" aria-label="Benefited">
+          ♡
+        </button>
+        <button className="feed-action" aria-label="Comment">
+          ◌
+        </button>
+        <button className="feed-action" aria-label="Share">
+          ➤
+        </button>
+        <button className="rounded-full border border-white/10 px-3 py-1 text-xs font-medium text-muted hover:text-text">
+          Collab
+        </button>
+      </div>
+
+      <div className="flex flex-wrap gap-2 px-4 pb-3 text-xs text-muted">
         <span className="rounded-full border border-white/10 px-2 py-1">
           Benefited: {item.benefited_count || 0}
         </span>
@@ -56,14 +73,15 @@ export function FeedCard({ item }: { item: FeedItem }) {
           Reflect later: {item.reflect_later_count || 0}
         </span>
       </div>
-      <div className="flex items-center justify-between">
-        <Link href={`/posts/${item.id}`} className="btn-secondary">
+
+      <footer className="flex items-center justify-between border-t border-white/10 px-4 py-3">
+        <Link href={`/posts/${item.id}`} className="btn-secondary px-3 py-1.5 text-xs">
           Open post
         </Link>
-        <Link href={`/users/${item.author_id}`} className="text-xs text-accent hover:underline">
+        <Link href={`/users/${item.author_id}`} className="text-xs font-medium text-accent hover:underline">
           View profile
         </Link>
-      </div>
+      </footer>
     </article>
   );
 }

@@ -1,7 +1,7 @@
 import { test, expect, APIRequestContext, Page } from "@playwright/test";
 
 const backendBaseUrl =
-  process.env.BACKEND_API_URL || "http://127.0.0.1:4000/api/v1";
+  process.env.BACKEND_API_URL || "http://127.0.0.1:8080/api/v1";
 
 async function register(
   request: APIRequestContext,

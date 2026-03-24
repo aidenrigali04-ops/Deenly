@@ -5,12 +5,90 @@ import { usePathname, useRouter } from "next/navigation";
 import { logout } from "@/lib/auth";
 import { useSessionStore } from "@/store/session-store";
 
-const links = [
-  { href: "/home", label: "Home" },
-  { href: "/recitation", label: "Recitation" },
-  { href: "/messages", label: "Messages" },
-  { href: "/search", label: "Search" },
-  { href: "/account", label: "Account" }
+function Icon({ kind }: { kind: "home" | "video" | "send" | "search" | "user" | "admin" }) {
+  const common = "h-5 w-5";
+  if (kind === "home") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common} aria-hidden="true">
+        <path d="M3 10.8L12 4l9 6.8" />
+        <path d="M5.5 10.5V20h13V10.5" />
+      </svg>
+    );
+  }
+  if (kind === "video") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common} aria-hidden="true">
+        <rect x="3.5" y="6" width="11.5" height="12" rx="2" />
+        <path d="M15 10.5l5.5-2v7l-5.5-2z" />
+      </svg>
+    );
+  }
+  if (kind === "send") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common} aria-hidden="true">
+        <path d="M21 3L10 14" />
+        <path d="M21 3l-7 18-4-7-7-4z" />
+      </svg>
+    );
+  }
+  if (kind === "search") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common} aria-hidden="true">
+        <circle cx="11" cy="11" r="6.5" />
+        <path d="M20 20l-4-4" />
+      </svg>
+    );
+  }
+  if (kind === "admin") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common} aria-hidden="true">
+        <path d="M12 3l7 3v5c0 5.2-3.2 8.7-7 10-3.8-1.3-7-4.8-7-10V6z" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common} aria-hidden="true">
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M4.5 20a7.5 7.5 0 0 1 15 0" />
+    </svg>
+  );
+}
+
+function NavLink({
+  href,
+  label,
+  active,
+  icon
+}: {
+  href: string;
+  label: string;
+  active: boolean;
+  icon: "home" | "video" | "send" | "search" | "user" | "admin";
+}) {
+  return (
+    <Link
+      href={href}
+      aria-label={label}
+      className={`flex items-center gap-3 rounded-full px-3 py-2.5 text-sm transition ${
+        active
+          ? "bg-card text-text ring-1 ring-white/15"
+          : "text-muted hover:bg-card/70 hover:text-text"
+      }`}
+    >
+      <span className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-surface">
+        <Icon kind={icon} />
+      </span>
+      <span className="md:sr-only xl:not-sr-only">{label}</span>
+    </Link>
+  );
+}
+
+const railLinks = [
+  { href: "/home", label: "Home", icon: "home" as const },
+  { href: "/recitation", label: "Recitation", icon: "video" as const },
+  { href: "/messages", label: "Messages", icon: "send" as const },
+  { href: "/search", label: "Search", icon: "search" as const },
+  { href: "/account", label: "Account", icon: "user" as const }
 ];
 
 export function Nav() {
@@ -28,48 +106,42 @@ export function Nav() {
     user?.email?.toLowerCase() === adminOwnerEmail;
 
   return (
-    <aside className="w-full shrink-0 rounded-2xl border border-white/10 bg-card/40 p-4 md:sticky md:top-4 md:w-64 md:self-start">
-      <div className="mb-4 flex items-center justify-between">
-        <Link href="/home" className="text-lg font-bold tracking-tight text-accent">
-          Deenly
+    <aside className="w-full shrink-0 rounded-[2rem] border border-white/10 bg-card/40 p-3 md:sticky md:top-4 md:w-[88px] md:self-start xl:w-[108px]">
+      <div className="mb-3 flex items-center justify-between md:flex-col md:gap-3">
+        <Link
+          href="/home"
+          aria-label="Deenly Home"
+          className="grid h-11 w-11 place-items-center rounded-full border border-white/15 bg-surface text-base"
+        >
+          ✦
         </Link>
-        {user ? (
-          <span className="rounded-full border border-white/10 px-2 py-1 text-xs text-muted">
-            @{user.username || "user"}
-          </span>
-        ) : null}
+        <span className="hidden text-[10px] uppercase tracking-[0.2em] text-muted md:block">Deenly</span>
       </div>
-      <nav className="grid grid-cols-2 gap-1 md:grid-cols-1" aria-label="Primary">
-        {links.map((link) => (
-          <Link
+
+      <nav className="grid grid-cols-3 gap-1 sm:grid-cols-6 md:grid-cols-1 md:gap-2" aria-label="Primary">
+        {railLinks.map((link) => (
+          <NavLink
             key={link.href}
             href={link.href}
-            className={`rounded-lg px-3 py-2 text-sm ${
-              pathname.startsWith(link.href)
-                ? "bg-background text-text ring-1 ring-white/10"
-                : "text-muted hover:bg-background/60 hover:text-text"
-            }`}
-          >
-            {link.label}
-          </Link>
+            label={link.label}
+            icon={link.icon}
+            active={pathname.startsWith(link.href)}
+          />
         ))}
         {canAccessAdmin ? (
-          <Link
+          <NavLink
             href="/admin"
-            className={`rounded-lg px-3 py-2 text-sm ${
-              pathname.startsWith("/admin")
-                ? "bg-background text-text ring-1 ring-white/10"
-                : "text-muted hover:bg-background/60 hover:text-text"
-            }`}
-          >
-            Admin
-          </Link>
+            label="Admin"
+            icon="admin"
+            active={pathname.startsWith("/admin")}
+          />
         ) : null}
       </nav>
-      <div className="mt-4 border-t border-white/10 pt-4">
+
+      <div className="mt-3 border-t border-white/10 pt-3">
         {user ? (
           <button
-            className="btn-secondary w-full"
+            className="w-full rounded-full border border-white/10 bg-surface px-3 py-2 text-xs font-medium text-muted transition hover:text-text"
             onClick={async () => {
               await logout();
               setUser(null);
@@ -79,7 +151,10 @@ export function Nav() {
             Logout
           </button>
         ) : (
-          <Link href="/auth/login" className="btn-secondary block w-full text-center">
+          <Link
+            href="/auth/login"
+            className="block w-full rounded-full border border-white/10 bg-surface px-3 py-2 text-center text-xs font-medium text-muted transition hover:text-text"
+          >
             Login
           </Link>
         )}

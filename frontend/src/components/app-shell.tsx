@@ -86,9 +86,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="container-shell flex flex-col gap-4 py-6 md:flex-row md:gap-6">
+    <div className="container-shell flex min-h-[calc(100vh-1rem)] flex-col gap-4 py-4 md:flex-row md:items-start md:gap-5">
       <Nav />
-      <main className="min-w-0 flex-1">{children}</main>
+      <main className="min-w-0 flex-1 md:pt-2">{children}</main>
     </div>
   );
 }

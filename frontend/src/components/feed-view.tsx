@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
 import { FeedCard } from "@/components/feed-card";
+import { HomeStoriesRow } from "@/components/home-stories-row";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useSessionStore } from "@/store/session-store";
 import type { FeedItem } from "@/types";
@@ -18,6 +19,7 @@ type FeedResponse = {
 type FeedViewProps = {
   heading: string;
   fixedPostType?: "" | "recitation" | "community" | "short_video";
+  showStories?: boolean;
 };
 
 function FeedSkeletonList() {
@@ -45,7 +47,7 @@ function FeedSkeletonList() {
   );
 }
 
-export function FeedView({ heading, fixedPostType = "" }: FeedViewProps) {
+export function FeedView({ heading, fixedPostType = "", showStories = false }: FeedViewProps) {
   const [postType, setPostType] = useState(fixedPostType);
   const [followingOnly, setFollowingOnly] = useState(false);
   const user = useSessionStore((state) => state.user);
@@ -80,24 +82,28 @@ export function FeedView({ heading, fixedPostType = "" }: FeedViewProps) {
   const items = feedQuery.data?.pages.flatMap((page) => page.items) || [];
 
   return (
-    <section className="space-y-4">
-      <header className="surface-card sticky top-4 z-10 space-y-3">
+    <section className="space-y-3 md:space-y-4">
+      <header className="surface-card sticky top-4 z-10 space-y-3 px-3 py-3 md:px-4">
         <div className="flex items-center justify-between gap-3">
-          <h1 className="section-title">{heading}</h1>
+          <h1 className="section-title text-base sm:text-lg">{heading}</h1>
           <div className="flex items-center gap-2">
-            <Link href="/search" className="btn-secondary" aria-label="Quick search">
+            <Link href="/search" className="btn-secondary px-3 py-2 text-xs" aria-label="Quick search">
               Search
             </Link>
-            <Link href="/notifications" className="btn-secondary" aria-label="Open notifications">
+            <Link
+              href="/notifications"
+              className="btn-secondary px-3 py-2 text-xs"
+              aria-label="Open notifications"
+            >
               Alerts
             </Link>
           </div>
         </div>
         <div className="subtle-divider pt-3">
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             {!fixedPostType ? (
               <select
-                className="input max-w-44"
+                className="input max-w-44 py-2 text-xs"
                 value={postType}
                 onChange={(event) =>
                   setPostType(event.target.value as "" | "recitation" | "community" | "short_video")
@@ -109,7 +115,7 @@ export function FeedView({ heading, fixedPostType = "" }: FeedViewProps) {
                 <option value="short_video">Short video</option>
               </select>
             ) : null}
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex items-center gap-2 text-xs sm:text-sm">
               <input
                 type="checkbox"
                 checked={followingOnly}
@@ -122,8 +128,10 @@ export function FeedView({ heading, fixedPostType = "" }: FeedViewProps) {
         </div>
       </header>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="space-y-4">
+      {showStories ? <HomeStoriesRow /> : null}
+
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,680px)_260px] xl:justify-center xl:gap-5">
+        <div className="space-y-3 md:space-y-4">
           {feedQuery.isLoading ? (
             <>
               <LoadingState label="Loading feed..." />
@@ -154,10 +162,10 @@ export function FeedView({ heading, fixedPostType = "" }: FeedViewProps) {
           ) : null}
         </div>
 
-        <aside className="hidden space-y-4 xl:block">
+        <aside className="hidden space-y-3 xl:block">
           <div className="surface-card space-y-2">
-            <p className="text-sm text-muted">Signed in as</p>
-            <p className="font-medium">{user?.email || "Guest"}</p>
+            <p className="text-xs uppercase tracking-[0.14em] text-muted">Signed in as</p>
+            <p className="text-sm font-medium">{user?.email || "Guest"}</p>
             <p className="text-xs text-muted">@{user?.username || "user"}</p>
           </div>
           <div className="surface-card space-y-2">
