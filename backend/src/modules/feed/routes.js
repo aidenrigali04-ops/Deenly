@@ -103,6 +103,7 @@ function createFeedRouter({ db, config }) {
                 p.post_type,
                 p.content,
                 p.media_url,
+                p.media_mime_type,
                 p.style_tag,
                 p.created_at,
                 COALESCE(MAX(vs.view_count), 0)::int AS view_count,

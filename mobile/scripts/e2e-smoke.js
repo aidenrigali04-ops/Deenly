@@ -75,6 +75,57 @@ async function run() {
     }
   });
 
+  const mediaPost = await request(baseUrl, "/posts", {
+    method: "POST",
+    token,
+    body: {
+      postType: "community",
+      content: "Mobile smoke media post"
+    }
+  });
+
+  const videoSignature = await request(baseUrl, "/media/upload-signature", {
+    method: "POST",
+    token,
+    body: {
+      mediaType: "video",
+      mimeType: "video/mp4",
+      originalFilename: "smoke-video.mp4",
+      fileSizeBytes: 2048
+    }
+  });
+  await request(baseUrl, `/media/posts/${mediaPost.id}/attach`, {
+    method: "POST",
+    token,
+    body: {
+      mediaKey: videoSignature.key,
+      mediaUrl: videoSignature.key,
+      mimeType: "video/mp4",
+      fileSizeBytes: 2048
+    }
+  });
+
+  const imageSignature = await request(baseUrl, "/media/upload-signature", {
+    method: "POST",
+    token,
+    body: {
+      mediaType: "image",
+      mimeType: "image/jpeg",
+      originalFilename: "smoke-image.jpg",
+      fileSizeBytes: 1024
+    }
+  });
+  await request(baseUrl, `/media/posts/${mediaPost.id}/attach`, {
+    method: "POST",
+    token,
+    body: {
+      mediaKey: imageSignature.key,
+      mediaUrl: imageSignature.key,
+      mimeType: "image/jpeg",
+      fileSizeBytes: 1024
+    }
+  });
+
   console.log("mobile e2e smoke passed");
 }
 

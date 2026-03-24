@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { ResizeMode, Video } from "expo-av";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -17,6 +17,16 @@ type PostDetail = FeedItem & {
 };
 
 type Props = NativeStackScreenProps<RootStackParamList, "PostDetail">;
+
+function isImageMedia(post: PostDetail) {
+  if (post.media_mime_type?.startsWith("image/")) {
+    return true;
+  }
+  if (!post.media_url) {
+    return false;
+  }
+  return /\.(png|jpe?g|gif|webp|bmp|heic)$/i.test(post.media_url);
+}
 
 export function PostDetailScreen({ route, navigation }: Props) {
   const { id: postId } = route.params;
@@ -108,13 +118,17 @@ export function PostDetailScreen({ route, navigation }: Props) {
         <Text style={styles.title}>{post.content}</Text>
         <Text style={styles.muted}>{post.author_display_name}</Text>
         {post.media_url ? (
-          <Video
-            source={{ uri: post.media_url }}
-            style={styles.video}
-            useNativeControls
-            resizeMode={ResizeMode.COVER}
-            isLooping={false}
-          />
+          isImageMedia(post) ? (
+            <Image source={{ uri: post.media_url }} style={styles.video} resizeMode="cover" />
+          ) : (
+            <Video
+              source={{ uri: post.media_url }}
+              style={styles.video}
+              useNativeControls
+              resizeMode={ResizeMode.COVER}
+              isLooping={false}
+            />
+          )
         ) : null}
         <View style={styles.metrics}>
           {stats?.map((value) => (

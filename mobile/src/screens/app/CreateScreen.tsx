@@ -19,6 +19,16 @@ type Props = CompositeScreenProps<
   NativeStackScreenProps<RootStackParamList>
 >;
 
+function deriveMediaType(mimeType: string): "image" | "video" | null {
+  if (mimeType.startsWith("image/")) {
+    return "image";
+  }
+  if (mimeType.startsWith("video/")) {
+    return "video";
+  }
+  return null;
+}
+
 export function CreateScreen({ navigation }: Props) {
   const [postType, setPostType] = useState<"community" | "recitation" | "short_video">(
     "community"
@@ -30,7 +40,7 @@ export function CreateScreen({ navigation }: Props) {
 
   const pickMedia = async () => {
     const result = await DocumentPicker.getDocumentAsync({
-      type: ["video/*", "audio/*"],
+      type: ["image/*", "video/*"],
       copyToCacheDirectory: true
     });
     if (!result.canceled && result.assets.length > 0) {
@@ -52,25 +62,37 @@ export function CreateScreen({ navigation }: Props) {
       });
 
       if (selectedFile) {
+        const fallbackMime = selectedFile.name?.toLowerCase().match(/\.(png|jpe?g|webp|gif)$/)
+          ? "image/jpeg"
+          : "video/mp4";
+        const mimeType = selectedFile.mimeType || fallbackMime;
+        const mediaType = deriveMediaType(mimeType);
+        if (!mediaType) {
+          throw new Error("Only image and video uploads are supported.");
+        }
+
         const signature = await apiRequest<UploadSignatureResponse>("/media/upload-signature", {
           method: "POST",
           auth: true,
           body: {
-            mediaType: selectedFile.mimeType?.startsWith("audio/") ? "audio" : "video",
-            mimeType: selectedFile.mimeType || "video/mp4",
+            mediaType,
+            mimeType,
             originalFilename: selectedFile.name,
-            fileSizeBytes: selectedFile.size || 0
+            fileSizeBytes: selectedFile.size || 1
           }
         });
 
         const fileResponse = await fetch(selectedFile.uri);
         const fileBlob = await fileResponse.blob();
 
-        await fetch(signature.uploadUrl, {
+        const uploadResponse = await fetch(signature.uploadUrl, {
           method: "PUT",
           headers: signature.headers,
           body: fileBlob
         });
+        if (!uploadResponse.ok) {
+          throw new Error("Unable to upload selected media.");
+        }
 
         await apiRequest(`/media/posts/${post.id}/attach`, {
           method: "POST",
@@ -78,7 +100,7 @@ export function CreateScreen({ navigation }: Props) {
           body: {
             mediaKey: signature.key,
             mediaUrl: signature.key,
-            mimeType: selectedFile.mimeType || "video/mp4",
+            mimeType,
             fileSizeBytes: selectedFile.size || fileBlob.size || 1
           }
         });
@@ -126,7 +148,7 @@ export function CreateScreen({ navigation }: Props) {
             {selectedFile.name}
           </Text>
         ) : (
-          <Text style={styles.muted}>Optional: video/audio upload</Text>
+          <Text style={styles.muted}>Optional: image/video upload</Text>
         )}
       </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}

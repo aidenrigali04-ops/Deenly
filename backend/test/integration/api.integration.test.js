@@ -190,6 +190,29 @@ describeIfDatabase("integration api flows", () => {
     expect(uploadSignature.statusCode).toBe(200);
     expect(uploadSignature.body.uploadUrl).toBeDefined();
 
+    const imageSignature = await request(app)
+      .post("/api/v1/media/upload-signature")
+      .set("Authorization", `Bearer ${creatorToken}`)
+      .send({
+        mediaType: "image",
+        mimeType: "image/jpeg",
+        originalFilename: "recitation.jpg",
+        fileSizeBytes: 524288
+      });
+    expect(imageSignature.statusCode).toBe(200);
+    expect(imageSignature.body.uploadUrl).toBeDefined();
+
+    const invalidSignature = await request(app)
+      .post("/api/v1/media/upload-signature")
+      .set("Authorization", `Bearer ${creatorToken}`)
+      .send({
+        mediaType: "video",
+        mimeType: "image/jpeg",
+        originalFilename: "bad-mime.jpg",
+        fileSizeBytes: 1000
+      });
+    expect(invalidSignature.statusCode).toBe(400);
+
     const attached = await request(app)
       .post(`/api/v1/media/posts/${createdPost.body.id}/attach`)
       .set("Authorization", `Bearer ${creatorToken}`)
@@ -202,6 +225,7 @@ describeIfDatabase("integration api flows", () => {
       });
     expect(attached.statusCode).toBe(200);
     expect(attached.body.media_status).toBe("ready");
+    expect(attached.body.media_mime_type).toBe("video/mp4");
 
     const follow = await request(app)
       .post(`/api/v1/follows/${creatorRegister.body.user.id}`)

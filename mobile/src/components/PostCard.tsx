@@ -1,7 +1,17 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { ResizeMode, Video } from "expo-av";
 import { colors } from "../theme";
 import type { FeedItem } from "../types";
+
+function isImageMedia(item: FeedItem) {
+  if (item.media_mime_type?.startsWith("image/")) {
+    return true;
+  }
+  if (!item.media_url) {
+    return false;
+  }
+  return /\.(png|jpe?g|gif|webp|bmp|heic)$/i.test(item.media_url);
+}
 
 export function PostCard({
   item,
@@ -21,13 +31,17 @@ export function PostCard({
       <Text style={styles.type}>{item.post_type}</Text>
       <Text style={styles.content}>{item.content}</Text>
       {item.media_url ? (
-        <Video
-          source={{ uri: item.media_url }}
-          style={styles.video}
-          useNativeControls
-          resizeMode={ResizeMode.COVER}
-          isLooping={false}
-        />
+        isImageMedia(item) ? (
+          <Image source={{ uri: item.media_url }} style={styles.video} resizeMode="cover" />
+        ) : (
+          <Video
+            source={{ uri: item.media_url }}
+            style={styles.video}
+            useNativeControls
+            resizeMode={ResizeMode.COVER}
+            isLooping={false}
+          />
+        )
       ) : null}
       <View style={styles.metricsRow}>
         <Text style={styles.muted}>Benefited: {item.benefited_count || 0}</Text>

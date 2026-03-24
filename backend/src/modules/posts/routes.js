@@ -43,7 +43,7 @@ function createPostsRouter({ db, config, analytics }) {
       const result = await db.query(
         `INSERT INTO posts (author_id, post_type, content, media_url, style_tag, media_status)
          VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING id, author_id, post_type, content, media_url, style_tag, media_status, visibility_status, created_at, updated_at`,
+         RETURNING id, author_id, post_type, content, media_url, media_mime_type, style_tag, media_status, visibility_status, created_at, updated_at`,
         [req.user.id, postType, content, mediaUrl, styleTag, "ready"]
       );
       if (analytics) {
@@ -74,7 +74,7 @@ function createPostsRouter({ db, config, analytics }) {
       }
 
       const result = await db.query(
-        `SELECT p.id, p.author_id, p.post_type, p.content, p.media_url, p.style_tag, p.media_status,
+        `SELECT p.id, p.author_id, p.post_type, p.content, p.media_url, p.media_mime_type, p.style_tag, p.media_status,
                 p.visibility_status, p.created_at, p.updated_at,
                 pr.display_name AS author_display_name,
                 COALESCE(vs.view_count, 0)::int AS view_count,
@@ -111,7 +111,7 @@ function createPostsRouter({ db, config, analytics }) {
       }
 
       const result = await db.query(
-        `SELECT p.id, p.author_id, p.post_type, p.content, p.media_url, p.style_tag, p.media_status, p.visibility_status, p.created_at, p.updated_at,
+        `SELECT p.id, p.author_id, p.post_type, p.content, p.media_url, p.media_mime_type, p.style_tag, p.media_status, p.visibility_status, p.created_at, p.updated_at,
                 pr.display_name AS author_display_name,
                 COALESCE(vs.view_count, 0)::int AS view_count,
                 COALESCE(vs.avg_watch_time_ms, 0)::int AS avg_watch_time_ms,

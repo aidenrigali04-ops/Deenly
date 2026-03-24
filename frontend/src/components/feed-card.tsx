@@ -1,6 +1,16 @@
 import Link from "next/link";
 import type { FeedItem } from "@/types";
 
+function isImageMedia(item: FeedItem) {
+  if (item.media_mime_type?.startsWith("image/")) {
+    return true;
+  }
+  if (!item.media_url) {
+    return false;
+  }
+  return /\.(png|jpe?g|gif|webp|bmp|heic)$/i.test(item.media_url);
+}
+
 export function FeedCard({ item }: { item: FeedItem }) {
   const initials = item.author_display_name
     .split(" ")
@@ -37,9 +47,18 @@ export function FeedCard({ item }: { item: FeedItem }) {
 
       <div className="mx-4 mb-3 overflow-hidden rounded-[1.4rem] border border-white/10 bg-surface">
         {item.media_url ? (
-          <video controls className="feed-media-frame w-full">
-            <source src={item.media_url} />
-          </video>
+          isImageMedia(item) ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={item.media_url}
+              alt={`${item.author_display_name} post media`}
+              className="feed-media-frame w-full object-cover"
+            />
+          ) : (
+            <video controls className="feed-media-frame w-full">
+              <source src={item.media_url} />
+            </video>
+          )
         ) : (
           <div className="feed-media-frame flex items-center justify-center px-5 text-center text-sm text-muted">
             {item.post_type.replace("_", " ")} reflection

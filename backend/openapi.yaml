@@ -215,9 +215,30 @@ paths:
       summary: Generate signed media upload URL
       security:
         - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mediaType, mimeType, originalFilename, fileSizeBytes]
+              properties:
+                mediaType:
+                  type: string
+                  enum: [image, video]
+                mimeType:
+                  type: string
+                  example: image/jpeg
+                originalFilename:
+                  type: string
+                fileSizeBytes:
+                  type: integer
+                  minimum: 1
       responses:
         "200":
           description: Signed upload data
+        "400":
+          description: Invalid media upload request
   /media/posts/{postId}/attach:
     post:
       summary: Attach raw uploaded media to post
@@ -228,9 +249,32 @@ paths:
           name: postId
           required: true
           schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mediaKey, mimeType, fileSizeBytes]
+              properties:
+                mediaKey:
+                  type: string
+                mediaUrl:
+                  type: string
+                mimeType:
+                  type: string
+                  example: video/mp4
+                fileSizeBytes:
+                  type: integer
+                  minimum: 1
+                durationSeconds:
+                  type: number
+                  minimum: 0.001
       responses:
         "200":
           description: Media attached
+        "400":
+          description: Invalid media attach request
   /notifications:
     get:
       summary: List in-app notifications

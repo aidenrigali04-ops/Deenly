@@ -4,6 +4,8 @@ const { asyncHandler } = require("../../utils/async-handler");
 const { httpError } = require("../../utils/http-error");
 const { requireString } = require("../../utils/validators");
 
+const ALLOWED_MEDIA_TYPES = new Set(["image", "video"]);
+
 function createMediaRouter({ db, config, mediaStorage, analytics }) {
   const router = express.Router();
   const authMiddleware = authenticate({ config, db });
@@ -17,7 +19,13 @@ function createMediaRouter({ db, config, mediaStorage, analytics }) {
     authMiddleware,
     asyncHandler(async (req, res) => {
       const mediaType = requireString(req.body?.mediaType, "mediaType", 3, 32);
+      if (!ALLOWED_MEDIA_TYPES.has(mediaType)) {
+        throw httpError(400, "mediaType must be image or video");
+      }
       const mimeType = requireString(req.body?.mimeType, "mimeType", 3, 128);
+      if (!mimeType.startsWith(`${mediaType}/`)) {
+        throw httpError(400, "mimeType must match mediaType");
+      }
       const originalFilename = requireString(
         req.body?.originalFilename || "upload.bin",
         "originalFilename",
@@ -68,6 +76,18 @@ function createMediaRouter({ db, config, mediaStorage, analytics }) {
       if (!Number.isFinite(fileSizeBytes) || fileSizeBytes <= 0) {
         throw httpError(400, "fileSizeBytes must be a positive number");
       }
+      if (!config.mediaAllowedMimeTypes.includes(mimeType)) {
+        throw httpError(400, "Unsupported media mime type");
+      }
+      if (fileSizeBytes > config.mediaMaxUploadBytes) {
+        throw httpError(400, "File exceeds max upload size");
+      }
+      if (
+        durationSeconds !== null &&
+        (!Number.isFinite(durationSeconds) || durationSeconds <= 0)
+      ) {
+        throw httpError(400, "durationSeconds must be a positive number");
+      }
 
       const result = await db.query(
         `UPDATE posts
@@ -80,7 +100,7 @@ function createMediaRouter({ db, config, mediaStorage, analytics }) {
              updated_at = NOW()
          WHERE id = $6
            AND author_id = $7
-         RETURNING id, media_upload_key, media_url, media_status, updated_at`,
+         RETURNING id, media_upload_key, media_url, media_mime_type, media_status, updated_at`,
         [mediaKey, mediaUrl, mimeType, fileSizeBytes, durationSeconds, postId, req.user.id]
       );
 

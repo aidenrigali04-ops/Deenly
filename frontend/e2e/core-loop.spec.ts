@@ -134,6 +134,17 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
   await page.getByPlaceholder("Reason").fill("test report reason");
   await page.getByRole("button", { name: "Submit report" }).click();
   await expect(page.getByText("Report submitted.")).toBeVisible();
+
+  await page.goto(`${baseURL}/create`);
+  await page.getByPlaceholder("Share your message...").fill(`Image post ${timestamp}`);
+  await page.locator('input[name="mediaFile"]').setInputFiles({
+    name: "cover.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from("tiny-image-content")
+  });
+  await page.getByRole("button", { name: "Publish" }).click();
+  await expect(page).toHaveURL(/\/posts\/\d+$/);
+  await expect(page.locator('img[alt*="post media"]')).toBeVisible();
 });
 
 test("admin feedback loop: owner access, tables, and operations form", async ({

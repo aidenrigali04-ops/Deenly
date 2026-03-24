@@ -15,6 +15,16 @@ type UploadSignatureResponse = {
   key: string;
 };
 
+function deriveMediaType(mimeType: string): "image" | "video" | null {
+  if (mimeType.startsWith("image/")) {
+    return "image";
+  }
+  if (mimeType.startsWith("video/")) {
+    return "video";
+  }
+  return null;
+}
+
 export default function CreatePage() {
   const router = useRouter();
   const [postType, setPostType] = useState("community");
@@ -41,22 +51,31 @@ export default function CreatePage() {
       });
 
       if (file && file.size > 0) {
+        const mimeType = file.type || "application/octet-stream";
+        const mediaType = deriveMediaType(mimeType);
+        if (!mediaType) {
+          throw new Error("Only image and video uploads are supported.");
+        }
+
         const signature = await apiRequest<UploadSignatureResponse>("/media/upload-signature", {
           method: "POST",
           auth: true,
           body: {
-            mediaType: "video",
-            mimeType: file.type || "video/mp4",
+            mediaType,
+            mimeType,
             originalFilename: file.name,
             fileSizeBytes: file.size
           }
         });
 
-        await fetch(signature.uploadUrl, {
+        const uploadResponse = await fetch(signature.uploadUrl, {
           method: "PUT",
           headers: signature.headers,
           body: file
         });
+        if (!uploadResponse.ok) {
+          throw new Error("Unable to upload media file.");
+        }
 
         await apiRequest(`/media/posts/${post.id}/attach`, {
           method: "POST",
@@ -64,7 +83,7 @@ export default function CreatePage() {
           body: {
             mediaKey: signature.key,
             mediaUrl: signature.key,
-            mimeType: file.type || "video/mp4",
+            mimeType,
             fileSizeBytes: file.size
           }
         });
@@ -105,9 +124,9 @@ export default function CreatePage() {
           required
         />
         <label className="text-xs uppercase tracking-wide text-muted">Optional media</label>
-        <input name="mediaFile" type="file" accept="video/*,audio/*" className="input" />
+        <input name="mediaFile" type="file" accept="image/*,video/*" className="input" />
         <p className="text-xs text-muted">
-          Uploads are attached after post creation. Keep files concise for faster publishing.
+          Upload image or video from your device. Uploads are attached after post creation.
         </p>
         {error ? <ErrorState message={error} /> : null}
         <button className="btn-primary w-full" disabled={isSubmitting}>

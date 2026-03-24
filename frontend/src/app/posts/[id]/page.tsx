@@ -14,6 +14,16 @@ type PostDetail = FeedItem & {
   avg_completion_rate?: number;
 };
 
+function isImageMedia(post: PostDetail) {
+  if (post.media_mime_type?.startsWith("image/")) {
+    return true;
+  }
+  if (!post.media_url) {
+    return false;
+  }
+  return /\.(png|jpe?g|gif|webp|bmp|heic)$/i.test(post.media_url);
+}
+
 export default function PostDetailPage() {
   const params = useParams<{ id: string }>();
   const postId = Number(params.id);
@@ -108,9 +118,18 @@ export default function PostDetailPage() {
         </div>
         <h1 className="section-title">{post.content}</h1>
         {post.media_url ? (
-          <video controls className="w-full rounded-xl border border-white/10">
-            <source src={post.media_url} />
-          </video>
+          isImageMedia(post) ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={post.media_url}
+              alt={`${post.author_display_name} post media`}
+              className="w-full rounded-xl border border-white/10 object-cover"
+            />
+          ) : (
+            <video controls className="w-full rounded-xl border border-white/10">
+              <source src={post.media_url} />
+            </video>
+          )
         ) : null}
         <div className="flex flex-wrap gap-2 text-xs text-muted">
           {stats?.map((value) => (

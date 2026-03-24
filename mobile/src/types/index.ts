@@ -28,6 +28,7 @@ export type FeedItem = {
   post_type: "recitation" | "community" | "short_video";
   content: string;
   media_url: string | null;
+  media_mime_type?: string | null;
   style_tag: string | null;
   created_at: string;
   author_display_name: string;
