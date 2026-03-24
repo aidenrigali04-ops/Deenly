@@ -1,6 +1,14 @@
 const jwt = require("jsonwebtoken");
 const { httpError } = require("../utils/http-error");
 
+function requireAccessSecret(config) {
+  const secret = config?.jwtAccessSecret;
+  if (!secret) {
+    throw httpError(500, "JWT access secret is not configured");
+  }
+  return secret;
+}
+
 function authenticate({ config, db }) {
   return async (req, _res, next) => {
     const authHeader = req.headers.authorization || "";
@@ -13,7 +21,7 @@ function authenticate({ config, db }) {
     }
 
     try {
-      const payload = jwt.verify(token, config.jwtAccessSecret || "dev-access-secret");
+      const payload = jwt.verify(token, requireAccessSecret(config));
       const result = await db.query(
         "SELECT id, email, username, role, is_active, created_at FROM users WHERE id = $1 LIMIT 1",
         [payload.sub]
@@ -42,5 +50,6 @@ function authorize(allowedRoles) {
 
 module.exports = {
   authenticate,
-  authorize
+  authorize,
+  requireAccessSecret
 };

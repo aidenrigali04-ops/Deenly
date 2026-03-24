@@ -28,6 +28,9 @@ describeIfDatabase("integration api flows", () => {
   const app = createApp({ config, logger, db, analytics, mediaStorage });
 
   async function cleanDb() {
+    await db.query("TRUNCATE TABLE conversation_participants RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE messages RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE conversations RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE appeals RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE user_restrictions RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE user_warnings RESTART IDENTITY CASCADE");
@@ -87,6 +90,37 @@ describeIfDatabase("integration api flows", () => {
       .set("Authorization", `Bearer ${login.body.tokens.accessToken}`);
     expect(userMe.statusCode).toBe(200);
     expect(userMe.body.display_name).toBe("Tester");
+  });
+
+  it("refreshes access tokens and invalidates refresh token on logout", async () => {
+    const register = await request(app).post("/api/v1/auth/register").send({
+      email: "refresh-user@example.com",
+      username: "refresh_user",
+      password: "StrongPass123",
+      displayName: "Refresh User"
+    });
+    expect(register.statusCode).toBe(201);
+
+    const initialRefreshToken = register.body.tokens.refreshToken;
+    expect(initialRefreshToken).toBeDefined();
+
+    const refreshed = await request(app).post("/api/v1/auth/refresh").send({
+      refreshToken: initialRefreshToken
+    });
+    expect(refreshed.statusCode).toBe(200);
+    expect(refreshed.body.tokens.accessToken).toBeDefined();
+    expect(refreshed.body.tokens.refreshToken).toBeDefined();
+
+    const logout = await request(app).post("/api/v1/auth/logout").send({
+      refreshToken: refreshed.body.tokens.refreshToken
+    });
+    expect(logout.statusCode).toBe(200);
+    expect(logout.body.success).toBe(true);
+
+    const refreshAfterLogout = await request(app).post("/api/v1/auth/refresh").send({
+      refreshToken: refreshed.body.tokens.refreshToken
+    });
+    expect(refreshAfterLogout.statusCode).toBe(401);
   });
 
   it("creates post and fetches feed items", async () => {

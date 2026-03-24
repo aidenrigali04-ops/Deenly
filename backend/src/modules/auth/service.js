@@ -3,10 +3,21 @@ const jwt = require("jsonwebtoken");
 const { httpError } = require("../../utils/http-error");
 const { requireString } = require("../../utils/validators");
 
+function requireRefreshSecret(config) {
+  const secret = config?.jwtRefreshSecret;
+  if (!secret) {
+    throw httpError(500, "JWT refresh secret is not configured");
+  }
+  return secret;
+}
+
 function issueTokens(config, user) {
+  if (!config?.jwtAccessSecret) {
+    throw httpError(500, "JWT access secret is not configured");
+  }
   const accessToken = jwt.sign(
     { role: user.role },
-    config.jwtAccessSecret || "dev-access-secret",
+    config.jwtAccessSecret,
     {
       subject: String(user.id),
       expiresIn: config.jwtAccessTtl
@@ -15,7 +26,7 @@ function issueTokens(config, user) {
 
   const refreshToken = jwt.sign(
     { role: user.role, tokenType: "refresh" },
-    config.jwtRefreshSecret || "dev-refresh-secret",
+    requireRefreshSecret(config),
     {
       subject: String(user.id),
       expiresIn: config.jwtRefreshTtl
@@ -163,10 +174,7 @@ function createAuthService({ db, config, analytics }) {
     const refreshToken = requireString(input.refreshToken, "refreshToken", 20, 4096);
     let payload;
     try {
-      payload = jwt.verify(
-        refreshToken,
-        config.jwtRefreshSecret || "dev-refresh-secret"
-      );
+      payload = jwt.verify(refreshToken, requireRefreshSecret(config));
     } catch {
       throw httpError(401, "Invalid refresh token");
     }
@@ -233,10 +241,7 @@ function createAuthService({ db, config, analytics }) {
     const refreshToken = requireString(input.refreshToken, "refreshToken", 20, 4096);
     let payload;
     try {
-      payload = jwt.verify(
-        refreshToken,
-        config.jwtRefreshSecret || "dev-refresh-secret"
-      );
+      payload = jwt.verify(refreshToken, requireRefreshSecret(config));
     } catch {
       return { success: true };
     }

@@ -1,12 +1,15 @@
 const https = require("https");
 
-const metricsUrl = process.env.OPS_METRICS_URL;
-const authToken = process.env.OPS_METRICS_BEARER_TOKEN;
+const metricsUrl = String(process.env.OPS_METRICS_URL || "").trim();
+const rawAuthToken = String(process.env.OPS_METRICS_BEARER_TOKEN || "").trim();
+const authToken = rawAuthToken.replace(/^Bearer\s+/i, "").trim();
 const strict = String(process.env.OPS_METRICS_STRICT || "").toLowerCase() === "true";
 
 if (!metricsUrl || !authToken) {
-  const message =
-    "Missing OPS_METRICS_URL or OPS_METRICS_BEARER_TOKEN for ops metrics check.";
+  const missing = [];
+  if (!metricsUrl) missing.push("OPS_METRICS_URL");
+  if (!authToken) missing.push("OPS_METRICS_BEARER_TOKEN");
+  const message = `Missing ${missing.join(", ")} for ops metrics check.`;
   if (strict) {
     console.error(message);
     process.exit(1);

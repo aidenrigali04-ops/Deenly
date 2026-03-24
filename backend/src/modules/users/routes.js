@@ -7,10 +7,7 @@ const INTEREST_KEYS = new Set(["recitation", "community", "short_video"]);
 
 function createUsersRouter({ db, config }) {
   const router = express.Router();
-  const authMiddleware = authenticate({
-    config: config || { jwtAccessSecret: process.env.JWT_ACCESS_SECRET || "" },
-    db
-  });
+  const authMiddleware = authenticate({ config, db });
 
   router.get(
     "/me",

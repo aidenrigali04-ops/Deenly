@@ -2,6 +2,7 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const { asyncHandler } = require("../../utils/async-handler");
 const { httpError } = require("../../utils/http-error");
+const { requireAccessSecret } = require("../../middleware/auth");
 
 function decodeCursor(cursor) {
   if (!cursor) {
@@ -43,7 +44,7 @@ async function getViewerIdFromAuthHeader({ db, config, authorization }) {
   }
 
   try {
-    const payload = jwt.verify(token, config.jwtAccessSecret || "dev-access-secret");
+    const payload = jwt.verify(token, requireAccessSecret(config));
     const userId = Number(payload.sub);
     if (!userId) {
       return null;
