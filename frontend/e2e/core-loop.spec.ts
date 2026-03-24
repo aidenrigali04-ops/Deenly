@@ -115,12 +115,20 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
   const beforeBenefitedCount = Number(
     ((await benefitedStat.textContent()) || "Benefited: 0").match(/\d+/)?.[0] || 0
   );
+  const benefitedRequest = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().includes("/interactions") &&
+      !response.url().includes("/interactions/view")
+  );
   await page.getByRole("button", { name: "Benefited" }).click();
+  const benefitedResponse = await benefitedRequest;
+  expect(benefitedResponse.ok()).toBeTruthy();
   await expect
     .poll(async () => {
       const value = await benefitedStat.textContent();
       return Number((value || "").match(/\d+/)?.[0] || 0);
-    })
+    }, { timeout: 15000 })
     .toBeGreaterThanOrEqual(beforeBenefitedCount + 1);
 
   await page.getByPlaceholder("Reason").fill("test report reason");
