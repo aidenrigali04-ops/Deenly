@@ -5,7 +5,11 @@ import { usePathname, useRouter } from "next/navigation";
 import { logout } from "@/lib/auth";
 import { useSessionStore } from "@/store/session-store";
 
-function Icon({ kind }: { kind: "home" | "video" | "send" | "search" | "user" | "admin" }) {
+function Icon({
+  kind
+}: {
+  kind: "home" | "video" | "send" | "search" | "upload" | "user" | "admin";
+}) {
   const common = "h-5 w-5";
   if (kind === "home") {
     return (
@@ -39,6 +43,22 @@ function Icon({ kind }: { kind: "home" | "video" | "send" | "search" | "user" | 
       </svg>
     );
   }
+  if (kind === "upload") {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        className={common}
+        aria-hidden="true"
+      >
+        <circle cx="12" cy="12" r="8" />
+        <path d="M12 8v8" />
+        <path d="M8 12h8" />
+      </svg>
+    );
+  }
   if (kind === "admin") {
     return (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common} aria-hidden="true">
@@ -63,7 +83,7 @@ function NavLink({
   href: string;
   label: string;
   active: boolean;
-  icon: "home" | "video" | "send" | "search" | "user" | "admin";
+  icon: "home" | "video" | "send" | "search" | "upload" | "user" | "admin";
 }) {
   return (
     <Link
@@ -88,6 +108,7 @@ const railLinks = [
   { href: "/recitation", label: "Recitation", icon: "video" as const },
   { href: "/messages", label: "Messages", icon: "send" as const },
   { href: "/search", label: "Search", icon: "search" as const },
+  { href: "/create", label: "Upload", icon: "upload" as const },
   { href: "/account", label: "Account", icon: "user" as const }
 ];
 

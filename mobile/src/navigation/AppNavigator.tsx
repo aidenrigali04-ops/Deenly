@@ -16,6 +16,7 @@ import { RecitationScreen } from "../screens/app/RecitationScreen";
 import { MessagesScreen } from "../screens/app/MessagesScreen";
 import { SearchScreen } from "../screens/app/SearchScreen";
 import { ProfileScreen } from "../screens/app/ProfileScreen";
+import { CreateScreen } from "../screens/app/CreateScreen";
 import { PostDetailScreen } from "../screens/app/PostDetailScreen";
 import { UserProfileScreen } from "../screens/app/UserProfileScreen";
 import { OnboardingScreen } from "../screens/app/OnboardingScreen";
@@ -83,6 +84,7 @@ function AppTabs() {
       />
       <Tab.Screen name="MessagesTab" component={MessagesScreen} options={{ title: "Messages" }} />
       <Tab.Screen name="SearchTab" component={SearchScreen} options={{ title: "Search" }} />
+      <Tab.Screen name="CreateTab" component={CreateScreen} options={{ title: "Upload +" }} />
       <Tab.Screen name="AccountTab" component={ProfileScreen} options={{ title: "Account" }} />
     </Tab.Navigator>
   );
