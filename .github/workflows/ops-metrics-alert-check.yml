@@ -59,45 +59,7 @@ jobs:
       - name: Resolve runtime ops metrics token
         run: |
           if [ -n "${OPS_METRICS_LOGIN_EMAIL}" ] && [ -n "${OPS_METRICS_LOGIN_PASSWORD}" ]; then
-            node <<'EOF'
-const fs = require("fs");
-
-async function main() {
-  const metricsUrl = process.env.OPS_METRICS_URL;
-  const email = process.env.OPS_METRICS_LOGIN_EMAIL;
-  const password = process.env.OPS_METRICS_LOGIN_PASSWORD;
-  if (!metricsUrl || !email || !password) {
-    return;
-  }
-
-  const url = new URL(metricsUrl);
-  const authUrl = `${url.protocol}//${url.host}/api/v1/auth/login`;
-  const response = await fetch(authUrl, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email, password })
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`Auth request failed (${response.status}): ${body}`);
-  }
-
-  const payload = await response.json();
-  const token = payload?.tokens?.accessToken;
-  if (!token) {
-    throw new Error("Login response missing tokens.accessToken");
-  }
-
-  fs.appendFileSync(process.env.GITHUB_ENV, `OPS_METRICS_RUNTIME_TOKEN=${token}\n`);
-  console.log("Resolved runtime ops metrics token via login.");
-}
-
-main().catch((error) => {
-  console.error(error.message || String(error));
-  process.exit(1);
-});
-EOF
+            node -e "const fs=require('fs');(async()=>{const metricsUrl=process.env.OPS_METRICS_URL;const email=process.env.OPS_METRICS_LOGIN_EMAIL;const password=process.env.OPS_METRICS_LOGIN_PASSWORD;if(!metricsUrl||!email||!password){return;}const url=new URL(metricsUrl);const authUrl=url.protocol+'//'+url.host+'/api/v1/auth/login';const response=await fetch(authUrl,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email,password})});if(!response.ok){const body=await response.text();throw new Error('Auth request failed ('+response.status+'): '+body);}const payload=await response.json();const token=payload&&payload.tokens&&payload.tokens.accessToken;if(!token){throw new Error('Login response missing tokens.accessToken');}fs.appendFileSync(process.env.GITHUB_ENV,'OPS_METRICS_RUNTIME_TOKEN='+token+'\n');console.log('Resolved runtime ops metrics token via login.');})().catch((error)=>{console.error(error.message||String(error));process.exit(1);});"
           else
             echo "OPS_METRICS_LOGIN_EMAIL/PASSWORD not set; falling back to static bearer token."
           fi
