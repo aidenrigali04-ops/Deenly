@@ -79,7 +79,8 @@ export default function MessagesPage() {
   return (
     <section className="grid gap-4 md:grid-cols-[320px,1fr]">
       <aside className="surface-card space-y-3">
-        <h1 className="text-xl font-semibold">Messages</h1>
+        <h1 className="section-title">Messages</h1>
+        <p className="text-sm text-muted">Start or continue conversations with people you benefit from.</p>
         <form
           className="flex gap-2"
           onSubmit={(event: FormEvent) => {
@@ -94,9 +95,10 @@ export default function MessagesPage() {
             placeholder="User ID"
             value={newParticipantUserId}
             onChange={(event) => setNewParticipantUserId(event.target.value)}
+            aria-label="Participant user ID"
           />
           <button className="btn-secondary" type="submit">
-            Start
+            {createConversation.isPending ? "Starting..." : "Start"}
           </button>
         </form>
         {conversationsQuery.isLoading ? <LoadingState label="Loading conversations..." /> : null}
@@ -139,9 +141,9 @@ export default function MessagesPage() {
             {messagesQuery.error ? <ErrorState message={(messagesQuery.error as Error).message} /> : null}
             <div className="max-h-[50vh] space-y-2 overflow-y-auto rounded-lg border border-white/10 p-3">
               {(messagesQuery.data?.items || []).map((message) => (
-                <div key={message.id} className="rounded-lg border border-white/10 p-2">
+                <div key={message.id} className="rounded-lg border border-white/10 bg-surface/40 p-3">
                   <p className="text-xs text-muted">{message.sender_display_name}</p>
-                  <p>{message.body}</p>
+                  <p className="text-sm">{message.body}</p>
                 </div>
               ))}
               {(messagesQuery.data?.items || []).length === 0 ? <EmptyState title="No messages yet" /> : null}

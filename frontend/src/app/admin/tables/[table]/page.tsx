@@ -22,7 +22,7 @@ export default function AdminTablePage() {
   return (
     <section className="space-y-4">
       <div className="surface-card">
-        <h1 className="text-xl font-semibold">Table: {table}</h1>
+        <h1 className="section-title">Table: {table}</h1>
       </div>
       {isLoading ? <LoadingState label="Loading table..." /> : null}
       {error ? <ErrorState message={(error as Error).message} /> : null}

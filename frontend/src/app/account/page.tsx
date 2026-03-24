@@ -24,11 +24,13 @@ export default function AccountPage() {
   const user = sessionQuery.data;
   return (
     <section className="space-y-4">
-      <div className="surface-card space-y-2">
-        <h1 className="text-xl font-semibold">Account</h1>
-        <p className="text-sm text-muted">{user.email}</p>
-        <p className="text-sm text-muted">@{user.username || "unknown"}</p>
-        <p className="text-sm text-muted">Role: {user.role}</p>
+      <div className="surface-card space-y-3">
+        <h1 className="section-title">Account</h1>
+        <div className="grid gap-2 text-sm text-muted sm:grid-cols-2">
+          <p>Email: {user.email}</p>
+          <p>Username: @{user.username || "unknown"}</p>
+          <p>Role: {user.role}</p>
+        </div>
       </div>
       <div className="surface-card flex flex-wrap gap-3">
         <Link href="/onboarding" className="btn-secondary">

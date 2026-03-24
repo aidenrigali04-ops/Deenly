@@ -54,7 +54,7 @@ export function FeedView({ heading, fixedPostType = "" }: FeedViewProps) {
   return (
     <section className="space-y-4">
       <div className="surface-card flex flex-wrap items-center gap-3">
-        <h1 className="mr-auto text-xl font-semibold">{heading}</h1>
+        <h1 className="mr-auto section-title">{heading}</h1>
         {!fixedPostType ? (
           <select
             className="input max-w-44"
@@ -74,6 +74,7 @@ export function FeedView({ heading, fixedPostType = "" }: FeedViewProps) {
             type="checkbox"
             checked={followingOnly}
             onChange={(event) => setFollowingOnly(event.target.checked)}
+            aria-label="Following only"
           />
           Following only
         </label>

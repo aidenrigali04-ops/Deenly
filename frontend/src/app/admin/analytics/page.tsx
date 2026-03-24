@@ -31,7 +31,7 @@ type FeedHealth = {
 
 function Card({ title, value }: { title: string; value: string | number }) {
   return (
-    <div className="surface-card">
+    <div className="surface-card space-y-2">
       <p className="text-xs uppercase tracking-wide text-muted">{title}</p>
       <p className="mt-2 text-2xl font-semibold">{value}</p>
     </div>
@@ -66,7 +66,7 @@ export default function AdminAnalyticsPage() {
 
   return (
     <section className="space-y-4">
-      <h1 className="text-2xl font-semibold">Analytics Dashboard</h1>
+      <h1 className="section-title">Analytics Dashboard</h1>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Card title="Signups" value={funnel.data?.signups ?? 0} />
         <Card title="First Follows" value={funnel.data?.first_follows ?? 0} />
@@ -87,7 +87,7 @@ export default function AdminAnalyticsPage() {
         <h2 className="text-lg font-medium">Event Summary (30 days)</h2>
         <ul className="mt-3 space-y-2 text-sm text-muted">
           {summary.data?.totals.map((event) => (
-            <li key={event.event_name} className="flex items-center justify-between">
+            <li key={event.event_name} className="flex items-center justify-between rounded-lg border border-white/5 px-3 py-2">
               <span>{event.event_name}</span>
               <span>{event.total}</span>
             </li>

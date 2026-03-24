@@ -40,14 +40,18 @@ export default function NotificationsPage() {
 
   return (
     <section className="space-y-3">
-      <h1 className="text-2xl font-semibold">Inbox</h1>
+      <h1 className="section-title">Inbox</h1>
       {query.data.items.map((item) => (
-        <article key={item.id} className="surface-card">
+        <article key={item.id} className="surface-card space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">{item.type}</p>
-            <p className="text-xs text-muted">{new Date(item.created_at).toLocaleString()}</p>
+            <p className="text-sm font-medium">
+              {item.type} {!item.is_read ? <span className="text-accent">(new)</span> : null}
+            </p>
+            <time className="text-xs text-muted" dateTime={item.created_at}>
+              {new Date(item.created_at).toLocaleString()}
+            </time>
           </div>
-          <pre className="mt-2 overflow-x-auto text-xs text-muted">
+          <pre className="overflow-x-auto rounded-xl border border-white/10 bg-surface/50 p-3 text-xs text-muted">
             {JSON.stringify(item.payload, null, 2)}
           </pre>
           {!item.is_read ? (

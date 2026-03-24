@@ -62,6 +62,7 @@ export default function SearchPage() {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search users or posts..."
+          aria-label="Search users or posts"
         />
         <button className="btn-primary" type="submit">
           Search
@@ -80,9 +81,14 @@ export default function SearchPage() {
           <div className="surface-card space-y-3">
             <h2 className="text-lg font-semibold">Users</h2>
             {(usersQuery.data?.items || []).map((user) => (
-              <Link key={user.user_id} href={`/users/${user.user_id}`} className="block rounded-lg border border-white/10 p-3">
+              <Link
+                key={user.user_id}
+                href={`/users/${user.user_id}`}
+                className="block rounded-lg border border-white/10 bg-surface/30 p-3 hover:border-accent/40"
+              >
                 <p className="font-medium">{user.display_name}</p>
                 <p className="text-sm text-muted">@{user.username}</p>
+                {user.bio ? <p className="mt-2 line-clamp-2 text-xs text-muted">{user.bio}</p> : null}
               </Link>
             ))}
             {(usersQuery.data?.items || []).length === 0 ? (
@@ -92,7 +98,11 @@ export default function SearchPage() {
           <div className="surface-card space-y-3">
             <h2 className="text-lg font-semibold">Posts</h2>
             {(postsQuery.data?.items || []).map((post) => (
-              <Link key={post.id} href={`/posts/${post.id}`} className="block rounded-lg border border-white/10 p-3">
+              <Link
+                key={post.id}
+                href={`/posts/${post.id}`}
+                className="block rounded-lg border border-white/10 bg-surface/30 p-3 hover:border-accent/40"
+              >
                 <p className="text-xs uppercase text-accent">{post.post_type}</p>
                 <p className="font-medium">{post.content}</p>
                 <p className="text-sm text-muted">by {post.author_display_name}</p>

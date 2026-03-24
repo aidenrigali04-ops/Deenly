@@ -28,19 +28,26 @@ export function Nav() {
     user?.email?.toLowerCase() === adminOwnerEmail;
 
   return (
-    <aside className="w-64 shrink-0 rounded-2xl border border-white/10 bg-card/40 p-4">
-      <div className="mb-4">
+    <aside className="w-full shrink-0 rounded-2xl border border-white/10 bg-card/40 p-4 md:sticky md:top-4 md:w-64 md:self-start">
+      <div className="mb-4 flex items-center justify-between">
         <Link href="/home" className="text-lg font-bold tracking-tight text-accent">
           Deenly
         </Link>
+        {user ? (
+          <span className="rounded-full border border-white/10 px-2 py-1 text-xs text-muted">
+            @{user.username || "user"}
+          </span>
+        ) : null}
       </div>
-      <nav className="flex flex-col gap-1">
+      <nav className="grid grid-cols-2 gap-1 md:grid-cols-1" aria-label="Primary">
         {links.map((link) => (
           <Link
             key={link.href}
             href={link.href}
             className={`rounded-lg px-3 py-2 text-sm ${
-              pathname.startsWith(link.href) ? "bg-background text-text" : "text-muted hover:text-text"
+              pathname.startsWith(link.href)
+                ? "bg-background text-text ring-1 ring-white/10"
+                : "text-muted hover:bg-background/60 hover:text-text"
             }`}
           >
             {link.label}
@@ -50,7 +57,9 @@ export function Nav() {
           <Link
             href="/admin"
             className={`rounded-lg px-3 py-2 text-sm ${
-              pathname.startsWith("/admin") ? "bg-background text-text" : "text-muted hover:text-text"
+              pathname.startsWith("/admin")
+                ? "bg-background text-text ring-1 ring-white/10"
+                : "text-muted hover:bg-background/60 hover:text-text"
             }`}
           >
             Admin

@@ -29,21 +29,10 @@ export default function AdminHomePage() {
   return (
     <section className="space-y-4">
       <div className="surface-card">
-        <h1 className="text-2xl font-semibold">Admin Console</h1>
+        <h1 className="section-title">Admin Console</h1>
         <p className="mt-2 text-sm text-muted">
           Full table coverage for moderation, safety, sessions, analytics, beta, and support.
         </p>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {tableLinks.map((table) => (
-          <Link
-            key={table}
-            href={`/admin/tables/${table}`}
-            className="surface-card text-sm hover:border-accent/40"
-          >
-            {table}
-          </Link>
-        ))}
       </div>
       <div className="surface-card">
         <div className="flex flex-wrap gap-2">
@@ -57,6 +46,17 @@ export default function AdminHomePage() {
             Open Operations Console
           </Link>
         </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {tableLinks.map((table) => (
+          <Link
+            key={table}
+            href={`/admin/tables/${table}`}
+            className="surface-card text-sm capitalize hover:border-accent/40"
+          >
+            {table.replaceAll("_", " ")}
+          </Link>
+        ))}
       </div>
     </section>
   );

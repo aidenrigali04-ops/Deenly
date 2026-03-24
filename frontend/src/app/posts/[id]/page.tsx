@@ -104,9 +104,9 @@ export default function PostDetailPage() {
       <article className="surface-card space-y-3">
         <div className="flex items-center justify-between text-sm text-muted">
           <span>{post.author_display_name}</span>
-          <span>{new Date(post.created_at).toLocaleString()}</span>
+          <time dateTime={post.created_at}>{new Date(post.created_at).toLocaleString()}</time>
         </div>
-        <h1 className="text-xl font-semibold">{post.content}</h1>
+        <h1 className="section-title">{post.content}</h1>
         {post.media_url ? (
           <video controls className="w-full rounded-xl border border-white/10">
             <source src={post.media_url} />
@@ -114,7 +114,9 @@ export default function PostDetailPage() {
         ) : null}
         <div className="flex flex-wrap gap-2 text-xs text-muted">
           {stats?.map((value) => (
-            <span key={value}>{value}</span>
+            <span key={value} className="rounded-full border border-white/10 px-2 py-1">
+              {value}
+            </span>
           ))}
         </div>
         <div className="flex flex-wrap gap-2">

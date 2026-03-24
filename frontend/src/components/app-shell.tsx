@@ -70,8 +70,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   if (!isPublicPath && bootstrapping) {
     return (
-      <main className="container-shell py-10">
-        <p className="text-sm text-muted">Restoring your session...</p>
+      <main className="container-shell py-10" role="status" aria-live="polite">
+        <div className="surface-card space-y-3">
+          <p className="text-sm text-muted">Restoring your session...</p>
+          <div className="skeleton h-3 w-2/5" />
+          <div className="skeleton h-3 w-full" />
+          <div className="skeleton h-3 w-3/4" />
+        </div>
       </main>
     );
   }
@@ -81,7 +86,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="container-shell flex gap-6 py-6">
+    <div className="container-shell flex flex-col gap-4 py-6 md:flex-row md:gap-6">
       <Nav />
       <main className="min-w-0 flex-1">{children}</main>
     </div>

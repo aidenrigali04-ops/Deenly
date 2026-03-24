@@ -81,19 +81,22 @@ export default function CreatePage() {
   return (
     <section className="mx-auto max-w-2xl space-y-5">
       <header>
-        <h1 className="text-2xl font-bold">Create post</h1>
+        <h1 className="section-title">Create post</h1>
         <p className="mt-1 text-sm text-muted">Share beneficial recitations and reminders.</p>
       </header>
       <form className="surface-card space-y-3" onSubmit={onSubmit}>
+        <label className="text-xs uppercase tracking-wide text-muted">Post type</label>
         <select
           className="input"
           value={postType}
           onChange={(event) => setPostType(event.target.value)}
+          aria-label="Post type"
         >
           <option value="community">Community</option>
           <option value="recitation">Recitation</option>
           <option value="short_video">Short video</option>
         </select>
+        <label className="text-xs uppercase tracking-wide text-muted">Message</label>
         <textarea
           className="input min-h-32"
           placeholder="Share your message..."
@@ -101,7 +104,11 @@ export default function CreatePage() {
           onChange={(event) => setContent(event.target.value)}
           required
         />
+        <label className="text-xs uppercase tracking-wide text-muted">Optional media</label>
         <input name="mediaFile" type="file" accept="video/*,audio/*" className="input" />
+        <p className="text-xs text-muted">
+          Uploads are attached after post creation. Keep files concise for faster publishing.
+        </p>
         {error ? <ErrorState message={error} /> : null}
         <button className="btn-primary w-full" disabled={isSubmitting}>
           {isSubmitting ? "Publishing..." : "Publish"}

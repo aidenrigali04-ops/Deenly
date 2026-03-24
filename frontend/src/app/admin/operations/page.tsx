@@ -61,24 +61,31 @@ export default function AdminOperationsPage() {
   };
 
   return (
-    <section className="grid gap-4 md:grid-cols-2">
+    <section className="space-y-4">
+      <header className="surface-card">
+        <h1 className="section-title">Operations Console</h1>
+        <p className="mt-1 text-sm text-muted">
+          Create beta invites and triage support tickets with clear operational states.
+        </p>
+      </header>
+      <div className="grid gap-4 md:grid-cols-2">
       <form className="surface-card space-y-2" onSubmit={submitInvite}>
         <h1 className="text-lg font-semibold">Create Beta Invite</h1>
-        <input className="input" type="email" placeholder="Optional email" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} />
-        <input className="input" type="number" min={1} max={1000} value={maxUses} onChange={(event) => setMaxUses(event.target.value)} />
+        <input className="input" aria-label="Invite email" type="email" placeholder="Optional email" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} />
+        <input className="input" aria-label="Invite max uses" type="number" min={1} max={1000} value={maxUses} onChange={(event) => setMaxUses(event.target.value)} />
         <button className="btn-primary" type="submit" disabled={inviteMutation.isPending}>
           {inviteMutation.isPending ? "Creating..." : "Create invite"}
         </button>
       </form>
       <form className="surface-card space-y-2" onSubmit={submitSupport}>
         <h2 className="text-lg font-semibold">Support Triage</h2>
-        <input className="input" placeholder="Ticket ID" value={ticketId} onChange={(event) => setTicketId(event.target.value)} required />
-        <select className="input" value={status} onChange={(event) => setStatus(event.target.value)}>
+        <input className="input" aria-label="Support ticket ID" placeholder="Ticket ID" value={ticketId} onChange={(event) => setTicketId(event.target.value)} required />
+        <select className="input" aria-label="Support ticket status" value={status} onChange={(event) => setStatus(event.target.value)}>
           <option value="in_progress">In Progress</option>
           <option value="resolved">Resolved</option>
           <option value="closed">Closed</option>
         </select>
-        <select className="input" value={priority} onChange={(event) => setPriority(event.target.value)}>
+        <select className="input" aria-label="Support ticket priority" value={priority} onChange={(event) => setPriority(event.target.value)}>
           <option value="low">Low</option>
           <option value="normal">Normal</option>
           <option value="high">High</option>
@@ -88,8 +95,9 @@ export default function AdminOperationsPage() {
           {supportMutation.isPending ? "Updating..." : "Update ticket"}
         </button>
       </form>
-      {error ? <p className="md:col-span-2 text-sm text-rose-300">{error}</p> : null}
-      {message ? <p className="md:col-span-2 text-sm text-accent">{message}</p> : null}
+      </div>
+      {error ? <p className="text-sm text-rose-300">{error}</p> : null}
+      {message ? <p className="text-sm text-accent">{message}</p> : null}
     </section>
   );
 }
