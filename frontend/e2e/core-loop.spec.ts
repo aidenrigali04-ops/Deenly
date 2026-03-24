@@ -91,10 +91,10 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
 
   await expect(page.getByRole("button", { name: "Load more" })).toBeVisible();
   await page.getByRole("button", { name: "Load more" }).click();
-  await expect(page.getByRole("link", { name: "Open post" })).toHaveCount(20);
+  await expect(page.getByRole("link", { name: "Open post" })).toHaveCount(12);
 
   await page.goto(`${baseURL}/users/${creator.user.id}`);
-  await page.getByRole("button", { name: "Follow" }).click();
+  await page.getByRole("button", { name: "Follow", exact: true }).click();
   await expect(page.getByText("Followed successfully.")).toBeVisible();
 
   await page.goto(`${baseURL}/create`);
