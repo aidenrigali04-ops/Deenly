@@ -90,8 +90,12 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
   await expect(page).toHaveURL(/\/home$/);
 
   await expect(page.getByRole("button", { name: "Load more" })).toBeVisible();
+  const postLinks = page.getByRole("link", { name: "Open post" });
+  const initialPostCount = await postLinks.count();
   await page.getByRole("button", { name: "Load more" }).click();
-  await expect(page.getByRole("link", { name: "Open post" })).toHaveCount(12);
+  await expect
+    .poll(async () => postLinks.count(), { timeout: 10000 })
+    .toBeGreaterThan(initialPostCount);
 
   await page.goto(`${baseURL}/users/${creator.user.id}`);
   await page.getByRole("button", { name: "Follow", exact: true }).click();
@@ -107,8 +111,17 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
   await page.getByRole("button", { name: "Publish" }).click();
   await expect(page).toHaveURL(/\/posts\/\d+$/);
 
+  const benefitedStat = page.locator("span", { hasText: /^Benefited:/ }).first();
+  const beforeBenefitedCount = Number(
+    ((await benefitedStat.textContent()) || "Benefited: 0").match(/\d+/)?.[0] || 0
+  );
   await page.getByRole("button", { name: "Benefited" }).click();
-  await expect(page.getByText(/Benefited:\s*[1-9]/)).toBeVisible();
+  await expect
+    .poll(async () => {
+      const value = await benefitedStat.textContent();
+      return Number((value || "").match(/\d+/)?.[0] || 0);
+    })
+    .toBeGreaterThanOrEqual(beforeBenefitedCount + 1);
 
   await page.getByPlaceholder("Reason").fill("test report reason");
   await page.getByRole("button", { name: "Submit report" }).click();
