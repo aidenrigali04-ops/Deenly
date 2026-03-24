@@ -82,7 +82,7 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
   await expect(page).toHaveURL(/\/home$/);
 
   await page.getByRole("button", { name: "Logout" }).click();
-  await expect(page).toHaveURL(/\/auth\/login$/);
+  await expect(page).toHaveURL(/\/auth\/login(\?.*)?$/);
 
   await page.getByPlaceholder("Email").fill(`viewer-${timestamp}@example.com`);
   await page.getByPlaceholder("Password").fill(password);
