@@ -4,6 +4,7 @@ import { ResizeMode, Video } from "expo-av";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ApiError, apiRequest } from "../../lib/api";
+import { resolveMediaUrl } from "../../lib/media-url";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { enqueueMutation } from "../../lib/mutation-queue";
 import { colors } from "../../theme";
@@ -35,6 +36,7 @@ export function PostDetailScreen({ route, navigation }: Props) {
   const [reportCategory, setReportCategory] = useState("other");
   const [reportEvidenceUrl, setReportEvidenceUrl] = useState("");
   const [message, setMessage] = useState("");
+  const [mediaFailed, setMediaFailed] = useState(false);
 
   const postQuery = useQuery({
     queryKey: ["mobile-post-detail", postId],
@@ -59,6 +61,10 @@ export function PostDetailScreen({ route, navigation }: Props) {
       viewMutation.mutate(80);
     }
   }, [postQuery.data]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    setMediaFailed(false);
+  }, [postId, postQuery.data?.media_url]);
 
   const interact = useMutation({
     mutationFn: (payload: { interactionType: string; commentText?: string }) =>
@@ -111,24 +117,34 @@ export function PostDetailScreen({ route, navigation }: Props) {
   }
 
   const post = postQuery.data;
+  const mediaUri = resolveMediaUrl(post.media_url) || undefined;
+  const canRenderMedia = Boolean(mediaUri) && !mediaFailed;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.card}>
         <Text style={styles.title}>{post.content}</Text>
         <Text style={styles.muted}>{post.author_display_name}</Text>
-        {post.media_url ? (
+        {canRenderMedia ? (
           isImageMedia(post) ? (
-            <Image source={{ uri: post.media_url }} style={styles.video} resizeMode="cover" />
+            <Image
+              source={{ uri: mediaUri }}
+              style={styles.video}
+              resizeMode="cover"
+              onError={() => setMediaFailed(true)}
+            />
           ) : (
             <Video
-              source={{ uri: post.media_url }}
+              source={{ uri: mediaUri }}
               style={styles.video}
               useNativeControls
               resizeMode={ResizeMode.COVER}
               isLooping={false}
+              onError={() => setMediaFailed(true)}
             />
           )
+        ) : post.media_url ? (
+          <Text style={styles.muted}>Media unavailable right now.</Text>
         ) : null}
         <View style={styles.metrics}>
           {stats?.map((value) => (

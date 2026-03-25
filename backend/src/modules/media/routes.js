@@ -63,7 +63,7 @@ function createMediaRouter({ db, config, mediaStorage, analytics }) {
     asyncHandler(async (req, res) => {
       const postId = Number(req.params.postId);
       const mediaKey = requireString(req.body?.mediaKey, "mediaKey", 5, 512);
-      const mediaUrl = req.body?.mediaUrl ? String(req.body.mediaUrl) : mediaKey;
+      const inputMediaUrl = req.body?.mediaUrl ? String(req.body.mediaUrl) : mediaKey;
       const mimeType = requireString(req.body?.mimeType, "mimeType", 3, 128);
       const fileSizeBytes = Number(req.body?.fileSizeBytes);
       const durationSeconds = req.body?.durationSeconds
@@ -88,6 +88,10 @@ function createMediaRouter({ db, config, mediaStorage, analytics }) {
       ) {
         throw httpError(400, "durationSeconds must be a positive number");
       }
+      const mediaUrl = mediaStorage.resolveMediaUrl({
+        mediaKey,
+        mediaUrl: inputMediaUrl
+      });
 
       const result = await db.query(
         `UPDATE posts
@@ -142,6 +146,13 @@ function createMediaRouter({ db, config, mediaStorage, analytics }) {
         ? String(req.body.errorMessage).slice(0, 500)
         : null;
 
+      const normalizedMediaUrl = mediaUrl
+        ? mediaStorage.resolveMediaUrl({
+            mediaKey: mediaUrl,
+            mediaUrl
+          })
+        : null;
+
       const result = await db.query(
         `UPDATE posts
          SET media_status = $1,
@@ -151,7 +162,7 @@ function createMediaRouter({ db, config, mediaStorage, analytics }) {
              updated_at = NOW()
          WHERE id = $4
          RETURNING id, media_status, media_url, media_processing_error, media_processed_at`,
-        [status, mediaUrl, processingError, postId]
+        [status, normalizedMediaUrl, processingError, postId]
       );
 
       if (result.rowCount === 0) {

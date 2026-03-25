@@ -158,8 +158,11 @@ function createApp({ config, logger, db, analytics, mediaStorage }) {
   apiRouter.use("/auth", createAuthRouter({ config, db, analytics: app.locals.analytics }));
   apiRouter.use("/users", createUsersRouter({ db, config }));
   apiRouter.use("/profiles", createProfileRouter({ db, config }));
-  apiRouter.use("/posts", createPostsRouter({ db, config, analytics: app.locals.analytics }));
-  apiRouter.use("/feed", createFeedRouter({ db, config }));
+  apiRouter.use(
+    "/posts",
+    createPostsRouter({ db, config, analytics: app.locals.analytics, mediaStorage: app.locals.mediaStorage })
+  );
+  apiRouter.use("/feed", createFeedRouter({ db, config, mediaStorage: app.locals.mediaStorage }));
   apiRouter.use(
     "/interactions",
     createInteractionsRouter({ db, config, analytics: app.locals.analytics })

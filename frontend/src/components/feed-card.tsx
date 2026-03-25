@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import type { FeedItem } from "@/types";
+import { resolveMediaUrl } from "@/lib/media-url";
 
 function isImageMedia(item: FeedItem) {
   if (item.media_mime_type?.startsWith("image/")) {
@@ -12,6 +14,13 @@ function isImageMedia(item: FeedItem) {
 }
 
 export function FeedCard({ item }: { item: FeedItem }) {
+  const [mediaFailed, setMediaFailed] = useState(false);
+  useEffect(() => {
+    setMediaFailed(false);
+  }, [item.id, item.media_url]);
+
+  const mediaUrl = resolveMediaUrl(item.media_url) || undefined;
+  const canRenderMedia = Boolean(mediaUrl) && !mediaFailed;
   const initials = item.author_display_name
     .split(" ")
     .filter(Boolean)
@@ -46,22 +55,25 @@ export function FeedCard({ item }: { item: FeedItem }) {
       </div>
 
       <div className="mx-4 mb-3 overflow-hidden rounded-[1.4rem] border border-white/10 bg-surface">
-        {item.media_url ? (
+        {canRenderMedia ? (
           isImageMedia(item) ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={item.media_url}
+              src={mediaUrl}
               alt={`${item.author_display_name} post media`}
               className="feed-media-frame w-full object-cover"
+              onError={() => setMediaFailed(true)}
             />
           ) : (
-            <video controls className="feed-media-frame w-full">
-              <source src={item.media_url} />
+            <video controls className="feed-media-frame w-full" onError={() => setMediaFailed(true)}>
+              <source src={mediaUrl} />
             </video>
           )
         ) : (
           <div className="feed-media-frame flex items-center justify-center px-5 text-center text-sm text-muted">
-            {item.post_type.replace("_", " ")} reflection
+            {item.media_url
+              ? "Media unavailable right now"
+              : `${item.post_type.replace("_", " ")} reflection`}
           </div>
         )}
       </div>

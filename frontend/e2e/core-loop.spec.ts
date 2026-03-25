@@ -110,6 +110,12 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
   });
   await page.getByRole("button", { name: "Publish" }).click();
   await expect(page).toHaveURL(/\/posts\/\d+$/);
+  await expect(page.locator("video")).toBeVisible();
+
+  await page.goto(`${baseURL}/home`);
+  const videoCard = page.locator("article", { hasText: `Uploaded post ${timestamp}` }).first();
+  await expect(videoCard).toBeVisible();
+  await expect(videoCard.locator("video")).toBeVisible();
 
   const benefitedStat = page.locator("span", { hasText: /^Benefited:/ }).first();
   const beforeBenefitedCount = Number(
@@ -145,6 +151,11 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
   await page.getByRole("button", { name: "Publish" }).click();
   await expect(page).toHaveURL(/\/posts\/\d+$/);
   await expect(page.locator('img[alt*="post media"]')).toBeVisible();
+
+  await page.goto(`${baseURL}/home`);
+  const imageCard = page.locator("article", { hasText: `Image post ${timestamp}` }).first();
+  await expect(imageCard).toBeVisible();
+  await expect(imageCard.locator("img")).toBeVisible();
 });
 
 test("admin feedback loop: owner access, tables, and operations form", async ({

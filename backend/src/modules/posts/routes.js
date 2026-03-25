@@ -6,7 +6,7 @@ const { httpError } = require("../../utils/http-error");
 
 const POST_TYPES = new Set(["recitation", "community", "short_video"]);
 
-function createPostsRouter({ db, config, analytics }) {
+function createPostsRouter({ db, config, analytics, mediaStorage }) {
   const router = express.Router();
   const authMiddleware = authenticate({
     config: config || { jwtAccessSecret: process.env.JWT_ACCESS_SECRET || "" },
@@ -98,7 +98,16 @@ function createPostsRouter({ db, config, analytics }) {
         [postType, authorId, limit, offset]
       );
 
-      res.status(200).json({ limit, offset, items: result.rows });
+      const items = result.rows.map((row) => ({
+        ...row,
+        media_url: mediaStorage?.resolveMediaUrl
+          ? mediaStorage.resolveMediaUrl({
+              mediaKey: row.media_upload_key || row.media_url,
+              mediaUrl: row.media_url
+            })
+          : row.media_url
+      }));
+      res.status(200).json({ limit, offset, items });
     })
   );
 
@@ -136,7 +145,16 @@ function createPostsRouter({ db, config, analytics }) {
         throw httpError(404, "Post not found");
       }
 
-      res.status(200).json(result.rows[0]);
+      const row = result.rows[0];
+      res.status(200).json({
+        ...row,
+        media_url: mediaStorage?.resolveMediaUrl
+          ? mediaStorage.resolveMediaUrl({
+              mediaKey: row.media_upload_key || row.media_url,
+              mediaUrl: row.media_url
+            })
+          : row.media_url
+      });
     })
   );
 

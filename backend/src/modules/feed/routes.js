@@ -63,7 +63,7 @@ async function getViewerIdFromAuthHeader({ db, config, authorization }) {
   }
 }
 
-function createFeedRouter({ db, config }) {
+function createFeedRouter({ db, config, mediaStorage }) {
   const router = express.Router();
 
   router.get(
@@ -202,7 +202,16 @@ function createFeedRouter({ db, config }) {
       );
 
       const hasMore = result.rows.length > limit;
-      const items = hasMore ? result.rows.slice(0, limit) : result.rows;
+      const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
+      const items = rows.map((row) => ({
+        ...row,
+        media_url: mediaStorage?.resolveMediaUrl
+          ? mediaStorage.resolveMediaUrl({
+              mediaKey: row.media_upload_key || row.media_url,
+              mediaUrl: row.media_url
+            })
+          : row.media_url
+      }));
       const nextCursor = hasMore ? encodeCursor(items[items.length - 1]) : null;
 
       res.status(200).json({

@@ -18,7 +18,8 @@ describeIfDatabase("integration api flows", () => {
     JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET || "test-access",
     JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || "test-refresh",
     ADMIN_OWNER_EMAIL: process.env.ADMIN_OWNER_EMAIL || "admin-growth@example.com",
-    MEDIA_PROVIDER: "mock"
+    MEDIA_PROVIDER: "mock",
+    MEDIA_PUBLIC_BASE_URL: process.env.MEDIA_PUBLIC_BASE_URL || "https://media.test-cdn.example"
   });
 
   const logger = createLogger({ ...config, logLevel: "silent" });
@@ -263,6 +264,81 @@ describeIfDatabase("integration api flows", () => {
     expect(postDetails.body.view_count).toBeGreaterThanOrEqual(1);
     expect(Number(postDetails.body.avg_watch_time_ms)).toBeGreaterThan(0);
     expect(Number(postDetails.body.avg_completion_rate)).toBeGreaterThan(0);
+  });
+
+  it("normalizes media attach payloads to delivery URL for key-only and key-url values", async () => {
+    const creatorRegister = await request(app).post("/api/v1/auth/register").send({
+      email: "media-normalize@example.com",
+      username: "media_normalize_user",
+      password: "StrongPass123",
+      displayName: "Media Normalize"
+    });
+    const creatorToken = creatorRegister.body.tokens.accessToken;
+
+    const keyOnlyPost = await request(app)
+      .post("/api/v1/posts")
+      .set("Authorization", `Bearer ${creatorToken}`)
+      .send({
+        postType: "community",
+        content: "Normalize media URL from key"
+      });
+    expect(keyOnlyPost.statusCode).toBe(201);
+
+    const keyOnlyAttach = await request(app)
+      .post(`/api/v1/media/posts/${keyOnlyPost.body.id}/attach`)
+      .set("Authorization", `Bearer ${creatorToken}`)
+      .send({
+        mediaKey: "uploads/normalizer/key-only.mp4",
+        mediaUrl: "uploads/normalizer/key-only.mp4",
+        mimeType: "video/mp4",
+        fileSizeBytes: 4096
+      });
+    expect(keyOnlyAttach.statusCode).toBe(200);
+    expect(keyOnlyAttach.body.media_url).toBe(
+      "https://media.test-cdn.example/uploads/normalizer/key-only.mp4"
+    );
+
+    const keyUrlPost = await request(app)
+      .post("/api/v1/posts")
+      .set("Authorization", `Bearer ${creatorToken}`)
+      .send({
+        postType: "community",
+        content: "Normalize media URL from S3 URL"
+      });
+    expect(keyUrlPost.statusCode).toBe(201);
+
+    const keyUrlAttach = await request(app)
+      .post(`/api/v1/media/posts/${keyUrlPost.body.id}/attach`)
+      .set("Authorization", `Bearer ${creatorToken}`)
+      .send({
+        mediaKey: "uploads/normalizer/key-url.jpg",
+        mediaUrl:
+          "https://deenly-media-prod-950165721651-us-east-2-an.s3.us-east-2.amazonaws.com/uploads/normalizer/key-url.jpg?X-Amz-Signature=test",
+        mimeType: "image/jpeg",
+        fileSizeBytes: 1024
+      });
+    expect(keyUrlAttach.statusCode).toBe(200);
+    expect(keyUrlAttach.body.media_url).toBe(
+      "https://media.test-cdn.example/uploads/normalizer/key-url.jpg"
+    );
+
+    const feed = await request(app).get("/api/v1/feed?limit=20");
+    expect(feed.statusCode).toBe(200);
+    const keyOnlyItem = feed.body.items.find((item) => item.id === keyOnlyPost.body.id);
+    const keyUrlItem = feed.body.items.find((item) => item.id === keyUrlPost.body.id);
+    expect(keyOnlyItem.media_url).toBe(
+      "https://media.test-cdn.example/uploads/normalizer/key-only.mp4"
+    );
+    expect(keyUrlItem.media_url).toBe(
+      "https://media.test-cdn.example/uploads/normalizer/key-url.jpg"
+    );
+
+    const detail = await request(app).get(`/api/v1/posts/${keyOnlyPost.body.id}`);
+    expect(detail.statusCode).toBe(200);
+    expect(detail.body.media_url).toBe(
+      "https://media.test-cdn.example/uploads/normalizer/key-only.mp4"
+    );
+    expect(detail.body.media_mime_type).toBe("video/mp4");
   });
 
   it("supports onboarding interests, notifications, beta flow, and support ticket", async () => {

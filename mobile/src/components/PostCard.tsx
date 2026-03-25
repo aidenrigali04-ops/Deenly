@@ -1,6 +1,8 @@
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { ResizeMode, Video } from "expo-av";
+import { useEffect, useState } from "react";
 import { colors } from "../theme";
+import { resolveMediaUrl } from "../lib/media-url";
 import type { FeedItem } from "../types";
 
 function isImageMedia(item: FeedItem) {
@@ -22,6 +24,13 @@ export function PostCard({
   onOpen: () => void;
   onAuthor: () => void;
 }) {
+  const [mediaFailed, setMediaFailed] = useState(false);
+  useEffect(() => {
+    setMediaFailed(false);
+  }, [item.id, item.media_url]);
+  const mediaUri = resolveMediaUrl(item.media_url) || undefined;
+  const canRenderMedia = Boolean(mediaUri) && !mediaFailed;
+
   return (
     <View style={styles.card}>
       <View style={styles.rowBetween}>
@@ -30,18 +39,26 @@ export function PostCard({
       </View>
       <Text style={styles.type}>{item.post_type}</Text>
       <Text style={styles.content}>{item.content}</Text>
-      {item.media_url ? (
+      {canRenderMedia ? (
         isImageMedia(item) ? (
-          <Image source={{ uri: item.media_url }} style={styles.video} resizeMode="cover" />
+          <Image
+            source={{ uri: mediaUri }}
+            style={styles.video}
+            resizeMode="cover"
+            onError={() => setMediaFailed(true)}
+          />
         ) : (
           <Video
-            source={{ uri: item.media_url }}
+            source={{ uri: mediaUri }}
             style={styles.video}
             useNativeControls
             resizeMode={ResizeMode.COVER}
             isLooping={false}
+            onError={() => setMediaFailed(true)}
           />
         )
+      ) : item.media_url ? (
+        <Text style={styles.muted}>Media unavailable right now.</Text>
       ) : null}
       <View style={styles.metricsRow}>
         <Text style={styles.muted}>Benefited: {item.benefited_count || 0}</Text>

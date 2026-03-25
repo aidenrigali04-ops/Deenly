@@ -1,4 +1,5 @@
 const DEFAULT_PORT = 3000;
+const { URL } = require("node:url");
 const VALID_NODE_ENVS = new Set(["development", "test", "production"]);
 const VALID_DB_SSL_MODES = new Set(["disable", "require", "no-verify"]);
 const VALID_MEDIA_PROVIDERS = new Set(["mock", "s3"]);
@@ -58,6 +59,20 @@ function parseList(value) {
     .filter(Boolean);
 }
 
+function parseOptionalUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return "";
+  }
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error("MEDIA_PUBLIC_BASE_URL must be a valid absolute URL");
+  }
+  return parsed.toString().replace(/\/+$/, "");
+}
+
 function loadEnv(envSource = process.env) {
   const nodeEnv = envSource.NODE_ENV || "development";
   if (!VALID_NODE_ENVS.has(nodeEnv)) {
@@ -88,6 +103,7 @@ function loadEnv(envSource = process.env) {
     ),
     awsRegion: envSource.AWS_REGION || "",
     awsS3Bucket: envSource.AWS_S3_BUCKET || "",
+    mediaPublicBaseUrl: parseOptionalUrl(envSource.MEDIA_PUBLIC_BASE_URL),
     commentBlockedTerms: parseList(envSource.COMMENT_BLOCKED_TERMS),
     mockUploadBaseUrl: envSource.MOCK_UPLOAD_BASE_URL || ""
   };

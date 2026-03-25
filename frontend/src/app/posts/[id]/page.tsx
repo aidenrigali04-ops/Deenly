@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { resolveMediaUrl } from "@/lib/media-url";
 import type { FeedItem } from "@/types";
 
 type PostDetail = FeedItem & {
@@ -29,6 +30,7 @@ export default function PostDetailPage() {
   const postId = Number(params.id);
   const [comment, setComment] = useState("");
   const [reportReason, setReportReason] = useState("");
+  const [mediaFailed, setMediaFailed] = useState(false);
 
   const postQuery = useQuery({
     queryKey: ["post-detail", postId],
@@ -55,6 +57,10 @@ export default function PostDetailPage() {
     }
     viewMutation.mutate(80);
   }, [postQuery.data]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    setMediaFailed(false);
+  }, [postId, postQuery.data?.media_url]);
 
   const interact = useMutation({
     mutationFn: (payload: { interactionType: string; commentText?: string }) =>
@@ -108,6 +114,8 @@ export default function PostDetailPage() {
   }
 
   const post = postQuery.data;
+  const mediaUrl = resolveMediaUrl(post.media_url) || undefined;
+  const canRenderMedia = Boolean(mediaUrl) && !mediaFailed;
 
   return (
     <section className="space-y-4">
@@ -117,19 +125,26 @@ export default function PostDetailPage() {
           <time dateTime={post.created_at}>{new Date(post.created_at).toLocaleString()}</time>
         </div>
         <h1 className="section-title">{post.content}</h1>
-        {post.media_url ? (
+        {canRenderMedia ? (
           isImageMedia(post) ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={post.media_url}
+              src={mediaUrl}
               alt={`${post.author_display_name} post media`}
               className="w-full rounded-xl border border-white/10 object-cover"
+              onError={() => setMediaFailed(true)}
             />
           ) : (
-            <video controls className="w-full rounded-xl border border-white/10">
-              <source src={post.media_url} />
+            <video
+              controls
+              className="w-full rounded-xl border border-white/10"
+              onError={() => setMediaFailed(true)}
+            >
+              <source src={mediaUrl} />
             </video>
           )
+        ) : post.media_url ? (
+          <p className="text-xs text-muted">Media unavailable right now.</p>
         ) : null}
         <div className="flex flex-wrap gap-2 text-xs text-muted">
           {stats?.map((value) => (

@@ -104,6 +104,16 @@ async function run() {
       fileSizeBytes: 2048
     }
   });
+  const videoDetail = await request(baseUrl, `/posts/${mediaPost.id}`, {
+    method: "GET",
+    token
+  });
+  if (!/^https?:\/\//i.test(String(videoDetail.media_url || ""))) {
+    throw new Error("Video media_url is not resolvable");
+  }
+  if (videoDetail.media_mime_type !== "video/mp4") {
+    throw new Error("Video media_mime_type mismatch");
+  }
 
   const imageSignature = await request(baseUrl, "/media/upload-signature", {
     method: "POST",
@@ -125,6 +135,29 @@ async function run() {
       fileSizeBytes: 1024
     }
   });
+
+  const imageDetail = await request(baseUrl, `/posts/${mediaPost.id}`, {
+    method: "GET",
+    token
+  });
+  if (!/^https?:\/\//i.test(String(imageDetail.media_url || ""))) {
+    throw new Error("Image media_url is not resolvable");
+  }
+  if (imageDetail.media_mime_type !== "image/jpeg") {
+    throw new Error("Image media_mime_type mismatch");
+  }
+
+  const refreshedFeed = await request(baseUrl, "/feed?limit=20", {
+    method: "GET",
+    token
+  });
+  const mediaItem = (refreshedFeed.items || []).find((item) => item.id === mediaPost.id);
+  if (!mediaItem) {
+    throw new Error("Media post missing from feed");
+  }
+  if (!/^https?:\/\//i.test(String(mediaItem.media_url || ""))) {
+    throw new Error("Feed media_url is not resolvable");
+  }
 
   console.log("mobile e2e smoke passed");
 }
