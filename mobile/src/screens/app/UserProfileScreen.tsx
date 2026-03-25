@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { apiRequest } from "../../lib/api";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
-import { PostCard } from "../../components/PostCard";
 import { colors } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import type { FeedItem } from "../../types";
@@ -28,6 +27,7 @@ type UserProfile = {
 type Props = NativeStackScreenProps<RootStackParamList, "UserProfile">;
 
 export function UserProfileScreen({ route, navigation }: Props) {
+  const { width } = useWindowDimensions();
   const userId = route.params.id;
   const [activeTab, setActiveTab] = useState<"posts" | "media">("posts");
   const queryClient = useQueryClient();
@@ -118,6 +118,7 @@ export function UserProfileScreen({ route, navigation }: Props) {
   const avatarUri = resolveMediaUrl(user.avatar_url);
   const items = postsQuery.data?.items || [];
   const visibleItems = activeTab === "media" ? items.filter((item) => Boolean(item.media_url)) : items;
+  const tileSize = Math.floor((width - 28 - 4) / 3);
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.card}>
@@ -168,17 +169,41 @@ export function UserProfileScreen({ route, navigation }: Props) {
       {!postsQuery.isLoading && !postsQuery.error && visibleItems.length === 0 ? (
         <EmptyState title={activeTab === "posts" ? "No posts yet" : "No media yet"} />
       ) : null}
-      <View style={styles.stack}>
-        {visibleItems.map((item) => (
-          <PostCard
-            key={item.id}
-            item={item}
-            onOpen={() => navigation.navigate("PostDetail", { id: item.id })}
-            onAuthor={() => navigation.navigate("UserProfile", { id: item.author_id })}
-            onLike={() => likeMutation.mutate(item.id)}
-            liking={likeMutation.isPending}
-          />
-        ))}
+      <View style={styles.grid}>
+        {visibleItems.map((item) => {
+          const mediaUrl = resolveMediaUrl(item.media_url);
+          const isImage = Boolean(item.media_mime_type?.startsWith("image/"));
+          const isVideo = Boolean(item.media_mime_type?.startsWith("video/"));
+          const fallbackLabel = item.content?.trim().slice(0, 20) || "Post";
+          return (
+            <View key={item.id} style={[styles.tile, { width: tileSize, height: tileSize }]}>
+              <Pressable
+                style={styles.tileOpen}
+                onPress={() => navigation.navigate("PostDetail", { id: item.id })}
+              >
+                {mediaUrl && isImage ? (
+                  <Image source={{ uri: mediaUrl }} style={styles.tileImage} resizeMode="cover" />
+                ) : (
+                  <View style={[styles.tileFallback, isVideo ? styles.tileFallbackVideo : null]}>
+                    <Text style={styles.tileFallbackText}>{isVideo ? "Video" : fallbackLabel}</Text>
+                  </View>
+                )}
+                {isVideo ? (
+                  <View style={styles.tileBadge}>
+                    <Text style={styles.tileBadgeText}>Video</Text>
+                  </View>
+                ) : null}
+              </Pressable>
+              <Pressable
+                style={styles.tileLike}
+                onPress={() => likeMutation.mutate(item.id)}
+                disabled={likeMutation.isPending}
+              >
+                <Text style={styles.tileLikeText}>{likeMutation.isPending ? "..." : "Like"}</Text>
+              </Pressable>
+            </View>
+          );
+        })}
       </View>
     </ScrollView>
   );
@@ -200,7 +225,73 @@ const styles = StyleSheet.create({
   muted: { color: colors.muted },
   text: { color: colors.text },
   row: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
-  stack: { gap: 10 },
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 2
+  },
+  tile: {
+    position: "relative",
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card
+  },
+  tileOpen: {
+    flex: 1
+  },
+  tileImage: {
+    height: "100%",
+    width: "100%"
+  },
+  tileFallback: {
+    height: "100%",
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
+    paddingHorizontal: 6
+  },
+  tileFallbackVideo: {
+    backgroundColor: "#101827"
+  },
+  tileFallbackText: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: "600",
+    textAlign: "center"
+  },
+  tileBadge: {
+    position: "absolute",
+    right: 6,
+    top: 6,
+    borderRadius: 999,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "rgba(11,18,32,0.75)"
+  },
+  tileBadgeText: {
+    color: colors.text,
+    fontSize: 9,
+    fontWeight: "700"
+  },
+  tileLike: {
+    position: "absolute",
+    left: 6,
+    top: 6,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "rgba(11,18,32,0.75)"
+  },
+  tileLikeText: {
+    color: colors.text,
+    fontSize: 10,
+    fontWeight: "700"
+  },
   buttonSecondary: {
     borderColor: colors.border,
     borderWidth: 1,

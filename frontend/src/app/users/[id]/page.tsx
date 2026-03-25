@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
@@ -40,6 +40,7 @@ type FeedResponse = {
 
 export default function UserProfilePage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const userId = Number(params.id);
   const [activeTab, setActiveTab] = useState<"posts" | "media">("posts");
   const queryClient = useQueryClient();
@@ -238,39 +239,41 @@ export default function UserProfilePage() {
               {activeTab === "posts" ? "No posts to show yet." : "No media to show yet."}
             </div>
           ) : null}
-          <div className="space-y-3">
+          <div className="profile-post-grid">
             {visibleItems.map((item) => {
               const mediaUrl = resolveMediaUrl(item.media_url) || undefined;
               const isImage = item.media_mime_type?.startsWith("image/");
+              const isVideo = item.media_mime_type?.startsWith("video/");
+              const fallbackLabel = item.content?.trim().slice(0, 26) || "Post";
               return (
-                <article key={item.id} className="rounded-panel border border-black/10 bg-card p-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold">{item.author_display_name}</p>
-                    <time className="text-xs text-muted">{new Date(item.created_at).toLocaleString()}</time>
-                  </div>
-                  <p className="mt-2 text-sm text-text">{item.content}</p>
-                  {mediaUrl ? (
-                    <div className="mt-3 overflow-hidden rounded-control border border-black/10 bg-surface">
-                      {isImage ? (
+                <article key={item.id} className="profile-grid-tile">
+                  <button
+                    type="button"
+                    className="profile-grid-open"
+                    onClick={() => router.push(`/posts/${item.id}`)}
+                    aria-label={`Open post ${item.id}`}
+                  >
+                    {mediaUrl ? (
+                      isImage ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={mediaUrl} alt="post media" className="feed-media-frame w-full" />
+                        <img src={mediaUrl} alt="post media" className="profile-grid-media" />
                       ) : (
-                        <video controls className="feed-media-frame w-full">
-                          <source src={mediaUrl} />
-                        </video>
-                      )}
-                    </div>
-                  ) : null}
-                  <div className="mt-3 flex items-center justify-between">
-                    <span className="text-xs text-muted">Benefited: {item.benefited_count || 0}</span>
-                    <button
-                      className="btn-secondary px-3 py-1.5 text-xs"
-                      onClick={() => likeMutation.mutate(item.id)}
-                      disabled={likeMutation.isPending}
-                    >
-                      {likeMutation.isPending ? "Liking..." : "Like"}
-                    </button>
-                  </div>
+                        <div className="profile-grid-fallback profile-grid-fallback-video">Video</div>
+                      )
+                    ) : (
+                      <div className="profile-grid-fallback">{fallbackLabel}</div>
+                    )}
+                    {isVideo ? <span className="profile-grid-badge">Video</span> : null}
+                  </button>
+                  <button
+                    className="profile-grid-like"
+                    onClick={() => likeMutation.mutate(item.id)}
+                    disabled={likeMutation.isPending}
+                    type="button"
+                  >
+                    {likeMutation.isPending ? "..." : "Like"}
+                  </button>
+                  <span className="profile-grid-count">{item.benefited_count || 0}</span>
                 </article>
               );
             })}
