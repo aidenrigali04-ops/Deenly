@@ -214,11 +214,11 @@ function loadEnv(envSource = process.env) {
         "APP_BASE_URL is required in production (or provide MEDIA_PUBLIC_BASE_URL/CORS_ORIGINS)"
       );
     }
-    if (!config.stripeSecretKey) {
-      throw new Error("STRIPE_SECRET_KEY is required in production");
+    if (config.stripeSecretKey && !config.stripeWebhookSecret) {
+      throw new Error("STRIPE_WEBHOOK_SECRET is required when STRIPE_SECRET_KEY is provided");
     }
-    if (!config.stripeWebhookSecret) {
-      throw new Error("STRIPE_WEBHOOK_SECRET is required in production");
+    if (config.stripeWebhookSecret && !config.stripeSecretKey) {
+      throw new Error("STRIPE_SECRET_KEY is required when STRIPE_WEBHOOK_SECRET is provided");
     }
   }
 
