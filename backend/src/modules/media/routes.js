@@ -89,27 +89,54 @@ function createMediaRouter({ db, config, mediaStorage, analytics }) {
         throw httpError(400, "durationSeconds must be a positive number");
       }
       const mediaStatus = mimeType.startsWith("image/") ? "ready" : "processing";
+      const legacyCompatibleStatus = mimeType.startsWith("image/") ? "ready" : "pending";
       const mediaUrl = mediaStorage.resolveMediaUrl({
         mediaKey,
         mediaUrl: inputMediaUrl
       });
 
-      const result = await db.query(
-        `UPDATE posts
-         SET media_upload_key = $1,
-             media_url = $2,
-             media_mime_type = $3,
-             media_size_bytes = $4,
-             media_duration_seconds = $5,
-             media_status = $6,
-             media_processed_at = CASE WHEN $6 = 'ready' THEN NOW() ELSE NULL END,
-             media_processing_error = NULL,
-             updated_at = NOW()
-         WHERE id = $7
-           AND author_id = $8
-         RETURNING id, media_upload_key, media_url, media_mime_type, media_status, media_processed_at, updated_at`,
-        [mediaKey, mediaUrl, mimeType, fileSizeBytes, durationSeconds, mediaStatus, postId, req.user.id]
-      );
+      let result;
+      try {
+        result = await db.query(
+          `UPDATE posts
+           SET media_upload_key = $1,
+               media_url = $2,
+               media_mime_type = $3,
+               media_size_bytes = $4,
+               media_duration_seconds = $5,
+               media_status = $6,
+               media_processed_at = CASE WHEN $6 = 'ready' THEN NOW() ELSE NULL END,
+               media_processing_error = NULL,
+               updated_at = NOW()
+           WHERE id = $7
+             AND author_id = $8
+           RETURNING id, media_upload_key, media_url, media_mime_type, media_status, media_processed_at, updated_at`,
+          [mediaKey, mediaUrl, mimeType, fileSizeBytes, durationSeconds, mediaStatus, postId, req.user.id]
+        );
+      } catch (error) {
+        const isLegacyMediaStatusConstraint =
+          error?.code === "23514" &&
+          String(error?.constraint || "").includes("posts_media_status_check");
+        const isLegacyMissingColumn = error?.code === "42703";
+
+        if (!isLegacyMediaStatusConstraint && !isLegacyMissingColumn) {
+          throw error;
+        }
+
+        // Fallback for live environments with older schema/constraints during phased rollouts.
+        result = await db.query(
+          `UPDATE posts
+           SET media_upload_key = $1,
+               media_url = $2,
+               media_mime_type = $3,
+               media_status = $4,
+               updated_at = NOW()
+           WHERE id = $5
+             AND author_id = $6
+           RETURNING id, media_upload_key, media_url, media_mime_type, media_status, updated_at`,
+          [mediaKey, mediaUrl, mimeType, legacyCompatibleStatus, postId, req.user.id]
+        );
+      }
 
       if (result.rowCount === 0) {
         throw httpError(404, "Post not found");
