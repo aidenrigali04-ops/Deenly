@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchSessionMe } from "@/lib/auth";
@@ -228,6 +228,21 @@ export default function AccountPage() {
     }
     setAvatarUploading(true);
     try {
+      // #region agent log
+      fetch("http://127.0.0.1:7244/ingest/25316d93-ed82-40c8-b2f0-64204fe30501", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "29a8f0" },
+        body: JSON.stringify({
+          sessionId: "29a8f0",
+          runId: "e2e-avatar-debug",
+          hypothesisId: "H1",
+          location: "frontend/src/app/account/page.tsx:231",
+          message: "avatar_upload_start",
+          data: { fileType: file.type || "unknown", fileSize: file.size || 0 },
+          timestamp: Date.now()
+        })
+      }).catch(() => {});
+      // #endregion
       const signature = await apiRequest<UploadSignatureResponse>("/media/upload-signature", {
         method: "POST",
         auth: true,
@@ -238,11 +253,41 @@ export default function AccountPage() {
           fileSizeBytes: file.size || 1
         }
       });
+      // #region agent log
+      fetch("http://127.0.0.1:7244/ingest/25316d93-ed82-40c8-b2f0-64204fe30501", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "29a8f0" },
+        body: JSON.stringify({
+          sessionId: "29a8f0",
+          runId: "e2e-avatar-debug",
+          hypothesisId: "H2",
+          location: "frontend/src/app/account/page.tsx:247",
+          message: "avatar_signature_received",
+          data: { hasUploadUrl: Boolean(signature.uploadUrl), hasKey: Boolean(signature.key) },
+          timestamp: Date.now()
+        })
+      }).catch(() => {});
+      // #endregion
       const uploadResponse = await fetch(signature.uploadUrl, {
         method: "PUT",
         headers: signature.headers,
         body: file
       });
+      // #region agent log
+      fetch("http://127.0.0.1:7244/ingest/25316d93-ed82-40c8-b2f0-64204fe30501", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "29a8f0" },
+        body: JSON.stringify({
+          sessionId: "29a8f0",
+          runId: "e2e-avatar-debug",
+          hypothesisId: "H2",
+          location: "frontend/src/app/account/page.tsx:259",
+          message: "avatar_put_result",
+          data: { ok: uploadResponse.ok, status: uploadResponse.status },
+          timestamp: Date.now()
+        })
+      }).catch(() => {});
+      // #endregion
       if (!uploadResponse.ok) {
         throw new Error("Unable to upload avatar.");
       }
@@ -255,6 +300,21 @@ export default function AccountPage() {
           avatarUrl: signature.key
         }
       });
+      // #region agent log
+      fetch("http://127.0.0.1:7244/ingest/25316d93-ed82-40c8-b2f0-64204fe30501", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "29a8f0" },
+        body: JSON.stringify({
+          sessionId: "29a8f0",
+          runId: "e2e-avatar-debug",
+          hypothesisId: "H3",
+          location: "frontend/src/app/account/page.tsx:283",
+          message: "avatar_profile_update_success",
+          data: { avatarKeySet: Boolean(signature.key) },
+          timestamp: Date.now()
+        })
+      }).catch(() => {});
+      // #endregion
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["account-profile-me"] }),
         queryClient.invalidateQueries({ queryKey: ["feed"] })
@@ -263,6 +323,28 @@ export default function AccountPage() {
       setAvatarUploading(false);
     }
   };
+
+  useEffect(() => {
+    // #region agent log
+    fetch("http://127.0.0.1:7244/ingest/25316d93-ed82-40c8-b2f0-64204fe30501", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "29a8f0" },
+      body: JSON.stringify({
+        sessionId: "29a8f0",
+        runId: "e2e-avatar-debug",
+        hypothesisId: "H4",
+        location: "frontend/src/app/account/page.tsx:300",
+        message: "avatar_render_state",
+        data: {
+          avatarUrlPresent: Boolean(avatarUrl),
+          avatarUploading,
+          avatarErrorPresent: Boolean(avatarError)
+        },
+        timestamp: Date.now()
+      })
+    }).catch(() => {});
+    // #endregion
+  }, [avatarUrl, avatarUploading, avatarError]);
 
   return (
     <section className="profile-shell">

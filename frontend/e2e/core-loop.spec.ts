@@ -98,6 +98,25 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
     mimeType: "image/jpeg",
     buffer: Buffer.from("tiny-avatar-content")
   });
+  // #region agent log
+  await fetch("http://127.0.0.1:7244/ingest/25316d93-ed82-40c8-b2f0-64204fe30501", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "29a8f0" },
+    body: JSON.stringify({
+      sessionId: "29a8f0",
+      runId: "e2e-avatar-debug",
+      hypothesisId: "H5",
+      location: "frontend/e2e/core-loop.spec.ts:101",
+      message: "avatar_assert_precheck",
+      data: {
+        imgCount: await page.locator('img[alt="Profile avatar"]').count(),
+        fallbackCount: await page.locator(".profile-avatar").count(),
+        uploadErrorCount: await page.locator("text=Unable to upload photo.").count()
+      },
+      timestamp: Date.now()
+    })
+  }).catch(() => {});
+  // #endregion
   await expect(page.locator('img[alt="Profile avatar"]')).toBeVisible();
 
   await expect(page.getByRole("button", { name: "Load more" })).toBeVisible();
