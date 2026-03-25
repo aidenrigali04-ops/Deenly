@@ -34,6 +34,13 @@ describeIfDatabase("integration api flows", () => {
   const app = createApp({ config, logger, db, analytics, mediaStorage, pushNotifications });
 
   async function cleanDb() {
+    await db.query("TRUNCATE TABLE webhook_events RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE earnings_ledger RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE orders RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE checkout_sessions RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE post_product_links RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE creator_products RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE creator_payout_accounts RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE notification_device_tokens RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE user_prayer_settings RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE conversation_participants RESTART IDENTITY CASCADE");
@@ -864,5 +871,74 @@ describeIfDatabase("integration api flows", () => {
       .set("Authorization", `Bearer ${tokenB}`);
     expect(postSearch.statusCode).toBe(200);
     expect(postSearch.body.items.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("supports product create, publish, post attachment, and access checks", async () => {
+    const creator = await request(app).post("/api/v1/auth/register").send({
+      email: "product-creator@example.com",
+      username: "product_creator",
+      password: "StrongPass123",
+      displayName: "Product Creator"
+    });
+    const buyer = await request(app).post("/api/v1/auth/register").send({
+      email: "product-buyer@example.com",
+      username: "product_buyer",
+      password: "StrongPass123",
+      displayName: "Product Buyer"
+    });
+    const creatorToken = creator.body.tokens.accessToken;
+    const buyerToken = buyer.body.tokens.accessToken;
+
+    const post = await request(app)
+      .post("/api/v1/posts")
+      .set("Authorization", `Bearer ${creatorToken}`)
+      .send({
+        postType: "community",
+        content: "Post with attached product"
+      });
+    expect(post.statusCode).toBe(201);
+
+    const product = await request(app)
+      .post("/api/v1/monetization/products")
+      .set("Authorization", `Bearer ${creatorToken}`)
+      .send({
+        title: "Tajweed Starter Pack",
+        description: "Digital guide",
+        priceMinor: 1500,
+        currency: "usd",
+        deliveryMediaKey: "uploads/products/tajweed-starter.pdf"
+      });
+    expect(product.statusCode).toBe(201);
+    expect(product.body.status).toBe("draft");
+
+    const published = await request(app)
+      .post(`/api/v1/monetization/products/${product.body.id}/publish`)
+      .set("Authorization", `Bearer ${creatorToken}`);
+    expect(published.statusCode).toBe(200);
+    expect(published.body.status).toBe("published");
+
+    const attached = await request(app)
+      .post(`/api/v1/monetization/posts/${post.body.id}/product-attach`)
+      .set("Authorization", `Bearer ${creatorToken}`)
+      .send({
+        productId: product.body.id
+      });
+    expect(attached.statusCode).toBe(200);
+
+    const postDetails = await request(app).get(`/api/v1/posts/${post.body.id}`);
+    expect(postDetails.statusCode).toBe(200);
+    expect(postDetails.body.attached_product_id).toBe(product.body.id);
+
+    const ownerAccess = await request(app)
+      .get(`/api/v1/monetization/products/${product.body.id}/access`)
+      .set("Authorization", `Bearer ${creatorToken}`);
+    expect(ownerAccess.statusCode).toBe(200);
+    expect(ownerAccess.body.canAccess).toBe(true);
+
+    const buyerAccess = await request(app)
+      .get(`/api/v1/monetization/products/${product.body.id}/access`)
+      .set("Authorization", `Bearer ${buyerToken}`);
+    expect(buyerAccess.statusCode).toBe(200);
+    expect(buyerAccess.body.canAccess).toBe(false);
   });
 });

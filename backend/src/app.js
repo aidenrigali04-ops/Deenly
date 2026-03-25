@@ -23,7 +23,9 @@ const { createSearchRouter } = require("./modules/search/routes");
 const { createAdminRouter } = require("./modules/admin/routes");
 const { createBetaRouter } = require("./modules/beta/routes");
 const { createSupportRouter } = require("./modules/support/routes");
+const { createMonetizationRouter } = require("./modules/monetization/routes");
 const { createMetrics } = require("./observability/metrics");
+const { createMonetizationGateway } = require("./services/monetization-gateway");
 const { authenticate, authorize } = require("./middleware/auth");
 const { httpError } = require("./utils/http-error");
 
@@ -45,7 +47,15 @@ function createCorsOptions(config) {
   };
 }
 
-function createApp({ config, logger, db, analytics, mediaStorage, pushNotifications }) {
+function createApp({
+  config,
+  logger,
+  db,
+  analytics,
+  mediaStorage,
+  pushNotifications,
+  monetizationGateway
+}) {
   function requireAdminOwner(req, _res, next) {
     const ownerEmail = String(config.adminOwnerEmail || "").toLowerCase();
     if (!ownerEmail) {
@@ -63,6 +73,7 @@ function createApp({ config, logger, db, analytics, mediaStorage, pushNotificati
   app.locals.analytics = analytics || null;
   app.locals.mediaStorage = mediaStorage;
   app.locals.pushNotifications = pushNotifications || null;
+  app.locals.monetizationGateway = monetizationGateway || createMonetizationGateway({ config });
 
   if (config.trustProxy) {
     app.set("trust proxy", 1);
@@ -89,7 +100,14 @@ function createApp({ config, logger, db, analytics, mediaStorage, pushNotificati
       legacyHeaders: false
     })
   );
-  app.use(express.json({ limit: "1mb" }));
+  app.use(
+    express.json({
+      limit: "1mb",
+      verify(req, _res, buf) {
+        req.rawBody = buf;
+      }
+    })
+  );
   app.use(metrics.middleware());
 
   app.get(
@@ -201,6 +219,16 @@ function createApp({ config, logger, db, analytics, mediaStorage, pushNotificati
   );
   apiRouter.use("/beta", createBetaRouter({ db, config }));
   apiRouter.use("/support", createSupportRouter({ db, config }));
+  apiRouter.use(
+    "/monetization",
+    createMonetizationRouter({
+      db,
+      config,
+      monetizationGateway: app.locals.monetizationGateway,
+      mediaStorage: app.locals.mediaStorage,
+      analytics: app.locals.analytics
+    })
+  );
 
   app.use("/api", apiRouter);
   app.use("/api/v1", apiRouter);

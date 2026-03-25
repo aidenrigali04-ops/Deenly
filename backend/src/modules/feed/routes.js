@@ -116,6 +116,10 @@ function createFeedRouter({ db, config, mediaStorage }) {
                 p.style_tag,
                 p.created_at,
                 pr.avatar_url AS author_avatar_url,
+                cpr.id AS attached_product_id,
+                cpr.title AS attached_product_title,
+                cpr.price_minor AS attached_product_price_minor,
+                cpr.currency AS attached_product_currency,
                 COALESCE(MAX(vs.view_count), 0)::int AS view_count,
                 COALESCE(MAX(vs.avg_watch_time_ms), 0)::int AS avg_watch_time_ms,
                 COALESCE(MAX(vs.avg_completion_rate), 0)::numeric AS avg_completion_rate,
@@ -163,6 +167,10 @@ function createFeedRouter({ db, config, mediaStorage }) {
                 END AS interest_boost
          FROM posts p
          JOIN profiles pr ON pr.user_id = p.author_id
+         LEFT JOIN post_product_links ppl ON ppl.post_id = p.id
+         LEFT JOIN creator_products cpr
+           ON cpr.id = ppl.product_id
+          AND cpr.status = 'published'
          LEFT JOIN interactions i ON i.post_id = p.id
          LEFT JOIN (
            SELECT post_id,
@@ -182,7 +190,7 @@ function createFeedRouter({ db, config, mediaStorage }) {
            ))
            AND p.visibility_status = 'visible'
            AND p.media_status = 'ready'
-         GROUP BY p.id, pr.display_name, pr.avatar_url
+         GROUP BY p.id, pr.display_name, pr.avatar_url, cpr.id, cpr.title, cpr.price_minor, cpr.currency
          ),
          ranked AS (
            SELECT *,

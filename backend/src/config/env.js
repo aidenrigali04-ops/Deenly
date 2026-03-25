@@ -81,6 +81,19 @@ function parseOptionalUrl(value) {
   return parsed.toString().replace(/\/+$/, "");
 }
 
+function parseRequiredUrl(value, fieldName) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return "";
+  }
+  try {
+    const parsed = new URL(raw);
+    return parsed.toString();
+  } catch {
+    throw new Error(`${fieldName} must be a valid absolute URL`);
+  }
+}
+
 function loadEnv(envSource = process.env) {
   const nodeEnv = envSource.NODE_ENV || "development";
   if (!VALID_NODE_ENVS.has(nodeEnv)) {
@@ -148,7 +161,16 @@ function loadEnv(envSource = process.env) {
       followBoost: parseNumber(envSource.FEED_RANK_FOLLOW_BOOST_WEIGHT, 300),
       affinity: parseNumber(envSource.FEED_RANK_AFFINITY_WEIGHT, 45),
       interestBoost: parseNumber(envSource.FEED_RANK_INTEREST_BOOST_WEIGHT, 220)
-    }
+    },
+    stripeSecretKey: String(envSource.STRIPE_SECRET_KEY || "").trim(),
+    stripeWebhookSecret: String(envSource.STRIPE_WEBHOOK_SECRET || "").trim(),
+    stripeConnectClientId: String(envSource.STRIPE_CONNECT_CLIENT_ID || "").trim(),
+    monetizationPlatformFeeBps: parsePositiveInt(
+      envSource.MONETIZATION_PLATFORM_FEE_BPS,
+      350,
+      "MONETIZATION_PLATFORM_FEE_BPS"
+    ),
+    appBaseUrl: parseRequiredUrl(envSource.APP_BASE_URL, "APP_BASE_URL")
   };
 
   if (!VALID_DB_SSL_MODES.has(config.dbSslMode)) {
@@ -179,6 +201,15 @@ function loadEnv(envSource = process.env) {
     }
     if (!config.adminOwnerEmail) {
       throw new Error("ADMIN_OWNER_EMAIL is required in production");
+    }
+    if (!config.appBaseUrl) {
+      throw new Error("APP_BASE_URL is required in production");
+    }
+    if (!config.stripeSecretKey) {
+      throw new Error("STRIPE_SECRET_KEY is required in production");
+    }
+    if (!config.stripeWebhookSecret) {
+      throw new Error("STRIPE_WEBHOOK_SECRET is required in production");
     }
   }
 
