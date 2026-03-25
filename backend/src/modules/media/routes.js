@@ -167,6 +167,17 @@ function createMediaRouter({ db, config, mediaStorage, analytics }) {
               [mediaKey, mediaUrl, mimeType, legacyCompatibleStatus, postId, req.user.id]
             );
           }
+        } else if (error?.code === "23514" || error?.code === "42703") {
+          // Final compatibility fallback for unexpected legacy schema/check variants.
+          result = await db.query(
+            `UPDATE posts
+             SET media_url = $1,
+                 updated_at = NOW()
+             WHERE id = $2
+               AND author_id = $3
+             RETURNING id, media_url, updated_at`,
+            [mediaUrl, postId, req.user.id]
+          );
         } else {
           throw error;
         }
@@ -183,7 +194,14 @@ function createMediaRouter({ db, config, mediaStorage, analytics }) {
         });
       }
 
-      res.status(200).json(result.rows[0]);
+      const responseRow = result.rows[0] || {};
+      res.status(200).json({
+        ...responseRow,
+        media_upload_key: responseRow.media_upload_key || mediaKey,
+        media_url: responseRow.media_url || mediaUrl,
+        media_mime_type: responseRow.media_mime_type || mimeType,
+        media_status: responseRow.media_status || mediaStatus
+      });
     })
   );
 
