@@ -177,6 +177,11 @@ function loadEnv(envSource = process.env) {
       350,
       "MONETIZATION_PLATFORM_FEE_BPS"
     ),
+    affiliateGlobalCommissionBps: parsePositiveInt(
+      envSource.AFFILIATE_GLOBAL_COMMISSION_BPS,
+      700,
+      "AFFILIATE_GLOBAL_COMMISSION_BPS"
+    ),
     appBaseUrl: derivedAppBaseUrl
   };
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { ApiError, apiRequest } from "@/lib/api";
 
 export default function AdminOperationsPage() {
@@ -45,6 +45,10 @@ export default function AdminOperationsPage() {
           : "Unable to update support ticket";
       setError(detail);
     }
+  });
+  const monetizationSummaryQuery = useQuery({
+    queryKey: ["admin-monetization-summary"],
+    queryFn: () => apiRequest("/admin/monetization/summary", { auth: true })
   });
 
   const submitInvite = (event: FormEvent) => {
@@ -96,6 +100,28 @@ export default function AdminOperationsPage() {
         </button>
       </form>
       </div>
+      <section className="surface-card space-y-2">
+        <h2 className="text-lg font-semibold">Monetization telemetry</h2>
+        {monetizationSummaryQuery.isLoading ? (
+          <p className="text-sm text-muted">Loading monetization metrics...</p>
+        ) : monetizationSummaryQuery.error ? (
+          <p className="text-sm text-rose-300">
+            {(monetizationSummaryQuery.error as Error).message}
+          </p>
+        ) : (
+          <div className="grid gap-2 text-sm md:grid-cols-3">
+            <p>Gross volume: {(monetizationSummaryQuery.data as any)?.totals?.gross_volume_minor ?? 0}</p>
+            <p>Platform fees: {(monetizationSummaryQuery.data as any)?.totals?.total_platform_fees_minor ?? 0}</p>
+            <p>Product orders: {(monetizationSummaryQuery.data as any)?.totals?.product_orders_count ?? 0}</p>
+            <p>Support orders: {(monetizationSummaryQuery.data as any)?.totals?.support_orders_count ?? 0}</p>
+            <p>Subscription orders: {(monetizationSummaryQuery.data as any)?.totals?.subscription_orders_count ?? 0}</p>
+            <p>Active subscriptions: {(monetizationSummaryQuery.data as any)?.subscriptions?.active_count ?? 0}</p>
+            <p>Canceled subscriptions: {(monetizationSummaryQuery.data as any)?.subscriptions?.canceled_count ?? 0}</p>
+            <p>Past due subscriptions: {(monetizationSummaryQuery.data as any)?.subscriptions?.past_due_count ?? 0}</p>
+            <p>Affiliate conversions: {(monetizationSummaryQuery.data as any)?.affiliates?.conversions_count ?? 0}</p>
+          </div>
+        )}
+      </section>
       {error ? <p className="text-sm text-rose-300">{error}</p> : null}
       {message ? <p className="text-sm text-accent">{message}</p> : null}
     </section>

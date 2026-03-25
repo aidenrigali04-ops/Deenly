@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { apiRequest } from "../../lib/api";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
@@ -9,6 +9,13 @@ import type { RootStackParamList } from "../../navigation/AppNavigator";
 import type { FeedItem } from "../../types";
 import { followUser, unfollowUser } from "../../lib/follows";
 import { resolveMediaUrl } from "../../lib/media-url";
+import {
+  createSupportCheckout,
+  createTierCheckout,
+  fetchCreatorTiers,
+  fetchSubscriptionAccess,
+  formatMinorCurrency
+} from "../../lib/monetization";
 
 type UserProfile = {
   user_id: number;
@@ -92,6 +99,14 @@ export function UserProfileScreen({ route, navigation }: Props) {
     queryFn: () =>
       apiRequest<{ items: FeedItem[] }>(`/feed?authorId=${userId}&limit=40`, { auth: true })
   });
+  const tiersQuery = useQuery({
+    queryKey: ["mobile-user-tiers", userId],
+    queryFn: () => fetchCreatorTiers(userId)
+  });
+  const subscriptionAccessQuery = useQuery({
+    queryKey: ["mobile-subscription-access", userId],
+    queryFn: () => fetchSubscriptionAccess(userId)
+  });
   const likeMutation = useMutation({
     mutationFn: (postId: number) =>
       apiRequest("/interactions", {
@@ -107,6 +122,22 @@ export function UserProfileScreen({ route, navigation }: Props) {
         queryClient.invalidateQueries({ queryKey: ["mobile-user-posts", userId] }),
         queryClient.invalidateQueries({ queryKey: ["mobile-user-profile", userId] })
       ]);
+    }
+  });
+  const supportMutation = useMutation({
+    mutationFn: () => createSupportCheckout(userId, 500),
+    onSuccess: async (result) => {
+      if (result?.checkoutUrl) {
+        await Linking.openURL(result.checkoutUrl);
+      }
+    }
+  });
+  const tierMutation = useMutation({
+    mutationFn: (tierId: number) => createTierCheckout(tierId),
+    onSuccess: async (result) => {
+      if (result?.checkoutUrl) {
+        await Linking.openURL(result.checkoutUrl);
+      }
     }
   });
 
@@ -148,8 +179,35 @@ export function UserProfileScreen({ route, navigation }: Props) {
                   : "Follow"}
             </Text>
           </Pressable>
+          <Pressable style={styles.buttonSecondary} onPress={() => supportMutation.mutate()}>
+            <Text style={styles.buttonText}>
+              {supportMutation.isPending ? "Opening..." : "Support $5"}
+            </Text>
+          </Pressable>
         </View>
+        <Text style={styles.muted}>
+          Membership: {subscriptionAccessQuery.data?.subscribed ? "Active" : "Not subscribed"}
+        </Text>
       </View>
+      {(tiersQuery.data?.items || []).length ? (
+        <View style={styles.card}>
+          <Text style={styles.title}>Membership Tiers</Text>
+          {tiersQuery.data?.items.map((tier) => (
+            <View key={tier.id} style={styles.row}>
+              <Text style={styles.muted}>
+                {tier.title} - {formatMinorCurrency(tier.monthly_price_minor, tier.currency)}/mo
+              </Text>
+              <Pressable
+                style={styles.buttonSecondary}
+                onPress={() => tierMutation.mutate(tier.id)}
+                disabled={tierMutation.isPending}
+              >
+                <Text style={styles.buttonText}>{tierMutation.isPending ? "Opening..." : "Subscribe"}</Text>
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      ) : null}
       <View style={styles.row}>
         <Pressable
           style={[styles.buttonSecondary, activeTab === "posts" ? styles.buttonActive : null]}

@@ -31,6 +31,7 @@ import { AdminTablesScreen } from "../screens/app/AdminTablesScreen";
 import { DhikrScreen } from "../screens/app/DhikrScreen";
 import { QuranReaderScreen } from "../screens/app/QuranReaderScreen";
 import { SalahSettingsScreen } from "../screens/app/SalahSettingsScreen";
+import { CreatorEconomyScreen } from "../screens/app/CreatorEconomyScreen";
 
 export type AppTabParamList = {
   HomeTab: undefined;
@@ -64,6 +65,7 @@ export type RootStackParamList = {
   Dhikr: undefined;
   QuranReader: undefined;
   SalahSettings: undefined;
+  CreatorEconomy: undefined;
 };
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
@@ -233,6 +235,11 @@ export function AppNavigator() {
               name="SalahSettings"
               component={SalahSettingsScreen}
               options={{ title: "Salah Settings" }}
+            />
+            <RootStack.Screen
+              name="CreatorEconomy"
+              component={CreatorEconomyScreen}
+              options={{ title: "Creator Economy" }}
             />
             {canAccessAdmin ? (
               <>

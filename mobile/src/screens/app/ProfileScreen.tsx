@@ -13,6 +13,7 @@ import { colors } from "../../theme";
 import type { FeedItem } from "../../types";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 import { resolveMediaUrl } from "../../lib/media-url";
+import { fetchMyEarnings, fetchConnectStatus, formatMinorCurrency } from "../../lib/monetization";
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<AppTabParamList, "AccountTab">,
@@ -56,6 +57,16 @@ export function ProfileScreen({ navigation }: Props) {
       apiRequest<{ items: FeedItem[] }>(`/feed?authorId=${sessionQuery.data?.id}&limit=40`, {
         auth: true
       }),
+    enabled: Boolean(sessionQuery.data?.id)
+  });
+  const creatorConnectQuery = useQuery({
+    queryKey: ["mobile-creator-connect-status"],
+    queryFn: () => fetchConnectStatus(),
+    enabled: Boolean(sessionQuery.data?.id)
+  });
+  const creatorEarningsQuery = useQuery({
+    queryKey: ["mobile-creator-earnings"],
+    queryFn: () => fetchMyEarnings(),
     enabled: Boolean(sessionQuery.data?.id)
   });
   const likeMutation = useMutation({
@@ -173,6 +184,14 @@ export function ProfileScreen({ navigation }: Props) {
           <Text style={styles.muted}>Likes received: {profileQuery.data?.likes_received_count || 0}</Text>
           <Text style={styles.muted}>Likes by you: {profileQuery.data?.likes_given_count || 0}</Text>
         </View>
+        <View style={styles.row}>
+          <Text style={styles.muted}>
+            Connect: {creatorConnectQuery.data?.connected ? "Connected" : "Not connected"}
+          </Text>
+          <Text style={styles.muted}>
+            Earnings: {formatMinorCurrency(creatorEarningsQuery.data?.totals?.balance_minor || 0, "usd")}
+          </Text>
+        </View>
       </View>
       <View style={styles.row}>
         <Pressable
@@ -253,6 +272,9 @@ export function ProfileScreen({ navigation }: Props) {
         </Pressable>
       </View>
       <View style={styles.row}>
+        <Pressable style={styles.buttonSecondary} onPress={() => navigation.navigate("CreatorEconomy")}>
+          <Text style={styles.buttonText}>Creator economy</Text>
+        </Pressable>
         <Pressable style={styles.buttonSecondary} onPress={() => navigation.navigate("Dhikr")}>
           <Text style={styles.buttonText}>Dhikr</Text>
         </Pressable>

@@ -34,6 +34,10 @@ export type FeedItem = {
   author_display_name: string;
   author_avatar_url?: string | null;
   is_following_author?: boolean;
+  attached_product_id?: number | null;
+  attached_product_title?: string | null;
+  attached_product_price_minor?: number | null;
+  attached_product_currency?: string | null;
   benefited_count: number;
   comment_count: number;
   reflect_later_count: number;

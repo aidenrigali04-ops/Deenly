@@ -5,12 +5,22 @@ const { httpError } = require("../../utils/http-error");
 const { requireString, optionalString } = require("../../utils/validators");
 
 const PRODUCT_STATUSES = new Set(["draft", "published", "archived"]);
+const TIER_STATUSES = new Set(["draft", "published", "archived"]);
+const SUBSCRIPTION_STATUSES = new Set(["active", "canceled", "past_due", "incomplete", "expired"]);
 
 function normalizeCurrency(value) {
   return String(value || "usd")
     .trim()
     .toLowerCase()
     .slice(0, 3);
+}
+
+function normalizeAffiliateCode(value) {
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9_-]/g, "")
+    .slice(0, 64);
 }
 
 function createMonetizationRouter({ db, config, monetizationGateway, mediaStorage, analytics }) {
@@ -28,7 +38,8 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
     sellerUserId,
     productId,
     amountMinor,
-    currency
+    currency,
+    metadata = {}
   }) {
     const upsert = await db.query(
       `INSERT INTO checkout_sessions (
@@ -39,9 +50,10 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
          stripe_checkout_session_id,
          amount_minor,
          currency,
+         metadata,
          status
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'created')
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, 'created')
        ON CONFLICT (stripe_checkout_session_id)
        DO UPDATE SET
          buyer_user_id = EXCLUDED.buyer_user_id,
@@ -50,11 +62,47 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
          kind = EXCLUDED.kind,
          amount_minor = EXCLUDED.amount_minor,
          currency = EXCLUDED.currency,
+         metadata = EXCLUDED.metadata,
          updated_at = NOW()
        RETURNING id, stripe_checkout_session_id`,
-      [buyerUserId || null, sellerUserId, productId || null, kind, sessionId, amountMinor, currency]
+      [
+        buyerUserId || null,
+        sellerUserId,
+        productId || null,
+        kind,
+        sessionId,
+        amountMinor,
+        currency,
+        JSON.stringify(metadata || {})
+      ]
     );
     return upsert.rows[0];
+  }
+
+  async function resolveAffiliateCode({ rawCode, sellerUserId, buyerUserId }) {
+    const code = normalizeAffiliateCode(rawCode);
+    if (!code) {
+      return null;
+    }
+    const result = await db.query(
+      `SELECT id, affiliate_user_id, code
+       FROM affiliate_codes
+       WHERE code = $1
+         AND is_active = true
+       LIMIT 1`,
+      [code]
+    );
+    if (result.rowCount === 0) {
+      throw httpError(404, "Affiliate code not found");
+    }
+    const affiliateCode = result.rows[0];
+    if (affiliateCode.affiliate_user_id === sellerUserId) {
+      throw httpError(400, "Creator cannot use their own affiliate code");
+    }
+    if (buyerUserId && affiliateCode.affiliate_user_id === buyerUserId) {
+      throw httpError(400, "You cannot use your own affiliate code");
+    }
+    return affiliateCode;
   }
 
   router.post(
@@ -331,6 +379,147 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
   );
 
   router.post(
+    "/tiers",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const title = requireString(req.body?.title, "title", 2, 120);
+      const description = optionalString(req.body?.description, "description", 2000) || null;
+      const monthlyPriceMinor = Number(req.body?.monthlyPriceMinor);
+      if (!Number.isInteger(monthlyPriceMinor) || monthlyPriceMinor <= 0) {
+        throw httpError(400, "monthlyPriceMinor must be a positive integer");
+      }
+      const currency = normalizeCurrency(req.body?.currency || "usd");
+      const created = await db.query(
+        `INSERT INTO creator_subscription_tiers (
+           creator_user_id, title, description, monthly_price_minor, currency, status
+         )
+         VALUES ($1, $2, $3, $4, $5, 'draft')
+         RETURNING *`,
+        [req.user.id, title, description, monthlyPriceMinor, currency]
+      );
+      res.status(201).json(created.rows[0]);
+    })
+  );
+
+  router.get(
+    "/tiers/me",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+      const offset = Math.max(Number(req.query.offset) || 0, 0);
+      const rows = await db.query(
+        `SELECT *
+         FROM creator_subscription_tiers
+         WHERE creator_user_id = $1
+         ORDER BY created_at DESC, id DESC
+         LIMIT $2 OFFSET $3`,
+        [req.user.id, limit, offset]
+      );
+      res.status(200).json({ limit, offset, items: rows.rows });
+    })
+  );
+
+  router.get(
+    "/tiers/creator/:creatorUserId",
+    asyncHandler(async (req, res) => {
+      const creatorUserId = Number(req.params.creatorUserId);
+      if (!creatorUserId) {
+        throw httpError(400, "creatorUserId must be a number");
+      }
+      const rows = await db.query(
+        `SELECT id, creator_user_id, title, description, monthly_price_minor, currency, status, created_at, updated_at
+         FROM creator_subscription_tiers
+         WHERE creator_user_id = $1
+           AND status = 'published'
+         ORDER BY monthly_price_minor ASC, id ASC`,
+        [creatorUserId]
+      );
+      res.status(200).json({ items: rows.rows });
+    })
+  );
+
+  router.patch(
+    "/tiers/:tierId",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const tierId = Number(req.params.tierId);
+      if (!tierId) {
+        throw httpError(400, "tierId must be a number");
+      }
+      const current = await db.query(
+        `SELECT *
+         FROM creator_subscription_tiers
+         WHERE id = $1
+           AND creator_user_id = $2
+         LIMIT 1`,
+        [tierId, req.user.id]
+      );
+      if (current.rowCount === 0) {
+        throw httpError(404, "Tier not found");
+      }
+      const previous = current.rows[0];
+      const title = req.body?.title ? requireString(req.body?.title, "title", 2, 120) : previous.title;
+      const description =
+        req.body?.description !== undefined
+          ? optionalString(req.body?.description, "description", 2000)
+          : previous.description;
+      const monthlyPriceMinor =
+        req.body?.monthlyPriceMinor !== undefined
+          ? Number(req.body.monthlyPriceMinor)
+          : previous.monthly_price_minor;
+      if (!Number.isInteger(monthlyPriceMinor) || monthlyPriceMinor <= 0) {
+        throw httpError(400, "monthlyPriceMinor must be a positive integer");
+      }
+      const currency =
+        req.body?.currency !== undefined ? normalizeCurrency(req.body.currency) : previous.currency;
+      const status =
+        req.body?.status !== undefined ? String(req.body.status).trim().toLowerCase() : previous.status;
+      if (!TIER_STATUSES.has(status)) {
+        throw httpError(400, "status must be draft, published, or archived");
+      }
+
+      const updated = await db.query(
+        `UPDATE creator_subscription_tiers
+         SET title = $3,
+             description = $4,
+             monthly_price_minor = $5,
+             currency = $6,
+             status = $7,
+             updated_at = NOW()
+         WHERE id = $1
+           AND creator_user_id = $2
+         RETURNING *`,
+        [tierId, req.user.id, title, description, monthlyPriceMinor, currency, status]
+      );
+      res.status(200).json(updated.rows[0]);
+    })
+  );
+
+  router.post(
+    "/tiers/:tierId/publish",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const tierId = Number(req.params.tierId);
+      if (!tierId) {
+        throw httpError(400, "tierId must be a number");
+      }
+      const updated = await db.query(
+        `UPDATE creator_subscription_tiers
+         SET status = 'published',
+             updated_at = NOW()
+         WHERE id = $1
+           AND creator_user_id = $2
+         RETURNING *`,
+        [tierId, req.user.id]
+      );
+      if (updated.rowCount === 0) {
+        throw httpError(404, "Tier not found");
+      }
+      res.status(200).json(updated.rows[0]);
+    })
+  );
+
+  router.post(
     "/posts/:postId/product-attach",
     authMiddleware,
     asyncHandler(async (req, res) => {
@@ -411,6 +600,11 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
       if (product.creator_user_id === req.user.id) {
         throw httpError(400, "You cannot purchase your own product");
       }
+      const affiliateCode = await resolveAffiliateCode({
+        rawCode: req.body?.affiliateCode,
+        sellerUserId: product.creator_user_id,
+        buyerUserId: req.user.id
+      });
 
       const session = await monetizationGateway.createCheckoutSession({
         kind: "product",
@@ -419,6 +613,7 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
         buyerUserId: req.user.id,
         sellerUserId: product.creator_user_id,
         productId: product.id,
+        affiliateCodeId: affiliateCode?.id || null,
         title: product.title,
         description: product.description
       });
@@ -430,7 +625,10 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
         sellerUserId: product.creator_user_id,
         productId: product.id,
         amountMinor: product.price_minor,
-        currency: product.currency
+        currency: product.currency,
+        metadata: {
+          affiliateCodeId: affiliateCode?.id || null
+        }
       });
 
       res.status(200).json({
@@ -460,6 +658,11 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
       if (creatorExists.rowCount === 0) {
         throw httpError(404, "Creator not found");
       }
+      const affiliateCode = await resolveAffiliateCode({
+        rawCode: req.body?.affiliateCode,
+        sellerUserId: creatorUserId,
+        buyerUserId: req.user.id
+      });
       const session = await monetizationGateway.createCheckoutSession({
         kind: "support",
         amountMinor,
@@ -467,6 +670,7 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
         buyerUserId: req.user.id,
         sellerUserId: creatorUserId,
         productId: null,
+        affiliateCodeId: affiliateCode?.id || null,
         title: "Support Creator",
         description: "One-time support payment"
       });
@@ -477,7 +681,71 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
         sellerUserId: creatorUserId,
         productId: null,
         amountMinor,
-        currency
+        currency,
+        metadata: {
+          affiliateCodeId: affiliateCode?.id || null
+        }
+      });
+      res.status(200).json({
+        checkoutSessionId: session.id,
+        checkoutUrl: session.url
+      });
+    })
+  );
+
+  router.post(
+    "/checkout/tier/:tierId",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const tierId = Number(req.params.tierId);
+      if (!tierId) {
+        throw httpError(400, "tierId must be a number");
+      }
+      const tierResult = await db.query(
+        `SELECT *
+         FROM creator_subscription_tiers
+         WHERE id = $1
+           AND status = 'published'
+         LIMIT 1`,
+        [tierId]
+      );
+      if (tierResult.rowCount === 0) {
+        throw httpError(404, "Tier not found");
+      }
+      const tier = tierResult.rows[0];
+      if (tier.creator_user_id === req.user.id) {
+        throw httpError(400, "You cannot subscribe to your own tier");
+      }
+      const affiliateCode = await resolveAffiliateCode({
+        rawCode: req.body?.affiliateCode,
+        sellerUserId: tier.creator_user_id,
+        buyerUserId: req.user.id
+      });
+      const session = await monetizationGateway.createCheckoutSession({
+        kind: "subscription",
+        mode: "subscription",
+        amountMinor: tier.monthly_price_minor,
+        currency: tier.currency,
+        buyerUserId: req.user.id,
+        sellerUserId: tier.creator_user_id,
+        tierId: tier.id,
+        affiliateCodeId: affiliateCode?.id || null,
+        title: `${tier.title} Membership`,
+        description: tier.description || "Creator monthly membership",
+        recurringInterval: "month"
+      });
+      await ensureCheckoutSessionRecord({
+        sessionId: session.id,
+        kind: "subscription",
+        buyerUserId: req.user.id,
+        sellerUserId: tier.creator_user_id,
+        productId: null,
+        amountMinor: tier.monthly_price_minor,
+        currency: tier.currency,
+        metadata: {
+          tierId: tier.id,
+          affiliateCodeId: affiliateCode?.id || null
+        }
       });
       res.status(200).json({
         checkoutSessionId: session.id,
@@ -495,6 +763,38 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
         signature: signature ? String(signature) : "",
         webhookSecret: config.stripeWebhookSecret
       });
+
+      if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
+        const subscriptionId = String(event.data.object?.id || "");
+        if (!subscriptionId) {
+          return res.status(200).json({ received: true, ignored: true });
+        }
+        const statusRaw = String(event.data.object?.status || "").toLowerCase();
+        const mappedStatus = SUBSCRIPTION_STATUSES.has(statusRaw)
+          ? statusRaw
+          : event.type === "customer.subscription.deleted"
+            ? "canceled"
+            : "active";
+        const currentPeriodEndSeconds = Number(event.data.object?.current_period_end || 0);
+        const currentPeriodEnd = Number.isFinite(currentPeriodEndSeconds) && currentPeriodEndSeconds > 0
+          ? new Date(currentPeriodEndSeconds * 1000).toISOString()
+          : null;
+        await db.query(
+          `UPDATE creator_subscriptions
+           SET status = $2,
+               current_period_end = $3::timestamptz,
+               cancel_at_period_end = $4,
+               updated_at = NOW()
+           WHERE stripe_subscription_id = $1`,
+          [
+            subscriptionId,
+            mappedStatus,
+            currentPeriodEnd,
+            Boolean(event.data.object?.cancel_at_period_end)
+          ]
+        );
+        return res.status(200).json({ received: true, processed: true });
+      }
 
       if (event.type !== "checkout.session.completed") {
         return res.status(200).json({ received: true, ignored: true });
@@ -543,9 +843,13 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
         return res.status(200).json({ received: true, duplicateOrder: true });
       }
 
+      const sessionMetadata =
+        sessionRow.metadata && typeof sessionRow.metadata === "object" ? sessionRow.metadata : {};
       const amountMinor = Number(sessionRow.amount_minor);
       const platformFeeMinor = Math.round((amountMinor * Number(config.monetizationPlatformFeeBps || 350)) / 10000);
       const creatorNetMinor = Math.max(0, amountMinor - platformFeeMinor);
+      const affiliateCodeId = Number(sessionMetadata.affiliateCodeId || 0) || null;
+      const tierId = Number(sessionMetadata.tierId || 0) || null;
 
       await db.query("BEGIN");
       try {
@@ -586,9 +890,106 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
             order.rows[0].id,
             creatorNetMinor,
             sessionRow.currency,
-            sessionRow.kind === "product" ? "Product purchase credit" : "Support payment credit"
+            sessionRow.kind === "product"
+              ? "Product purchase credit"
+              : sessionRow.kind === "subscription"
+                ? "Membership payment credit"
+                : "Support payment credit"
           ]
         );
+        if (sessionRow.kind === "subscription" && tierId) {
+          const subscriptionId = event.data.object?.subscription
+            ? String(event.data.object.subscription)
+            : null;
+          await db.query(
+            `INSERT INTO creator_subscriptions (
+               tier_id,
+               creator_user_id,
+               subscriber_user_id,
+               stripe_subscription_id,
+               status,
+               current_period_end,
+               cancel_at_period_end
+             )
+             VALUES ($1, $2, $3, $4, 'active', NULL, false)
+             ON CONFLICT (subscriber_user_id, creator_user_id)
+             DO UPDATE SET
+               tier_id = EXCLUDED.tier_id,
+               stripe_subscription_id = COALESCE(EXCLUDED.stripe_subscription_id, creator_subscriptions.stripe_subscription_id),
+               status = 'active',
+               cancel_at_period_end = false,
+               updated_at = NOW()`,
+            [tierId, sessionRow.seller_user_id, sessionRow.buyer_user_id, subscriptionId]
+          );
+        }
+
+        if (affiliateCodeId) {
+          const affiliateCodeResult = await db.query(
+            `SELECT id, affiliate_user_id
+             FROM affiliate_codes
+             WHERE id = $1
+               AND is_active = true
+             LIMIT 1`,
+            [affiliateCodeId]
+          );
+          if (affiliateCodeResult.rowCount > 0) {
+            const affiliateCode = affiliateCodeResult.rows[0];
+            const affiliateCommissionMinor = Math.max(
+              0,
+              Math.round(
+                (amountMinor * Number(config.affiliateGlobalCommissionBps || 700)) / 10000
+              )
+            );
+            await db.query(
+              `INSERT INTO affiliate_conversions (
+                 affiliate_code_id,
+                 checkout_session_id,
+                 order_id,
+                 affiliate_user_id,
+                 seller_user_id,
+                 buyer_user_id,
+                 amount_minor,
+                 commission_minor,
+                 currency
+               )
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+               ON CONFLICT (order_id)
+               DO NOTHING`,
+              [
+                affiliateCode.id,
+                sessionRow.id,
+                order.rows[0].id,
+                affiliateCode.affiliate_user_id,
+                sessionRow.seller_user_id,
+                sessionRow.buyer_user_id,
+                amountMinor,
+                affiliateCommissionMinor,
+                sessionRow.currency
+              ]
+            );
+            if (affiliateCommissionMinor > 0) {
+              await db.query(
+                `INSERT INTO earnings_ledger (user_id, order_id, entry_type, amount_minor, currency, note)
+                 VALUES ($1, $2, 'credit', $3, $4, $5)`,
+                [
+                  affiliateCode.affiliate_user_id,
+                  order.rows[0].id,
+                  affiliateCommissionMinor,
+                  sessionRow.currency,
+                  "Affiliate commission credit"
+                ]
+              );
+            }
+            await db.query(
+              `UPDATE affiliate_codes
+               SET uses_count = uses_count + 1,
+                   updated_at = NOW()
+               WHERE id = $1`,
+              [affiliateCode.id]
+            );
+          }
+        }
+
         await db.query(
           `UPDATE checkout_sessions
            SET status = 'completed',
@@ -653,6 +1054,111 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
         canAccess: isOwner || hasPurchased,
         isOwner,
         hasPurchased
+      });
+    })
+  );
+
+  router.get(
+    "/subscriptions/creator/:creatorUserId/access",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const creatorUserId = Number(req.params.creatorUserId);
+      if (!creatorUserId) {
+        throw httpError(400, "creatorUserId must be a number");
+      }
+      const result = await db.query(
+        `SELECT id, tier_id, status, current_period_end, cancel_at_period_end
+         FROM creator_subscriptions
+         WHERE creator_user_id = $1
+           AND subscriber_user_id = $2
+         LIMIT 1`,
+        [creatorUserId, req.user.id]
+      );
+      if (result.rowCount === 0) {
+        return res.status(200).json({
+          creatorUserId,
+          subscribed: false
+        });
+      }
+      const row = result.rows[0];
+      const isSubscribed = row.status === "active" || row.status === "past_due";
+      return res.status(200).json({
+        creatorUserId,
+        subscribed: isSubscribed,
+        tierId: row.tier_id,
+        status: row.status,
+        currentPeriodEnd: row.current_period_end,
+        cancelAtPeriodEnd: Boolean(row.cancel_at_period_end)
+      });
+    })
+  );
+
+  router.post(
+    "/affiliate/codes",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const desiredCode = optionalString(req.body?.code, "code", 64);
+      const generatedCode = `AFF${req.user.id}${Date.now().toString(36)}`.toUpperCase();
+      const code = normalizeAffiliateCode(desiredCode || generatedCode);
+      if (!code || code.length < 4) {
+        throw httpError(400, "affiliate code must be at least 4 characters");
+      }
+      const created = await db.query(
+        `INSERT INTO affiliate_codes (affiliate_user_id, code, is_active)
+         VALUES ($1, $2, true)
+         ON CONFLICT (code)
+         DO NOTHING
+         RETURNING *`,
+        [req.user.id, code]
+      );
+      if (created.rowCount === 0) {
+        throw httpError(409, "Affiliate code already exists");
+      }
+      res.status(201).json(created.rows[0]);
+    })
+  );
+
+  router.get(
+    "/affiliate/codes/me",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const rows = await db.query(
+        `SELECT id, affiliate_user_id, code, is_active, uses_count, created_at, updated_at
+         FROM affiliate_codes
+         WHERE affiliate_user_id = $1
+         ORDER BY created_at DESC, id DESC`,
+        [req.user.id]
+      );
+      res.status(200).json({ items: rows.rows });
+    })
+  );
+
+  router.get(
+    "/affiliate/performance/me",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const summary = await db.query(
+        `SELECT
+           COALESCE(SUM(ac.amount_minor), 0)::int AS gross_referred_minor,
+           COALESCE(SUM(ac.commission_minor), 0)::int AS commission_earned_minor,
+           COUNT(*)::int AS conversions_count
+         FROM affiliate_conversions ac
+         WHERE ac.affiliate_user_id = $1`,
+        [req.user.id]
+      );
+      const rows = await db.query(
+        `SELECT ac.id, ac.amount_minor, ac.commission_minor, ac.currency, ac.created_at,
+                ac.seller_user_id, p.display_name AS seller_display_name
+         FROM affiliate_conversions ac
+         JOIN profiles p ON p.user_id = ac.seller_user_id
+         WHERE ac.affiliate_user_id = $1
+         ORDER BY ac.created_at DESC, ac.id DESC
+         LIMIT 100`,
+        [req.user.id]
+      );
+      res.status(200).json({
+        summary: summary.rows[0],
+        items: rows.rows
       });
     })
   );
@@ -733,6 +1239,87 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
           balance_minor: credits - debits
         },
         items: rows.rows
+      });
+    })
+  );
+
+  router.get(
+    "/subscriptions/me",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const rows = await db.query(
+        `SELECT cs.id, cs.tier_id, cs.creator_user_id, cs.status, cs.current_period_end, cs.cancel_at_period_end, cs.created_at,
+                t.title AS tier_title, t.monthly_price_minor, t.currency,
+                p.display_name AS creator_display_name
+         FROM creator_subscriptions cs
+         JOIN creator_subscription_tiers t ON t.id = cs.tier_id
+         JOIN profiles p ON p.user_id = cs.creator_user_id
+         WHERE cs.subscriber_user_id = $1
+         ORDER BY cs.created_at DESC, cs.id DESC`,
+        [req.user.id]
+      );
+      res.status(200).json({ items: rows.rows });
+    })
+  );
+
+  router.get(
+    "/rankings/top",
+    asyncHandler(async (req, res) => {
+      const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+      const rows = await db.query(
+        `SELECT
+           o.seller_user_id AS creator_user_id,
+           p.display_name AS creator_display_name,
+           p.avatar_url AS creator_avatar_url,
+           COALESCE(SUM(o.amount_minor), 0)::int AS gross_earnings_minor,
+           COUNT(DISTINCT o.buyer_user_id)::int AS supporters_count,
+           (
+             COALESCE(SUM(o.amount_minor), 0)
+             + COUNT(DISTINCT o.buyer_user_id) * 2000
+             + COALESCE(SUM(ac.commission_minor), 0) * 0.5
+           )::numeric AS score
+         FROM orders o
+         JOIN users u ON u.id = o.seller_user_id
+         JOIN profiles p ON p.user_id = o.seller_user_id
+         LEFT JOIN affiliate_conversions ac ON ac.order_id = o.id
+         WHERE o.status = 'completed'
+         GROUP BY o.seller_user_id, p.display_name, p.avatar_url
+         ORDER BY score DESC, gross_earnings_minor DESC, creator_user_id ASC
+         LIMIT $1`,
+        [limit]
+      );
+      res.status(200).json({ limit, items: rows.rows });
+    })
+  );
+
+  router.get(
+    "/admin/summary",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      if (!["admin", "moderator"].includes(String(req.user.role || ""))) {
+        throw httpError(403, "Insufficient permissions");
+      }
+      const summary = await db.query(
+        `SELECT
+           (SELECT COUNT(*)::int FROM creator_payout_accounts WHERE charges_enabled = true AND payouts_enabled = true) AS payout_ready_creators,
+           (SELECT COALESCE(SUM(amount_minor), 0)::int FROM orders WHERE status = 'completed') AS gross_volume_minor,
+           (SELECT COALESCE(SUM(platform_fee_minor), 0)::int FROM orders WHERE status = 'completed') AS platform_fee_minor,
+           (SELECT COUNT(*)::int FROM creator_subscriptions WHERE status = 'active') AS active_subscriptions,
+           (SELECT COUNT(*)::int FROM affiliate_conversions) AS affiliate_conversions_count`
+      );
+      const churn = await db.query(
+        `SELECT
+           COUNT(*) FILTER (WHERE status = 'canceled')::int AS canceled_count,
+           COUNT(*) FILTER (WHERE status = 'active')::int AS active_count
+         FROM creator_subscriptions`
+      );
+      res.status(200).json({
+        summary: summary.rows[0],
+        churn: churn.rows[0],
+        config: {
+          monetizationPlatformFeeBps: Number(config.monetizationPlatformFeeBps || 350),
+          affiliateGlobalCommissionBps: Number(config.affiliateGlobalCommissionBps || 700)
+        }
       });
     })
   );

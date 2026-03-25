@@ -45,7 +45,17 @@ const TABLE_SQL = {
   beta_invites:
     "SELECT id, code, email, created_by, redeemed_by, redeemed_at, max_uses, uses_count, is_active, created_at FROM beta_invites ORDER BY id DESC LIMIT $1 OFFSET $2",
   support_tickets:
-    "SELECT id, user_id, email, subject, message, status, priority, assigned_to, created_at, updated_at FROM support_tickets ORDER BY id DESC LIMIT $1 OFFSET $2"
+    "SELECT id, user_id, email, subject, message, status, priority, assigned_to, created_at, updated_at FROM support_tickets ORDER BY id DESC LIMIT $1 OFFSET $2",
+  creator_subscription_tiers:
+    "SELECT id, creator_user_id, title, monthly_price_minor, currency, status, created_at, updated_at FROM creator_subscription_tiers ORDER BY id DESC LIMIT $1 OFFSET $2",
+  creator_subscriptions:
+    "SELECT id, tier_id, creator_user_id, subscriber_user_id, status, stripe_subscription_id, current_period_end, created_at FROM creator_subscriptions ORDER BY id DESC LIMIT $1 OFFSET $2",
+  affiliate_codes:
+    "SELECT id, affiliate_user_id, code, is_active, uses_count, created_at, updated_at FROM affiliate_codes ORDER BY id DESC LIMIT $1 OFFSET $2",
+  affiliate_conversions:
+    "SELECT id, affiliate_code_id, checkout_session_id, order_id, affiliate_user_id, seller_user_id, buyer_user_id, amount_minor, commission_minor, currency, created_at FROM affiliate_conversions ORDER BY id DESC LIMIT $1 OFFSET $2",
+  creator_ranking_snapshots:
+    "SELECT id, snapshot_date, creator_user_id, gross_earnings_minor, supporters_count, conversions_count, score, created_at FROM creator_ranking_snapshots ORDER BY snapshot_date DESC, id DESC LIMIT $1 OFFSET $2"
 };
 
 function createAdminRouter({ db, config }) {
@@ -191,6 +201,42 @@ function createAdminRouter({ db, config }) {
         throw httpError(404, "Support ticket not found");
       }
       res.status(200).json(result.rows[0]);
+    })
+  );
+
+  router.get(
+    "/monetization/summary",
+    authMiddleware,
+    modGuard,
+    asyncHandler(async (_req, res) => {
+      const totals = await db.query(
+        `SELECT
+           COALESCE(SUM(amount_minor), 0)::int AS gross_volume_minor,
+           COALESCE(SUM(platform_fee_minor), 0)::int AS total_platform_fees_minor,
+           COUNT(*) FILTER (WHERE kind = 'product')::int AS product_orders_count,
+           COUNT(*) FILTER (WHERE kind = 'support')::int AS support_orders_count,
+           COUNT(*) FILTER (WHERE kind = 'subscription')::int AS subscription_orders_count
+         FROM orders
+         WHERE status = 'completed'`
+      );
+      const subscriptions = await db.query(
+        `SELECT
+           COUNT(*) FILTER (WHERE status = 'active')::int AS active_count,
+           COUNT(*) FILTER (WHERE status = 'canceled')::int AS canceled_count,
+           COUNT(*) FILTER (WHERE status = 'past_due')::int AS past_due_count
+         FROM creator_subscriptions`
+      );
+      const affiliates = await db.query(
+        `SELECT
+           COUNT(*)::int AS conversions_count,
+           COALESCE(SUM(commission_minor), 0)::int AS total_commission_minor
+         FROM affiliate_conversions`
+      );
+      res.status(200).json({
+        totals: totals.rows[0],
+        subscriptions: subscriptions.rows[0],
+        affiliates: affiliates.rows[0]
+      });
     })
   );
 

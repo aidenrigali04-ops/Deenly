@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { colors } from "../theme";
 import { resolveMediaUrl } from "../lib/media-url";
 import type { FeedItem } from "../types";
+import { formatMinorCurrency } from "../lib/monetization";
 
 function isImageMedia(item: FeedItem) {
   if (item.media_mime_type?.startsWith("image/")) {
@@ -103,6 +104,17 @@ export function PostCard({
         </View>
 
         <View style={styles.homeCaptionWrap}>
+          {item.attached_product_id ? (
+            <View style={styles.monetizationChip}>
+              <Text style={styles.monetizationChipText}>
+                {item.attached_product_title || "Creator product"} -{" "}
+                {formatMinorCurrency(
+                  Number(item.attached_product_price_minor || 0),
+                  item.attached_product_currency || "usd"
+                )}
+              </Text>
+            </View>
+          ) : null}
           <Text style={styles.homeMetaText}>
             {item.benefited_count || 0} benefited - {item.comment_count || 0} comments
           </Text>
@@ -161,6 +173,17 @@ export function PostCard({
         <Text style={styles.muted}>Benefited: {item.benefited_count || 0}</Text>
         <Text style={styles.muted}>Comments: {item.comment_count || 0}</Text>
       </View>
+      {item.attached_product_id ? (
+        <View style={styles.monetizationChip}>
+          <Text style={styles.monetizationChipText}>
+            {item.attached_product_title || "Creator product"} -{" "}
+            {formatMinorCurrency(
+              Number(item.attached_product_price_minor || 0),
+              item.attached_product_currency || "usd"
+            )}
+          </Text>
+        </View>
+      ) : null}
       <View style={styles.actions}>
         <Pressable style={styles.buttonSecondary} onPress={onOpen}>
           <Text style={styles.buttonText}>Open post</Text>
@@ -265,6 +288,20 @@ const styles = StyleSheet.create({
   homeMetaText: {
     color: colors.muted,
     fontSize: 12
+  },
+  monetizationChip: {
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    alignSelf: "flex-start",
+    backgroundColor: colors.surface
+  },
+  monetizationChipText: {
+    color: colors.text,
+    fontSize: 11,
+    fontWeight: "600"
   },
   card: {
     backgroundColor: colors.card,

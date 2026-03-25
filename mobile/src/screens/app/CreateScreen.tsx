@@ -5,6 +5,8 @@ import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { CompositeScreenProps } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { ApiError, apiRequest } from "../../lib/api";
+import { attachProductToPost, fetchMyProducts } from "../../lib/monetization";
+import { useQuery } from "@tanstack/react-query";
 import { colors } from "../../theme";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 
@@ -37,6 +39,11 @@ export function CreateScreen({ navigation }: Props) {
   const [selectedFile, setSelectedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
+  const myProductsQuery = useQuery({
+    queryKey: ["mobile-create-my-products"],
+    queryFn: () => fetchMyProducts()
+  });
 
   const pickMedia = async () => {
     const result = await DocumentPicker.getDocumentAsync({
@@ -105,9 +112,13 @@ export function CreateScreen({ navigation }: Props) {
           }
         });
       }
+      if (selectedProductId) {
+        await attachProductToPost(post.id, selectedProductId);
+      }
 
       setContent("");
       setSelectedFile(null);
+      setSelectedProductId(null);
       navigation.navigate("PostDetail", { id: post.id });
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Unable to create post";
@@ -151,6 +162,34 @@ export function CreateScreen({ navigation }: Props) {
           <Text style={styles.muted}>Optional: image/video upload</Text>
         )}
       </View>
+      {(myProductsQuery.data?.items || []).length ? (
+        <View style={styles.fileRow}>
+          <Text style={styles.muted}>Attach product (optional)</Text>
+          <View style={styles.typeRow}>
+            {myProductsQuery.data?.items.slice(0, 4).map((item) => {
+              const product = item as { id?: number; title?: string };
+              const productId = Number(product.id || 0);
+              if (!productId) {
+                return null;
+              }
+              return (
+                <Pressable
+                  key={productId}
+                  onPress={() => setSelectedProductId(productId)}
+                  style={[styles.chip, selectedProductId === productId ? styles.chipActive : null]}
+                >
+                  <Text style={styles.chipText}>{product.title || `Product ${productId}`}</Text>
+                </Pressable>
+              );
+            })}
+            {selectedProductId ? (
+              <Pressable onPress={() => setSelectedProductId(null)} style={styles.buttonSecondary}>
+                <Text style={styles.buttonText}>Clear</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Pressable style={styles.button} onPress={createPost} disabled={isSubmitting}>
         <Text style={styles.buttonPrimaryText}>{isSubmitting ? "Publishing..." : "Publish"}</Text>

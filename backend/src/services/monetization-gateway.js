@@ -54,25 +54,39 @@ function createMonetizationGateway({ config }) {
 
   async function createCheckoutSession({
     kind,
+    mode = "payment",
     amountMinor,
     currency,
     buyerUserId,
     sellerUserId,
     productId = null,
+    tierId = null,
+    affiliateCodeId = null,
     title,
-    description
+    description,
+    recurringInterval = "month"
   }) {
     const client = requireStripe();
+    const normalizedMode = mode === "subscription" ? "subscription" : "payment";
     return client.checkout.sessions.create({
-      mode: "payment",
+      mode: normalizedMode,
       success_url: `${appBaseUrl}/account?checkout=success`,
       cancel_url: `${appBaseUrl}/account?checkout=cancel`,
+      payment_method_types: ["card"],
       line_items: [
         {
           quantity: 1,
           price_data: {
             currency: normalizeCurrency(currency),
-            unit_amount: amountMinor,
+            ...(normalizedMode === "subscription"
+              ? {
+                  recurring: {
+                    interval: recurringInterval
+                  }
+                }
+              : {
+                  unit_amount: amountMinor
+                }),
             product_data: {
               name: title,
               description: description || undefined
@@ -82,9 +96,12 @@ function createMonetizationGateway({ config }) {
       ],
       metadata: {
         kind,
+        mode: normalizedMode,
         buyerUserId: String(buyerUserId || ""),
         sellerUserId: String(sellerUserId),
-        productId: productId ? String(productId) : ""
+        productId: productId ? String(productId) : "",
+        tierId: tierId ? String(tierId) : "",
+        affiliateCodeId: affiliateCodeId ? String(affiliateCodeId) : ""
       }
     });
   }

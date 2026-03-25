@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import type { FeedItem } from "@/types";
 import { resolveMediaUrl } from "@/lib/media-url";
+import { createProductCheckout, formatMinorCurrency } from "@/lib/monetization";
 
 function isImageMedia(item: FeedItem) {
   if (item.media_mime_type?.startsWith("image/")) {
@@ -39,6 +41,15 @@ export function FeedCard({
     .join("");
   const authorAvatarUrl = resolveMediaUrl(item.author_avatar_url) || undefined;
   const isFollowing = Boolean(item.is_following_author);
+  const checkoutMutation = useMutation({
+    mutationFn: (productId: number) => createProductCheckout(productId),
+    onSuccess: (result) => {
+      if (result?.checkoutUrl && typeof window !== "undefined") {
+        window.location.assign(result.checkoutUrl);
+      }
+    }
+  });
+  const hasAttachedProduct = Boolean(item.attached_product_id);
 
   if (layout === "home") {
     return (
@@ -113,6 +124,26 @@ export function FeedCard({
         </div>
 
         <div className="space-y-1 px-4 pb-4">
+          {hasAttachedProduct ? (
+            <div className="rounded-control border border-black/10 bg-surface p-2">
+              <p className="text-xs font-semibold text-text">{item.attached_product_title || "Creator product"}</p>
+              <div className="mt-1 flex items-center justify-between">
+                <p className="text-xs text-muted">
+                  {formatMinorCurrency(
+                    Number(item.attached_product_price_minor || 0),
+                    item.attached_product_currency || "usd"
+                  )}
+                </p>
+                <button
+                  className="btn-secondary px-3 py-1 text-xs"
+                  onClick={() => item.attached_product_id && checkoutMutation.mutate(item.attached_product_id)}
+                  disabled={checkoutMutation.isPending}
+                >
+                  {checkoutMutation.isPending ? "Opening..." : "Buy"}
+                </button>
+              </div>
+            </div>
+          ) : null}
           <p className="text-xs text-muted">
             {item.benefited_count || 0} benefited - {item.comment_count || 0} comments
           </p>
@@ -206,6 +237,29 @@ export function FeedCard({
           Collab
         </button>
       </div>
+
+      {hasAttachedProduct ? (
+        <div className="mx-6 mb-3 rounded-control border border-black/10 bg-surface px-3 py-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-xs font-semibold">{item.attached_product_title || "Creator product"}</p>
+              <p className="text-xs text-muted">
+                {formatMinorCurrency(
+                  Number(item.attached_product_price_minor || 0),
+                  item.attached_product_currency || "usd"
+                )}
+              </p>
+            </div>
+            <button
+              className="btn-secondary px-3 py-1.5 text-xs"
+              onClick={() => item.attached_product_id && checkoutMutation.mutate(item.attached_product_id)}
+              disabled={checkoutMutation.isPending}
+            >
+              {checkoutMutation.isPending ? "Opening..." : "Buy now"}
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap gap-2 px-6 pb-4 text-xs text-muted">
         <span className="rounded-pill border border-black/10 px-2 py-1">

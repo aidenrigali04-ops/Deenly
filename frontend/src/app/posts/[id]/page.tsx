@@ -8,6 +8,12 @@ import { apiRequest } from "@/lib/api";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { resolveMediaUrl } from "@/lib/media-url";
 import type { FeedItem } from "@/types";
+import {
+  createProductCheckout,
+  fetchProductAccess,
+  formatMinorCurrency,
+  requestProductDownloadLink
+} from "@/lib/monetization";
 
 type PostDetail = FeedItem & {
   view_count?: number;
@@ -99,6 +105,28 @@ export default function PostDetailPage() {
       `Completion: ${post.avg_completion_rate || 0}%`
     ];
   }, [postQuery.data]);
+  const productId = Number(postQuery.data?.attached_product_id || 0) || null;
+  const productAccessQuery = useQuery({
+    queryKey: ["post-product-access", productId],
+    queryFn: () => fetchProductAccess(productId as number),
+    enabled: Boolean(productId) && Boolean(postQuery.data)
+  });
+  const productCheckoutMutation = useMutation({
+    mutationFn: () => createProductCheckout(productId as number),
+    onSuccess: (result) => {
+      if (result?.checkoutUrl && typeof window !== "undefined") {
+        window.location.assign(result.checkoutUrl);
+      }
+    }
+  });
+  const downloadMutation = useMutation({
+    mutationFn: () => requestProductDownloadLink(productId as number),
+    onSuccess: (result) => {
+      if (result?.downloadUrl && typeof window !== "undefined") {
+        window.open(result.downloadUrl, "_blank", "noopener,noreferrer");
+      }
+    }
+  });
 
   if (!Number.isFinite(postId)) {
     return <ErrorState message="Invalid post id." />;
@@ -170,6 +198,36 @@ export default function PostDetailPage() {
             Author Profile
           </Link>
         </div>
+        {productId ? (
+          <div className="rounded-panel border border-black/10 bg-surface p-3">
+            <p className="text-xs font-semibold text-text">{post.attached_product_title || "Creator product"}</p>
+            <p className="mt-1 text-xs text-muted">
+              {formatMinorCurrency(
+                Number(post.attached_product_price_minor || 0),
+                post.attached_product_currency || "usd"
+              )}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {productAccessQuery.data?.canAccess ? (
+                <button
+                  className="btn-primary"
+                  onClick={() => downloadMutation.mutate()}
+                  disabled={downloadMutation.isPending}
+                >
+                  {downloadMutation.isPending ? "Preparing..." : "Download"}
+                </button>
+              ) : (
+                <button
+                  className="btn-secondary"
+                  onClick={() => productCheckoutMutation.mutate()}
+                  disabled={productCheckoutMutation.isPending}
+                >
+                  {productCheckoutMutation.isPending ? "Opening..." : "Buy product"}
+                </button>
+              )}
+            </div>
+          </div>
+        ) : null}
       </article>
 
       <form

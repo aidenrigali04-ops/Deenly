@@ -7,6 +7,13 @@ import { apiRequest } from "@/lib/api";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { resolveMediaUrl } from "@/lib/media-url";
 import { followUser, unfollowUser } from "@/lib/follows";
+import {
+  createSupportCheckout,
+  createTierCheckout,
+  fetchCreatorSubscriptionAccess,
+  fetchCreatorTiers,
+  formatMinorCurrency
+} from "@/lib/monetization";
 
 type UserProfile = {
   user_id: number;
@@ -110,6 +117,16 @@ export default function UserProfilePage() {
     queryFn: () => apiRequest<FeedResponse>(`/feed?authorId=${userId}&limit=40`, { auth: true }),
     enabled: Number.isFinite(userId)
   });
+  const tiersQuery = useQuery({
+    queryKey: ["creator-tiers", userId],
+    queryFn: () => fetchCreatorTiers(userId),
+    enabled: Number.isFinite(userId)
+  });
+  const subscriptionAccessQuery = useQuery({
+    queryKey: ["creator-subscription-access", userId],
+    queryFn: () => fetchCreatorSubscriptionAccess(userId),
+    enabled: Number.isFinite(userId)
+  });
 
   const likeMutation = useMutation({
     mutationFn: (postId: number) =>
@@ -126,6 +143,22 @@ export default function UserProfilePage() {
         queryClient.invalidateQueries({ queryKey: ["user-profile-posts", userId] }),
         queryClient.invalidateQueries({ queryKey: ["user-profile", userId] })
       ]);
+    }
+  });
+  const supportCheckoutMutation = useMutation({
+    mutationFn: () => createSupportCheckout(userId, 500),
+    onSuccess: (result) => {
+      if (result?.checkoutUrl && typeof window !== "undefined") {
+        window.location.assign(result.checkoutUrl);
+      }
+    }
+  });
+  const tierCheckoutMutation = useMutation({
+    mutationFn: (tierId: number) => createTierCheckout(tierId),
+    onSuccess: (result) => {
+      if (result?.checkoutUrl && typeof window !== "undefined") {
+        window.location.assign(result.checkoutUrl);
+      }
     }
   });
 
@@ -213,6 +246,34 @@ export default function UserProfilePage() {
             Likes by user: {user.likes_given_count}
           </div>
         </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button className="btn-secondary" onClick={() => supportCheckoutMutation.mutate()}>
+            {supportCheckoutMutation.isPending ? "Opening..." : "Support $5"}
+          </button>
+          <span className="rounded-control border border-black/10 bg-surface px-3 py-2 text-xs text-muted">
+            Membership: {subscriptionAccessQuery.data?.subscribed ? "Active" : "Not subscribed"}
+          </span>
+        </div>
+        {tiersQuery.data?.items?.length ? (
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {tiersQuery.data.items.map((tier) => (
+              <div key={tier.id} className="rounded-control border border-black/10 bg-surface p-3">
+                <p className="text-xs font-semibold text-text">{tier.title}</p>
+                <p className="mt-1 text-xs text-muted">
+                  {formatMinorCurrency(Number(tier.monthly_price_minor || 0), tier.currency || "usd")} / month
+                </p>
+                {tier.description ? <p className="mt-1 text-xs text-muted">{tier.description}</p> : null}
+                <button
+                  className="btn-secondary mt-2 w-full"
+                  onClick={() => tierCheckoutMutation.mutate(tier.id)}
+                  disabled={tierCheckoutMutation.isPending}
+                >
+                  {tierCheckoutMutation.isPending ? "Opening..." : "Subscribe"}
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
 
         <div className="mt-4 profile-tab-strip">
           <button

@@ -41,6 +41,11 @@ describeIfDatabase("integration api flows", () => {
     await db.query("TRUNCATE TABLE post_product_links RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE creator_products RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE creator_payout_accounts RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE creator_subscriptions RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE creator_subscription_tiers RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE affiliate_conversions RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE affiliate_codes RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE creator_ranking_snapshots RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE notification_device_tokens RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE user_prayer_settings RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE conversation_participants RESTART IDENTITY CASCADE");

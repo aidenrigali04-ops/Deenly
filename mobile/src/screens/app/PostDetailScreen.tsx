@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { ResizeMode, Video } from "expo-av";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -10,6 +10,7 @@ import { enqueueMutation } from "../../lib/mutation-queue";
 import { colors } from "../../theme";
 import type { FeedItem } from "../../types";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
+import { createProductCheckout, formatMinorCurrency } from "../../lib/monetization";
 
 type PostDetail = FeedItem & {
   view_count?: number;
@@ -105,6 +106,14 @@ export function PostDetailScreen({ route, navigation }: Props) {
       `Completion: ${post.avg_completion_rate || 0}%`
     ];
   }, [postQuery.data]);
+  const productCheckoutMutation = useMutation({
+    mutationFn: (productId: number) => createProductCheckout(productId),
+    onSuccess: async (result) => {
+      if (result?.checkoutUrl) {
+        await Linking.openURL(result.checkoutUrl);
+      }
+    }
+  });
 
   if (postQuery.isLoading) {
     return <LoadingState label="Loading post..." />;
@@ -207,6 +216,26 @@ export function PostDetailScreen({ route, navigation }: Props) {
             <Text style={styles.buttonText}>Author</Text>
           </Pressable>
         </View>
+        {post.attached_product_id ? (
+          <View style={styles.card}>
+            <Text style={styles.label}>{post.attached_product_title || "Creator product"}</Text>
+            <Text style={styles.muted}>
+              {formatMinorCurrency(
+                Number(post.attached_product_price_minor || 0),
+                post.attached_product_currency || "usd"
+              )}
+            </Text>
+            <Pressable
+              style={styles.buttonSecondary}
+              onPress={() => productCheckoutMutation.mutate(post.attached_product_id as number)}
+              disabled={productCheckoutMutation.isPending}
+            >
+              <Text style={styles.buttonText}>
+                {productCheckoutMutation.isPending ? "Opening..." : "Buy product"}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.card}>
