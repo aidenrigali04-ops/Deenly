@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchSessionMe } from "@/lib/auth";
@@ -323,28 +323,6 @@ export default function AccountPage() {
       setAvatarUploading(false);
     }
   };
-
-  useEffect(() => {
-    // #region agent log
-    fetch("http://127.0.0.1:7244/ingest/25316d93-ed82-40c8-b2f0-64204fe30501", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "29a8f0" },
-      body: JSON.stringify({
-        sessionId: "29a8f0",
-        runId: "e2e-avatar-debug",
-        hypothesisId: "H4",
-        location: "frontend/src/app/account/page.tsx:300",
-        message: "avatar_render_state",
-        data: {
-          avatarUrlPresent: Boolean(avatarUrl),
-          avatarUploading,
-          avatarErrorPresent: Boolean(avatarError)
-        },
-        timestamp: Date.now()
-      })
-    }).catch(() => {});
-    // #endregion
-  }, [avatarUrl, avatarUploading, avatarError]);
 
   return (
     <section className="profile-shell">
