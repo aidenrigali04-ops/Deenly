@@ -64,7 +64,7 @@ export function FeedCard({
             <img
               src={mediaUrl}
               alt={`${item.author_display_name} post media`}
-              className="feed-media-frame-home w-full object-cover"
+              className="feed-media-frame-home w-full"
               onError={() => setMediaFailed(true)}
             />
           ) : (
@@ -151,7 +151,7 @@ export function FeedCard({
             <img
               src={mediaUrl}
               alt={`${item.author_display_name} post media`}
-              className="feed-media-frame w-full object-cover"
+              className="feed-media-frame w-full"
               onError={() => setMediaFailed(true)}
             />
           ) : (

@@ -67,11 +67,11 @@ a {
 }
 
 .feed-media-frame {
-  @apply aspect-[4/3] bg-black/[0.03] object-cover;
+  @apply aspect-[4/3] bg-black/[0.04] object-contain;
 }
 
 .feed-media-frame-home {
-  @apply aspect-[4/5] bg-black/[0.03] object-cover;
+  @apply aspect-[4/5] bg-black/[0.04] object-contain;
 }
 
 .feed-action {

@@ -36,6 +36,20 @@ async function run() {
     throw new Error("Missing access token after signup");
   }
 
+  const secondUser = await request(baseUrl, "/auth/register", {
+    method: "POST",
+    body: {
+      email: `mobile-smoke-second-${suffix}@example.com`,
+      username: `mobilesmoke2${suffix}`,
+      password,
+      displayName: "Mobile Smoke Two"
+    }
+  });
+  const secondToken = secondUser.tokens?.accessToken;
+  if (!secondToken) {
+    throw new Error("Missing second access token");
+  }
+
   const prayerSettings = await request(baseUrl, "/notifications/prayer-settings", {
     method: "GET",
     token
@@ -89,6 +103,19 @@ async function run() {
       interactionType: "benefited"
     }
   });
+
+  await request(baseUrl, `/follows/${auth.user.id}`, {
+    method: "POST",
+    token: secondToken
+  });
+
+  const meStats = await request(baseUrl, "/users/me", {
+    method: "GET",
+    token
+  });
+  if (typeof meStats.posts_count !== "number") {
+    throw new Error("Missing profile posts_count on /users/me");
+  }
 
   await request(baseUrl, "/reports", {
     method: "POST",

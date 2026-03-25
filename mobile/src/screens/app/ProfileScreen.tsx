@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { CompositeScreenProps } from "@react-navigation/native";
@@ -7,7 +8,9 @@ import { fetchSessionMe, logout } from "../../lib/auth";
 import { apiRequest } from "../../lib/api";
 import { useSessionStore } from "../../store/session-store";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
+import { PostCard } from "../../components/PostCard";
 import { colors } from "../../theme";
+import type { FeedItem } from "../../types";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 
 type Props = CompositeScreenProps<
@@ -16,7 +19,9 @@ type Props = CompositeScreenProps<
 >;
 
 export function ProfileScreen({ navigation }: Props) {
+  const [activeTab, setActiveTab] = useState<"posts" | "media">("posts");
   const setUser = useSessionStore((state) => state.setUser);
+  const queryClient = useQueryClient();
   const adminOwnerEmail = String(process.env.EXPO_PUBLIC_ADMIN_OWNER_EMAIL || "").toLowerCase();
   const sessionQuery = useQuery({
     queryKey: ["mobile-session-me"],
@@ -25,6 +30,44 @@ export function ProfileScreen({ navigation }: Props) {
   const interestsQuery = useQuery({
     queryKey: ["mobile-my-interests"],
     queryFn: () => apiRequest<{ items: string[] }>("/users/me/interests", { auth: true })
+  });
+  const profileQuery = useQuery({
+    queryKey: ["mobile-account-profile"],
+    queryFn: () =>
+      apiRequest<{
+        user_id: number;
+        posts_count: number;
+        followers_count: number;
+        following_count: number;
+        likes_received_count: number;
+        likes_given_count: number;
+      }>("/users/me", { auth: true }),
+    enabled: Boolean(sessionQuery.data?.id)
+  });
+  const postsQuery = useQuery({
+    queryKey: ["mobile-account-posts", sessionQuery.data?.id],
+    queryFn: () =>
+      apiRequest<{ items: FeedItem[] }>(`/feed?authorId=${sessionQuery.data?.id}&limit=40`, {
+        auth: true
+      }),
+    enabled: Boolean(sessionQuery.data?.id)
+  });
+  const likeMutation = useMutation({
+    mutationFn: (postId: number) =>
+      apiRequest("/interactions", {
+        method: "POST",
+        auth: true,
+        body: {
+          postId,
+          interactionType: "benefited"
+        }
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["mobile-account-posts", sessionQuery.data?.id] }),
+        queryClient.invalidateQueries({ queryKey: ["mobile-account-profile"] })
+      ]);
+    }
   });
 
   const handleLogout = async () => {
@@ -36,6 +79,9 @@ export function ProfileScreen({ navigation }: Props) {
     !!sessionQuery.data &&
     ["admin", "moderator"].includes(sessionQuery.data.role) &&
     String(sessionQuery.data.email || "").toLowerCase() === adminOwnerEmail;
+
+  const items = postsQuery.data?.items || [];
+  const visibleItems = activeTab === "media" ? items.filter((item) => Boolean(item.media_url)) : items;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -52,6 +98,49 @@ export function ProfileScreen({ navigation }: Props) {
           <Text style={styles.muted}>Role: {sessionQuery.data.role}</Text>
         </View>
       ) : null}
+      <View style={styles.card}>
+        <Text style={styles.title}>Stats</Text>
+        <View style={styles.row}>
+          <Text style={styles.muted}>Posts: {profileQuery.data?.posts_count || 0}</Text>
+          <Text style={styles.muted}>Followers: {profileQuery.data?.followers_count || 0}</Text>
+          <Text style={styles.muted}>Following: {profileQuery.data?.following_count || 0}</Text>
+        </View>
+        <View style={styles.row}>
+          <Text style={styles.muted}>Likes received: {profileQuery.data?.likes_received_count || 0}</Text>
+          <Text style={styles.muted}>Likes by you: {profileQuery.data?.likes_given_count || 0}</Text>
+        </View>
+      </View>
+      <View style={styles.row}>
+        <Pressable
+          style={[styles.buttonSecondary, activeTab === "posts" ? styles.buttonActive : null]}
+          onPress={() => setActiveTab("posts")}
+        >
+          <Text style={styles.buttonText}>Posts</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.buttonSecondary, activeTab === "media" ? styles.buttonActive : null]}
+          onPress={() => setActiveTab("media")}
+        >
+          <Text style={styles.buttonText}>Media</Text>
+        </Pressable>
+      </View>
+      {postsQuery.isLoading ? <LoadingState label="Loading posts..." /> : null}
+      {postsQuery.error ? <ErrorState message={(postsQuery.error as Error).message} /> : null}
+      {!postsQuery.isLoading && !postsQuery.error && visibleItems.length === 0 ? (
+        <EmptyState title={activeTab === "posts" ? "No posts yet" : "No media yet"} />
+      ) : null}
+      <View style={styles.stack}>
+        {visibleItems.map((item) => (
+          <PostCard
+            key={item.id}
+            item={item}
+            onOpen={() => navigation.navigate("PostDetail", { id: item.id })}
+            onAuthor={() => navigation.navigate("UserProfile", { id: item.author_id })}
+            onLike={() => likeMutation.mutate(item.id)}
+            liking={likeMutation.isPending}
+          />
+        ))}
+      </View>
       <View style={styles.card}>
         <Text style={styles.title}>Interests</Text>
         <Text style={styles.muted}>
@@ -164,7 +253,11 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: "row",
-    gap: 8
+    gap: 8,
+    flexWrap: "wrap"
+  },
+  stack: {
+    gap: 10
   },
   buttonSecondary: {
     borderColor: colors.border,
@@ -172,6 +265,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8
+  },
+  buttonActive: {
+    backgroundColor: colors.surface
   },
   buttonText: {
     color: colors.text,

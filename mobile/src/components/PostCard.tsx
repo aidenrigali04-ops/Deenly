@@ -19,11 +19,15 @@ export function PostCard({
   item,
   onOpen,
   onAuthor,
+  onLike,
+  liking = false,
   layout = "default"
 }: {
   item: FeedItem;
   onOpen: () => void;
   onAuthor: () => void;
+  onLike?: () => void;
+  liking?: boolean;
   layout?: "default" | "home";
 }) {
   const [mediaFailed, setMediaFailed] = useState(false);
@@ -63,7 +67,7 @@ export function PostCard({
             <Image
               source={{ uri: mediaUri }}
               style={styles.homeMedia}
-              resizeMode="cover"
+              resizeMode="contain"
               onError={() => setMediaFailed(true)}
             />
           ) : (
@@ -71,7 +75,7 @@ export function PostCard({
               source={{ uri: mediaUri }}
               style={styles.homeMedia}
               useNativeControls
-              resizeMode={ResizeMode.COVER}
+              resizeMode={ResizeMode.CONTAIN}
               isLooping={false}
               onError={() => setMediaFailed(true)}
             />
@@ -108,6 +112,11 @@ export function PostCard({
             <Pressable style={styles.buttonSecondary} onPress={onAuthor}>
               <Text style={styles.buttonText}>Author</Text>
             </Pressable>
+            {onLike ? (
+              <Pressable style={styles.buttonSecondary} onPress={onLike} disabled={liking}>
+                <Text style={styles.buttonText}>{liking ? "Liking..." : "Like"}</Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
       </View>
@@ -127,7 +136,7 @@ export function PostCard({
           <Image
             source={{ uri: mediaUri }}
             style={styles.video}
-            resizeMode="cover"
+            resizeMode="contain"
             onError={() => setMediaFailed(true)}
           />
         ) : (
@@ -135,7 +144,7 @@ export function PostCard({
             source={{ uri: mediaUri }}
             style={styles.video}
             useNativeControls
-            resizeMode={ResizeMode.COVER}
+            resizeMode={ResizeMode.CONTAIN}
             isLooping={false}
             onError={() => setMediaFailed(true)}
           />
@@ -154,6 +163,11 @@ export function PostCard({
         <Pressable style={styles.buttonSecondary} onPress={onAuthor}>
           <Text style={styles.buttonText}>Author</Text>
         </Pressable>
+        {onLike ? (
+          <Pressable style={styles.buttonSecondary} onPress={onLike} disabled={liking}>
+            <Text style={styles.buttonText}>{liking ? "Liking..." : "Like"}</Text>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );

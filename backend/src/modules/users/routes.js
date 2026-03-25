@@ -1,5 +1,7 @@
 const express = require("express");
+const jwt = require("jsonwebtoken");
 const { authenticate } = require("../../middleware/auth");
+const { requireAccessSecret } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
 const { optionalString, requireString } = require("../../utils/validators");
 const { httpError } = require("../../utils/http-error");
@@ -9,6 +11,63 @@ const INTEREST_KEYS = new Set(["recitation", "community", "short_video"]);
 function createUsersRouter({ db, config }) {
   const router = express.Router();
   const authMiddleware = authenticate({ config, db });
+
+  async function getViewerIdFromAuthHeader(authorization) {
+    if (!authorization || !authorization.startsWith("Bearer ")) {
+      return null;
+    }
+    const token = authorization.slice("Bearer ".length);
+    if (!token) {
+      return null;
+    }
+    try {
+      const payload = jwt.verify(token, requireAccessSecret(config));
+      const userId = Number(payload.sub);
+      if (!userId) {
+        return null;
+      }
+      const result = await db.query(
+        "SELECT id FROM users WHERE id = $1 AND is_active = true LIMIT 1",
+        [userId]
+      );
+      return result.rowCount > 0 ? result.rows[0].id : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function getProfileStats({ userId, viewerId }) {
+    const result = await db.query(
+      `SELECT
+         (SELECT COUNT(*)::int FROM posts p WHERE p.author_id = $1 AND p.visibility_status = 'visible') AS posts_count,
+         (SELECT COUNT(*)::int FROM follows f WHERE f.following_id = $1) AS followers_count,
+         (SELECT COUNT(*)::int FROM follows f WHERE f.follower_id = $1) AS following_count,
+         (
+           SELECT COUNT(*)::int
+           FROM interactions i
+           JOIN posts p ON p.id = i.post_id
+           WHERE p.author_id = $1
+             AND i.interaction_type = 'benefited'
+         ) AS likes_received_count,
+         (
+           SELECT COUNT(*)::int
+           FROM interactions i
+           WHERE i.user_id = $1
+             AND i.interaction_type = 'benefited'
+         ) AS likes_given_count,
+         CASE
+           WHEN $2::int IS NULL THEN false
+           ELSE EXISTS (
+             SELECT 1
+             FROM follows f
+             WHERE f.follower_id = $2
+               AND f.following_id = $1
+           )
+         END AS is_following`,
+      [userId, viewerId]
+    );
+    return result.rows[0];
+  }
 
   router.get(
     "/me",
@@ -25,7 +84,11 @@ function createUsersRouter({ db, config }) {
       if (result.rowCount === 0) {
         throw httpError(404, "User profile not found");
       }
-      res.status(200).json(result.rows[0]);
+      const stats = await getProfileStats({ userId: req.user.id, viewerId: req.user.id });
+      res.status(200).json({
+        ...result.rows[0],
+        ...stats
+      });
     })
   );
 
@@ -173,7 +236,12 @@ function createUsersRouter({ db, config }) {
       if (result.rowCount === 0) {
         throw httpError(404, "User not found");
       }
-      res.status(200).json(result.rows[0]);
+      const viewerId = await getViewerIdFromAuthHeader(req.headers.authorization);
+      const stats = await getProfileStats({ userId, viewerId });
+      res.status(200).json({
+        ...result.rows[0],
+        ...stats
+      });
     })
   );
 

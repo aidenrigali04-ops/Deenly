@@ -65,6 +65,8 @@ function createPostsRouter({ db, config, analytics, mediaStorage }) {
       const offset = Math.max(Number(req.query.offset) || 0, 0);
       const postType = req.query.postType || null;
       const authorId = req.query.authorId ? Number(req.query.authorId) : null;
+      const mediaOnly = String(req.query.mediaOnly || "false") === "true";
+      const videoOnly = String(req.query.videoOnly || "false") === "true";
 
       if (postType && !POST_TYPES.has(postType)) {
         throw httpError(400, "postType must be recitation, community, or short_video");
@@ -92,10 +94,12 @@ function createPostsRouter({ db, config, analytics, mediaStorage }) {
          ) vs ON vs.post_id = p.id
          WHERE ($1::text IS NULL OR p.post_type = $1::text)
            AND ($2::int IS NULL OR p.author_id = $2::int)
+           AND ($5::boolean = false OR p.media_url IS NOT NULL)
+           AND ($6::boolean = false OR p.media_mime_type LIKE 'video/%')
            AND p.visibility_status = 'visible'
          ORDER BY p.created_at DESC, p.id DESC
          LIMIT $3 OFFSET $4`,
-        [postType, authorId, limit, offset]
+        [postType, authorId, limit, offset, mediaOnly, videoOnly]
       );
 
       const items = result.rows.map((row) => ({
@@ -107,7 +111,7 @@ function createPostsRouter({ db, config, analytics, mediaStorage }) {
             })
           : row.media_url
       }));
-      res.status(200).json({ limit, offset, items });
+      res.status(200).json({ limit, offset, mediaOnly, videoOnly, items });
     })
   );
 

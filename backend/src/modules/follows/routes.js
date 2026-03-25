@@ -54,6 +54,29 @@ function createFollowsRouter({ db, config, analytics, pushNotifications }) {
   );
 
   router.get(
+    "/:userId/status",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const userId = Number(req.params.userId);
+      if (!userId) {
+        throw httpError(400, "userId must be a number");
+      }
+      const result = await db.query(
+        `SELECT 1
+         FROM follows
+         WHERE follower_id = $1
+           AND following_id = $2
+         LIMIT 1`,
+        [req.user.id, userId]
+      );
+      res.status(200).json({
+        userId,
+        isFollowing: result.rowCount > 0
+      });
+    })
+  );
+
+  router.get(
     "/:userId/followers",
     asyncHandler(async (req, res) => {
       const userId = Number(req.params.userId);

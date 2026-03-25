@@ -102,6 +102,7 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
     .toBeGreaterThan(initialPostCount);
 
   await page.goto(`${baseURL}/users/${creator.user.id}`);
+  await expect(page.getByText(/Likes received:/)).toBeVisible();
   await page.getByRole("button", { name: "Follow", exact: true }).click();
   await expect(page.getByText("Followed successfully.")).toBeVisible();
 

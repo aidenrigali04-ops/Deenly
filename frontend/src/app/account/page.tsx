@@ -2,17 +2,76 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchSessionMe } from "@/lib/auth";
+import { apiRequest } from "@/lib/api";
+import { resolveMediaUrl } from "@/lib/media-url";
 import { ErrorState, LoadingState } from "@/components/states";
 import { fetchPrayerSettings, updatePrayerSettings } from "@/lib/prayer";
+
+type AccountProfile = {
+  user_id: number;
+  username: string;
+  display_name: string;
+  bio: string | null;
+  avatar_url: string | null;
+  posts_count: number;
+  followers_count: number;
+  following_count: number;
+  likes_received_count: number;
+  likes_given_count: number;
+};
+
+type ProfileFeedItem = {
+  id: number;
+  author_id: number;
+  author_display_name: string;
+  content: string;
+  media_url: string | null;
+  media_mime_type: string | null;
+  post_type: "recitation" | "community" | "short_video";
+  created_at: string;
+  benefited_count: number;
+};
+
+type FeedResponse = {
+  items: ProfileFeedItem[];
+};
 
 export default function AccountPage() {
   const [activeTab, setActiveTab] = useState<"posts" | "media">("posts");
   const [savingPrayer, setSavingPrayer] = useState(false);
+  const queryClient = useQueryClient();
   const sessionQuery = useQuery({
     queryKey: ["account-session-me"],
     queryFn: () => fetchSessionMe()
+  });
+  const profileQuery = useQuery({
+    queryKey: ["account-profile-me"],
+    queryFn: () => apiRequest<AccountProfile>("/users/me", { auth: true }),
+    enabled: Boolean(sessionQuery.data?.id)
+  });
+  const postsQuery = useQuery({
+    queryKey: ["account-posts", sessionQuery.data?.id],
+    queryFn: () => apiRequest<FeedResponse>(`/feed?authorId=${sessionQuery.data?.id}&limit=40`, { auth: true }),
+    enabled: Boolean(sessionQuery.data?.id)
+  });
+  const likeMutation = useMutation({
+    mutationFn: (postId: number) =>
+      apiRequest("/interactions", {
+        method: "POST",
+        auth: true,
+        body: {
+          postId,
+          interactionType: "benefited"
+        }
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["account-posts", sessionQuery.data?.id] }),
+        queryClient.invalidateQueries({ queryKey: ["account-profile-me"] })
+      ]);
+    }
   });
   const prayerSettingsQuery = useQuery({
     queryKey: ["account-prayer-settings"],
@@ -30,6 +89,7 @@ export default function AccountPage() {
   }
 
   const user = sessionQuery.data;
+  const profile = profileQuery.data;
   const initials =
     (user.username || user.email || "U")
       .split(/[.@_\s-]/)
@@ -38,11 +98,9 @@ export default function AccountPage() {
       .map((part) => part[0]?.toUpperCase())
       .join("") || "U";
 
-  const placeholderStats = {
-    posts: "0",
-    followers: "0",
-    following: "0"
-  };
+  const profileItems = postsQuery.data?.items || [];
+  const visibleItems =
+    activeTab === "media" ? profileItems.filter((item) => Boolean(item.media_url)) : profileItems;
 
   return (
     <section className="profile-shell">
@@ -64,16 +122,24 @@ export default function AccountPage() {
 
         <div className="profile-stat-grid">
           <div>
-            <p className="profile-stat-value">{placeholderStats.posts}</p>
+            <p className="profile-stat-value">{profile?.posts_count ?? 0}</p>
             <p className="profile-stat-label">Posts</p>
           </div>
           <div>
-            <p className="profile-stat-value">{placeholderStats.followers}</p>
+            <p className="profile-stat-value">{profile?.followers_count ?? 0}</p>
             <p className="profile-stat-label">Followers</p>
           </div>
           <div>
-            <p className="profile-stat-value">{placeholderStats.following}</p>
+            <p className="profile-stat-value">{profile?.following_count ?? 0}</p>
             <p className="profile-stat-label">Following</p>
+          </div>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted">
+          <div className="rounded-control border border-black/10 bg-surface px-3 py-2">
+            Likes received: {profile?.likes_received_count ?? 0}
+          </div>
+          <div className="rounded-control border border-black/10 bg-surface px-3 py-2">
+            Likes by you: {profile?.likes_given_count ?? 0}
           </div>
         </div>
 
@@ -95,15 +161,50 @@ export default function AccountPage() {
         </div>
 
         <div className="pt-4">
-          {activeTab === "posts" ? (
+          {postsQuery.isLoading ? <LoadingState label="Loading your posts..." /> : null}
+          {postsQuery.error ? <ErrorState message={(postsQuery.error as Error).message} /> : null}
+          {!postsQuery.isLoading && !postsQuery.error && visibleItems.length === 0 ? (
             <div className="rounded-panel border border-black/10 bg-surface px-4 py-10 text-center text-sm text-muted">
-              Your posts will appear here.
+              {activeTab === "posts" ? "Your posts will appear here." : "Your media will appear here."}
             </div>
-          ) : (
-            <div className="rounded-panel border border-black/10 bg-surface px-4 py-10 text-center text-sm text-muted">
-              Your media will appear here.
-            </div>
-          )}
+          ) : null}
+          <div className="space-y-3">
+            {visibleItems.map((item) => {
+              const mediaUrl = resolveMediaUrl(item.media_url) || undefined;
+              const isImage = item.media_mime_type?.startsWith("image/");
+              return (
+                <article key={item.id} className="rounded-panel border border-black/10 bg-card p-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold">{item.author_display_name}</p>
+                    <time className="text-xs text-muted">{new Date(item.created_at).toLocaleString()}</time>
+                  </div>
+                  <p className="mt-2 text-sm text-text">{item.content}</p>
+                  {mediaUrl ? (
+                    <div className="mt-3 overflow-hidden rounded-control border border-black/10 bg-surface">
+                      {isImage ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={mediaUrl} alt="post media" className="feed-media-frame w-full" />
+                      ) : (
+                        <video controls className="feed-media-frame w-full">
+                          <source src={mediaUrl} />
+                        </video>
+                      )}
+                    </div>
+                  ) : null}
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className="text-xs text-muted">Benefited: {item.benefited_count || 0}</span>
+                    <button
+                      className="btn-secondary px-3 py-1.5 text-xs"
+                      onClick={() => likeMutation.mutate(item.id)}
+                      disabled={likeMutation.isPending}
+                    >
+                      {likeMutation.isPending ? "Liking..." : "Like"}
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
         </div>
 
         <div className="pt-4 grid gap-3 text-sm sm:grid-cols-2">

@@ -391,6 +391,63 @@ describeIfDatabase("integration api flows", () => {
     expect(inbox.body.items.length).toBe(0);
   });
 
+  it("returns profile stats and follow state for own and public profiles", async () => {
+    const authorRegister = await request(app).post("/api/v1/auth/register").send({
+      email: "profile-author@example.com",
+      username: "profile_author",
+      password: "StrongPass123",
+      displayName: "Profile Author"
+    });
+    const viewerRegister = await request(app).post("/api/v1/auth/register").send({
+      email: "profile-viewer@example.com",
+      username: "profile_viewer",
+      password: "StrongPass123",
+      displayName: "Profile Viewer"
+    });
+
+    const authorToken = authorRegister.body.tokens.accessToken;
+    const viewerToken = viewerRegister.body.tokens.accessToken;
+
+    const post = await request(app)
+      .post("/api/v1/posts")
+      .set("Authorization", `Bearer ${authorToken}`)
+      .send({
+        postType: "community",
+        content: "Profile stats post"
+      });
+    expect(post.statusCode).toBe(201);
+
+    const follow = await request(app)
+      .post(`/api/v1/follows/${authorRegister.body.user.id}`)
+      .set("Authorization", `Bearer ${viewerToken}`);
+    expect(follow.statusCode).toBe(201);
+
+    const like = await request(app)
+      .post("/api/v1/interactions")
+      .set("Authorization", `Bearer ${viewerToken}`)
+      .send({
+        postId: post.body.id,
+        interactionType: "benefited"
+      });
+    expect([200, 201]).toContain(like.statusCode);
+
+    const authorPublic = await request(app)
+      .get(`/api/v1/users/${authorRegister.body.user.id}`)
+      .set("Authorization", `Bearer ${viewerToken}`);
+    expect(authorPublic.statusCode).toBe(200);
+    expect(authorPublic.body.posts_count).toBe(1);
+    expect(authorPublic.body.followers_count).toBe(1);
+    expect(authorPublic.body.likes_received_count).toBe(1);
+    expect(authorPublic.body.is_following).toBe(true);
+
+    const viewerMe = await request(app)
+      .get("/api/v1/users/me")
+      .set("Authorization", `Bearer ${viewerToken}`);
+    expect(viewerMe.statusCode).toBe(200);
+    expect(viewerMe.body.following_count).toBe(1);
+    expect(viewerMe.body.likes_given_count).toBe(1);
+  });
+
   it("supports onboarding interests, notifications, beta flow, and support ticket", async () => {
     const userRegister = await request(app).post("/api/v1/auth/register").send({
       email: "growth-user@example.com",
