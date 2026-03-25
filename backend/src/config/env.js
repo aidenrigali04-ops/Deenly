@@ -52,6 +52,14 @@ function parseNumber(value, defaultValue) {
   return parsed;
 }
 
+function parsePositiveInt(value, defaultValue, fieldName) {
+  const parsed = parseNumber(value, defaultValue);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${fieldName} must be a positive integer`);
+  }
+  return parsed;
+}
+
 function parseList(value) {
   return String(value || "")
     .split(",")
@@ -106,7 +114,41 @@ function loadEnv(envSource = process.env) {
     mediaPublicBaseUrl: parseOptionalUrl(envSource.MEDIA_PUBLIC_BASE_URL),
     googleClientId: String(envSource.GOOGLE_CLIENT_ID || "").trim(),
     commentBlockedTerms: parseList(envSource.COMMENT_BLOCKED_TERMS),
-    mockUploadBaseUrl: envSource.MOCK_UPLOAD_BASE_URL || ""
+    mockUploadBaseUrl: envSource.MOCK_UPLOAD_BASE_URL || "",
+    viewDedupeWindowSeconds: parsePositiveInt(
+      envSource.VIEW_DEDUPE_WINDOW_SECONDS,
+      45,
+      "VIEW_DEDUPE_WINDOW_SECONDS"
+    ),
+    authLoginRateLimitWindowMs: parsePositiveInt(
+      envSource.AUTH_LOGIN_RATE_LIMIT_WINDOW_MS,
+      15 * 60 * 1000,
+      "AUTH_LOGIN_RATE_LIMIT_WINDOW_MS"
+    ),
+    authLoginRateLimitMax: parsePositiveInt(
+      envSource.AUTH_LOGIN_RATE_LIMIT_MAX,
+      12,
+      "AUTH_LOGIN_RATE_LIMIT_MAX"
+    ),
+    authRegisterRateLimitWindowMs: parsePositiveInt(
+      envSource.AUTH_REGISTER_RATE_LIMIT_WINDOW_MS,
+      15 * 60 * 1000,
+      "AUTH_REGISTER_RATE_LIMIT_WINDOW_MS"
+    ),
+    authRegisterRateLimitMax: parsePositiveInt(
+      envSource.AUTH_REGISTER_RATE_LIMIT_MAX,
+      10,
+      "AUTH_REGISTER_RATE_LIMIT_MAX"
+    ),
+    feedRankWeights: {
+      comment: parseNumber(envSource.FEED_RANK_COMMENT_WEIGHT, 120),
+      benefited: parseNumber(envSource.FEED_RANK_BENEFITED_WEIGHT, 60),
+      watchTimeSeconds: parseNumber(envSource.FEED_RANK_WATCH_SECONDS_WEIGHT, 1),
+      completionRate: parseNumber(envSource.FEED_RANK_COMPLETION_RATE_WEIGHT, 2),
+      followBoost: parseNumber(envSource.FEED_RANK_FOLLOW_BOOST_WEIGHT, 300),
+      affinity: parseNumber(envSource.FEED_RANK_AFFINITY_WEIGHT, 45),
+      interestBoost: parseNumber(envSource.FEED_RANK_INTEREST_BOOST_WEIGHT, 220)
+    }
   };
 
   if (!VALID_DB_SSL_MODES.has(config.dbSslMode)) {

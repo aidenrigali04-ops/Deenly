@@ -11,6 +11,7 @@ const hasDatabase = Boolean(process.env.DATABASE_URL);
 const describeIfDatabase = hasDatabase ? describe : describe.skip;
 
 describeIfDatabase("integration api flows", () => {
+  jest.setTimeout(120000);
   const config = loadEnv({
     ...process.env,
     NODE_ENV: "test",
@@ -127,6 +128,32 @@ describeIfDatabase("integration api flows", () => {
       refreshToken: refreshed.body.tokens.refreshToken
     });
     expect(refreshAfterLogout.statusCode).toBe(401);
+  });
+
+  it("tracks auth failure analytics events on invalid login attempts", async () => {
+    const register = await request(app).post("/api/v1/auth/register").send({
+      email: "auth-fail@example.com",
+      username: "auth_fail_user",
+      password: "StrongPass123",
+      displayName: "Auth Fail User"
+    });
+    expect(register.statusCode).toBe(201);
+
+    const badLogin = await request(app).post("/api/v1/auth/login").send({
+      email: "auth-fail@example.com",
+      password: "WrongPass123"
+    });
+    expect(badLogin.statusCode).toBe(401);
+
+    const events = await db.query(
+      `SELECT event_name, payload
+       FROM analytics_events
+       WHERE event_name = 'auth_failure'
+       ORDER BY created_at DESC
+       LIMIT 1`
+    );
+    expect(events.rowCount).toBe(1);
+    expect(events.rows[0].payload.reason).toBe("login_invalid_password");
   });
 
   it("logs in with Google OAuth and creates a user session", async () => {
@@ -331,11 +358,180 @@ describeIfDatabase("integration api flows", () => {
       });
     expect([200, 201]).toContain(liked.statusCode);
 
+    const unlike = await request(app)
+      .delete("/api/v1/interactions")
+      .set("Authorization", `Bearer ${viewerToken}`)
+      .send({
+        postId: createdPost.body.id,
+        interactionType: "benefited"
+      });
+    expect(unlike.statusCode).toBe(200);
+    expect(unlike.body.deleted).toBe(true);
+
     const postDetails = await request(app).get(`/api/v1/posts/${createdPost.body.id}`);
     expect(postDetails.statusCode).toBe(200);
     expect(postDetails.body.view_count).toBeGreaterThanOrEqual(1);
     expect(Number(postDetails.body.avg_watch_time_ms)).toBeGreaterThan(0);
     expect(Number(postDetails.body.avg_completion_rate)).toBeGreaterThan(0);
+    expect(postDetails.body.benefited_count).toBe(0);
+  });
+
+  it("lists and soft-deletes comments with pagination", async () => {
+    const author = await request(app).post("/api/v1/auth/register").send({
+      email: "comment-author@example.com",
+      username: "comment_author",
+      password: "StrongPass123",
+      displayName: "Comment Author"
+    });
+    const actor = await request(app).post("/api/v1/auth/register").send({
+      email: "comment-actor@example.com",
+      username: "comment_actor",
+      password: "StrongPass123",
+      displayName: "Comment Actor"
+    });
+    const authorToken = author.body.tokens.accessToken;
+    const actorToken = actor.body.tokens.accessToken;
+
+    const post = await request(app)
+      .post("/api/v1/posts")
+      .set("Authorization", `Bearer ${authorToken}`)
+      .send({
+        postType: "community",
+        content: "Comment target post"
+      });
+    expect(post.statusCode).toBe(201);
+
+    const firstComment = await request(app)
+      .post("/api/v1/interactions")
+      .set("Authorization", `Bearer ${actorToken}`)
+      .send({
+        postId: post.body.id,
+        interactionType: "comment",
+        commentText: "First comment"
+      });
+    const secondComment = await request(app)
+      .post("/api/v1/interactions")
+      .set("Authorization", `Bearer ${actorToken}`)
+      .send({
+        postId: post.body.id,
+        interactionType: "comment",
+        commentText: "Second comment"
+      });
+    expect(firstComment.statusCode).toBe(201);
+    expect(secondComment.statusCode).toBe(201);
+
+    const listedFirst = await request(app).get(`/api/v1/interactions/post/${post.body.id}/comments?limit=1`);
+    expect(listedFirst.statusCode).toBe(200);
+    expect(listedFirst.body.items.length).toBe(1);
+    expect(listedFirst.body.hasMore).toBe(true);
+    expect(listedFirst.body.nextCursor).toBeTruthy();
+
+    const listedSecond = await request(app).get(
+      `/api/v1/interactions/post/${post.body.id}/comments?limit=5&cursor=${encodeURIComponent(
+        listedFirst.body.nextCursor
+      )}`
+    );
+    expect(listedSecond.statusCode).toBe(200);
+    expect(listedSecond.body.items.length).toBe(1);
+
+    const removed = await request(app)
+      .delete(`/api/v1/interactions/comments/${firstComment.body.id}`)
+      .set("Authorization", `Bearer ${actorToken}`);
+    expect(removed.statusCode).toBe(200);
+    expect(removed.body.deleted).toBe(true);
+
+    const counts = await request(app).get(`/api/v1/interactions/post/${post.body.id}`);
+    expect(counts.statusCode).toBe(200);
+    const commentTotal = counts.body.totals.find((entry) => entry.interaction_type === "comment");
+    expect(Number(commentTotal.total)).toBe(1);
+  });
+
+  it("dedupes post views inside configured view window", async () => {
+    const creator = await request(app).post("/api/v1/auth/register").send({
+      email: "view-creator@example.com",
+      username: "view_creator",
+      password: "StrongPass123",
+      displayName: "View Creator"
+    });
+    const viewer = await request(app).post("/api/v1/auth/register").send({
+      email: "view-viewer@example.com",
+      username: "view_viewer",
+      password: "StrongPass123",
+      displayName: "View Viewer"
+    });
+    const creatorToken = creator.body.tokens.accessToken;
+    const viewerToken = viewer.body.tokens.accessToken;
+
+    const post = await request(app)
+      .post("/api/v1/posts")
+      .set("Authorization", `Bearer ${creatorToken}`)
+      .send({
+        postType: "community",
+        content: "View dedupe post"
+      });
+    expect(post.statusCode).toBe(201);
+
+    const firstView = await request(app)
+      .post("/api/v1/interactions/view")
+      .set("Authorization", `Bearer ${viewerToken}`)
+      .send({
+        postId: post.body.id,
+        watchTimeMs: 1200,
+        completionRate: 20
+      });
+    expect(firstView.statusCode).toBe(201);
+    expect(firstView.body.deduped).toBe(false);
+
+    const secondView = await request(app)
+      .post("/api/v1/interactions/view")
+      .set("Authorization", `Bearer ${viewerToken}`)
+      .send({
+        postId: post.body.id,
+        watchTimeMs: 5400,
+        completionRate: 70
+      });
+    expect(secondView.statusCode).toBe(200);
+    expect(secondView.body.deduped).toBe(true);
+
+    const postDetails = await request(app).get(`/api/v1/posts/${post.body.id}`);
+    expect(postDetails.statusCode).toBe(200);
+    expect(postDetails.body.view_count).toBe(1);
+    expect(Number(postDetails.body.avg_watch_time_ms)).toBeGreaterThanOrEqual(5400);
+  });
+
+  it("paginates feed without duplicate items across cursors", async () => {
+    const author = await request(app).post("/api/v1/auth/register").send({
+      email: "feed-cursor@example.com",
+      username: "feed_cursor",
+      password: "StrongPass123",
+      displayName: "Feed Cursor"
+    });
+    const token = author.body.tokens.accessToken;
+
+    for (let index = 0; index < 5; index += 1) {
+      const created = await request(app)
+        .post("/api/v1/posts")
+        .set("Authorization", `Bearer ${token}`)
+        .send({
+          postType: "community",
+          content: `Cursor post ${index}`
+        });
+      expect(created.statusCode).toBe(201);
+    }
+
+    const page1 = await request(app).get("/api/v1/feed?limit=2");
+    expect(page1.statusCode).toBe(200);
+    expect(page1.body.items.length).toBe(2);
+    expect(page1.body.hasMore).toBe(true);
+
+    const page2 = await request(app).get(
+      `/api/v1/feed?limit=2&cursor=${encodeURIComponent(page1.body.nextCursor)}`
+    );
+    expect(page2.statusCode).toBe(200);
+    expect(page2.body.items.length).toBeGreaterThan(0);
+    const firstPageIds = new Set(page1.body.items.map((item) => item.id));
+    const overlap = page2.body.items.some((item) => firstPageIds.has(item.id));
+    expect(overlap).toBe(false);
   });
 
   it("normalizes media attach payloads to delivery URL for key-only and key-url values", async () => {

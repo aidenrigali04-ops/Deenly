@@ -77,6 +77,15 @@ function createFeedRouter({ db, config, mediaStorage }) {
         ? new Date(String(req.query.minCreatedAt))
         : null;
       const cursor = decodeCursor(req.query.cursor);
+      const rankWeights = config.feedRankWeights || {
+        comment: 120,
+        benefited: 60,
+        watchTimeSeconds: 1,
+        completionRate: 2,
+        followBoost: 300,
+        affinity: 45,
+        interestBoost: 220
+      };
       const viewerId = await getViewerIdFromAuthHeader({
         db,
         config,
@@ -111,9 +120,9 @@ function createFeedRouter({ db, config, mediaStorage }) {
                 COALESCE(MAX(vs.avg_watch_time_ms), 0)::int AS avg_watch_time_ms,
                 COALESCE(MAX(vs.avg_completion_rate), 0)::numeric AS avg_completion_rate,
                 pr.display_name AS author_display_name,
-                COALESCE(SUM(CASE WHEN i.interaction_type = 'benefited' THEN 1 ELSE 0 END), 0)::int AS benefited_count,
-                COALESCE(SUM(CASE WHEN i.interaction_type = 'comment' THEN 1 ELSE 0 END), 0)::int AS comment_count,
-                COALESCE(SUM(CASE WHEN i.interaction_type = 'reflect_later' THEN 1 ELSE 0 END), 0)::int AS reflect_later_count,
+                COALESCE(SUM(CASE WHEN i.interaction_type = 'benefited' AND i.deleted_at IS NULL THEN 1 ELSE 0 END), 0)::int AS benefited_count,
+                COALESCE(SUM(CASE WHEN i.interaction_type = 'comment' AND i.deleted_at IS NULL THEN 1 ELSE 0 END), 0)::int AS comment_count,
+                COALESCE(SUM(CASE WHEN i.interaction_type = 'reflect_later' AND i.deleted_at IS NULL THEN 1 ELSE 0 END), 0)::int AS reflect_later_count,
                 CASE
                   WHEN $1::int IS NULL THEN false
                   ELSE EXISTS (
@@ -179,32 +188,41 @@ function createFeedRouter({ db, config, mediaStorage }) {
            SELECT *,
                   (
                     EXTRACT(EPOCH FROM created_at)
-                    + (comment_count * 120)
-                    + (benefited_count * 60)
-                    + (avg_watch_time_ms / 1000.0)
-                    + (avg_completion_rate * 2)
-                    + (follow_boost * 300)
-                    + (affinity_score * 45)
-                    + (interest_boost * 220)
+                    + (comment_count * $6::numeric)
+                    + (benefited_count * $7::numeric)
+                    + ((avg_watch_time_ms / 1000.0) * $8::numeric)
+                    + (avg_completion_rate * $9::numeric)
+                    + (follow_boost * $10::numeric)
+                    + (affinity_score * $11::numeric)
+                    + (interest_boost * $12::numeric)
                   )::numeric AS rank_score
            FROM post_agg
          )
          SELECT *
          FROM ranked
          WHERE (
-           $6::numeric IS NULL
-           OR rank_score < $6::numeric
-           OR (rank_score = $6::numeric AND id < $7::int)
+          $13::numeric IS NULL
+          OR rank_score < $13::numeric
+          OR (rank_score = $13::numeric AND created_at < $14::timestamptz)
+          OR (rank_score = $13::numeric AND created_at = $14::timestamptz AND id < $15::int)
          )
          ORDER BY rank_score DESC, created_at DESC, id DESC
-         LIMIT $8`,
+         LIMIT $16`,
         [
           viewerId,
           postType,
           authorId,
           minCreatedAt ? minCreatedAt.toISOString() : null,
           followingOnly,
+          rankWeights.comment,
+          rankWeights.benefited,
+          rankWeights.watchTimeSeconds,
+          rankWeights.completionRate,
+          rankWeights.followBoost,
+          rankWeights.affinity,
+          rankWeights.interestBoost,
           cursor ? cursor.rankScore : null,
+          cursor ? cursor.createdAt : null,
           cursor ? cursor.id : null,
           limit + 1
         ]

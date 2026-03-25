@@ -79,11 +79,22 @@ function createPostsRouter({ db, config, analytics, mediaStorage }) {
         `SELECT p.id, p.author_id, p.post_type, p.content, p.media_url, p.media_mime_type, p.style_tag, p.media_status,
                 p.visibility_status, p.created_at, p.updated_at,
                 pr.display_name AS author_display_name,
+                COALESCE(ia.benefited_count, 0)::int AS benefited_count,
+                COALESCE(ia.comment_count, 0)::int AS comment_count,
+                COALESCE(ia.reflect_later_count, 0)::int AS reflect_later_count,
                 COALESCE(vs.view_count, 0)::int AS view_count,
                 COALESCE(vs.avg_watch_time_ms, 0)::int AS avg_watch_time_ms,
                 COALESCE(vs.avg_completion_rate, 0)::numeric AS avg_completion_rate
          FROM posts p
          JOIN profiles pr ON pr.user_id = p.author_id
+         LEFT JOIN (
+           SELECT post_id,
+                  COUNT(*) FILTER (WHERE interaction_type = 'benefited' AND deleted_at IS NULL)::int AS benefited_count,
+                  COUNT(*) FILTER (WHERE interaction_type = 'comment' AND deleted_at IS NULL)::int AS comment_count,
+                  COUNT(*) FILTER (WHERE interaction_type = 'reflect_later' AND deleted_at IS NULL)::int AS reflect_later_count
+           FROM interactions
+           GROUP BY post_id
+         ) ia ON ia.post_id = p.id
          LEFT JOIN (
            SELECT post_id,
                   COUNT(*)::int AS view_count,
@@ -126,11 +137,22 @@ function createPostsRouter({ db, config, analytics, mediaStorage }) {
       const result = await db.query(
         `SELECT p.id, p.author_id, p.post_type, p.content, p.media_url, p.media_mime_type, p.style_tag, p.media_status, p.visibility_status, p.created_at, p.updated_at,
                 pr.display_name AS author_display_name,
+                COALESCE(ia.benefited_count, 0)::int AS benefited_count,
+                COALESCE(ia.comment_count, 0)::int AS comment_count,
+                COALESCE(ia.reflect_later_count, 0)::int AS reflect_later_count,
                 COALESCE(vs.view_count, 0)::int AS view_count,
                 COALESCE(vs.avg_watch_time_ms, 0)::int AS avg_watch_time_ms,
                 COALESCE(vs.avg_completion_rate, 0)::numeric AS avg_completion_rate
          FROM posts p
          JOIN profiles pr ON pr.user_id = p.author_id
+         LEFT JOIN (
+           SELECT post_id,
+                  COUNT(*) FILTER (WHERE interaction_type = 'benefited' AND deleted_at IS NULL)::int AS benefited_count,
+                  COUNT(*) FILTER (WHERE interaction_type = 'comment' AND deleted_at IS NULL)::int AS comment_count,
+                  COUNT(*) FILTER (WHERE interaction_type = 'reflect_later' AND deleted_at IS NULL)::int AS reflect_later_count
+           FROM interactions
+           GROUP BY post_id
+         ) ia ON ia.post_id = p.id
          LEFT JOIN (
            SELECT post_id,
                   COUNT(*)::int AS view_count,

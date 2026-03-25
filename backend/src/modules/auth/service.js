@@ -60,6 +60,22 @@ function ttlIntervalExpr(ttlValue) {
 function createAuthService({ db, config, analytics }) {
   const refreshInterval = ttlIntervalExpr(config.jwtRefreshTtl);
 
+  async function trackAuthFailure(reason, metadata = {}) {
+    if (!analytics) {
+      return;
+    }
+    await analytics.trackEvent("auth_failure", {
+      reason,
+      ...metadata
+    });
+  }
+
+  function extractEmailDomain(email) {
+    const value = String(email || "");
+    const parts = value.split("@");
+    return parts.length === 2 ? parts[1] : null;
+  }
+
   function normalizeUsernameBase(rawValue) {
     return String(rawValue || "")
       .trim()
@@ -141,6 +157,9 @@ function createAuthService({ db, config, analytics }) {
       );
     } catch (error) {
       if (error.code === "23505") {
+        await trackAuthFailure("register_conflict", {
+          emailDomain: extractEmailDomain(email)
+        });
         if (String(error.constraint || "").includes("email")) {
           throw httpError(409, "email is already in use");
         }
@@ -176,12 +195,18 @@ function createAuthService({ db, config, analytics }) {
     );
 
     if (result.rowCount === 0 || !result.rows[0].is_active) {
+      await trackAuthFailure("login_unknown_or_inactive", {
+        emailDomain: extractEmailDomain(email)
+      });
       throw httpError(401, "Invalid email or password");
     }
 
     const user = result.rows[0];
     const validPassword = await argon2.verify(user.password_hash, password);
     if (!validPassword) {
+      await trackAuthFailure("login_invalid_password", {
+        userId: user.id
+      });
       throw httpError(401, "Invalid email or password");
     }
 
@@ -198,10 +223,12 @@ function createAuthService({ db, config, analytics }) {
       `https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${encodeURIComponent(accessToken)}`
     );
     if (!tokenInfoResponse.ok) {
+      await trackAuthFailure("google_invalid_token");
       throw httpError(401, "Invalid Google access token");
     }
     const tokenInfo = await tokenInfoResponse.json();
     if (String(tokenInfo.aud || "") !== String(config.googleClientId)) {
+      await trackAuthFailure("google_audience_mismatch");
       throw httpError(401, "Google token audience mismatch");
     }
 
@@ -209,12 +236,14 @@ function createAuthService({ db, config, analytics }) {
       headers: { Authorization: `Bearer ${accessToken}` }
     });
     if (!profileResponse.ok) {
+      await trackAuthFailure("google_profile_fetch_failed");
       throw httpError(401, "Unable to load Google user profile");
     }
     const profile = await profileResponse.json();
     const email = String(profile.email || "").trim().toLowerCase();
     const emailVerified = Boolean(profile.email_verified);
     if (!email || !emailVerified) {
+      await trackAuthFailure("google_email_unverified");
       throw httpError(401, "Google account email is not verified");
     }
 
@@ -229,6 +258,7 @@ function createAuthService({ db, config, analytics }) {
     if (existing.rowCount > 0) {
       const user = existing.rows[0];
       if (!user.is_active) {
+        await trackAuthFailure("google_account_inactive", { userId: user.id });
         throw httpError(403, "Account is not active");
       }
       return issueSessionTokens(user, "auth_login");

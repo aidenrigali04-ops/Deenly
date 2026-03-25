@@ -9,9 +9,10 @@ function createAuthRouter({ config, db, analytics }) {
   const authService = createAuthService({ config, db, analytics });
   const authMiddleware = authenticate({ config, db });
 
-  const authRateLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: 12,
+  const loginRateLimiter = rateLimit({
+    windowMs: config.authLoginRateLimitWindowMs || 15 * 60 * 1000,
+    limit: config.authLoginRateLimitMax || 12,
+    skipSuccessfulRequests: true,
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator(req) {
@@ -19,10 +20,20 @@ function createAuthRouter({ config, db, analytics }) {
       return `${req.ip}:${email}`;
     }
   });
+  const registerRateLimiter = rateLimit({
+    windowMs: config.authRegisterRateLimitWindowMs || 15 * 60 * 1000,
+    limit: config.authRegisterRateLimitMax || 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator(req) {
+      const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "anon";
+      return `${req.ip}:register:${email}`;
+    }
+  });
 
   router.post(
     "/register",
-    authRateLimiter,
+    registerRateLimiter,
     asyncHandler(async (req, res) => {
       const result = await authService.register(req.body || {});
       res.status(201).json(result);
@@ -31,7 +42,7 @@ function createAuthRouter({ config, db, analytics }) {
 
   router.post(
     "/login",
-    authRateLimiter,
+    loginRateLimiter,
     asyncHandler(async (req, res) => {
       const result = await authService.login(req.body || {});
       res.status(200).json(result);
@@ -40,7 +51,7 @@ function createAuthRouter({ config, db, analytics }) {
 
   router.post(
     "/google",
-    authRateLimiter,
+    loginRateLimiter,
     asyncHandler(async (req, res) => {
       const result = await authService.loginWithGoogle(req.body || {});
       res.status(200).json(result);
@@ -49,7 +60,7 @@ function createAuthRouter({ config, db, analytics }) {
 
   router.post(
     "/refresh",
-    authRateLimiter,
+    loginRateLimiter,
     asyncHandler(async (req, res) => {
       const result = await authService.refresh(req.body || {});
       res.status(200).json(result);
@@ -58,7 +69,7 @@ function createAuthRouter({ config, db, analytics }) {
 
   router.post(
     "/logout",
-    authRateLimiter,
+    loginRateLimiter,
     asyncHandler(async (req, res) => {
       const result = await authService.logout(req.body || {});
       res.status(200).json(result);
