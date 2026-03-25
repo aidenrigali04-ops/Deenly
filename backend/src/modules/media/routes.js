@@ -100,11 +100,13 @@ function createMediaRouter({ db, config, mediaStorage, analytics }) {
              media_mime_type = $3,
              media_size_bytes = $4,
              media_duration_seconds = $5,
-             media_status = 'ready',
+             media_status = 'processing',
+             media_processed_at = NULL,
+             media_processing_error = NULL,
              updated_at = NOW()
          WHERE id = $6
            AND author_id = $7
-         RETURNING id, media_upload_key, media_url, media_mime_type, media_status, updated_at`,
+         RETURNING id, media_upload_key, media_url, media_mime_type, media_status, media_processed_at, updated_at`,
         [mediaKey, mediaUrl, mimeType, fileSizeBytes, durationSeconds, postId, req.user.id]
       );
 

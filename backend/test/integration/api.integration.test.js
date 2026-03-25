@@ -21,6 +21,7 @@ describeIfDatabase("integration api flows", () => {
     JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || "test-refresh",
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || "test-google-client-id",
     ADMIN_OWNER_EMAIL: process.env.ADMIN_OWNER_EMAIL || "admin-growth@example.com",
+    PROCESSING_WEBHOOK_TOKEN: process.env.PROCESSING_WEBHOOK_TOKEN || "test-processing-token",
     MEDIA_PROVIDER: "mock",
     MEDIA_PUBLIC_BASE_URL: process.env.MEDIA_PUBLIC_BASE_URL || "https://media.test-cdn.example"
   });
@@ -320,8 +321,17 @@ describeIfDatabase("integration api flows", () => {
         durationSeconds: 23
       });
     expect(attached.statusCode).toBe(200);
-    expect(attached.body.media_status).toBe("ready");
+    expect(attached.body.media_status).toBe("processing");
     expect(attached.body.media_mime_type).toBe("video/mp4");
+    const processed = await request(app)
+      .post(`/api/v1/media/processing/post/${createdPost.body.id}`)
+      .set("x-processing-token", config.processingWebhookToken)
+      .send({
+        status: "ready",
+        mediaUrl: "uploads/creator/recitation.mp4"
+      });
+    expect(processed.statusCode).toBe(200);
+    expect(processed.body.media_status).toBe("ready");
 
     const follow = await request(app)
       .post(`/api/v1/follows/${creatorRegister.body.user.id}`)
@@ -565,6 +575,15 @@ describeIfDatabase("integration api flows", () => {
     expect(keyOnlyAttach.body.media_url).toBe(
       "https://media.test-cdn.example/uploads/normalizer/key-only.mp4"
     );
+    const keyOnlyProcessed = await request(app)
+      .post(`/api/v1/media/processing/post/${keyOnlyPost.body.id}`)
+      .set("x-processing-token", config.processingWebhookToken)
+      .send({
+        status: "ready",
+        mediaUrl: "uploads/normalizer/key-only.mp4"
+      });
+    expect(keyOnlyProcessed.statusCode).toBe(200);
+    expect(keyOnlyProcessed.body.media_status).toBe("ready");
 
     const keyUrlPost = await request(app)
       .post("/api/v1/posts")
@@ -589,6 +608,15 @@ describeIfDatabase("integration api flows", () => {
     expect(keyUrlAttach.body.media_url).toBe(
       "https://media.test-cdn.example/uploads/normalizer/key-url.jpg"
     );
+    const keyUrlProcessed = await request(app)
+      .post(`/api/v1/media/processing/post/${keyUrlPost.body.id}`)
+      .set("x-processing-token", config.processingWebhookToken)
+      .send({
+        status: "ready",
+        mediaUrl: "uploads/normalizer/key-url.jpg"
+      });
+    expect(keyUrlProcessed.statusCode).toBe(200);
+    expect(keyUrlProcessed.body.media_status).toBe("ready");
 
     const feed = await request(app).get("/api/v1/feed?limit=20");
     expect(feed.statusCode).toBe(200);
