@@ -126,7 +126,8 @@ function createMediaRouter({ db, config, mediaStorage, analytics }) {
       } catch (error) {
         const isLegacyMediaStatusConstraint =
           error?.code === "23514" &&
-          String(error?.constraint || "").includes("posts_media_status_check");
+          (String(error?.constraint || "").includes("posts_media_status_check") ||
+            String(error?.message || "").toLowerCase().includes("media_status"));
         const isLegacyMissingColumn = error?.code === "42703";
 
         if (isLegacyMediaStatusConstraint) {
