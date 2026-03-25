@@ -76,6 +76,17 @@ export function ProfileScreen({ navigation }: Props) {
         </Pressable>
       </View>
       <View style={styles.row}>
+        <Pressable style={styles.buttonSecondary} onPress={() => navigation.navigate("Dhikr")}>
+          <Text style={styles.buttonText}>Dhikr</Text>
+        </Pressable>
+        <Pressable style={styles.buttonSecondary} onPress={() => navigation.navigate("QuranReader")}>
+          <Text style={styles.buttonText}>Quran</Text>
+        </Pressable>
+        <Pressable style={styles.buttonSecondary} onPress={() => navigation.navigate("SalahSettings")}>
+          <Text style={styles.buttonText}>Salah</Text>
+        </Pressable>
+      </View>
+      <View style={styles.row}>
         <Pressable style={styles.buttonSecondary} onPress={() => navigation.navigate("Beta")}>
           <Text style={styles.buttonText}>Beta</Text>
         </Pressable>

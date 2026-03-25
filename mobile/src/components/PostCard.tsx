@@ -18,11 +18,13 @@ function isImageMedia(item: FeedItem) {
 export function PostCard({
   item,
   onOpen,
-  onAuthor
+  onAuthor,
+  layout = "default"
 }: {
   item: FeedItem;
   onOpen: () => void;
   onAuthor: () => void;
+  layout?: "default" | "home";
 }) {
   const [mediaFailed, setMediaFailed] = useState(false);
   useEffect(() => {
@@ -30,6 +32,87 @@ export function PostCard({
   }, [item.id, item.media_url]);
   const mediaUri = resolveMediaUrl(item.media_url) || undefined;
   const canRenderMedia = Boolean(mediaUri) && !mediaFailed;
+  const initials = item.author_display_name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+
+  if (layout === "home") {
+    return (
+      <View style={styles.homeCard}>
+        <View style={styles.homeHeader}>
+          <View style={styles.homeAuthorRow}>
+            <View style={styles.homeAvatar}>
+              <Text style={styles.homeAvatarText}>{initials || "U"}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.homeAuthor}>{item.author_display_name}</Text>
+              <Text style={styles.homeSubtle}>
+                {item.post_type === "recitation" ? "Original audio" : "Community post"} -{" "}
+                {new Date(item.created_at).toLocaleDateString()}
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.homeSubtle}>...</Text>
+        </View>
+
+        {canRenderMedia ? (
+          isImageMedia(item) ? (
+            <Image
+              source={{ uri: mediaUri }}
+              style={styles.homeMedia}
+              resizeMode="cover"
+              onError={() => setMediaFailed(true)}
+            />
+          ) : (
+            <Video
+              source={{ uri: mediaUri }}
+              style={styles.homeMedia}
+              useNativeControls
+              resizeMode={ResizeMode.COVER}
+              isLooping={false}
+              onError={() => setMediaFailed(true)}
+            />
+          )
+        ) : (
+          <View style={styles.homeMediaPlaceholder}>
+            <Text style={styles.muted}>
+              {item.media_url ? "Media unavailable right now." : "No media on this post yet."}
+            </Text>
+          </View>
+        )}
+
+        <View style={styles.homeActionRow}>
+          <View style={styles.homeActionIcons}>
+            <Text style={styles.homeActionIcon}>♡</Text>
+            <Text style={styles.homeActionIcon}>◌</Text>
+            <Text style={styles.homeActionIcon}>➤</Text>
+          </View>
+          <Text style={styles.homeActionIcon}>⌑</Text>
+        </View>
+
+        <View style={styles.homeCaptionWrap}>
+          <Text style={styles.homeMetaText}>
+            {item.benefited_count || 0} benefited - {item.comment_count || 0} comments
+          </Text>
+          <Text style={styles.content}>
+            <Text style={styles.homeAuthor}>{item.author_display_name} </Text>
+            {item.content}
+          </Text>
+          <View style={styles.actions}>
+            <Pressable style={styles.buttonSecondary} onPress={onOpen}>
+              <Text style={styles.buttonText}>Open post</Text>
+            </Pressable>
+            <Pressable style={styles.buttonSecondary} onPress={onAuthor}>
+              <Text style={styles.buttonText}>Author</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.card}>
@@ -77,6 +160,88 @@ export function PostCard({
 }
 
 const styles = StyleSheet.create({
+  homeCard: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 16,
+    overflow: "hidden"
+  },
+  homeHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 10
+  },
+  homeAuthorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1
+  },
+  homeAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    borderColor: colors.border,
+    borderWidth: 1,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  homeAvatarText: {
+    color: colors.text,
+    fontSize: 10,
+    fontWeight: "700"
+  },
+  homeAuthor: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "700"
+  },
+  homeSubtle: {
+    color: colors.muted,
+    fontSize: 11
+  },
+  homeMedia: {
+    width: "100%",
+    aspectRatio: 4 / 5,
+    backgroundColor: colors.surface
+  },
+  homeMediaPlaceholder: {
+    width: "100%",
+    aspectRatio: 4 / 5,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface
+  },
+  homeActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 10
+  },
+  homeActionIcons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14
+  },
+  homeActionIcon: {
+    color: colors.text,
+    fontSize: 20,
+    lineHeight: 20
+  },
+  homeCaptionWrap: {
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    gap: 6
+  },
+  homeMetaText: {
+    color: colors.muted,
+    fontSize: 12
+  },
   card: {
     backgroundColor: colors.card,
     borderColor: colors.border,

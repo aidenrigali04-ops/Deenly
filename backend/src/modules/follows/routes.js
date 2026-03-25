@@ -4,7 +4,7 @@ const { asyncHandler } = require("../../utils/async-handler");
 const { httpError } = require("../../utils/http-error");
 const { createNotification } = require("../../services/notifications");
 
-function createFollowsRouter({ db, config, analytics }) {
+function createFollowsRouter({ db, config, analytics, pushNotifications }) {
   const router = express.Router();
   const authMiddleware = authenticate({
     config: config || { jwtAccessSecret: process.env.JWT_ACCESS_SECRET || "" },
@@ -35,9 +35,15 @@ function createFollowsRouter({ db, config, analytics }) {
           followingId
         });
       }
-      await createNotification(db, followingId, "new_follower", {
-        actorUserId: req.user.id
-      });
+      await createNotification(
+        db,
+        followingId,
+        "new_follower",
+        {
+          actorUserId: req.user.id
+        },
+        { pushNotifications }
+      );
 
       res.status(201).json({
         status: "ok",

@@ -8,7 +8,7 @@ import { useSessionStore } from "@/store/session-store";
 function Icon({
   kind
 }: {
-  kind: "home" | "video" | "send" | "search" | "upload" | "user" | "admin";
+  kind: "home" | "video" | "send" | "search" | "upload" | "user" | "admin" | "dhikr";
 }) {
   const common = "h-5 w-5";
   if (kind === "home") {
@@ -66,6 +66,15 @@ function Icon({
       </svg>
     );
   }
+  if (kind === "dhikr") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common} aria-hidden="true">
+        <circle cx="12" cy="7" r="2.5" />
+        <path d="M12 9.5v8.5" />
+        <circle cx="12" cy="20" r="1.5" />
+      </svg>
+    );
+  }
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common} aria-hidden="true">
       <circle cx="12" cy="8" r="3.5" />
@@ -83,7 +92,7 @@ function NavLink({
   href: string;
   label: string;
   active: boolean;
-  icon: "home" | "video" | "send" | "search" | "upload" | "user" | "admin";
+  icon: "home" | "video" | "send" | "search" | "upload" | "user" | "admin" | "dhikr";
 }) {
   return (
     <Link
@@ -111,6 +120,7 @@ const railLinks = [
   { href: "/recitation", label: "Recitation", icon: "video" as const },
   { href: "/messages", label: "Messages", icon: "send" as const },
   { href: "/search", label: "Search", icon: "search" as const },
+  { href: "/dhikr", label: "Dhikr", icon: "dhikr" as const },
   { href: "/create", label: "Upload", icon: "upload" as const },
   { href: "/account", label: "Account", icon: "user" as const }
 ];

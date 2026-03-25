@@ -45,7 +45,7 @@ function createCorsOptions(config) {
   };
 }
 
-function createApp({ config, logger, db, analytics, mediaStorage }) {
+function createApp({ config, logger, db, analytics, mediaStorage, pushNotifications }) {
   function requireAdminOwner(req, _res, next) {
     const ownerEmail = String(config.adminOwnerEmail || "").toLowerCase();
     if (!ownerEmail) {
@@ -62,6 +62,7 @@ function createApp({ config, logger, db, analytics, mediaStorage }) {
   const metrics = createMetrics();
   app.locals.analytics = analytics || null;
   app.locals.mediaStorage = mediaStorage;
+  app.locals.pushNotifications = pushNotifications || null;
 
   if (config.trustProxy) {
     app.set("trust proxy", 1);
@@ -165,14 +166,30 @@ function createApp({ config, logger, db, analytics, mediaStorage }) {
   apiRouter.use("/feed", createFeedRouter({ db, config, mediaStorage: app.locals.mediaStorage }));
   apiRouter.use(
     "/interactions",
-    createInteractionsRouter({ db, config, analytics: app.locals.analytics })
+    createInteractionsRouter({
+      db,
+      config,
+      analytics: app.locals.analytics,
+      pushNotifications: app.locals.pushNotifications
+    })
   );
-  apiRouter.use("/follows", createFollowsRouter({ db, config, analytics: app.locals.analytics }));
+  apiRouter.use(
+    "/follows",
+    createFollowsRouter({
+      db,
+      config,
+      analytics: app.locals.analytics,
+      pushNotifications: app.locals.pushNotifications
+    })
+  );
   apiRouter.use("/media", createMediaRouter({ db, config, mediaStorage: app.locals.mediaStorage, analytics: app.locals.analytics }));
   apiRouter.use("/reports", createReportsRouter({ db, config, analytics: app.locals.analytics }));
   apiRouter.use("/safety", createSafetyRouter({ db, config }));
   apiRouter.use("/analytics", createAnalyticsRouter({ db, config }));
-  apiRouter.use("/notifications", createNotificationsRouter({ db, config }));
+  apiRouter.use(
+    "/notifications",
+    createNotificationsRouter({ db, config, pushNotifications: app.locals.pushNotifications })
+  );
   apiRouter.use("/messages", createMessagesRouter({ db, config }));
   apiRouter.use("/search", createSearchRouter({ db, config }));
   apiRouter.use(

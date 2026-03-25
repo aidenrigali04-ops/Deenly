@@ -28,6 +28,9 @@ import { AdminModerationScreen } from "../screens/app/AdminModerationScreen";
 import { AdminOperationsScreen } from "../screens/app/AdminOperationsScreen";
 import { AdminAnalyticsScreen } from "../screens/app/AdminAnalyticsScreen";
 import { AdminTablesScreen } from "../screens/app/AdminTablesScreen";
+import { DhikrScreen } from "../screens/app/DhikrScreen";
+import { QuranReaderScreen } from "../screens/app/QuranReaderScreen";
+import { SalahSettingsScreen } from "../screens/app/SalahSettingsScreen";
 
 export type AppTabParamList = {
   HomeTab: undefined;
@@ -58,6 +61,9 @@ export type RootStackParamList = {
   AdminOperations: undefined;
   AdminAnalytics: undefined;
   AdminTables: undefined;
+  Dhikr: undefined;
+  QuranReader: undefined;
+  SalahSettings: undefined;
 };
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
@@ -216,6 +222,17 @@ export function AppNavigator() {
               name="Guidelines"
               component={GuidelinesScreen}
               options={{ title: "Guidelines" }}
+            />
+            <RootStack.Screen name="Dhikr" component={DhikrScreen} options={{ title: "Dhikr Mode" }} />
+            <RootStack.Screen
+              name="QuranReader"
+              component={QuranReaderScreen}
+              options={{ title: "Quran Reader" }}
+            />
+            <RootStack.Screen
+              name="SalahSettings"
+              component={SalahSettingsScreen}
+              options={{ title: "Salah Settings" }}
             />
             {canAccessAdmin ? (
               <>

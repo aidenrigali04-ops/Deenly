@@ -5,6 +5,7 @@ const { createDb } = require("./db");
 const { createApp } = require("./app");
 const { createAnalytics } = require("./services/analytics");
 const { createMediaStorage } = require("./services/media-storage");
+const { createPushNotifications } = require("./services/push-notifications");
 
 dotenv.config();
 
@@ -13,7 +14,8 @@ const logger = createLogger(config);
 const db = createDb(config);
 const analytics = createAnalytics({ db, logger });
 const mediaStorage = createMediaStorage(config);
-const app = createApp({ config, logger, db, analytics, mediaStorage });
+const pushNotifications = createPushNotifications({ db, logger });
+const app = createApp({ config, logger, db, analytics, mediaStorage, pushNotifications });
 
 const server = app.listen(config.port, () => {
   logger.info({ port: config.port }, "server_started");

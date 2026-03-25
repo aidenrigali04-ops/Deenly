@@ -2,8 +2,14 @@ const express = require("express");
 const { authenticate } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
 const { httpError } = require("../../utils/http-error");
+const {
+  acknowledgePrayerReminder,
+  getPrayerSettings,
+  updatePrayerSettings
+} = require("../../services/prayer-settings");
+const { evaluatePrayerStatus } = require("../../services/prayer-times");
 
-function createNotificationsRouter({ db, config }) {
+function createNotificationsRouter({ db, config, pushNotifications }) {
   const router = express.Router();
   const authMiddleware = authenticate({ config, db });
 
@@ -47,6 +53,106 @@ function createNotificationsRouter({ db, config }) {
         throw httpError(404, "Notification not found");
       }
       res.status(200).json(result.rows[0]);
+    })
+  );
+
+  router.get(
+    "/prayer-settings",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const settings = await getPrayerSettings(db, req.user.id);
+      res.status(200).json(settings);
+    })
+  );
+
+  router.put(
+    "/prayer-settings",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const settings = await updatePrayerSettings(db, req.user.id, req.body || {});
+      res.status(200).json(settings);
+    })
+  );
+
+  router.get(
+    "/prayer-status",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const settings = await getPrayerSettings(db, req.user.id);
+      const status = evaluatePrayerStatus(settings, new Date());
+      res.status(200).json({
+        ...status,
+        reminderText: status.shouldRemind ? "Time for Salah" : null
+      });
+    })
+  );
+
+  router.post(
+    "/prayer-status/ack",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const reminderKey = String(req.body?.reminderKey || "").trim();
+      if (!reminderKey) {
+        throw httpError(400, "reminderKey is required");
+      }
+      await acknowledgePrayerReminder(db, req.user.id, reminderKey);
+      res.status(200).json({ ok: true, reminderKey });
+    })
+  );
+
+  router.post(
+    "/push/devices",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const platform = String(req.body?.platform || "").trim().toLowerCase();
+      const token = String(req.body?.token || "").trim();
+      if (!platform || !token) {
+        throw httpError(400, "platform and token are required");
+      }
+      if (!pushNotifications?.registerDeviceToken) {
+        throw httpError(503, "Push notifications are not configured");
+      }
+      const device = await pushNotifications.registerDeviceToken({
+        userId: req.user.id,
+        platform,
+        token
+      });
+      if (!device) {
+        throw httpError(400, "Invalid push device payload");
+      }
+      res.status(201).json(device);
+    })
+  );
+
+  router.delete(
+    "/push/devices",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const token = String(req.body?.token || "").trim();
+      if (!token) {
+        throw httpError(400, "token is required");
+      }
+      if (!pushNotifications?.unregisterDeviceToken) {
+        throw httpError(503, "Push notifications are not configured");
+      }
+      await pushNotifications.unregisterDeviceToken({ userId: req.user.id, token });
+      res.status(200).json({ ok: true });
+    })
+  );
+
+  router.post(
+    "/push/test",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      if (!pushNotifications?.sendUserPush) {
+        throw httpError(503, "Push notifications are not configured");
+      }
+      const result = await pushNotifications.sendUserPush({
+        userId: req.user.id,
+        type: "test_push",
+        payload: { message: "Time for Salah" }
+      });
+      res.status(200).json(result);
     })
   );
 

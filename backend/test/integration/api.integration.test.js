@@ -5,6 +5,7 @@ const { createDb } = require("../../src/db");
 const { createApp } = require("../../src/app");
 const { createAnalytics } = require("../../src/services/analytics");
 const { createMediaStorage } = require("../../src/services/media-storage");
+const { createPushNotifications } = require("../../src/services/push-notifications");
 
 const hasDatabase = Boolean(process.env.DATABASE_URL);
 const describeIfDatabase = hasDatabase ? describe : describe.skip;
@@ -26,9 +27,12 @@ describeIfDatabase("integration api flows", () => {
   const db = createDb(config);
   const analytics = createAnalytics({ db, logger });
   const mediaStorage = createMediaStorage(config);
-  const app = createApp({ config, logger, db, analytics, mediaStorage });
+  const pushNotifications = createPushNotifications({ db, logger });
+  const app = createApp({ config, logger, db, analytics, mediaStorage, pushNotifications });
 
   async function cleanDb() {
+    await db.query("TRUNCATE TABLE notification_device_tokens RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE user_prayer_settings RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE conversation_participants RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE messages RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE conversations RESTART IDENTITY CASCADE");
@@ -339,6 +343,52 @@ describeIfDatabase("integration api flows", () => {
       "https://media.test-cdn.example/uploads/normalizer/key-only.mp4"
     );
     expect(detail.body.media_mime_type).toBe("video/mp4");
+  });
+
+  it("supports prayer settings and suppresses in-app notifications in always quiet mode", async () => {
+    const owner = await request(app).post("/api/v1/auth/register").send({
+      email: "quiet-owner@example.com",
+      username: "quiet_owner",
+      password: "StrongPass123",
+      displayName: "Quiet Owner"
+    });
+    const actor = await request(app).post("/api/v1/auth/register").send({
+      email: "quiet-actor@example.com",
+      username: "quiet_actor",
+      password: "StrongPass123",
+      displayName: "Quiet Actor"
+    });
+
+    const ownerToken = owner.body.tokens.accessToken;
+    const actorToken = actor.body.tokens.accessToken;
+
+    const updateSettings = await request(app)
+      .put("/api/v1/notifications/prayer-settings")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({
+        quiet_mode: "always",
+        quiet_minutes_before: 5,
+        quiet_minutes_after: 5
+      });
+    expect(updateSettings.statusCode).toBe(200);
+    expect(updateSettings.body.quiet_mode).toBe("always");
+
+    const status = await request(app)
+      .get("/api/v1/notifications/prayer-status")
+      .set("Authorization", `Bearer ${ownerToken}`);
+    expect(status.statusCode).toBe(200);
+    expect(typeof status.body.isQuietWindow).toBe("boolean");
+
+    const follow = await request(app)
+      .post(`/api/v1/follows/${owner.body.user.id}`)
+      .set("Authorization", `Bearer ${actorToken}`);
+    expect(follow.statusCode).toBe(201);
+
+    const inbox = await request(app)
+      .get("/api/v1/notifications")
+      .set("Authorization", `Bearer ${ownerToken}`);
+    expect(inbox.statusCode).toBe(200);
+    expect(inbox.body.items.length).toBe(0);
   });
 
   it("supports onboarding interests, notifications, beta flow, and support ticket", async () => {

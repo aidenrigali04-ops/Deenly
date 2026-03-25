@@ -20,9 +20,36 @@ type FeedViewProps = {
   heading: string;
   fixedPostType?: "" | "recitation" | "community" | "short_video";
   showStories?: boolean;
+  homeStyle?: boolean;
 };
 
-function FeedSkeletonList() {
+function FeedSkeletonList({ homeStyle = false }: { homeStyle?: boolean }) {
+  if (homeStyle) {
+    return (
+      <div className="space-y-3" aria-hidden="true">
+        {[0, 1].map((key) => (
+          <article key={key} className="surface-card overflow-hidden rounded-[1.45rem] p-0">
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="flex items-center gap-2.5">
+                <div className="skeleton h-8 w-8 rounded-full" />
+                <div className="space-y-1.5">
+                  <div className="skeleton h-3 w-24" />
+                  <div className="skeleton h-2.5 w-36" />
+                </div>
+              </div>
+              <div className="skeleton h-6 w-6 rounded-full" />
+            </div>
+            <div className="skeleton feed-media-frame-home w-full rounded-none" />
+            <div className="px-4 py-3">
+              <div className="skeleton h-3 w-40" />
+              <div className="mt-2 skeleton h-3 w-full" />
+            </div>
+          </article>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4" aria-hidden="true">
       {[0, 1].map((key) => (
@@ -47,7 +74,12 @@ function FeedSkeletonList() {
   );
 }
 
-export function FeedView({ heading, fixedPostType = "", showStories = false }: FeedViewProps) {
+export function FeedView({
+  heading,
+  fixedPostType = "",
+  showStories = false,
+  homeStyle = false
+}: FeedViewProps) {
   const [postType, setPostType] = useState(fixedPostType);
   const [followingOnly, setFollowingOnly] = useState(false);
   const user = useSessionStore((state) => state.user);
@@ -82,7 +114,7 @@ export function FeedView({ heading, fixedPostType = "", showStories = false }: F
   const items = feedQuery.data?.pages.flatMap((page) => page.items) || [];
 
   return (
-    <section className="space-y-3 md:space-y-4">
+    <section className={`space-y-3 md:space-y-4 ${homeStyle ? "mx-auto max-w-[680px]" : ""}`}>
       <header className="surface-card sticky top-4 z-10 space-y-3 px-4 py-4">
         <div className="flex items-center justify-between gap-3">
           <h1 className="section-title text-base sm:text-lg">{heading}</h1>
@@ -97,9 +129,12 @@ export function FeedView({ heading, fixedPostType = "", showStories = false }: F
             >
               Alerts
             </Link>
+            <Link href="/dhikr" className="btn-secondary px-3 py-2 text-xs" aria-label="Open Dhikr mode">
+              Dhikr
+            </Link>
           </div>
         </div>
-        <div className="subtle-divider pt-3">
+        <div className={`subtle-divider pt-3 ${homeStyle ? "hidden" : ""}`}>
           <div className="flex flex-wrap items-center gap-3">
             {!fixedPostType ? (
               <select
@@ -130,12 +165,12 @@ export function FeedView({ heading, fixedPostType = "", showStories = false }: F
 
       {showStories ? <HomeStoriesRow /> : null}
 
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,620px)_240px] xl:justify-center xl:gap-6">
+      <div className={`grid gap-3 ${homeStyle ? "" : "xl:grid-cols-[minmax(0,620px)_240px] xl:justify-center xl:gap-6"}`}>
         <div className="space-y-4 md:space-y-5">
           {feedQuery.isLoading ? (
             <>
               <LoadingState label="Loading feed..." />
-              <FeedSkeletonList />
+              <FeedSkeletonList homeStyle={homeStyle} />
             </>
           ) : null}
           {feedQuery.error ? (
@@ -145,9 +180,9 @@ export function FeedView({ heading, fixedPostType = "", showStories = false }: F
             <EmptyState title="No posts yet" subtitle="Try changing filters or be the first to share." />
           ) : null}
 
-          <div className="space-y-5">
+          <div className={homeStyle ? "space-y-3" : "space-y-5"}>
             {items.map((item) => (
-              <FeedCard key={item.id} item={item} />
+              <FeedCard key={item.id} item={item} layout={homeStyle ? "home" : "default"} />
             ))}
           </div>
 
@@ -162,7 +197,7 @@ export function FeedView({ heading, fixedPostType = "", showStories = false }: F
           ) : null}
         </div>
 
-        <aside className="hidden space-y-3 xl:block">
+        <aside className={`hidden space-y-3 xl:block ${homeStyle ? "xl:hidden" : ""}`}>
           <div className="surface-card space-y-2">
             <p className="text-xs uppercase tracking-[0.14em] text-muted">Signed in as</p>
             <p className="text-sm font-medium">{user?.email || "Guest"}</p>

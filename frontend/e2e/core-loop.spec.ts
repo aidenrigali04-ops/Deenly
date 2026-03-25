@@ -88,6 +88,10 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
   await page.getByPlaceholder("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/home$/);
+  await page.getByRole("link", { name: "Dhikr" }).first().click();
+  await expect(page).toHaveURL(/\/dhikr$/);
+  await expect(page.getByText("Dhikr Mode")).toBeVisible();
+  await page.goto(`${baseURL}/home`);
 
   await expect(page.getByRole("button", { name: "Load more" })).toBeVisible();
   const postLinks = page.getByRole("link", { name: "Open post" });

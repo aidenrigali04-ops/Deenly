@@ -15,7 +15,7 @@ function containsBlockedTerm(text, blockedTerms) {
   return blockedTerms.some((term) => content.includes(term.toLowerCase()));
 }
 
-function createInteractionsRouter({ db, config, analytics }) {
+function createInteractionsRouter({ db, config, analytics, pushNotifications }) {
   const router = express.Router();
   const authMiddleware = authenticate({
     config: config || { jwtAccessSecret: process.env.JWT_ACCESS_SECRET || "" },
@@ -97,10 +97,16 @@ function createInteractionsRouter({ db, config, analytics }) {
       );
       const postOwnerId = postOwnerResult.rows[0]?.author_id || null;
       if (postOwnerId && postOwnerId !== req.user.id) {
-        await createNotification(db, postOwnerId, `post_${interactionType}`, {
-          actorUserId: req.user.id,
-          postId
-        });
+        await createNotification(
+          db,
+          postOwnerId,
+          `post_${interactionType}`,
+          {
+            actorUserId: req.user.id,
+            postId
+          },
+          { pushNotifications }
+        );
       }
       if (analytics) {
         await analytics.trackEvent(

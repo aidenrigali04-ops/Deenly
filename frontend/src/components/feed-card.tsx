@@ -13,7 +13,13 @@ function isImageMedia(item: FeedItem) {
   return /\.(png|jpe?g|gif|webp|bmp|heic)$/i.test(item.media_url);
 }
 
-export function FeedCard({ item }: { item: FeedItem }) {
+export function FeedCard({
+  item,
+  layout = "default"
+}: {
+  item: FeedItem;
+  layout?: "default" | "home";
+}) {
   const [mediaFailed, setMediaFailed] = useState(false);
   useEffect(() => {
     setMediaFailed(false);
@@ -27,6 +33,90 @@ export function FeedCard({ item }: { item: FeedItem }) {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
     .join("");
+
+  if (layout === "home") {
+    return (
+      <article className="surface-card overflow-hidden rounded-[1.45rem] p-0">
+        <header className="flex items-center justify-between px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-black/10 bg-surface text-[10px] font-semibold"
+              aria-hidden="true"
+            >
+              {initials || "U"}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold leading-tight">{item.author_display_name}</p>
+              <p className="truncate text-xs text-muted">
+                {item.post_type === "recitation" ? "Original audio" : "Community post"} -{" "}
+                {new Date(item.created_at).toLocaleString()}
+              </p>
+            </div>
+          </div>
+          <button className="grid h-8 w-8 place-items-center rounded-full text-muted transition hover:bg-black/[0.04] hover:text-text">
+            ...
+          </button>
+        </header>
+
+        {canRenderMedia ? (
+          isImageMedia(item) ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={mediaUrl}
+              alt={`${item.author_display_name} post media`}
+              className="feed-media-frame-home w-full object-cover"
+              onError={() => setMediaFailed(true)}
+            />
+          ) : (
+            <video controls className="feed-media-frame-home w-full" onError={() => setMediaFailed(true)}>
+              <source src={mediaUrl} />
+            </video>
+          )
+        ) : (
+          <div className="feed-media-frame-home flex items-center justify-center px-5 text-center text-sm text-muted">
+            {item.media_url
+              ? "Media unavailable right now"
+              : `${item.post_type.replace("_", " ")} reflection`}
+          </div>
+        )}
+
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-2 text-muted">
+            <button className="feed-action h-8 w-8 border-none">
+              <span aria-hidden="true">♡</span>
+            </button>
+            <button className="feed-action h-8 w-8 border-none">
+              <span aria-hidden="true">◌</span>
+            </button>
+            <button className="feed-action h-8 w-8 border-none">
+              <span aria-hidden="true">➤</span>
+            </button>
+          </div>
+          <button className="feed-action h-8 w-8 border-none">
+            <span aria-hidden="true">⌑</span>
+          </button>
+        </div>
+
+        <div className="space-y-1 px-4 pb-4">
+          <p className="text-xs text-muted">
+            {item.benefited_count || 0} benefited - {item.comment_count || 0} comments
+          </p>
+          <p className="text-sm leading-relaxed">
+            <span className="font-semibold">{item.author_display_name}</span>{" "}
+            <span className="text-text">{item.content}</span>
+          </p>
+          <div className="flex items-center justify-between pt-1">
+            <Link href={`/posts/${item.id}`} className="text-xs text-muted hover:text-text">
+              View discussion
+            </Link>
+            <Link href={`/users/${item.author_id}`} className="text-xs text-muted hover:text-text">
+              View profile
+            </Link>
+          </div>
+        </div>
+      </article>
+    );
+  }
 
   return (
     <article className="surface-card overflow-hidden rounded-[1.5rem] p-0">

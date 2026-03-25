@@ -3,6 +3,7 @@ const { authenticate } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
 const { optionalString, requireString } = require("../../utils/validators");
 const { httpError } = require("../../utils/http-error");
+const { getPrayerSettings, updatePrayerSettings } = require("../../services/prayer-settings");
 const INTEREST_KEYS = new Set(["recitation", "community", "short_video"]);
 
 function createUsersRouter({ db, config }) {
@@ -132,6 +133,24 @@ function createUsersRouter({ db, config }) {
         throw httpError(404, "User profile not found");
       }
       res.status(200).json(result.rows[0]);
+    })
+  );
+
+  router.get(
+    "/me/prayer-settings",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const settings = await getPrayerSettings(db, req.user.id);
+      res.status(200).json(settings);
+    })
+  );
+
+  router.put(
+    "/me/prayer-settings",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const settings = await updatePrayerSettings(db, req.user.id, req.body || {});
+      res.status(200).json(settings);
     })
   );
 

@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { CompositeScreenProps } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { apiRequest } from "../../lib/api";
+import { ackPrayerReminder, fetchPrayerStatus } from "../../lib/prayer";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { PostCard } from "../../components/PostCard";
 import { colors } from "../../theme";
@@ -22,12 +23,8 @@ type Props = CompositeScreenProps<
 >;
 
 export function FeedScreen({ navigation }: Props) {
-  const [postType, setPostType] = useState<"" | "recitation" | "community" | "short_video">("");
   const [followingOnly, setFollowingOnly] = useState(false);
-  const feedQueryKey = useMemo(
-    () => ["mobile-feed", postType, followingOnly] as const,
-    [postType, followingOnly]
-  );
+  const feedQueryKey = useMemo(() => ["mobile-feed", followingOnly] as const, [followingOnly]);
 
   const feedQuery = useInfiniteQuery({
     queryKey: feedQueryKey,
@@ -37,9 +34,6 @@ export function FeedScreen({ navigation }: Props) {
       if (pageParam) {
         query.set("cursor", String(pageParam));
       }
-      if (postType) {
-        query.set("postType", postType);
-      }
       if (followingOnly) {
         query.set("followingOnly", "true");
       }
@@ -48,30 +42,52 @@ export function FeedScreen({ navigation }: Props) {
     initialPageParam: "",
     getNextPageParam: (lastPage) => lastPage.nextCursor || undefined
   });
+  const prayerStatusQuery = useQuery({
+    queryKey: ["mobile-prayer-status"],
+    queryFn: () => fetchPrayerStatus(),
+    refetchInterval: 60_000
+  });
+  const hasReminder = Boolean(
+    prayerStatusQuery.data?.shouldRemind &&
+      prayerStatusQuery.data?.reminderText &&
+      prayerStatusQuery.data?.reminderKey
+  );
+  const [ackedReminderKey, setAckedReminderKey] = useState<string | null>(null);
+  const visibleReminder = hasReminder && ackedReminderKey !== prayerStatusQuery.data?.reminderKey;
+
+  const acknowledgeReminder = async () => {
+    const reminderKey = prayerStatusQuery.data?.reminderKey;
+    if (!reminderKey) return;
+    await ackPrayerReminder(reminderKey);
+    setAckedReminderKey(reminderKey);
+  };
 
   const items = feedQuery.data?.pages.flatMap((page) => page.items) || [];
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.heading}>Feed</Text>
-      <View style={styles.filters}>
-        {(["", "recitation", "community", "short_video"] as const).map((type) => {
-          const active = postType === type;
-          return (
-            <Pressable
-              key={type || "all"}
-              style={[styles.chip, active ? styles.chipActive : null]}
-              onPress={() => setPostType(type)}
-            >
-              <Text style={styles.chipText}>{type || "all"}</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.heading}>Home</Text>
+        <Pressable style={styles.topPill} onPress={() => navigation.navigate("Dhikr")}>
+          <Text style={styles.topPillText}>Dhikr</Text>
+        </Pressable>
+      </View>
+      {visibleReminder ? (
+        <View style={styles.reminderBanner}>
+          <View style={styles.reminderRow}>
+            <Text style={styles.reminderText}>Time for Salah</Text>
+            <Pressable onPress={acknowledgeReminder}>
+              <Text style={styles.reminderDismiss}>Dismiss</Text>
             </Pressable>
-          );
-        })}
+          </View>
+        </View>
+      ) : null}
+      <View style={styles.filters}>
         <Pressable
           style={[styles.chip, followingOnly ? styles.chipActive : null]}
           onPress={() => setFollowingOnly((value) => !value)}
         >
-          <Text style={styles.chipText}>following</Text>
+          <Text style={styles.chipText}>{followingOnly ? "Following only" : "All posts"}</Text>
         </Pressable>
       </View>
 
@@ -91,6 +107,7 @@ export function FeedScreen({ navigation }: Props) {
           <PostCard
             key={item.id}
             item={item}
+            layout="home"
             onOpen={() => navigation.navigate("PostDetail", { id: item.id })}
             onAuthor={() => navigation.navigate("UserProfile", { id: item.author_id })}
           />
@@ -118,18 +135,58 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background
   },
   content: {
-    padding: 14,
-    gap: 12
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 10
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between"
   },
   heading: {
     color: colors.text,
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "700"
+  },
+  topPill: {
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5
+  },
+  topPillText: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: "600"
   },
   filters: {
     flexDirection: "row",
-    flexWrap: "wrap",
     gap: 8
+  },
+  reminderBanner: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: colors.card
+  },
+  reminderText: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "700"
+  },
+  reminderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between"
+  },
+  reminderDismiss: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: "600"
   },
   chip: {
     borderColor: colors.border,
@@ -147,7 +204,7 @@ const styles = StyleSheet.create({
     fontWeight: "700"
   },
   stack: {
-    gap: 10
+    gap: 12
   },
   buttonSecondary: {
     borderColor: colors.border,

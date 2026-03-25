@@ -36,6 +36,32 @@ async function run() {
     throw new Error("Missing access token after signup");
   }
 
+  const prayerSettings = await request(baseUrl, "/notifications/prayer-settings", {
+    method: "GET",
+    token
+  });
+  if (!prayerSettings || typeof prayerSettings.quiet_mode !== "string") {
+    throw new Error("Prayer settings payload missing");
+  }
+
+  await request(baseUrl, "/notifications/prayer-settings", {
+    method: "PUT",
+    token,
+    body: {
+      quiet_mode: "always",
+      quiet_minutes_before: 5,
+      quiet_minutes_after: 5
+    }
+  });
+
+  const prayerStatus = await request(baseUrl, "/notifications/prayer-status", {
+    method: "GET",
+    token
+  });
+  if (typeof prayerStatus.isQuietWindow !== "boolean") {
+    throw new Error("Prayer status missing isQuietWindow");
+  }
+
   const post = await request(baseUrl, "/posts", {
     method: "POST",
     token,

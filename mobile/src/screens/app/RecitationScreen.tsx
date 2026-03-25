@@ -41,6 +41,14 @@ export function RecitationScreen({ navigation }: Props) {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.heading}>Recitation</Text>
+      <View style={styles.row}>
+        <Pressable style={styles.buttonSecondary} onPress={() => navigation.navigate("Dhikr")}>
+          <Text style={styles.buttonText}>Dhikr Mode</Text>
+        </Pressable>
+        <Pressable style={styles.buttonSecondary} onPress={() => navigation.navigate("QuranReader")}>
+          <Text style={styles.buttonText}>Quran</Text>
+        </Pressable>
+      </View>
       {feedQuery.isLoading ? <LoadingState label="Loading recitations..." /> : null}
       {feedQuery.error ? (
         <ErrorState message={(feedQuery.error as Error).message} onRetry={() => feedQuery.refetch()} />
@@ -79,6 +87,10 @@ const styles = StyleSheet.create({
   content: { padding: 14, gap: 12 },
   heading: { color: colors.text, fontSize: 24, fontWeight: "700" },
   stack: { gap: 10 },
+  row: {
+    flexDirection: "row",
+    gap: 8
+  },
   buttonSecondary: {
     borderColor: colors.border,
     borderWidth: 1,

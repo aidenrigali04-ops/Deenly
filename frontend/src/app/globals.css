@@ -70,6 +70,10 @@ a {
   @apply aspect-[4/3] bg-black/[0.03] object-cover;
 }
 
+.feed-media-frame-home {
+  @apply aspect-[4/5] bg-black/[0.03] object-cover;
+}
+
 .feed-action {
   @apply grid h-9 w-9 place-items-center rounded-full border border-black/10 text-sm transition hover:bg-black/[0.04];
 }

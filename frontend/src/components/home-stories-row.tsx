@@ -10,8 +10,8 @@ const storySeeds = [
 
 export function HomeStoriesRow() {
   return (
-    <section className="surface-card p-3 md:p-4" aria-label="Stories">
-      <div className="flex items-center gap-4 overflow-x-auto pb-1">
+    <section className="surface-card p-2.5 md:p-3" aria-label="Stories">
+      <div className="flex items-center gap-3 overflow-x-auto pb-1">
         {storySeeds.map((story) => (
           <button
             key={story.id}
