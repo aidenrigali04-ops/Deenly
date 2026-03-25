@@ -123,39 +123,112 @@ a {
 }
 
 .auth-split {
-  @apply mx-auto grid min-h-screen w-full max-w-[1380px] grid-cols-1 p-3 md:p-5 lg:grid-cols-[1.15fr_0.85fr];
+  @apply mx-auto grid min-h-screen w-full max-w-[1380px] grid-cols-1 p-2 md:p-4 lg:grid-cols-[1.12fr_0.88fr];
 }
 
 .auth-hero {
-  @apply relative hidden overflow-hidden rounded-[28px] border border-white/[0.15] bg-gradient-to-b from-[#c7d0ff] via-[#2f53f0] to-black p-10 lg:flex lg:flex-col lg:justify-between;
+  @apply relative hidden overflow-hidden rounded-[34px] border border-white/[0.18] p-10 lg:flex lg:flex-col lg:justify-between lg:px-14 lg:pb-14 lg:pt-16;
+  background:
+    radial-gradient(1100px 680px at 50% -30%, rgba(218, 225, 255, 0.95), rgba(171, 186, 255, 0.74) 22%, rgba(88, 118, 250, 0.92) 50%, rgba(44, 77, 231, 0.98) 67%, rgba(5, 12, 44, 1) 94%, rgba(0, 0, 0, 1) 100%),
+    linear-gradient(180deg, #d3dcff 0%, #3658ee 58%, #020718 100%);
+}
+
+.auth-hero::after {
+  content: "";
+  @apply pointer-events-none absolute inset-x-0 bottom-0 h-[32%];
+  background: linear-gradient(180deg, rgba(5, 10, 25, 0) 0%, rgba(0, 0, 0, 0.86) 70%, rgba(0, 0, 0, 1) 100%);
+}
+
+.auth-hero-copy {
+  @apply relative z-[1] mx-auto w-full max-w-[640px] text-center;
 }
 
 .auth-brand-title {
-  @apply text-center text-5xl font-semibold tracking-[0.08em];
+  @apply text-[66px] font-semibold leading-none tracking-[0.06em] text-[#f5f7ff];
 }
 
 .auth-brand-subtitle {
-  @apply mt-3 text-center text-[52px] leading-[1.16] tracking-tight text-white/95;
+  @apply mt-10 text-[62px] font-medium leading-[1.08] tracking-tight text-[#f2f5ff];
 }
 
 .auth-phone-wrap {
-  @apply mx-auto mt-10 w-full max-w-[380px];
+  @apply relative z-[1] mx-auto mt-14 w-full max-w-[446px];
 }
 
 .auth-phone {
-  @apply rounded-[44px] border-[3px] border-white/[0.55] bg-black/80 p-3 shadow-2xl;
+  @apply rounded-[54px] border-[4px] border-white/[0.6] bg-[#070d28] p-[12px] shadow-2xl;
+  box-shadow:
+    0 30px 90px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 2px rgba(16, 28, 76, 0.85);
 }
 
 .auth-phone-screen {
-  @apply overflow-hidden rounded-[34px] border border-white/30 bg-white/90;
+  @apply overflow-hidden rounded-[38px] border border-white/[0.55] bg-[#f4f4f4];
 }
 
-.auth-phone-bar {
-  @apply h-11 border-b border-black/15 bg-white;
+.auth-phone-status {
+  @apply flex items-center gap-[10px] border-b border-black/10 bg-[#f7f7f7] px-5 py-3;
+}
+
+.auth-chip {
+  @apply inline-flex h-8 w-8 items-center justify-center rounded-full border border-black/15 bg-white text-[8px] font-semibold tracking-wide text-black/60;
+}
+
+.auth-phone-divider {
+  @apply h-[10px] bg-[#ececec];
+}
+
+.auth-phone-meta {
+  @apply flex items-center gap-2 border-b border-black/10 bg-white px-4 py-2;
+}
+
+.auth-dot {
+  @apply h-2.5 w-2.5 rounded-full bg-black/60;
+}
+
+.auth-meta-line {
+  @apply block h-1.5 rounded-full bg-black/15;
+}
+
+.auth-meta-line-1 {
+  @apply w-24;
+}
+
+.auth-meta-line-2 {
+  @apply w-32;
 }
 
 .auth-phone-media {
-  @apply h-[330px] bg-gradient-to-b from-black/75 via-black/65 to-black/85;
+  @apply relative h-[402px] overflow-hidden;
+  background:
+    linear-gradient(180deg, rgba(11, 18, 35, 0.4) 0%, rgba(0, 0, 0, 0.82) 100%),
+    radial-gradient(500px 200px at 50% 0%, rgba(84, 91, 109, 0.45), rgba(22, 30, 46, 0.15) 45%, rgba(7, 10, 17, 0.8) 100%),
+    linear-gradient(125deg, #1e2837 2%, #0f1726 38%, #0a111d 100%);
+}
+
+.auth-phone-overlay {
+  @apply absolute inset-0;
+  background: linear-gradient(170deg, rgba(255, 255, 255, 0.08) 8%, rgba(255, 255, 255, 0) 45%);
+}
+
+.auth-book {
+  @apply absolute bottom-5 left-1/2 h-[172px] w-[182px] -translate-x-1/2 rounded-[10px];
+  background:
+    linear-gradient(132deg, #d8cfbe 0%, #c5b79f 42%, #8d7c64 100%);
+  box-shadow:
+    -18px -8px 26px rgba(0, 0, 0, 0.35),
+    0 8px 18px rgba(0, 0, 0, 0.4);
+  transform: translateX(-50%) rotate(-19deg);
+}
+
+.auth-book::before {
+  content: "";
+  @apply absolute left-1/2 top-0 h-full w-[16px] -translate-x-1/2 bg-[#a79378];
+}
+
+.auth-book::after {
+  content: "";
+  @apply absolute inset-[9px] rounded-[6px] border border-black/10;
 }
 
 .auth-panel {
