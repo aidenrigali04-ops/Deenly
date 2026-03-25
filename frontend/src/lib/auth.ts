@@ -25,6 +25,15 @@ export async function login(input: { email: string; password: string }) {
   return result;
 }
 
+export async function loginWithGoogle(input: { accessToken: string }) {
+  const result = await apiRequest<AuthResponse>("/auth/google", {
+    method: "POST",
+    body: input
+  });
+  setTokens(result.tokens.accessToken, result.tokens.refreshToken);
+  return result;
+}
+
 export async function fetchSessionMe() {
   const result = await apiRequest<{ user: UserSession }>("/auth/session/me", {
     auth: true

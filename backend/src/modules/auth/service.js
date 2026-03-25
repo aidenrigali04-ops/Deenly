@@ -1,4 +1,5 @@
 const argon2 = require("argon2");
+const { randomUUID } = require("node:crypto");
 const jwt = require("jsonwebtoken");
 const { httpError } = require("../../utils/http-error");
 const { requireString } = require("../../utils/validators");
@@ -59,6 +60,15 @@ function ttlIntervalExpr(ttlValue) {
 function createAuthService({ db, config, analytics }) {
   const refreshInterval = ttlIntervalExpr(config.jwtRefreshTtl);
 
+  function normalizeUsernameBase(rawValue) {
+    return String(rawValue || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .replace(/_+/g, "_");
+  }
+
   function normalizeUsername(rawValue) {
     const username = requireString(rawValue, "username", 3, 32).toLowerCase();
     if (!/^[a-z0-9_]{3,32}$/.test(username)) {
@@ -68,6 +78,45 @@ function createAuthService({ db, config, analytics }) {
       );
     }
     return username;
+  }
+
+  async function reserveAvailableUsername(rawValue) {
+    const normalizedBase = normalizeUsernameBase(rawValue);
+    const base = normalizedBase.length >= 3 ? normalizedBase.slice(0, 24) : "deenly_user";
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const suffix = attempt === 0 ? "" : `_${(attempt + 1).toString()}`;
+      const candidate = `${base}${suffix}`.slice(0, 32);
+      if (!/^[a-z0-9_]{3,32}$/.test(candidate)) {
+        continue;
+      }
+      const existing = await db.query("SELECT id FROM users WHERE username = $1 LIMIT 1", [candidate]);
+      if (existing.rowCount === 0) {
+        return candidate;
+      }
+    }
+    return `deenly_${randomUUID().replace(/-/g, "").slice(0, 20)}`;
+  }
+
+  async function issueSessionTokens(user, analyticsEventName) {
+    const tokens = issueTokens(config, user);
+    await db.query(
+      `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+       VALUES ($1, $2, NOW() + $3::interval)`,
+      [user.id, await argon2.hash(tokens.refreshToken), refreshInterval]
+    );
+    if (analytics && analyticsEventName) {
+      await analytics.trackEvent(analyticsEventName, { userId: user.id });
+    }
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        role: user.role,
+        created_at: user.created_at
+      },
+      tokens
+    };
   }
 
   async function register(input) {
@@ -110,20 +159,8 @@ function createAuthService({ db, config, analytics }) {
       [user.id, displayName]
     );
 
-    const tokens = issueTokens(config, user);
-    await db.query(
-      `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-       VALUES ($1, $2, NOW() + $3::interval)`,
-      [user.id, await argon2.hash(tokens.refreshToken), refreshInterval]
-    );
-    if (analytics) {
-      await analytics.trackEvent("signup", { userId: user.id });
-    }
-
-    return {
-      user,
-      tokens
-    };
+    const session = await issueSessionTokens(user, "signup");
+    return session;
   }
 
   async function login(input) {
@@ -148,26 +185,78 @@ function createAuthService({ db, config, analytics }) {
       throw httpError(401, "Invalid email or password");
     }
 
-    const tokens = issueTokens(config, user);
-    await db.query(
-      `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-       VALUES ($1, $2, NOW() + $3::interval)`,
-      [user.id, await argon2.hash(tokens.refreshToken), refreshInterval]
-    );
-    if (analytics) {
-      await analytics.trackEvent("auth_login", { userId: user.id });
+    return issueSessionTokens(user, "auth_login");
+  }
+
+  async function loginWithGoogle(input) {
+    const accessToken = requireString(input.accessToken, "accessToken", 20, 4096);
+    if (!config.googleClientId) {
+      throw httpError(503, "Google OAuth is not configured");
     }
 
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        username: user.username,
-        role: user.role,
-        created_at: user.created_at
-      },
-      tokens
-    };
+    const tokenInfoResponse = await globalThis.fetch(
+      `https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${encodeURIComponent(accessToken)}`
+    );
+    if (!tokenInfoResponse.ok) {
+      throw httpError(401, "Invalid Google access token");
+    }
+    const tokenInfo = await tokenInfoResponse.json();
+    if (String(tokenInfo.aud || "") !== String(config.googleClientId)) {
+      throw httpError(401, "Google token audience mismatch");
+    }
+
+    const profileResponse = await globalThis.fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!profileResponse.ok) {
+      throw httpError(401, "Unable to load Google user profile");
+    }
+    const profile = await profileResponse.json();
+    const email = String(profile.email || "").trim().toLowerCase();
+    const emailVerified = Boolean(profile.email_verified);
+    if (!email || !emailVerified) {
+      throw httpError(401, "Google account email is not verified");
+    }
+
+    const existing = await db.query(
+      `SELECT id, email, username, role, is_active, created_at
+       FROM users
+       WHERE email = $1
+       LIMIT 1`,
+      [email]
+    );
+
+    if (existing.rowCount > 0) {
+      const user = existing.rows[0];
+      if (!user.is_active) {
+        throw httpError(403, "Account is not active");
+      }
+      return issueSessionTokens(user, "auth_login");
+    }
+
+    const displayNameSource = String(profile.name || "").trim();
+    const displayName = displayNameSource || email.split("@")[0] || "Deenly User";
+    const username = await reserveAvailableUsername(
+      profile.preferred_username || displayName || email.split("@")[0]
+    );
+    const role =
+      config.adminOwnerEmail && email === String(config.adminOwnerEmail).toLowerCase()
+        ? "admin"
+        : "user";
+    const randomPasswordHash = await argon2.hash(randomUUID());
+    const created = await db.query(
+      `INSERT INTO users (email, username, password_hash, role)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, email, username, role, created_at`,
+      [email, username, randomPasswordHash, role]
+    );
+    const user = created.rows[0];
+    await db.query(
+      `INSERT INTO profiles (user_id, display_name, avatar_url)
+       VALUES ($1, $2, $3)`,
+      [user.id, displayName.slice(0, 64), profile.picture || null]
+    );
+    return issueSessionTokens(user, "signup");
   }
 
   async function refresh(input) {
@@ -280,6 +369,7 @@ function createAuthService({ db, config, analytics }) {
   return {
     register,
     login,
+    loginWithGoogle,
     refresh,
     logout
   };

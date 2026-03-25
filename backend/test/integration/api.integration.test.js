@@ -18,6 +18,7 @@ describeIfDatabase("integration api flows", () => {
     CORS_ORIGINS: process.env.CORS_ORIGINS || "http://localhost:3000",
     JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET || "test-access",
     JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || "test-refresh",
+    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || "test-google-client-id",
     ADMIN_OWNER_EMAIL: process.env.ADMIN_OWNER_EMAIL || "admin-growth@example.com",
     MEDIA_PROVIDER: "mock",
     MEDIA_PUBLIC_BASE_URL: process.env.MEDIA_PUBLIC_BASE_URL || "https://media.test-cdn.example"
@@ -126,6 +127,58 @@ describeIfDatabase("integration api flows", () => {
       refreshToken: refreshed.body.tokens.refreshToken
     });
     expect(refreshAfterLogout.statusCode).toBe(401);
+  });
+
+  it("logs in with Google OAuth and creates a user session", async () => {
+    const fetchSpy = jest.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/tokeninfo?access_token=")) {
+        return new globalThis.Response(
+          JSON.stringify({
+            aud: config.googleClientId
+          }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" }
+          }
+        );
+      }
+      if (url.endsWith("/userinfo")) {
+        return new globalThis.Response(
+          JSON.stringify({
+            email: "google-auth-user@example.com",
+            email_verified: true,
+            name: "Google Auth User",
+            picture: "https://example.com/avatar.png"
+          }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" }
+          }
+        );
+      }
+      return new globalThis.Response(JSON.stringify({ error: "not found" }), {
+        status: 404,
+        headers: { "content-type": "application/json" }
+      });
+    });
+
+    try {
+      const auth = await request(app).post("/api/v1/auth/google").send({
+        accessToken: "google_access_token_example_1234567890"
+      });
+      expect(auth.statusCode).toBe(200);
+      expect(auth.body.tokens.accessToken).toBeDefined();
+      expect(auth.body.user.email).toBe("google-auth-user@example.com");
+
+      const me = await request(app)
+        .get("/api/v1/auth/session/me")
+        .set("Authorization", `Bearer ${auth.body.tokens.accessToken}`);
+      expect(me.statusCode).toBe(200);
+      expect(me.body.user.email).toBe("google-auth-user@example.com");
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 
   it("creates post and fetches feed items", async () => {

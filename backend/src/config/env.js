@@ -104,6 +104,7 @@ function loadEnv(envSource = process.env) {
     awsRegion: envSource.AWS_REGION || "",
     awsS3Bucket: envSource.AWS_S3_BUCKET || "",
     mediaPublicBaseUrl: parseOptionalUrl(envSource.MEDIA_PUBLIC_BASE_URL),
+    googleClientId: String(envSource.GOOGLE_CLIENT_ID || "").trim(),
     commentBlockedTerms: parseList(envSource.COMMENT_BLOCKED_TERMS),
     mockUploadBaseUrl: envSource.MOCK_UPLOAD_BASE_URL || ""
   };

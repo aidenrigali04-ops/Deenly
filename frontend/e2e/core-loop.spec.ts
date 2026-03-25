@@ -38,9 +38,9 @@ async function ensureUser(
 
 async function loginViaUi(page: Page, baseURL: string, email: string, password: string) {
   await page.goto(`${baseURL}/auth/login`);
-  await page.getByPlaceholder("Email").fill(email);
-  await page.getByPlaceholder("Password").fill(password);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill(password);
+  await page.getByRole("button", { name: "Log In" }).click();
   await expect(page).toHaveURL(/\/home$/);
 }
 
@@ -72,21 +72,20 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
   }
 
   await page.goto(`${baseURL}/auth/signup`);
-  await page.getByPlaceholder("Email").fill(`viewer-${timestamp}@example.com`);
-  await page
-    .getByPlaceholder("Username (lowercase, numbers, underscore)")
-    .fill(`viewer_${timestamp}`);
-  await page.getByPlaceholder("Display name").fill("Viewer");
-  await page.getByPlaceholder("Password").fill(password);
-  await page.getByRole("button", { name: "Create account" }).click();
+  await page.getByLabel("First Name").fill("Viewer");
+  await page.getByLabel("Last Name").fill("User");
+  await page.getByLabel("Username").fill(`viewer_${timestamp}`);
+  await page.getByLabel("Email").fill(`viewer-${timestamp}@example.com`);
+  await page.getByLabel("Password").fill(password);
+  await page.getByRole("button", { name: "Sign Up" }).click();
   await expect(page).toHaveURL(/\/home$/);
 
   await page.getByRole("button", { name: "Logout" }).click();
   await expect(page).toHaveURL(/\/auth\/login(\?.*)?$/);
 
-  await page.getByPlaceholder("Email").fill(`viewer-${timestamp}@example.com`);
-  await page.getByPlaceholder("Password").fill(password);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByLabel("Email").fill(`viewer-${timestamp}@example.com`);
+  await page.getByLabel("Password").fill(password);
+  await page.getByRole("button", { name: "Log In" }).click();
   await expect(page).toHaveURL(/\/home$/);
   await page.getByRole("link", { name: "Dhikr" }).first().click();
   await expect(page).toHaveURL(/\/dhikr$/);

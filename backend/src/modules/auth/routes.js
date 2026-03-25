@@ -39,6 +39,15 @@ function createAuthRouter({ config, db, analytics }) {
   );
 
   router.post(
+    "/google",
+    authRateLimiter,
+    asyncHandler(async (req, res) => {
+      const result = await authService.loginWithGoogle(req.body || {});
+      res.status(200).json(result);
+    })
+  );
+
+  router.post(
     "/refresh",
     authRateLimiter,
     asyncHandler(async (req, res) => {

@@ -19,6 +19,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [prayerReminder, setPrayerReminder] = useState<PrayerStatus | null>(null);
 
   const isPublicPath = useMemo(() => PUBLIC_PATHS.has(pathname), [pathname]);
+  const isAuthPath = useMemo(
+    () => pathname === "/auth/login" || pathname === "/auth/signup",
+    [pathname]
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -114,6 +118,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </main>
     );
+  }
+
+  if (isAuthPath) {
+    return <main className="min-h-screen">{children}</main>;
   }
 
   if (isPublicPath) {
