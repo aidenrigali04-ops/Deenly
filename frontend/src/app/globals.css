@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 body {
@@ -15,39 +15,39 @@ a {
 }
 
 .container-shell {
-  @apply mx-auto max-w-[1200px] px-3 sm:px-5;
+  @apply mx-auto max-w-[1180px] px-3 sm:px-5;
 }
 
 .surface-card {
-  @apply rounded-2xl border border-white/10 bg-card/70 p-4 shadow-soft backdrop-blur;
+  @apply rounded-panel border border-black/10 bg-card p-4 shadow-soft;
 }
 
 .input {
-  @apply w-full rounded-xl border border-white/10 bg-surface px-3 py-2 text-sm text-text placeholder:text-muted focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50;
+  @apply w-full rounded-control border border-black/10 bg-surface px-3 py-2.5 text-sm text-text placeholder:text-muted focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20;
 }
 
 .btn {
-  @apply rounded-xl px-4 py-2 text-sm font-semibold transition;
+  @apply rounded-control px-4 py-2.5 text-sm font-medium transition;
 }
 
 .btn-primary {
-  @apply btn bg-accent text-slate-900 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50;
+  @apply btn bg-accent text-white hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20;
 }
 
 .btn-secondary {
-  @apply btn bg-surface text-text hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50;
+  @apply btn border border-black/10 bg-surface text-text hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20;
 }
 
 .section-title {
-  @apply text-xl font-semibold sm:text-2xl;
+  @apply text-xl font-semibold tracking-tight sm:text-2xl;
 }
 
 .subtle-divider {
-  @apply border-t border-white/10;
+  @apply border-t border-black/10;
 }
 
 .skeleton {
-  @apply animate-pulse rounded-xl bg-white/5;
+  @apply animate-pulse rounded-control bg-black/[0.06];
 }
 
 .story-chip {
@@ -55,21 +55,21 @@ a {
 }
 
 .story-ring {
-  @apply inline-flex rounded-full bg-gradient-to-tr from-accent/80 to-purple-500/70 p-[2px];
+  @apply inline-flex rounded-full border border-black/20 p-[2px];
 }
 
 .story-ring-own {
-  @apply bg-gradient-to-tr from-slate-400/60 to-slate-200/40;
+  @apply border-black/40;
 }
 
 .story-avatar {
-  @apply grid h-14 w-14 place-items-center rounded-full border border-white/10 bg-surface text-xs font-semibold;
+  @apply grid h-14 w-14 place-items-center rounded-full border border-black/10 bg-surface text-xs font-semibold;
 }
 
 .feed-media-frame {
-  @apply aspect-[4/3] bg-card object-cover;
+  @apply aspect-[4/3] bg-black/[0.03] object-cover;
 }
 
 .feed-action {
-  @apply grid h-9 w-9 place-items-center rounded-full border border-white/10 text-base transition hover:text-text;
+  @apply grid h-9 w-9 place-items-center rounded-full border border-black/10 text-sm transition hover:bg-black/[0.04];
 }

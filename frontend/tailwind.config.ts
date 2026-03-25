@@ -5,15 +5,20 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#0b1020",
-        surface: "#141b2f",
-        card: "#1b243a",
-        accent: "#57c3a7",
-        text: "#e6edf7",
-        muted: "#95a5bd"
+        background: "#f4f5f7",
+        surface: "#ffffff",
+        card: "#ffffff",
+        accent: "#111827",
+        text: "#0f172a",
+        muted: "#667085"
       },
       boxShadow: {
-        soft: "0 10px 30px rgba(0,0,0,0.2)"
+        soft: "0 8px 24px rgba(15, 23, 42, 0.08)"
+      },
+      borderRadius: {
+        panel: "1.25rem",
+        control: "0.85rem",
+        pill: "999px"
       }
     }
   },

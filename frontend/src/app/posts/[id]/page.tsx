@@ -118,8 +118,8 @@ export default function PostDetailPage() {
   const canRenderMedia = Boolean(mediaUrl) && !mediaFailed;
 
   return (
-    <section className="space-y-4">
-      <article className="surface-card space-y-3">
+    <section className="mx-auto max-w-3xl space-y-4">
+      <article className="surface-card space-y-4">
         <div className="flex items-center justify-between text-sm text-muted">
           <span>{post.author_display_name}</span>
           <time dateTime={post.created_at}>{new Date(post.created_at).toLocaleString()}</time>
@@ -131,13 +131,13 @@ export default function PostDetailPage() {
             <img
               src={mediaUrl}
               alt={`${post.author_display_name} post media`}
-              className="w-full rounded-xl border border-white/10 object-cover"
+              className="w-full rounded-panel border border-black/10 object-cover"
               onError={() => setMediaFailed(true)}
             />
           ) : (
             <video
               controls
-              className="w-full rounded-xl border border-white/10"
+              className="w-full rounded-panel border border-black/10"
               onError={() => setMediaFailed(true)}
             >
               <source src={mediaUrl} />
@@ -148,7 +148,7 @@ export default function PostDetailPage() {
         ) : null}
         <div className="flex flex-wrap gap-2 text-xs text-muted">
           {stats?.map((value) => (
-            <span key={value} className="rounded-full border border-white/10 px-2 py-1">
+            <span key={value} className="rounded-pill border border-black/10 px-2 py-1">
               {value}
             </span>
           ))}
@@ -173,7 +173,7 @@ export default function PostDetailPage() {
       </article>
 
       <form
-        className="surface-card space-y-2"
+        className="surface-card space-y-3"
         onSubmit={(event: FormEvent) => {
           event.preventDefault();
           if (!comment.trim()) {
@@ -196,7 +196,7 @@ export default function PostDetailPage() {
       </form>
 
       <form
-        className="surface-card space-y-2"
+        className="surface-card space-y-3"
         onSubmit={(event) => {
           event.preventDefault();
           if (!reportReason.trim()) {

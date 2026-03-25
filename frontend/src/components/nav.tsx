@@ -89,16 +89,15 @@ function NavLink({
     <Link
       href={href}
       aria-label={label}
-      className={`flex items-center gap-3 rounded-full px-3 py-2.5 text-sm transition ${
-        active
-          ? "bg-card text-text ring-1 ring-white/15"
-          : "text-muted hover:bg-card/70 hover:text-text"
+      title={label}
+      className={`flex items-center justify-center rounded-pill border p-2.5 transition ${
+        active ? "border-black/30 bg-black text-white" : "border-black/10 text-muted hover:bg-black/[0.04] hover:text-text"
       }`}
     >
-      <span className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-surface">
+      <span className="grid h-9 w-9 place-items-center rounded-full">
         <Icon kind={icon} />
       </span>
-      <span className="md:sr-only xl:not-sr-only">{label}</span>
+      <span className="sr-only">{label}</span>
     </Link>
   );
 }
@@ -127,19 +126,19 @@ export function Nav() {
     user?.email?.toLowerCase() === adminOwnerEmail;
 
   return (
-    <aside className="w-full shrink-0 rounded-[2rem] border border-white/10 bg-card/40 p-3 md:sticky md:top-4 md:w-[88px] md:self-start xl:w-[108px]">
-      <div className="mb-3 flex items-center justify-between md:flex-col md:gap-3">
+    <aside className="w-full shrink-0 rounded-panel border border-black/10 bg-card p-3 md:sticky md:top-6 md:w-[82px] md:self-start">
+      <div className="mb-3 flex items-center justify-between md:flex-col md:gap-4">
         <Link
           href="/home"
           aria-label="Deenly Home"
-          className="grid h-11 w-11 place-items-center rounded-full border border-white/15 bg-surface text-base"
+          className="grid h-11 w-11 place-items-center rounded-full border border-black/10 bg-surface text-base"
         >
           ✦
         </Link>
         <span className="hidden text-[10px] uppercase tracking-[0.2em] text-muted md:block">Deenly</span>
       </div>
 
-      <nav className="grid grid-cols-3 gap-1 sm:grid-cols-6 md:grid-cols-1 md:gap-2" aria-label="Primary">
+      <nav className="grid grid-cols-3 gap-1.5 sm:grid-cols-6 md:grid-cols-1 md:gap-2" aria-label="Primary">
         {railLinks.map((link) => (
           <NavLink
             key={link.href}
@@ -159,10 +158,10 @@ export function Nav() {
         ) : null}
       </nav>
 
-      <div className="mt-3 border-t border-white/10 pt-3">
+      <div className="mt-3 border-t border-black/10 pt-3">
         {user ? (
           <button
-            className="w-full rounded-full border border-white/10 bg-surface px-3 py-2 text-xs font-medium text-muted transition hover:text-text"
+            className="w-full rounded-pill border border-black/10 bg-surface px-3 py-2 text-xs font-medium text-muted transition hover:bg-black/[0.04] hover:text-text"
             onClick={async () => {
               await logout();
               setUser(null);
@@ -174,7 +173,7 @@ export function Nav() {
         ) : (
           <Link
             href="/auth/login"
-            className="block w-full rounded-full border border-white/10 bg-surface px-3 py-2 text-center text-xs font-medium text-muted transition hover:text-text"
+            className="block w-full rounded-pill border border-black/10 bg-surface px-3 py-2 text-center text-xs font-medium text-muted transition hover:bg-black/[0.04] hover:text-text"
           >
             Login
           </Link>

@@ -83,7 +83,7 @@ export function FeedView({ heading, fixedPostType = "", showStories = false }: F
 
   return (
     <section className="space-y-3 md:space-y-4">
-      <header className="surface-card sticky top-4 z-10 space-y-3 px-3 py-3 md:px-4">
+      <header className="surface-card sticky top-4 z-10 space-y-3 px-4 py-4">
         <div className="flex items-center justify-between gap-3">
           <h1 className="section-title text-base sm:text-lg">{heading}</h1>
           <div className="flex items-center gap-2">
@@ -100,7 +100,7 @@ export function FeedView({ heading, fixedPostType = "", showStories = false }: F
           </div>
         </div>
         <div className="subtle-divider pt-3">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
             {!fixedPostType ? (
               <select
                 className="input max-w-44 py-2 text-xs"
@@ -115,7 +115,7 @@ export function FeedView({ heading, fixedPostType = "", showStories = false }: F
                 <option value="short_video">Short video</option>
               </select>
             ) : null}
-            <label className="flex items-center gap-2 text-xs sm:text-sm">
+            <label className="flex items-center gap-2 text-xs sm:text-sm text-muted">
               <input
                 type="checkbox"
                 checked={followingOnly}

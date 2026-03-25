@@ -103,7 +103,7 @@ export default function CreatePage() {
         <h1 className="section-title">Create post</h1>
         <p className="mt-1 text-sm text-muted">Share beneficial recitations and reminders.</p>
       </header>
-      <form className="surface-card space-y-3" onSubmit={onSubmit}>
+      <form className="surface-card space-y-4" onSubmit={onSubmit}>
         <label className="text-xs uppercase tracking-wide text-muted">Post type</label>
         <select
           className="input"
@@ -124,7 +124,7 @@ export default function CreatePage() {
           required
         />
         <label className="text-xs uppercase tracking-wide text-muted">Optional media</label>
-        <input name="mediaFile" type="file" accept="image/*,video/*" className="input" />
+        <input name="mediaFile" type="file" accept="image/*,video/*" className="input cursor-pointer" />
         <p className="text-xs text-muted">
           Upload image or video from your device. Uploads are attached after post creation.
         </p>

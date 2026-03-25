@@ -30,31 +30,31 @@ export function FeedCard({ item }: { item: FeedItem }) {
 
   return (
     <article className="surface-card overflow-hidden p-0">
-      <header className="flex items-center justify-between gap-3 px-4 py-3">
+      <header className="flex items-center justify-between gap-3 px-5 py-4">
         <div className="flex min-w-0 items-center gap-3">
           <span
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-surface text-xs font-semibold"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-black/10 bg-surface text-xs font-semibold"
             aria-hidden="true"
           >
             {initials || "U"}
           </span>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">{item.author_display_name}</p>
+            <p className="truncate text-sm font-semibold tracking-tight">{item.author_display_name}</p>
             <time className="text-xs text-muted" dateTime={item.created_at}>
               {new Date(item.created_at).toLocaleString()}
             </time>
           </div>
         </div>
-        <button className="rounded-full border border-white/10 px-3 py-1 text-xs font-medium text-muted hover:text-text">
+        <button className="rounded-pill border border-black/10 px-3 py-1 text-xs font-medium text-muted transition hover:bg-black/[0.04] hover:text-text">
           Follow
         </button>
       </header>
 
-      <div className="px-4 pb-3">
-        <p className="text-sm leading-relaxed">{item.content}</p>
+      <div className="px-5 pb-3">
+        <p className="text-sm leading-relaxed text-text">{item.content}</p>
       </div>
 
-      <div className="mx-4 mb-3 overflow-hidden rounded-[1.4rem] border border-white/10 bg-surface">
+      <div className="mx-5 mb-3 overflow-hidden rounded-panel border border-black/10 bg-surface">
         {canRenderMedia ? (
           isImageMedia(item) ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -78,34 +78,34 @@ export function FeedCard({ item }: { item: FeedItem }) {
         )}
       </div>
 
-      <div className="flex items-center gap-3 px-4 pb-2 text-muted">
+      <div className="flex items-center gap-2 px-5 pb-2 text-muted">
         <button className="feed-action" aria-label="Benefited">
-          ♡
+          <span aria-hidden="true">♡</span>
         </button>
         <button className="feed-action" aria-label="Comment">
-          ◌
+          <span aria-hidden="true">◌</span>
         </button>
         <button className="feed-action" aria-label="Share">
-          ➤
+          <span aria-hidden="true">➤</span>
         </button>
-        <button className="rounded-full border border-white/10 px-3 py-1 text-xs font-medium text-muted hover:text-text">
+        <button className="rounded-pill border border-black/10 px-3 py-1 text-xs font-medium text-muted transition hover:bg-black/[0.04] hover:text-text">
           Collab
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-2 px-4 pb-3 text-xs text-muted">
-        <span className="rounded-full border border-white/10 px-2 py-1">
+      <div className="flex flex-wrap gap-2 px-5 pb-3 text-xs text-muted">
+        <span className="rounded-pill border border-black/10 px-2 py-1">
           Benefited: {item.benefited_count || 0}
         </span>
-        <span className="rounded-full border border-white/10 px-2 py-1">
+        <span className="rounded-pill border border-black/10 px-2 py-1">
           Comments: {item.comment_count || 0}
         </span>
-        <span className="rounded-full border border-white/10 px-2 py-1">
+        <span className="rounded-pill border border-black/10 px-2 py-1">
           Reflect later: {item.reflect_later_count || 0}
         </span>
       </div>
 
-      <footer className="flex items-center justify-between border-t border-white/10 px-4 py-3">
+      <footer className="flex items-center justify-between border-t border-black/10 px-5 py-3">
         <Link href={`/posts/${item.id}`} className="btn-secondary px-3 py-1.5 text-xs">
           Open post
         </Link>

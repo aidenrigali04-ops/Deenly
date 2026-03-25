@@ -23,13 +23,22 @@ export default function AccountPage() {
 
   const user = sessionQuery.data;
   return (
-    <section className="space-y-4">
-      <div className="surface-card space-y-3">
+    <section className="mx-auto max-w-3xl space-y-4">
+      <div className="surface-card space-y-4">
         <h1 className="section-title">Account</h1>
-        <div className="grid gap-2 text-sm text-muted sm:grid-cols-2">
-          <p>Email: {user.email}</p>
-          <p>Username: @{user.username || "unknown"}</p>
-          <p>Role: {user.role}</p>
+        <div className="grid gap-3 text-sm sm:grid-cols-2">
+          <div className="rounded-control border border-black/10 bg-surface px-3 py-2">
+            <p className="text-xs uppercase tracking-wide text-muted">Email</p>
+            <p className="mt-1 font-medium text-text">{user.email}</p>
+          </div>
+          <div className="rounded-control border border-black/10 bg-surface px-3 py-2">
+            <p className="text-xs uppercase tracking-wide text-muted">Username</p>
+            <p className="mt-1 font-medium text-text">@{user.username || "unknown"}</p>
+          </div>
+          <div className="rounded-control border border-black/10 bg-surface px-3 py-2 sm:col-span-2">
+            <p className="text-xs uppercase tracking-wide text-muted">Role</p>
+            <p className="mt-1 font-medium text-text">{user.role}</p>
+          </div>
         </div>
       </div>
       <div className="surface-card flex flex-wrap gap-3">
