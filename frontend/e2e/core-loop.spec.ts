@@ -196,7 +196,7 @@ test("admin feedback loop: owner access, tables, and operations form", async ({
 }) => {
   const timestamp = Date.now();
   const password = "StrongPass123";
-  const adminEmail = process.env.E2E_ADMIN_OWNER_EMAIL || "admin-e2e@example.com";
+  const adminEmail = process.env.E2E_ADMIN_OWNER_EMAIL || "aidenrigali04@gmail.com";
   const target = await ensureUser(request, {
     email: `target-e2e-${timestamp}@example.com`,
     username: `target_e2e_${timestamp}`,
