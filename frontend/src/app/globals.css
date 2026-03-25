@@ -73,3 +73,43 @@ a {
 .feed-action {
   @apply grid h-9 w-9 place-items-center rounded-full border border-black/10 text-sm transition hover:bg-black/[0.04];
 }
+
+.profile-shell {
+  @apply mx-auto max-w-4xl space-y-4;
+}
+
+.profile-top {
+  @apply surface-card px-6 py-6;
+}
+
+.profile-row {
+  @apply flex items-center justify-between gap-4;
+}
+
+.profile-avatar {
+  @apply grid h-14 w-14 place-items-center rounded-full border border-black/15 bg-surface text-base font-semibold;
+}
+
+.profile-stat-grid {
+  @apply mt-5 grid grid-cols-3 gap-4 border-b border-black/10 pb-4 text-center;
+}
+
+.profile-stat-value {
+  @apply text-base font-semibold text-text;
+}
+
+.profile-stat-label {
+  @apply mt-1 text-xs uppercase tracking-wide text-muted;
+}
+
+.profile-tab-strip {
+  @apply flex items-center gap-2 border-b border-black/10 pb-1;
+}
+
+.profile-tab {
+  @apply rounded-pill border border-transparent px-3 py-1.5 text-xs font-medium text-muted transition hover:text-text;
+}
+
+.profile-tab-active {
+  @apply border-black/20 bg-black text-white;
+}
