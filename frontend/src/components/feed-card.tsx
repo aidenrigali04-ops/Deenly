@@ -29,8 +29,8 @@ export function FeedCard({ item }: { item: FeedItem }) {
     .join("");
 
   return (
-    <article className="surface-card overflow-hidden p-0">
-      <header className="flex items-center justify-between gap-3 px-5 py-4">
+    <article className="surface-card overflow-hidden rounded-[1.5rem] p-0">
+      <header className="flex items-center justify-between gap-3 px-6 py-4">
         <div className="flex min-w-0 items-center gap-3">
           <span
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-black/10 bg-surface text-xs font-semibold"
@@ -50,11 +50,11 @@ export function FeedCard({ item }: { item: FeedItem }) {
         </button>
       </header>
 
-      <div className="px-5 pb-3">
+      <div className="px-6 pb-3">
         <p className="text-sm leading-relaxed text-text">{item.content}</p>
       </div>
 
-      <div className="mx-5 mb-3 overflow-hidden rounded-panel border border-black/10 bg-surface">
+      <div className="mx-6 mb-3 overflow-hidden rounded-[1.35rem] border border-black/10 bg-surface">
         {canRenderMedia ? (
           isImageMedia(item) ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -78,7 +78,7 @@ export function FeedCard({ item }: { item: FeedItem }) {
         )}
       </div>
 
-      <div className="flex items-center gap-2 px-5 pb-2 text-muted">
+      <div className="flex items-center gap-2 px-6 pb-3 text-muted">
         <button className="feed-action" aria-label="Benefited">
           <span aria-hidden="true">♡</span>
         </button>
@@ -93,7 +93,7 @@ export function FeedCard({ item }: { item: FeedItem }) {
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-2 px-5 pb-3 text-xs text-muted">
+      <div className="flex flex-wrap gap-2 px-6 pb-4 text-xs text-muted">
         <span className="rounded-pill border border-black/10 px-2 py-1">
           Benefited: {item.benefited_count || 0}
         </span>
@@ -105,11 +105,11 @@ export function FeedCard({ item }: { item: FeedItem }) {
         </span>
       </div>
 
-      <footer className="flex items-center justify-between border-t border-black/10 px-5 py-3">
+      <footer className="flex items-center justify-between border-t border-black/10 px-6 py-3">
         <Link href={`/posts/${item.id}`} className="btn-secondary px-3 py-1.5 text-xs">
           Open post
         </Link>
-        <Link href={`/users/${item.author_id}`} className="text-xs font-medium text-accent hover:underline">
+        <Link href={`/users/${item.author_id}`} className="text-xs font-medium text-text hover:underline">
           View profile
         </Link>
       </footer>

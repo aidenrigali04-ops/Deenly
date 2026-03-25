@@ -216,7 +216,7 @@ export default function PostDetailPage() {
           {reportMutation.isPending ? "Submitting..." : "Submit report"}
         </button>
         {reportMutation.isSuccess ? (
-          <p className="text-xs text-accent">Report submitted.</p>
+          <p className="text-xs text-text">Report submitted.</p>
         ) : null}
       </form>
     </section>

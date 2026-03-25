@@ -21,7 +21,7 @@ export function ReliabilityBanner() {
   }
 
   return (
-    <div className="mb-4 rounded-md border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+    <div className="mb-4 rounded-control border border-black/15 bg-black/[0.04] px-4 py-3 text-sm text-text">
       You are offline. Some actions are temporarily unavailable.
     </div>
   );

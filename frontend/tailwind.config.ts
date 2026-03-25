@@ -8,9 +8,9 @@ const config: Config = {
         background: "#f4f5f7",
         surface: "#ffffff",
         card: "#ffffff",
-        accent: "#111827",
-        text: "#0f172a",
-        muted: "#667085"
+        accent: "#000000",
+        text: "#111111",
+        muted: "#6b7280"
       },
       boxShadow: {
         soft: "0 8px 24px rgba(15, 23, 42, 0.08)"

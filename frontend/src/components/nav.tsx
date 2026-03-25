@@ -90,11 +90,15 @@ function NavLink({
       href={href}
       aria-label={label}
       title={label}
-      className={`flex items-center justify-center rounded-pill border p-2.5 transition ${
-        active ? "border-black/30 bg-black text-white" : "border-black/10 text-muted hover:bg-black/[0.04] hover:text-text"
-      }`}
+      className="group flex items-center justify-center rounded-pill p-1.5 transition"
     >
-      <span className="grid h-9 w-9 place-items-center rounded-full">
+      <span
+        className={`grid h-10 w-10 place-items-center rounded-full border transition ${
+          active
+            ? "border-black bg-black text-white"
+            : "border-black/15 bg-surface text-muted group-hover:bg-black/[0.04] group-hover:text-text"
+        }`}
+      >
         <Icon kind={icon} />
       </span>
       <span className="sr-only">{label}</span>
@@ -126,8 +130,8 @@ export function Nav() {
     user?.email?.toLowerCase() === adminOwnerEmail;
 
   return (
-    <aside className="w-full shrink-0 rounded-panel border border-black/10 bg-card p-3 md:sticky md:top-6 md:w-[82px] md:self-start">
-      <div className="mb-3 flex items-center justify-between md:flex-col md:gap-4">
+    <aside className="w-full shrink-0 rounded-panel border border-black/10 bg-card p-3 md:sticky md:top-6 md:w-[76px] md:self-start">
+      <div className="mb-4 flex items-center justify-between md:flex-col md:gap-4">
         <Link
           href="/home"
           aria-label="Deenly Home"
@@ -138,7 +142,7 @@ export function Nav() {
         <span className="hidden text-[10px] uppercase tracking-[0.2em] text-muted md:block">Deenly</span>
       </div>
 
-      <nav className="grid grid-cols-3 gap-1.5 sm:grid-cols-6 md:grid-cols-1 md:gap-2" aria-label="Primary">
+      <nav className="grid grid-cols-3 gap-1.5 sm:grid-cols-6 md:grid-cols-1 md:gap-2.5" aria-label="Primary">
         {railLinks.map((link) => (
           <NavLink
             key={link.href}
@@ -158,7 +162,7 @@ export function Nav() {
         ) : null}
       </nav>
 
-      <div className="mt-3 border-t border-black/10 pt-3">
+      <div className="mt-4 border-t border-black/10 pt-3">
         {user ? (
           <button
             className="w-full rounded-pill border border-black/10 bg-surface px-3 py-2 text-xs font-medium text-muted transition hover:bg-black/[0.04] hover:text-text"

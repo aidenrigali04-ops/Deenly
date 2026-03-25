@@ -130,8 +130,8 @@ export function FeedView({ heading, fixedPostType = "", showStories = false }: F
 
       {showStories ? <HomeStoriesRow /> : null}
 
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,680px)_260px] xl:justify-center xl:gap-5">
-        <div className="space-y-3 md:space-y-4">
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,620px)_240px] xl:justify-center xl:gap-6">
+        <div className="space-y-4 md:space-y-5">
           {feedQuery.isLoading ? (
             <>
               <LoadingState label="Loading feed..." />
@@ -145,7 +145,7 @@ export function FeedView({ heading, fixedPostType = "", showStories = false }: F
             <EmptyState title="No posts yet" subtitle="Try changing filters or be the first to share." />
           ) : null}
 
-          <div className="space-y-4">
+          <div className="space-y-5">
             {items.map((item) => (
               <FeedCard key={item.id} item={item} />
             ))}
