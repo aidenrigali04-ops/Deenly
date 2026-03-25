@@ -114,149 +114,50 @@ exports.up = (pgm) => {
   pgm.createIndex("post_product_links", ["post_id"], { unique: true });
   pgm.createIndex("post_product_links", ["product_id"]);
 
-  pgm.createTable("checkout_sessions", {
-    id: "id",
-    buyer_user_id: {
-      type: "integer",
-      references: "users(id)",
-      onDelete: "set null"
-    },
-    seller_user_id: {
-      type: "integer",
-      notNull: true,
-      references: "users(id)",
-      onDelete: "cascade"
-    },
-    product_id: {
-      type: "integer",
-      references: "creator_products(id)",
-      onDelete: "set null"
-    },
-    kind: {
-      type: "varchar(20)",
-      notNull: true
-    },
-    stripe_checkout_session_id: {
-      type: "varchar(255)",
-      notNull: true,
-      unique: true
-    },
-    amount_minor: {
-      type: "integer",
-      notNull: true
-    },
-    currency: {
-      type: "varchar(3)",
-      notNull: true,
-      default: "usd"
-    },
-    status: {
-      type: "varchar(20)",
-      notNull: true,
-      default: "created"
-    },
-    metadata: {
-      type: "jsonb",
-      notNull: true,
-      default: pgm.func("'{}'::jsonb")
-    },
-    created_at: {
-      type: "timestamptz",
-      notNull: true,
-      default: pgm.func("current_timestamp")
-    },
-    updated_at: {
-      type: "timestamptz",
-      notNull: true,
-      default: pgm.func("current_timestamp")
-    }
-  });
-  pgm.createConstraint(
-    "checkout_sessions",
-    "checkout_sessions_kind_check",
-    "CHECK (kind IN ('product','support'))"
-  );
-  pgm.createConstraint(
-    "checkout_sessions",
-    "checkout_sessions_status_check",
-    "CHECK (status IN ('created','completed','failed','expired','canceled'))"
-  );
-  pgm.createConstraint(
-    "checkout_sessions",
-    "checkout_sessions_amount_positive_check",
-    "CHECK (amount_minor > 0)"
-  );
+  pgm.sql(`
+    CREATE TABLE checkout_sessions (
+      id serial PRIMARY KEY,
+      buyer_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+      seller_user_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      product_id integer REFERENCES creator_products(id) ON DELETE SET NULL,
+      kind varchar(20) NOT NULL,
+      stripe_checkout_session_id varchar(255) UNIQUE NOT NULL,
+      amount_minor integer NOT NULL,
+      currency varchar(3) NOT NULL DEFAULT 'usd',
+      status varchar(20) NOT NULL DEFAULT 'created',
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at timestamptz NOT NULL DEFAULT current_timestamp,
+      updated_at timestamptz NOT NULL DEFAULT current_timestamp,
+      CONSTRAINT checkout_sessions_kind_check CHECK (kind IN ('product','support')),
+      CONSTRAINT checkout_sessions_status_check CHECK (status IN ('created','completed','failed','expired','canceled')),
+      CONSTRAINT checkout_sessions_amount_positive_check CHECK (amount_minor > 0)
+    );
+  `);
   pgm.createIndex("checkout_sessions", ["buyer_user_id", "created_at"]);
   pgm.createIndex("checkout_sessions", ["seller_user_id", "created_at"]);
 
-  pgm.createTable("orders", {
-    id: "id",
-    checkout_session_id: {
-      type: "integer",
-      references: "checkout_sessions(id)",
-      onDelete: "set null",
-      unique: true
-    },
-    buyer_user_id: {
-      type: "integer",
-      references: "users(id)",
-      onDelete: "set null"
-    },
-    seller_user_id: {
-      type: "integer",
-      notNull: true,
-      references: "users(id)",
-      onDelete: "cascade"
-    },
-    product_id: {
-      type: "integer",
-      references: "creator_products(id)",
-      onDelete: "set null"
-    },
-    kind: {
-      type: "varchar(20)",
-      notNull: true
-    },
-    amount_minor: {
-      type: "integer",
-      notNull: true
-    },
-    platform_fee_minor: {
-      type: "integer",
-      notNull: true
-    },
-    creator_net_minor: {
-      type: "integer",
-      notNull: true
-    },
-    currency: {
-      type: "varchar(3)",
-      notNull: true,
-      default: "usd"
-    },
-    status: {
-      type: "varchar(20)",
-      notNull: true,
-      default: "completed"
-    },
-    stripe_payment_intent_id: {
-      type: "varchar(255)"
-    },
-    created_at: {
-      type: "timestamptz",
-      notNull: true,
-      default: pgm.func("current_timestamp")
-    }
-  });
-  pgm.createConstraint("orders", "orders_kind_check", "CHECK (kind IN ('product','support'))");
-  pgm.createConstraint(
-    "orders",
-    "orders_status_check",
-    "CHECK (status IN ('completed','refunded','disputed'))"
-  );
-  pgm.createConstraint("orders", "orders_amount_positive_check", "CHECK (amount_minor > 0)");
-  pgm.createConstraint("orders", "orders_fee_non_negative_check", "CHECK (platform_fee_minor >= 0)");
-  pgm.createConstraint("orders", "orders_net_non_negative_check", "CHECK (creator_net_minor >= 0)");
+  pgm.sql(`
+    CREATE TABLE orders (
+      id serial PRIMARY KEY,
+      checkout_session_id integer UNIQUE REFERENCES checkout_sessions(id) ON DELETE SET NULL,
+      buyer_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+      seller_user_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      product_id integer REFERENCES creator_products(id) ON DELETE SET NULL,
+      kind varchar(20) NOT NULL,
+      amount_minor integer NOT NULL,
+      platform_fee_minor integer NOT NULL,
+      creator_net_minor integer NOT NULL,
+      currency varchar(3) NOT NULL DEFAULT 'usd',
+      status varchar(20) NOT NULL DEFAULT 'completed',
+      stripe_payment_intent_id varchar(255),
+      created_at timestamptz NOT NULL DEFAULT current_timestamp,
+      CONSTRAINT orders_kind_check CHECK (kind IN ('product','support')),
+      CONSTRAINT orders_status_check CHECK (status IN ('completed','refunded','disputed')),
+      CONSTRAINT orders_amount_positive_check CHECK (amount_minor > 0),
+      CONSTRAINT orders_fee_non_negative_check CHECK (platform_fee_minor >= 0),
+      CONSTRAINT orders_net_non_negative_check CHECK (creator_net_minor >= 0)
+    );
+  `);
   pgm.createIndex("orders", ["buyer_user_id", "created_at"]);
   pgm.createIndex("orders", ["seller_user_id", "created_at"]);
   pgm.createIndex("orders", ["product_id", "created_at"]);
