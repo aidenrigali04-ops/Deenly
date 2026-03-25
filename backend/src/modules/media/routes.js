@@ -120,66 +120,70 @@ function createMediaRouter({ db, config, mediaStorage, analytics }) {
         req.user.id
       ];
 
+      const minimalUpdateSql = `UPDATE posts
+           SET media_url = $1,
+               updated_at = NOW()
+           WHERE id = $2
+             AND author_id = $3
+           RETURNING id, media_url, updated_at`;
+
       let result;
       try {
         result = await db.query(fullUpdateSql, fullParams);
       } catch (error) {
-        const isLegacyMediaStatusConstraint =
-          error?.code === "23514" &&
-          (String(error?.constraint || "").includes("posts_media_status_check") ||
-            String(error?.message || "").toLowerCase().includes("media_status"));
-        const isLegacyMissingColumn = error?.code === "42703";
+        try {
+          const isLegacyMediaStatusConstraint =
+            error?.code === "23514" &&
+            (String(error?.constraint || "").includes("posts_media_status_check") ||
+              String(error?.message || "").toLowerCase().includes("media_status"));
+          const isLegacyMissingColumn = error?.code === "42703";
 
-        if (isLegacyMediaStatusConstraint) {
-          // Keep full payload updates and only downgrade the status for older constraints.
-          result = await db.query(fullUpdateSql, fullLegacyStatusParams);
-        } else if (isLegacyMissingColumn) {
-          // Legacy schema fallback when newer media-processing columns do not exist.
-          try {
-            result = await db.query(
-              `UPDATE posts
-               SET media_upload_key = $1,
-                   media_url = $2,
-                   media_mime_type = $3,
-                   media_size_bytes = $4,
-                   media_status = $5,
-                   updated_at = NOW()
-               WHERE id = $6
-                 AND author_id = $7
-               RETURNING id, media_upload_key, media_url, media_mime_type, media_status, updated_at`,
-              [mediaKey, mediaUrl, mimeType, fileSizeBytes, legacyCompatibleStatus, postId, req.user.id]
-            );
-          } catch (legacyError) {
-            if (legacyError?.code !== "42703") {
-              throw legacyError;
+          if (isLegacyMediaStatusConstraint) {
+            // Keep full payload updates and only downgrade the status for older constraints.
+            result = await db.query(fullUpdateSql, fullLegacyStatusParams);
+          } else if (isLegacyMissingColumn) {
+            // Legacy schema fallback when newer media-processing columns do not exist.
+            try {
+              result = await db.query(
+                `UPDATE posts
+                 SET media_upload_key = $1,
+                     media_url = $2,
+                     media_mime_type = $3,
+                     media_size_bytes = $4,
+                     media_status = $5,
+                     updated_at = NOW()
+                 WHERE id = $6
+                   AND author_id = $7
+                 RETURNING id, media_upload_key, media_url, media_mime_type, media_status, updated_at`,
+                [mediaKey, mediaUrl, mimeType, fileSizeBytes, legacyCompatibleStatus, postId, req.user.id]
+              );
+            } catch (legacyError) {
+              if (legacyError?.code !== "42703") {
+                throw legacyError;
+              }
+
+              result = await db.query(
+                `UPDATE posts
+                 SET media_upload_key = $1,
+                     media_url = $2,
+                     media_mime_type = $3,
+                     media_status = $4,
+                     updated_at = NOW()
+                 WHERE id = $5
+                   AND author_id = $6
+                 RETURNING id, media_upload_key, media_url, media_mime_type, media_status, updated_at`,
+                [mediaKey, mediaUrl, mimeType, legacyCompatibleStatus, postId, req.user.id]
+              );
             }
-
-            result = await db.query(
-              `UPDATE posts
-               SET media_upload_key = $1,
-                   media_url = $2,
-                   media_mime_type = $3,
-                   media_status = $4,
-                   updated_at = NOW()
-               WHERE id = $5
-                 AND author_id = $6
-               RETURNING id, media_upload_key, media_url, media_mime_type, media_status, updated_at`,
-              [mediaKey, mediaUrl, mimeType, legacyCompatibleStatus, postId, req.user.id]
-            );
+          } else if (error?.code === "23514" || error?.code === "42703") {
+            // Compatibility fallback for other schema/check variants.
+            result = await db.query(minimalUpdateSql, [mediaUrl, postId, req.user.id]);
+          } else {
+            throw error;
           }
-        } else if (error?.code === "23514" || error?.code === "42703") {
-          // Final compatibility fallback for unexpected legacy schema/check variants.
-          result = await db.query(
-            `UPDATE posts
-             SET media_url = $1,
-                 updated_at = NOW()
-             WHERE id = $2
-               AND author_id = $3
-             RETURNING id, media_url, updated_at`,
-            [mediaUrl, postId, req.user.id]
-          );
-        } else {
-          throw error;
+        } catch {
+          // Absolute fallback: avoid 500 and preserve media delivery URL on the post.
+          result = await db.query(minimalUpdateSql, [mediaUrl, postId, req.user.id]);
         }
       }
 
