@@ -127,7 +127,7 @@ a {
 }
 
 .auth-hero {
-  @apply relative hidden overflow-hidden rounded-[28px] border border-white/15 bg-gradient-to-b from-[#c7d0ff] via-[#2f53f0] to-black p-10 lg:flex lg:flex-col lg:justify-between;
+  @apply relative hidden overflow-hidden rounded-[28px] border border-white/[0.15] bg-gradient-to-b from-[#c7d0ff] via-[#2f53f0] to-black p-10 lg:flex lg:flex-col lg:justify-between;
 }
 
 .auth-brand-title {
@@ -143,7 +143,7 @@ a {
 }
 
 .auth-phone {
-  @apply rounded-[44px] border-[3px] border-white/55 bg-black/80 p-3 shadow-2xl;
+  @apply rounded-[44px] border-[3px] border-white/[0.55] bg-black/80 p-3 shadow-2xl;
 }
 
 .auth-phone-screen {
@@ -171,7 +171,7 @@ a {
 }
 
 .auth-subheading {
-  @apply mt-3 text-center text-base text-white/65;
+  @apply mt-3 text-center text-base text-white/[0.65];
 }
 
 .auth-google-btn {
@@ -185,7 +185,7 @@ a {
 .auth-divider::before,
 .auth-divider::after {
   content: "";
-  @apply h-px flex-1 bg-white/12;
+  @apply h-px flex-1 bg-white/[0.12];
 }
 
 .auth-grid-2 {
@@ -197,11 +197,11 @@ a {
 }
 
 .auth-input {
-  @apply h-14 w-full rounded-[12px] border border-white/10 bg-[#171717] px-4 text-base text-white placeholder:text-white/35 focus:border-white/35 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20;
+  @apply h-14 w-full rounded-[12px] border border-white/10 bg-[#171717] px-4 text-base text-white placeholder:text-white/[0.35] focus:border-white/[0.35] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20;
 }
 
 .auth-helper {
-  @apply mt-2 text-sm text-white/55;
+  @apply mt-2 text-sm text-white/[0.55];
 }
 
 .auth-submit {
@@ -209,7 +209,7 @@ a {
 }
 
 .auth-footer {
-  @apply mt-7 text-center text-base text-white/58;
+  @apply mt-7 text-center text-base text-white/[0.58];
 }
 
 .auth-footer a {
