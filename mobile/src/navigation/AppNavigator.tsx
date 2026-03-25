@@ -94,6 +94,14 @@ export function AppNavigator() {
   const user = useSessionStore((state) => state.user);
   const setUser = useSessionStore((state) => state.setUser);
   const [bootstrapping, setBootstrapping] = useState(true);
+  const adminOwnerEmail = String(process.env.EXPO_PUBLIC_ADMIN_OWNER_EMAIL || "")
+    .trim()
+    .toLowerCase();
+  const canAccessAdmin =
+    Boolean(user?.role === "admin" || user?.role === "moderator") &&
+    Boolean(user?.email) &&
+    Boolean(adminOwnerEmail) &&
+    String(user?.email || "").toLowerCase() === adminOwnerEmail;
 
   const sessionQuery = useQuery({
     queryKey: ["mobile-bootstrap-session"],
@@ -209,26 +217,30 @@ export function AppNavigator() {
               component={GuidelinesScreen}
               options={{ title: "Guidelines" }}
             />
-            <RootStack.Screen
-              name="AdminModeration"
-              component={AdminModerationScreen}
-              options={{ title: "Admin Moderation" }}
-            />
-            <RootStack.Screen
-              name="AdminOperations"
-              component={AdminOperationsScreen}
-              options={{ title: "Admin Operations" }}
-            />
-            <RootStack.Screen
-              name="AdminAnalytics"
-              component={AdminAnalyticsScreen}
-              options={{ title: "Admin Analytics" }}
-            />
-            <RootStack.Screen
-              name="AdminTables"
-              component={AdminTablesScreen}
-              options={{ title: "Admin Tables" }}
-            />
+            {canAccessAdmin ? (
+              <>
+                <RootStack.Screen
+                  name="AdminModeration"
+                  component={AdminModerationScreen}
+                  options={{ title: "Admin Moderation" }}
+                />
+                <RootStack.Screen
+                  name="AdminOperations"
+                  component={AdminOperationsScreen}
+                  options={{ title: "Admin Operations" }}
+                />
+                <RootStack.Screen
+                  name="AdminAnalytics"
+                  component={AdminAnalyticsScreen}
+                  options={{ title: "Admin Analytics" }}
+                />
+                <RootStack.Screen
+                  name="AdminTables"
+                  component={AdminTablesScreen}
+                  options={{ title: "Admin Tables" }}
+                />
+              </>
+            ) : null}
           </>
         )}
       </RootStack.Navigator>
