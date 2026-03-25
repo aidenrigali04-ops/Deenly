@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { CompositeScreenProps } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import * as DocumentPicker from "expo-document-picker";
 import { fetchSessionMe, logout } from "../../lib/auth";
 import { apiRequest } from "../../lib/api";
 import { useSessionStore } from "../../store/session-store";
@@ -12,6 +13,7 @@ import { PostCard } from "../../components/PostCard";
 import { colors } from "../../theme";
 import type { FeedItem } from "../../types";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
+import { resolveMediaUrl } from "../../lib/media-url";
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<AppTabParamList, "AccountTab">,
@@ -20,6 +22,7 @@ type Props = CompositeScreenProps<
 
 export function ProfileScreen({ navigation }: Props) {
   const [activeTab, setActiveTab] = useState<"posts" | "media">("posts");
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const setUser = useSessionStore((state) => state.setUser);
   const queryClient = useQueryClient();
   const adminOwnerEmail = String(process.env.EXPO_PUBLIC_ADMIN_OWNER_EMAIL || "").toLowerCase();
@@ -36,6 +39,9 @@ export function ProfileScreen({ navigation }: Props) {
     queryFn: () =>
       apiRequest<{
         user_id: number;
+        display_name: string;
+        bio: string | null;
+        avatar_url?: string | null;
         posts_count: number;
         followers_count: number;
         following_count: number;
@@ -82,6 +88,59 @@ export function ProfileScreen({ navigation }: Props) {
 
   const items = postsQuery.data?.items || [];
   const visibleItems = activeTab === "media" ? items.filter((item) => Boolean(item.media_url)) : items;
+  const avatarUri = resolveMediaUrl(profileQuery.data?.avatar_url);
+
+  const uploadAvatar = async () => {
+    if (!profileQuery.data) return;
+    const picked = await DocumentPicker.getDocumentAsync({
+      type: ["image/*"],
+      copyToCacheDirectory: true
+    });
+    if (picked.canceled || picked.assets.length === 0) {
+      return;
+    }
+    const file = picked.assets[0];
+    setAvatarUploading(true);
+    try {
+      const signature = await apiRequest<{
+        uploadUrl: string;
+        headers: Record<string, string>;
+        key: string;
+      }>("/media/upload-signature", {
+        method: "POST",
+        auth: true,
+        body: {
+          mediaType: "image",
+          mimeType: file.mimeType || "image/jpeg",
+          originalFilename: file.name || "avatar.jpg",
+          fileSizeBytes: file.size || 1
+        }
+      });
+      const fileResponse = await fetch(file.uri);
+      const fileBlob = await fileResponse.blob();
+      const uploadResponse = await fetch(signature.uploadUrl, {
+        method: "PUT",
+        headers: signature.headers,
+        body: fileBlob
+      });
+      if (!uploadResponse.ok) {
+        throw new Error("Unable to upload profile photo.");
+      }
+      await apiRequest("/users/me", {
+        method: "PUT",
+        auth: true,
+        body: {
+          displayName: profileQuery.data.display_name,
+          bio: profileQuery.data.bio,
+          avatarUrl: signature.key
+        }
+      });
+      await queryClient.invalidateQueries({ queryKey: ["mobile-account-profile"] });
+      await queryClient.invalidateQueries({ queryKey: ["mobile-feed"] });
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -93,9 +152,13 @@ export function ProfileScreen({ navigation }: Props) {
       ) : null}
       {sessionQuery.data ? (
         <View style={styles.card}>
+          {avatarUri ? <Image source={{ uri: avatarUri }} style={styles.avatar} resizeMode="cover" /> : null}
           <Text style={styles.title}>{sessionQuery.data.email}</Text>
           <Text style={styles.muted}>@{sessionQuery.data.username || "unknown"}</Text>
           <Text style={styles.muted}>Role: {sessionQuery.data.role}</Text>
+          <Pressable style={styles.buttonSecondary} onPress={uploadAvatar} disabled={avatarUploading}>
+            <Text style={styles.buttonText}>{avatarUploading ? "Uploading..." : "Upload photo"}</Text>
+          </Pressable>
         </View>
       ) : null}
       <View style={styles.card}>
@@ -247,6 +310,13 @@ const styles = StyleSheet.create({
   title: {
     color: colors.text,
     fontWeight: "700"
+  },
+  avatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border
   },
   muted: {
     color: colors.muted

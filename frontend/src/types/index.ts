@@ -32,6 +32,8 @@ export type FeedItem = {
   style_tag: string | null;
   created_at: string;
   author_display_name: string;
+  author_avatar_url?: string | null;
+  is_following_author?: boolean;
   benefited_count: number;
   comment_count: number;
   reflect_later_count: number;

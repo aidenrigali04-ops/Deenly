@@ -15,9 +15,13 @@ function isImageMedia(item: FeedItem) {
 
 export function FeedCard({
   item,
+  onToggleFollow,
+  followBusy = false,
   layout = "default"
 }: {
   item: FeedItem;
+  onToggleFollow?: (authorId: number, currentlyFollowing: boolean) => void;
+  followBusy?: boolean;
   layout?: "default" | "home";
 }) {
   const [mediaFailed, setMediaFailed] = useState(false);
@@ -33,6 +37,8 @@ export function FeedCard({
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
     .join("");
+  const authorAvatarUrl = resolveMediaUrl(item.author_avatar_url) || undefined;
+  const isFollowing = Boolean(item.is_following_author);
 
   if (layout === "home") {
     return (
@@ -43,7 +49,12 @@ export function FeedCard({
               className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-black/10 bg-surface text-[10px] font-semibold"
               aria-hidden="true"
             >
-              {initials || "U"}
+              {authorAvatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={authorAvatarUrl} alt="" className="h-full w-full rounded-full object-cover" />
+              ) : (
+                initials || "U"
+              )}
             </span>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold leading-tight">{item.author_display_name}</p>
@@ -53,8 +64,12 @@ export function FeedCard({
               </p>
             </div>
           </div>
-          <button className="grid h-8 w-8 place-items-center rounded-full text-muted transition hover:bg-black/[0.04] hover:text-text">
-            ...
+          <button
+            className="rounded-pill border border-black/10 px-3 py-1 text-xs font-medium text-muted transition hover:bg-black/[0.04] hover:text-text"
+            onClick={() => onToggleFollow?.(item.author_id, isFollowing)}
+            disabled={followBusy}
+          >
+            {followBusy ? "..." : isFollowing ? "Unfollow" : "Follow"}
           </button>
         </header>
 
@@ -126,7 +141,12 @@ export function FeedCard({
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-black/10 bg-surface text-xs font-semibold"
             aria-hidden="true"
           >
-            {initials || "U"}
+            {authorAvatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={authorAvatarUrl} alt="" className="h-full w-full rounded-full object-cover" />
+            ) : (
+              initials || "U"
+            )}
           </span>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold tracking-tight">{item.author_display_name}</p>
@@ -135,8 +155,12 @@ export function FeedCard({
             </time>
           </div>
         </div>
-        <button className="rounded-pill border border-black/10 px-3 py-1 text-xs font-medium text-muted transition hover:bg-black/[0.04] hover:text-text">
-          Follow
+        <button
+          className="rounded-pill border border-black/10 px-3 py-1 text-xs font-medium text-muted transition hover:bg-black/[0.04] hover:text-text"
+          onClick={() => onToggleFollow?.(item.author_id, isFollowing)}
+          disabled={followBusy}
+        >
+          {followBusy ? "Updating..." : isFollowing ? "Unfollow" : "Follow"}
         </button>
       </header>
 

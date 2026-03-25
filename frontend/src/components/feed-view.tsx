@@ -2,13 +2,14 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
 import { FeedCard } from "@/components/feed-card";
 import { HomeStoriesRow } from "@/components/home-stories-row";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useSessionStore } from "@/store/session-store";
 import type { FeedItem } from "@/types";
+import { followUser, unfollowUser } from "@/lib/follows";
 
 type FeedResponse = {
   items: FeedItem[];
@@ -82,7 +83,9 @@ export function FeedView({
 }: FeedViewProps) {
   const [postType, setPostType] = useState(fixedPostType);
   const [followingOnly, setFollowingOnly] = useState(false);
+  const [busyAuthorId, setBusyAuthorId] = useState<number | null>(null);
   const user = useSessionStore((state) => state.user);
+  const queryClient = useQueryClient();
 
   const feedQueryKey = useMemo(
     () => ["feed", postType, followingOnly] as const,
@@ -111,7 +114,87 @@ export function FeedView({
     getNextPageParam: (lastPage) => lastPage.nextCursor || undefined
   });
 
+  const followMutation = useMutation({
+    mutationFn: (authorId: number) => followUser(authorId),
+    onMutate: async (authorId: number) => {
+      setBusyAuthorId(authorId);
+      await queryClient.cancelQueries({ queryKey: feedQueryKey });
+      const previous = queryClient.getQueryData(feedQueryKey);
+      queryClient.setQueryData(feedQueryKey, (current: typeof feedQuery.data) => {
+        if (!current) return current;
+        return {
+          ...current,
+          pages: current.pages.map((page) => ({
+            ...page,
+            items: page.items.map((item) =>
+              item.author_id === authorId ? { ...item, is_following_author: true } : item
+            )
+          }))
+        };
+      });
+      return { previous };
+    },
+    onError: (_error, _authorId, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(feedQueryKey, context.previous);
+      }
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["account-profile-me"] }),
+        queryClient.invalidateQueries({ queryKey: ["feed"] })
+      ]);
+    },
+    onSettled: () => {
+      setBusyAuthorId(null);
+    }
+  });
+
+  const unfollowMutation = useMutation({
+    mutationFn: (authorId: number) => unfollowUser(authorId),
+    onMutate: async (authorId: number) => {
+      setBusyAuthorId(authorId);
+      await queryClient.cancelQueries({ queryKey: feedQueryKey });
+      const previous = queryClient.getQueryData(feedQueryKey);
+      queryClient.setQueryData(feedQueryKey, (current: typeof feedQuery.data) => {
+        if (!current) return current;
+        return {
+          ...current,
+          pages: current.pages.map((page) => ({
+            ...page,
+            items: page.items.map((item) =>
+              item.author_id === authorId ? { ...item, is_following_author: false } : item
+            )
+          }))
+        };
+      });
+      return { previous };
+    },
+    onError: (_error, _authorId, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(feedQueryKey, context.previous);
+      }
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["account-profile-me"] }),
+        queryClient.invalidateQueries({ queryKey: ["feed"] })
+      ]);
+    },
+    onSettled: () => {
+      setBusyAuthorId(null);
+    }
+  });
+
   const items = feedQuery.data?.pages.flatMap((page) => page.items) || [];
+
+  const toggleFollow = (authorId: number, currentlyFollowing: boolean) => {
+    if (currentlyFollowing) {
+      unfollowMutation.mutate(authorId);
+      return;
+    }
+    followMutation.mutate(authorId);
+  };
 
   return (
     <section className={`space-y-3 md:space-y-4 ${homeStyle ? "mx-auto max-w-[680px]" : ""}`}>
@@ -182,7 +265,13 @@ export function FeedView({
 
           <div className={homeStyle ? "space-y-3" : "space-y-5"}>
             {items.map((item) => (
-              <FeedCard key={item.id} item={item} layout={homeStyle ? "home" : "default"} />
+              <FeedCard
+                key={item.id}
+                item={item}
+                layout={homeStyle ? "home" : "default"}
+                onToggleFollow={toggleFollow}
+                followBusy={busyAuthorId === item.author_id}
+              />
             ))}
           </div>
 

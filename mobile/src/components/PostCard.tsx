@@ -42,6 +42,7 @@ export function PostCard({
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
     .join("");
+  const authorAvatarUri = resolveMediaUrl(item.author_avatar_url) || undefined;
 
   if (layout === "home") {
     return (
@@ -49,7 +50,11 @@ export function PostCard({
         <View style={styles.homeHeader}>
           <View style={styles.homeAuthorRow}>
             <View style={styles.homeAvatar}>
-              <Text style={styles.homeAvatarText}>{initials || "U"}</Text>
+              {authorAvatarUri ? (
+                <Image source={{ uri: authorAvatarUri }} style={styles.homeAvatarImage} resizeMode="cover" />
+              ) : (
+                <Text style={styles.homeAvatarText}>{initials || "U"}</Text>
+              )}
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.homeAuthor}>{item.author_display_name}</Text>
@@ -203,6 +208,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center"
+  },
+  homeAvatarImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 999
   },
   homeAvatarText: {
     color: colors.text,

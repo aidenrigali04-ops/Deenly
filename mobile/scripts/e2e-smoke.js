@@ -109,6 +109,11 @@ async function run() {
     token: secondToken
   });
 
+  await request(baseUrl, `/follows/${auth.user.id}`, {
+    method: "DELETE",
+    token: secondToken
+  });
+
   const meStats = await request(baseUrl, "/users/me", {
     method: "GET",
     token
@@ -116,6 +121,26 @@ async function run() {
   if (typeof meStats.posts_count !== "number") {
     throw new Error("Missing profile posts_count on /users/me");
   }
+
+  const avatarSignature = await request(baseUrl, "/media/upload-signature", {
+    method: "POST",
+    token,
+    body: {
+      mediaType: "image",
+      mimeType: "image/jpeg",
+      originalFilename: "avatar.jpg",
+      fileSizeBytes: 1024
+    }
+  });
+  await request(baseUrl, "/users/me", {
+    method: "PUT",
+    token,
+    body: {
+      displayName: "Mobile Smoke",
+      bio: "Smoke bio",
+      avatarUrl: avatarSignature.key
+    }
+  });
 
   await request(baseUrl, "/reports", {
     method: "POST",
@@ -210,6 +235,9 @@ async function run() {
   }
   if (!/^https?:\/\//i.test(String(mediaItem.media_url || ""))) {
     throw new Error("Feed media_url is not resolvable");
+  }
+  if (!/^https?:\/\//i.test(String(mediaItem.author_avatar_url || ""))) {
+    throw new Error("Feed author_avatar_url is not resolvable");
   }
 
   console.log("mobile e2e smoke passed");

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchSessionMe } from "@/lib/auth";
 import { apiRequest } from "@/lib/api";
@@ -38,9 +38,24 @@ type FeedResponse = {
   items: ProfileFeedItem[];
 };
 
+type UploadSignatureResponse = {
+  uploadUrl: string;
+  headers: Record<string, string>;
+  key: string;
+};
+
+function deriveMediaType(mimeType: string): "image" | "video" | null {
+  if (mimeType.startsWith("image/")) return "image";
+  if (mimeType.startsWith("video/")) return "video";
+  return null;
+}
+
 export default function AccountPage() {
   const [activeTab, setActiveTab] = useState<"posts" | "media">("posts");
   const [savingPrayer, setSavingPrayer] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState("");
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const queryClient = useQueryClient();
   const sessionQuery = useQuery({
     queryKey: ["account-session-me"],
@@ -97,28 +112,106 @@ export default function AccountPage() {
       .slice(0, 2)
       .map((part) => part[0]?.toUpperCase())
       .join("") || "U";
+  const avatarUrl = resolveMediaUrl(profile?.avatar_url || null);
 
   const profileItems = postsQuery.data?.items || [];
   const visibleItems =
     activeTab === "media" ? profileItems.filter((item) => Boolean(item.media_url)) : profileItems;
+
+  const uploadAvatar = async (file: File) => {
+    if (!profile) {
+      return;
+    }
+    setAvatarError("");
+    const mediaType = deriveMediaType(file.type || "");
+    if (mediaType !== "image") {
+      throw new Error("Please choose an image file.");
+    }
+    setAvatarUploading(true);
+    try {
+      const signature = await apiRequest<UploadSignatureResponse>("/media/upload-signature", {
+        method: "POST",
+        auth: true,
+        body: {
+          mediaType: "image",
+          mimeType: file.type || "image/jpeg",
+          originalFilename: file.name,
+          fileSizeBytes: file.size || 1
+        }
+      });
+      const uploadResponse = await fetch(signature.uploadUrl, {
+        method: "PUT",
+        headers: signature.headers,
+        body: file
+      });
+      if (!uploadResponse.ok) {
+        throw new Error("Unable to upload avatar.");
+      }
+      await apiRequest("/users/me", {
+        method: "PUT",
+        auth: true,
+        body: {
+          displayName: profile.display_name,
+          bio: profile.bio,
+          avatarUrl: signature.key
+        }
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["account-profile-me"] }),
+        queryClient.invalidateQueries({ queryKey: ["feed"] })
+      ]);
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
 
   return (
     <section className="profile-shell">
       <article className="profile-top">
         <div className="profile-row">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="profile-avatar">{initials}</div>
+            {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatarUrl} alt="Profile avatar" className="profile-avatar object-cover" />
+            ) : (
+              <div className="profile-avatar">{initials}</div>
+            )}
             <div className="min-w-0">
               <h1 className="truncate text-[1.75rem] font-semibold tracking-tight">{user.username || "User_Profile"}</h1>
               <p className="text-sm text-muted">{user.email}</p>
             </div>
           </div>
           <div className="shrink-0">
-            <button type="button" className="btn-secondary px-5">
-              Edit Profile
+            <button
+              type="button"
+              className="btn-secondary px-5"
+              disabled={avatarUploading}
+              onClick={() => avatarInputRef.current?.click()}
+            >
+              {avatarUploading ? "Uploading..." : "Upload Photo"}
             </button>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={async (event) => {
+                const file = event.target.files?.[0];
+                if (!file) {
+                  return;
+                }
+                try {
+                  await uploadAvatar(file);
+                } catch (error) {
+                  setAvatarError(error instanceof Error ? error.message : "Unable to upload photo.");
+                } finally {
+                  event.target.value = "";
+                }
+              }}
+            />
           </div>
         </div>
+        {avatarError ? <p className="pt-2 text-xs text-rose-300">{avatarError}</p> : null}
 
         <div className="profile-stat-grid">
           <div>

@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { resolveMediaUrl } from "@/lib/media-url";
+import { followUser, unfollowUser } from "@/lib/follows";
 
 type UserProfile = {
   user_id: number;
@@ -50,24 +51,56 @@ export default function UserProfilePage() {
   });
 
   const followMutation = useMutation({
-    mutationFn: () =>
-      apiRequest(`/follows/${userId}`, {
-        method: "POST",
-        auth: true
-      }),
+    mutationFn: () => followUser(userId),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["user-profile", userId] });
+      const previous = queryClient.getQueryData<UserProfile>(["user-profile", userId]);
+      if (previous) {
+        queryClient.setQueryData<UserProfile>(["user-profile", userId], {
+          ...previous,
+          is_following: true,
+          followers_count: previous.followers_count + (previous.is_following ? 0 : 1)
+        });
+      }
+      return { previous };
+    },
+    onError: (_error, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["user-profile", userId], context.previous);
+      }
+    },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["user-profile", userId] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["user-profile", userId] }),
+        queryClient.invalidateQueries({ queryKey: ["account-profile-me"] })
+      ]);
     }
   });
 
   const unfollowMutation = useMutation({
-    mutationFn: () =>
-      apiRequest(`/follows/${userId}`, {
-        method: "DELETE",
-        auth: true
-      }),
+    mutationFn: () => unfollowUser(userId),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["user-profile", userId] });
+      const previous = queryClient.getQueryData<UserProfile>(["user-profile", userId]);
+      if (previous) {
+        queryClient.setQueryData<UserProfile>(["user-profile", userId], {
+          ...previous,
+          is_following: false,
+          followers_count: Math.max(0, previous.followers_count - (previous.is_following ? 1 : 0))
+        });
+      }
+      return { previous };
+    },
+    onError: (_error, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["user-profile", userId], context.previous);
+      }
+    },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["user-profile", userId] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["user-profile", userId] }),
+        queryClient.invalidateQueries({ queryKey: ["account-profile-me"] })
+      ]);
     }
   });
 
@@ -118,6 +151,7 @@ export default function UserProfilePage() {
       .slice(0, 2)
       .map((part) => part[0]?.toUpperCase())
       .join("") || "U";
+  const avatarUrl = resolveMediaUrl(user.avatar_url);
 
   const profileItems = postsQuery.data?.items || [];
   const visibleItems =
@@ -128,7 +162,12 @@ export default function UserProfilePage() {
       <article className="profile-top">
         <div className="profile-row">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="profile-avatar">{initials}</div>
+            {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatarUrl} alt={`${user.display_name} avatar`} className="profile-avatar object-cover" />
+            ) : (
+              <div className="profile-avatar">{initials}</div>
+            )}
             <div className="min-w-0">
               <h1 className="truncate text-[1.75rem] font-semibold tracking-tight">{user.display_name}</h1>
               <p className="text-sm text-muted">@{user.username || "unknown"}</p>

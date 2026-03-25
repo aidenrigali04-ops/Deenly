@@ -92,6 +92,14 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
   await expect(page.getByText("Dhikr Mode")).toBeVisible();
   await page.goto(`${baseURL}/home`);
 
+  await page.goto(`${baseURL}/account`);
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "avatar.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from("tiny-avatar-content")
+  });
+  await expect(page.locator('img[alt="Profile avatar"]')).toBeVisible();
+
   await expect(page.getByRole("button", { name: "Load more" })).toBeVisible();
   const postLinks = page.getByRole("link", { name: "Open post" });
   const initialPostCount = await postLinks.count();

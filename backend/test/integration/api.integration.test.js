@@ -203,10 +203,21 @@ describeIfDatabase("integration api flows", () => {
     expect(created.statusCode).toBe(201);
     expect(created.body.id).toBeDefined();
 
+    const updatedProfile = await request(app)
+      .put("/api/v1/users/me")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        displayName: "Poster",
+        bio: "profile bio",
+        avatarUrl: "uploads/avatars/poster.jpg"
+      });
+    expect(updatedProfile.statusCode).toBe(200);
+
     const feed = await request(app).get("/api/v1/feed?limit=10");
     expect(feed.statusCode).toBe(200);
     expect(Array.isArray(feed.body.items)).toBe(true);
     expect(feed.body.items.length).toBeGreaterThanOrEqual(1);
+    expect(feed.body.items[0].author_avatar_url).toContain("/uploads/avatars/poster.jpg");
   });
 
   it("runs content alive loop with upload, follow, engagement, and cursor feed", async () => {
@@ -289,6 +300,10 @@ describeIfDatabase("integration api flows", () => {
       .post(`/api/v1/follows/${creatorRegister.body.user.id}`)
       .set("Authorization", `Bearer ${viewerToken}`);
     expect(follow.statusCode).toBe(201);
+    expect(follow.body.created).toBe(true);
+    expect(follow.body.isFollowing).toBe(true);
+    expect(typeof follow.body.targetCounts.followers).toBe("number");
+    expect(typeof follow.body.actorCounts.following).toBe("number");
 
     const feedFirst = await request(app)
       .get("/api/v1/feed?limit=1&followingOnly=true")
@@ -474,6 +489,8 @@ describeIfDatabase("integration api flows", () => {
       .post(`/api/v1/follows/${authorRegister.body.user.id}`)
       .set("Authorization", `Bearer ${viewerToken}`);
     expect(follow.statusCode).toBe(201);
+    expect(follow.body.created).toBe(true);
+    expect(follow.body.isFollowing).toBe(true);
 
     const like = await request(app)
       .post("/api/v1/interactions")
@@ -499,6 +516,13 @@ describeIfDatabase("integration api flows", () => {
     expect(viewerMe.statusCode).toBe(200);
     expect(viewerMe.body.following_count).toBe(1);
     expect(viewerMe.body.likes_given_count).toBe(1);
+
+    const unfollow = await request(app)
+      .delete(`/api/v1/follows/${authorRegister.body.user.id}`)
+      .set("Authorization", `Bearer ${viewerToken}`);
+    expect(unfollow.statusCode).toBe(200);
+    expect(unfollow.body.deleted).toBe(true);
+    expect(unfollow.body.isFollowing).toBe(false);
   });
 
   it("supports onboarding interests, notifications, beta flow, and support ticket", async () => {

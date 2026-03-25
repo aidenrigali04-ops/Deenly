@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { apiRequest } from "../../lib/api";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
@@ -8,12 +8,15 @@ import { PostCard } from "../../components/PostCard";
 import { colors } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import type { FeedItem } from "../../types";
+import { followUser, unfollowUser } from "../../lib/follows";
+import { resolveMediaUrl } from "../../lib/media-url";
 
 type UserProfile = {
   user_id: number;
   username?: string;
   display_name: string;
   bio: string | null;
+  avatar_url?: string | null;
   posts_count: number;
   followers_count: number;
   following_count: number;
@@ -33,15 +36,55 @@ export function UserProfileScreen({ route, navigation }: Props) {
     queryFn: () => apiRequest<UserProfile>(`/users/${userId}`, { auth: true })
   });
   const followMutation = useMutation({
-    mutationFn: () => apiRequest(`/follows/${userId}`, { method: "POST", auth: true }),
+    mutationFn: () => followUser(userId),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["mobile-user-profile", userId] });
+      const previous = queryClient.getQueryData<UserProfile>(["mobile-user-profile", userId]);
+      if (previous) {
+        queryClient.setQueryData<UserProfile>(["mobile-user-profile", userId], {
+          ...previous,
+          is_following: true,
+          followers_count: previous.followers_count + (previous.is_following ? 0 : 1)
+        });
+      }
+      return { previous };
+    },
+    onError: (_error, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["mobile-user-profile", userId], context.previous);
+      }
+    },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["mobile-user-profile", userId] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["mobile-user-profile", userId] }),
+        queryClient.invalidateQueries({ queryKey: ["mobile-account-profile"] })
+      ]);
     }
   });
   const unfollowMutation = useMutation({
-    mutationFn: () => apiRequest(`/follows/${userId}`, { method: "DELETE", auth: true }),
+    mutationFn: () => unfollowUser(userId),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["mobile-user-profile", userId] });
+      const previous = queryClient.getQueryData<UserProfile>(["mobile-user-profile", userId]);
+      if (previous) {
+        queryClient.setQueryData<UserProfile>(["mobile-user-profile", userId], {
+          ...previous,
+          is_following: false,
+          followers_count: Math.max(0, previous.followers_count - (previous.is_following ? 1 : 0))
+        });
+      }
+      return { previous };
+    },
+    onError: (_error, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["mobile-user-profile", userId], context.previous);
+      }
+    },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["mobile-user-profile", userId] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["mobile-user-profile", userId] }),
+        queryClient.invalidateQueries({ queryKey: ["mobile-account-profile"] })
+      ]);
     }
   });
   const postsQuery = useQuery({
@@ -72,11 +115,13 @@ export function UserProfileScreen({ route, navigation }: Props) {
   if (!profileQuery.data) return <EmptyState title="User not found" />;
 
   const user = profileQuery.data;
+  const avatarUri = resolveMediaUrl(user.avatar_url);
   const items = postsQuery.data?.items || [];
   const visibleItems = activeTab === "media" ? items.filter((item) => Boolean(item.media_url)) : items;
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.card}>
+        {avatarUri ? <Image source={{ uri: avatarUri }} style={styles.avatar} resizeMode="cover" /> : null}
         <Text style={styles.title}>{user.display_name}</Text>
         <Text style={styles.muted}>@{user.username || "unknown"}</Text>
         <Text style={styles.text}>{user.bio || "No bio yet."}</Text>
@@ -151,6 +196,7 @@ const styles = StyleSheet.create({
     gap: 8
   },
   title: { color: colors.text, fontSize: 22, fontWeight: "700" },
+  avatar: { width: 64, height: 64, borderRadius: 999, borderWidth: 1, borderColor: colors.border },
   muted: { color: colors.muted },
   text: { color: colors.text },
   row: { flexDirection: "row", gap: 8, flexWrap: "wrap" },

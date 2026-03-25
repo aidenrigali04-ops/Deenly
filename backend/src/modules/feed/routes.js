@@ -106,6 +106,7 @@ function createFeedRouter({ db, config, mediaStorage }) {
                 p.media_mime_type,
                 p.style_tag,
                 p.created_at,
+                pr.avatar_url AS author_avatar_url,
                 COALESCE(MAX(vs.view_count), 0)::int AS view_count,
                 COALESCE(MAX(vs.avg_watch_time_ms), 0)::int AS avg_watch_time_ms,
                 COALESCE(MAX(vs.avg_completion_rate), 0)::numeric AS avg_completion_rate,
@@ -113,6 +114,14 @@ function createFeedRouter({ db, config, mediaStorage }) {
                 COALESCE(SUM(CASE WHEN i.interaction_type = 'benefited' THEN 1 ELSE 0 END), 0)::int AS benefited_count,
                 COALESCE(SUM(CASE WHEN i.interaction_type = 'comment' THEN 1 ELSE 0 END), 0)::int AS comment_count,
                 COALESCE(SUM(CASE WHEN i.interaction_type = 'reflect_later' THEN 1 ELSE 0 END), 0)::int AS reflect_later_count,
+                CASE
+                  WHEN $1::int IS NULL THEN false
+                  ELSE EXISTS (
+                    SELECT 1 FROM follows f
+                    WHERE f.follower_id = $1
+                      AND f.following_id = p.author_id
+                  )
+                END AS is_following_author,
                 CASE
                   WHEN $1::int IS NULL THEN 0
                   WHEN EXISTS (
@@ -164,7 +173,7 @@ function createFeedRouter({ db, config, mediaStorage }) {
            ))
            AND p.visibility_status = 'visible'
            AND p.media_status = 'ready'
-         GROUP BY p.id, pr.display_name
+         GROUP BY p.id, pr.display_name, pr.avatar_url
          ),
          ranked AS (
            SELECT *,
@@ -210,7 +219,13 @@ function createFeedRouter({ db, config, mediaStorage }) {
               mediaKey: row.media_upload_key || row.media_url,
               mediaUrl: row.media_url
             })
-          : row.media_url
+          : row.media_url,
+        author_avatar_url: mediaStorage?.resolveMediaUrl
+          ? mediaStorage.resolveMediaUrl({
+              mediaKey: row.author_avatar_url,
+              mediaUrl: row.author_avatar_url
+            })
+          : row.author_avatar_url
       }));
       const nextCursor = hasMore ? encodeCursor(items[items.length - 1]) : null;
 

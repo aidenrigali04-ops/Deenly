@@ -11,6 +11,23 @@ function createFollowsRouter({ db, config, analytics, pushNotifications }) {
     db
   });
 
+  async function getFollowSnapshot({ actorId, targetId }) {
+    const result = await db.query(
+      `SELECT
+         EXISTS (
+           SELECT 1 FROM follows
+           WHERE follower_id = $1
+             AND following_id = $2
+         ) AS is_following,
+         (SELECT COUNT(*)::int FROM follows WHERE following_id = $2) AS target_followers_count,
+         (SELECT COUNT(*)::int FROM follows WHERE follower_id = $2) AS target_following_count,
+         (SELECT COUNT(*)::int FROM follows WHERE following_id = $1) AS actor_followers_count,
+         (SELECT COUNT(*)::int FROM follows WHERE follower_id = $1) AS actor_following_count`,
+      [actorId, targetId]
+    );
+    return result.rows[0];
+  }
+
   router.post(
     "/:userId",
     authMiddleware,
@@ -23,32 +40,48 @@ function createFollowsRouter({ db, config, analytics, pushNotifications }) {
         throw httpError(400, "You cannot follow yourself");
       }
 
-      await db.query(
+      const insertResult = await db.query(
         `INSERT INTO follows (follower_id, following_id)
          VALUES ($1, $2)
          ON CONFLICT (follower_id, following_id) DO NOTHING`,
         [req.user.id, followingId]
       );
-      if (analytics) {
+      const created = insertResult.rowCount > 0;
+      if (analytics && created) {
         await analytics.trackEvent("follow_user", {
           followerId: req.user.id,
           followingId
         });
       }
-      await createNotification(
-        db,
-        followingId,
-        "new_follower",
-        {
-          actorUserId: req.user.id
-        },
-        { pushNotifications }
-      );
+      if (created) {
+        await createNotification(
+          db,
+          followingId,
+          "new_follower",
+          {
+            actorUserId: req.user.id
+          },
+          { pushNotifications }
+        );
+      }
+
+      const snapshot = await getFollowSnapshot({ actorId: req.user.id, targetId: followingId });
 
       res.status(201).json({
         status: "ok",
+        created,
+        deleted: false,
         followerId: req.user.id,
-        followingId
+        followingId,
+        isFollowing: snapshot.is_following,
+        targetCounts: {
+          followers: snapshot.target_followers_count,
+          following: snapshot.target_following_count
+        },
+        actorCounts: {
+          followers: snapshot.actor_followers_count,
+          following: snapshot.actor_following_count
+        }
       });
     })
   );
@@ -135,17 +168,30 @@ function createFollowsRouter({ db, config, analytics, pushNotifications }) {
         throw httpError(400, "userId must be a number");
       }
 
-      await db.query(
+      const deleteResult = await db.query(
         `DELETE FROM follows
          WHERE follower_id = $1
            AND following_id = $2`,
         [req.user.id, followingId]
       );
+      const deleted = deleteResult.rowCount > 0;
+      const snapshot = await getFollowSnapshot({ actorId: req.user.id, targetId: followingId });
 
       res.status(200).json({
         status: "ok",
+        created: false,
+        deleted,
         followerId: req.user.id,
-        followingId
+        followingId,
+        isFollowing: snapshot.is_following,
+        targetCounts: {
+          followers: snapshot.target_followers_count,
+          following: snapshot.target_following_count
+        },
+        actorCounts: {
+          followers: snapshot.actor_followers_count,
+          following: snapshot.actor_following_count
+        }
       });
     })
   );
