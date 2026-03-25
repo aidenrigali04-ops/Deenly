@@ -99,6 +99,13 @@ function loadEnv(envSource = process.env) {
   if (!VALID_NODE_ENVS.has(nodeEnv)) {
     throw new Error("NODE_ENV must be development, test, or production");
   }
+  const corsOrigins = parseCorsOrigins(envSource.CORS_ORIGINS, nodeEnv);
+  const explicitAppBaseUrl = parseRequiredUrl(envSource.APP_BASE_URL, "APP_BASE_URL");
+  const corsDerivedAppBaseUrl = corsOrigins[0]
+    ? parseRequiredUrl(corsOrigins[0], "CORS_ORIGINS first value")
+    : "";
+  const derivedAppBaseUrl =
+    explicitAppBaseUrl || parseOptionalUrl(envSource.MEDIA_PUBLIC_BASE_URL) || corsDerivedAppBaseUrl;
 
   const config = {
     nodeEnv,
@@ -107,7 +114,7 @@ function loadEnv(envSource = process.env) {
     port: parsePort(envSource.PORT),
     databaseUrl: envSource.DATABASE_URL || "",
     dbSslMode: envSource.DB_SSL_MODE || "require",
-    corsOrigins: parseCorsOrigins(envSource.CORS_ORIGINS, nodeEnv),
+    corsOrigins,
     jwtAccessSecret: envSource.JWT_ACCESS_SECRET || "",
     jwtRefreshSecret: envSource.JWT_REFRESH_SECRET || "",
     jwtAccessTtl: envSource.JWT_ACCESS_TTL || "15m",
@@ -170,7 +177,7 @@ function loadEnv(envSource = process.env) {
       350,
       "MONETIZATION_PLATFORM_FEE_BPS"
     ),
-    appBaseUrl: parseRequiredUrl(envSource.APP_BASE_URL, "APP_BASE_URL")
+    appBaseUrl: derivedAppBaseUrl
   };
 
   if (!VALID_DB_SSL_MODES.has(config.dbSslMode)) {
@@ -203,7 +210,9 @@ function loadEnv(envSource = process.env) {
       throw new Error("ADMIN_OWNER_EMAIL is required in production");
     }
     if (!config.appBaseUrl) {
-      throw new Error("APP_BASE_URL is required in production");
+      throw new Error(
+        "APP_BASE_URL is required in production (or provide MEDIA_PUBLIC_BASE_URL/CORS_ORIGINS)"
+      );
     }
     if (!config.stripeSecretKey) {
       throw new Error("STRIPE_SECRET_KEY is required in production");
