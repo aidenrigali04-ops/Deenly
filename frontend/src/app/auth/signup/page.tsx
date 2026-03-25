@@ -186,7 +186,7 @@ function SignupPageContent() {
 
 export default function SignupPage() {
   return (
-    <Suspense fallback={<section className="auth-panel-inner text-sm text-white/60">Loading...</section>}>
+    <Suspense fallback={<section className="auth-panel-inner text-sm text-muted">Loading...</section>}>
       <SignupPageContent />
     </Suspense>
   );
