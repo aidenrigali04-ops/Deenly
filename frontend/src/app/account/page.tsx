@@ -9,7 +9,6 @@ import { apiRequest } from "@/lib/api";
 import { resolveMediaUrl } from "@/lib/media-url";
 import { ErrorState, LoadingState } from "@/components/states";
 import { DeenStrip } from "@/components/profile/deen-strip";
-import { SalahSettingsPanel } from "@/components/profile/salah-settings-panel";
 
 type AccountProfile = {
   user_id: number;
@@ -256,8 +255,6 @@ export default function AccountPage() {
               </div>
 
               <DeenStrip />
-
-              <SalahSettingsPanel />
 
               {profile?.display_name ? (
                 <p className="mt-4 font-semibold text-text">{profile.display_name}</p>

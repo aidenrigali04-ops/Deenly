@@ -58,9 +58,6 @@ export function DeenStrip() {
         ) : (
           <p className="mt-2 text-sm text-muted">No upcoming prayer in window.</p>
         )}
-        <Link href="#salah-settings" className="mt-2 inline-block text-sm font-medium text-sky-600 hover:underline">
-          Salah settings
-        </Link>
         <p className="mt-3 text-[10px] font-semibold uppercase tracking-wider text-muted">
           Today on this device · {salahDone}/5
         </p>
