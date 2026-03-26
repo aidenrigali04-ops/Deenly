@@ -10,6 +10,7 @@ import { resolveMediaUrl } from "@/lib/media-url";
 import type { FeedItem } from "@/types";
 import {
   createProductCheckout,
+  fetchPostDistribution,
   fetchProductAccess,
   formatMinorCurrency,
   requestProductDownloadLink
@@ -47,6 +48,15 @@ export default function PostDetailPage() {
     queryKey: ["post-detail", postId],
     queryFn: () => apiRequest<PostDetail>(`/posts/${postId}`),
     enabled: Number.isFinite(postId)
+  });
+
+  const distributionQuery = useQuery({
+    queryKey: ["post-distribution", postId],
+    queryFn: () => fetchPostDistribution(postId),
+    enabled:
+      Number.isFinite(postId) &&
+      Boolean(sessionUser?.id) &&
+      Boolean(postQuery.data && postQuery.data.author_id === sessionUser?.id)
   });
 
   const viewMutation = useMutation({
@@ -224,6 +234,15 @@ export default function PostDetailPage() {
             </span>
           ))}
         </div>
+        {distributionQuery.data ? (
+          <div className="rounded-panel border border-black/10 bg-surface p-3 text-xs">
+            <p className="font-semibold text-text">Distribution (author only)</p>
+            <p className="mt-1 text-muted">
+              Views: {distributionQuery.data.viewCount} · Avg watch: {distributionQuery.data.avgWatchTimeMs} ms ·
+              Completion: {distributionQuery.data.avgCompletionRate}%
+            </p>
+          </div>
+        ) : null}
         <div className="flex flex-wrap gap-2">
           <button
             className="btn-secondary"

@@ -253,6 +253,7 @@ function createFeedRouter({ db, config, mediaStorage }) {
                 cpr.currency AS attached_product_currency,
                 cpr.product_type AS attached_product_type,
                 cpr.website_url AS attached_product_website_url,
+                COALESCE(cpr.platform_fee_bps, 0)::int AS attached_platform_fee_bps,
                 COALESCE(MAX(vs.view_count), 0)::int AS view_count,
                 COALESCE(MAX(vs.avg_watch_time_ms), 0)::int AS avg_watch_time_ms,
                 COALESCE(MAX(vs.avg_completion_rate), 0)::numeric AS avg_completion_rate,
@@ -391,6 +392,7 @@ function createFeedRouter({ db, config, mediaStorage }) {
            cpr.currency,
            cpr.product_type,
            cpr.website_url,
+           cpr.platform_fee_bps,
            vb.b2b_purchases,
            vb.b2c_purchases
          ),
@@ -407,6 +409,12 @@ function createFeedRouter({ db, config, mediaStorage }) {
                     + (interest_boost * $12::numeric)
                     + (audience_tab_boost * $19::numeric)
                     - (trust_report_count * $17::numeric)
+                    + (
+                      CASE
+                        WHEN attached_product_id IS NULL THEN 0::numeric
+                        ELSE (LEAST(attached_platform_fee_bps, $20::int)::numeric / 10000.0) * $21::numeric
+                      END
+                    )
                   )::numeric AS rank_score
            FROM post_agg
          )
@@ -439,7 +447,9 @@ function createFeedRouter({ db, config, mediaStorage }) {
           limit + 1,
           Number(config.feedTrustReportPenaltyWeight || 250),
           feedTab,
-          Number(config.feedAudienceTabBoostWeight || 1)
+          Number(config.feedAudienceTabBoostWeight || 1),
+          Number(config.feedRankPlatformFeeCapBps ?? 3500),
+          Number(config.feedRankPlatformFeeWeight ?? 3)
         ]
       );
 

@@ -60,6 +60,14 @@ function parsePositiveInt(value, defaultValue, fieldName) {
   return parsed;
 }
 
+function parseFeeBpsBound(value, defaultValue, fieldName) {
+  const parsed = parseNumber(value, defaultValue);
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 10000) {
+    throw new Error(`${fieldName} must be an integer between 0 and 10000`);
+  }
+  return parsed;
+}
+
 function parseList(value) {
   return String(value || "")
     .split(",")
@@ -177,9 +185,27 @@ function loadEnv(envSource = process.env) {
     ),
     feedTrustReportPenaltyWeight: parseNumber(envSource.FEED_TRUST_REPORT_PENALTY_WEIGHT, 250),
     feedAudienceTabBoostWeight: parseNumber(envSource.FEED_AUDIENCE_TAB_BOOST_WEIGHT, 1),
+    feedRankPlatformFeeWeight: parseNumber(envSource.FEED_RANK_PLATFORM_FEE_WEIGHT, 3),
+    feedRankPlatformFeeCapBps: (() => {
+      const v = parseNumber(envSource.FEED_RANK_PLATFORM_FEE_CAP_BPS, 3500);
+      if (!Number.isInteger(v) || v < 0 || v > 3500) {
+        throw new Error("FEED_RANK_PLATFORM_FEE_CAP_BPS must be an integer between 0 and 3500");
+      }
+      return v;
+    })(),
     stripeSecretKey: String(envSource.STRIPE_SECRET_KEY || "").trim(),
     stripeWebhookSecret: String(envSource.STRIPE_WEBHOOK_SECRET || "").trim(),
     stripeConnectClientId: String(envSource.STRIPE_CONNECT_CLIENT_ID || "").trim(),
+    monetizationPlatformFeeBpsMin: parseFeeBpsBound(
+      envSource.MONETIZATION_PLATFORM_FEE_BPS_MIN,
+      50,
+      "MONETIZATION_PLATFORM_FEE_BPS_MIN"
+    ),
+    monetizationPlatformFeeBpsMax: parseFeeBpsBound(
+      envSource.MONETIZATION_PLATFORM_FEE_BPS_MAX,
+      3500,
+      "MONETIZATION_PLATFORM_FEE_BPS_MAX"
+    ),
     monetizationPlatformFeeBps: parsePositiveInt(
       envSource.MONETIZATION_PLATFORM_FEE_BPS,
       350,
@@ -202,6 +228,18 @@ function loadEnv(envSource = process.env) {
   if (!VALID_DB_SSL_MODES.has(config.dbSslMode)) {
     throw new Error("DB_SSL_MODE must be disable, require, or no-verify");
   }
+  if (config.monetizationPlatformFeeBpsMin > config.monetizationPlatformFeeBpsMax) {
+    throw new Error("MONETIZATION_PLATFORM_FEE_BPS_MIN must be <= MONETIZATION_PLATFORM_FEE_BPS_MAX");
+  }
+  if (
+    config.monetizationPlatformFeeBps < config.monetizationPlatformFeeBpsMin ||
+    config.monetizationPlatformFeeBps > config.monetizationPlatformFeeBpsMax
+  ) {
+    throw new Error(
+      "MONETIZATION_PLATFORM_FEE_BPS must be between MONETIZATION_PLATFORM_FEE_BPS_MIN and MONETIZATION_PLATFORM_FEE_BPS_MAX"
+    );
+  }
+
   if (!VALID_MEDIA_PROVIDERS.has(config.mediaProvider)) {
     throw new Error("MEDIA_PROVIDER must be mock or s3");
   }

@@ -81,6 +81,8 @@ export async function fetchMyProducts() {
       title: string;
       product_type: "digital" | "service" | "subscription";
       website_url?: string | null;
+      platform_fee_bps: number;
+      boost_tier?: string | null;
     }>;
   }>("/monetization/products/me", { auth: true });
 }

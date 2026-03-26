@@ -64,10 +64,25 @@ function createMonetizationGateway({ config }) {
     affiliateCodeId = null,
     title,
     description,
-    recurringInterval = "month"
+    recurringInterval = "month",
+    connectedAccountId = null,
+    applicationFeeAmountMinor = null,
+    platformFeeBps = null
   }) {
     const client = requireStripe();
     const normalizedMode = mode === "subscription" ? "subscription" : "payment";
+    const paymentIntentData = {};
+    if (
+      normalizedMode === "payment" &&
+      connectedAccountId &&
+      typeof applicationFeeAmountMinor === "number" &&
+      applicationFeeAmountMinor >= 0
+    ) {
+      paymentIntentData.transfer_data = { destination: connectedAccountId };
+      if (applicationFeeAmountMinor > 0) {
+        paymentIntentData.application_fee_amount = applicationFeeAmountMinor;
+      }
+    }
     return client.checkout.sessions.create({
       mode: normalizedMode,
       success_url: `${appBaseUrl}/account/creator?checkout=success`,
@@ -94,6 +109,7 @@ function createMonetizationGateway({ config }) {
           }
         }
       ],
+      ...(Object.keys(paymentIntentData).length ? { payment_intent_data: paymentIntentData } : {}),
       metadata: {
         kind,
         mode: normalizedMode,
@@ -101,7 +117,8 @@ function createMonetizationGateway({ config }) {
         sellerUserId: String(sellerUserId),
         productId: productId ? String(productId) : "",
         tierId: tierId ? String(tierId) : "",
-        affiliateCodeId: affiliateCodeId ? String(affiliateCodeId) : ""
+        affiliateCodeId: affiliateCodeId ? String(affiliateCodeId) : "",
+        platformFeeBps: platformFeeBps != null ? String(platformFeeBps) : ""
       }
     });
   }

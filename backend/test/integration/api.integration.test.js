@@ -909,6 +909,7 @@ describeIfDatabase("integration api flows", () => {
     expect(product.body.status).toBe("draft");
     expect(product.body.audience_target).toBe("both");
     expect(product.body.business_category).toBeNull();
+    expect(product.body.platform_fee_bps).toBe(350);
 
     const published = await request(app)
       .post(`/api/v1/monetization/products/${product.body.id}/publish`)
@@ -939,6 +940,129 @@ describeIfDatabase("integration api flows", () => {
       .set("Authorization", `Bearer ${buyerToken}`);
     expect(buyerAccess.statusCode).toBe(200);
     expect(buyerAccess.body.canAccess).toBe(false);
+  });
+
+  it("passes Stripe Connect checkout params from product platform_fee_bps", async () => {
+    let checkoutArgs = null;
+    const mockMonetizationGateway = {
+      createCheckoutSession: jest.fn(async (args) => {
+        checkoutArgs = args;
+        return { id: "cs_test_integration", url: "https://checkout.test/session" };
+      }),
+      constructWebhookEvent: () => {
+        throw new Error("webhook not used in this test");
+      },
+      retrieveCheckoutSession: jest.fn(),
+      createConnectedAccount: jest.fn(),
+      retrieveConnectedAccount: jest.fn(),
+      createOnboardingLink: jest.fn(),
+      createDashboardLink: jest.fn()
+    };
+
+    const testApp = createApp({
+      config,
+      logger,
+      db,
+      analytics,
+      mediaStorage,
+      pushNotifications,
+      monetizationGateway: mockMonetizationGateway
+    });
+
+    const sellerReg = await request(testApp).post("/api/v1/auth/register").send({
+      email: "seller-connect@example.com",
+      username: "seller_connect",
+      password: "StrongPass123",
+      displayName: "Seller Connect"
+    });
+    expect(sellerReg.statusCode).toBe(201);
+    const buyerReg = await request(testApp).post("/api/v1/auth/register").send({
+      email: "buyer-connect@example.com",
+      username: "buyer_connect",
+      password: "StrongPass123",
+      displayName: "Buyer Connect"
+    });
+    expect(buyerReg.statusCode).toBe(201);
+
+    await db.query(
+      `INSERT INTO creator_payout_accounts (
+         user_id, stripe_account_id, charges_enabled, payouts_enabled, details_submitted, country
+       ) VALUES ($1, 'acct_test_123', true, true, true, 'US')`,
+      [sellerReg.body.user.id]
+    );
+
+    const productRes = await request(testApp)
+      .post("/api/v1/monetization/products")
+      .set("Authorization", `Bearer ${sellerReg.body.tokens.accessToken}`)
+      .send({
+        title: "Connect Test Product",
+        description: "Test",
+        priceMinor: 10000,
+        currency: "usd",
+        deliveryMediaKey: "uploads/test/key.pdf",
+        platformFeeBps: 1000
+      });
+    expect(productRes.statusCode).toBe(201);
+    expect(productRes.body.platform_fee_bps).toBe(1000);
+
+    await request(testApp)
+      .post(`/api/v1/monetization/products/${productRes.body.id}/publish`)
+      .set("Authorization", `Bearer ${sellerReg.body.tokens.accessToken}`);
+
+    const checkout = await request(testApp)
+      .post(`/api/v1/monetization/checkout/product/${productRes.body.id}`)
+      .set("Authorization", `Bearer ${buyerReg.body.tokens.accessToken}`)
+      .send({});
+
+    expect(checkout.statusCode).toBe(200);
+    expect(checkout.body.checkoutUrl).toBeDefined();
+    expect(mockMonetizationGateway.createCheckoutSession).toHaveBeenCalled();
+    expect(checkoutArgs.connectedAccountId).toBe("acct_test_123");
+    expect(checkoutArgs.applicationFeeAmountMinor).toBe(1000);
+    expect(checkoutArgs.platformFeeBps).toBe(1000);
+
+    const sessionRow = await db.query(`SELECT metadata FROM checkout_sessions WHERE stripe_checkout_session_id = $1`, [
+      "cs_test_integration"
+    ]);
+    expect(sessionRow.rows[0].metadata.platformFeeBps).toBe(1000);
+    expect(sessionRow.rows[0].metadata.stripeApplicationFeeMinor).toBe(1000);
+  });
+
+  it("lets the author fetch post distribution metrics", async () => {
+    const reg = await request(app).post("/api/v1/auth/register").send({
+      email: "dist-author@example.com",
+      username: "dist_author",
+      password: "StrongPass123",
+      displayName: "Dist Author"
+    });
+    expect(reg.statusCode).toBe(201);
+    const token = reg.body.tokens.accessToken;
+    const post = await request(app)
+      .post("/api/v1/posts")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        postType: "post",
+        content: "Distribution metrics test"
+      });
+    expect(post.statusCode).toBe(201);
+    const dist = await request(app)
+      .get(`/api/v1/posts/${post.body.id}/distribution`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(dist.statusCode).toBe(200);
+    expect(dist.body.postId).toBe(post.body.id);
+    expect(typeof dist.body.viewCount).toBe("number");
+
+    const other = await request(app).post("/api/v1/auth/register").send({
+      email: "dist-other@example.com",
+      username: "dist_other",
+      password: "StrongPass123",
+      displayName: "Dist Other"
+    });
+    expect(other.statusCode).toBe(201);
+    const blocked = await request(app)
+      .get(`/api/v1/posts/${post.body.id}/distribution`)
+      .set("Authorization", `Bearer ${other.body.tokens.accessToken}`);
+    expect(blocked.statusCode).toBe(404);
   });
 
   it("excludes video from feed until processing when MEDIA_ASYNC_VIDEO_PROCESSING=true", async () => {

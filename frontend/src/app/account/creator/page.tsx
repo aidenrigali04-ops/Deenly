@@ -20,7 +20,9 @@ import {
   fetchCreatorRankings,
   formatMinorCurrency,
   publishProduct,
-  publishTier
+  publishTier,
+  updateProduct,
+  type BoostTier
 } from "@/lib/monetization";
 import { ErrorState, LoadingState } from "@/components/states";
 
@@ -105,6 +107,7 @@ export default function AccountCreatorPage() {
   const [newProductDeliveryMethod, setNewProductDeliveryMethod] = useState("");
   const [newProductWebsiteUrl, setNewProductWebsiteUrl] = useState("");
   const [newProductDeliveryFile, setNewProductDeliveryFile] = useState<File | null>(null);
+  const [newProductBoostTier, setNewProductBoostTier] = useState<BoostTier>("standard");
   const [newProductFormError, setNewProductFormError] = useState("");
 
   const createProductMutation = useMutation({
@@ -119,6 +122,7 @@ export default function AccountCreatorPage() {
       websiteUrl?: string;
       audienceTarget?: "b2b" | "b2c" | "both";
       businessCategory?: string;
+      boostTier?: BoostTier;
     }) => createProduct({ ...input, currency: "usd" }),
     onSuccess: async () => {
       await myProductsQuery.refetch();
@@ -184,7 +188,8 @@ export default function AccountCreatorPage() {
         deliveryMethod: newProductDeliveryMethod.trim() || undefined,
         websiteUrl: newProductWebsiteUrl.trim() || undefined,
         audienceTarget: newProductAudienceTarget,
-        businessCategory: newProductBusinessCategory.trim() || undefined
+        businessCategory: newProductBusinessCategory.trim() || undefined,
+        boostTier: newProductBoostTier
       });
 
       setNewProductTitle("");
@@ -197,6 +202,7 @@ export default function AccountCreatorPage() {
       setNewProductDeliveryMethod("");
       setNewProductWebsiteUrl("");
       setNewProductDeliveryFile(null);
+      setNewProductBoostTier("standard");
     } catch (err) {
       setNewProductFormError((err as Error).message || "Could not create product.");
     }
@@ -327,6 +333,22 @@ export default function AccountCreatorPage() {
                   <option value="service">Service</option>
                   <option value="subscription">Subscription</option>
                 </select>
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">Marketplace boost fee</p>
+                  <p className="text-xs text-muted">
+                    Higher platform % can increase visibility in marketplace feeds. This is separate from Stripe processing.
+                  </p>
+                  <select
+                    className="input bg-white"
+                    value={newProductBoostTier}
+                    onChange={(e) => setNewProductBoostTier(e.target.value as BoostTier)}
+                    aria-label="Boost tier"
+                  >
+                    <option value="standard">Standard (3.5%)</option>
+                    <option value="boosted">Boosted (20%)</option>
+                    <option value="aggressive">Aggressive (35%)</option>
+                  </select>
+                </div>
               </div>
 
               <div className="space-y-3 border-t border-black/10 pt-4">
@@ -445,23 +467,55 @@ export default function AccountCreatorPage() {
               <div className="rounded-control border border-black/10 bg-surface px-3 py-2">
                 <p className="text-xs uppercase tracking-wide text-muted">Products</p>
                 <div className="mt-2 space-y-2">
-                  {(myProductsQuery.data?.items || []).slice(0, 4).map((product) => (
-                    <div key={product.id} className="flex items-center justify-between gap-2 text-xs">
-                      <span className="truncate">
-                        {product.title} - {formatMinorCurrency(product.price_minor, product.currency)}
-                      </span>
-                      <button
-                        className="btn-secondary px-2 py-1"
-                        type="button"
-                        onClick={async () => {
-                          await publishProduct(product.id);
-                          await myProductsQuery.refetch();
-                        }}
-                      >
-                        Publish
-                      </button>
-                    </div>
-                  ))}
+                  {(myProductsQuery.data?.items || []).slice(0, 4).map((product) => {
+                    const tierSelectValue =
+                      product.boost_tier ||
+                      (product.platform_fee_bps === 350
+                        ? "standard"
+                        : product.platform_fee_bps === 2000
+                          ? "boosted"
+                          : product.platform_fee_bps === 3500
+                            ? "aggressive"
+                            : "custom");
+                    return (
+                      <div key={product.id} className="space-y-1 border-b border-black/5 pb-2 last:border-0">
+                        <div className="flex items-center justify-between gap-2 text-xs">
+                          <span className="truncate">
+                            {product.title} - {formatMinorCurrency(product.price_minor, product.currency)} ·{" "}
+                            {(product.platform_fee_bps / 100).toFixed(1)}% platform
+                          </span>
+                          <button
+                            className="btn-secondary shrink-0 px-2 py-1"
+                            type="button"
+                            onClick={async () => {
+                              await publishProduct(product.id);
+                              await myProductsQuery.refetch();
+                            }}
+                          >
+                            Publish
+                          </button>
+                        </div>
+                        <select
+                          className="input bg-white py-1 text-xs"
+                          value={tierSelectValue}
+                          onChange={async (e) => {
+                            const v = e.target.value;
+                            if (v === "custom") return;
+                            await updateProduct(product.id, { boostTier: v as BoostTier });
+                            await myProductsQuery.refetch();
+                          }}
+                          aria-label={`Boost tier for ${product.title}`}
+                        >
+                          <option value="standard">Standard (3.5%)</option>
+                          <option value="boosted">Boosted (20%)</option>
+                          <option value="aggressive">Aggressive (35%)</option>
+                          <option value="custom" disabled>
+                            Custom ({(product.platform_fee_bps / 100).toFixed(1)}%)
+                          </option>
+                        </select>
+                      </div>
+                    );
+                  })}
                   {myProductsQuery.data?.items?.length ? null : (
                     <p className="text-xs text-muted">No products yet.</p>
                   )}

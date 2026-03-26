@@ -209,9 +209,11 @@ function createPostsRouter({ db, config, analytics, mediaStorage, enqueueInstagr
                website_url,
                audience_target,
                business_category,
+               platform_fee_bps,
+               boost_tier,
                status
              )
-             VALUES ($1, $2, $3, $4, 'usd', $5, $6, $7, $8, $9, $10, $11, 'published')
+             VALUES ($1, $2, $3, $4, 'usd', $5, $6, $7, $8, $9, $10, $11, $12, $13, 'published')
              RETURNING id`,
             [
               req.user.id,
@@ -224,7 +226,9 @@ function createPostsRouter({ db, config, analytics, mediaStorage, enqueueInstagr
               sellThis.deliveryMethod,
               sellThis.websiteUrl,
               audienceTarget,
-              businessCategory
+              businessCategory,
+              config.monetizationPlatformFeeBps,
+              null
             ]
           );
           await db.query(
@@ -345,6 +349,48 @@ function createPostsRouter({ db, config, analytics, mediaStorage, enqueueInstagr
           : row.media_url
       }));
       res.status(200).json({ limit, offset, mediaOnly, videoOnly, items });
+    })
+  );
+
+  router.get(
+    "/:postId/distribution",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const postId = Number(req.params.postId);
+      if (!postId) {
+        throw httpError(400, "postId must be a number");
+      }
+      const result = await db.query(
+        `SELECT p.id AS post_id,
+                p.author_id,
+                COALESCE(vs.view_count, 0)::int AS view_count,
+                COALESCE(vs.avg_watch_time_ms, 0)::int AS avg_watch_time_ms,
+                COALESCE(vs.avg_completion_rate, 0)::numeric AS avg_completion_rate
+         FROM posts p
+         LEFT JOIN (
+           SELECT post_id,
+                  COUNT(*)::int AS view_count,
+                  AVG(watch_time_ms)::int AS avg_watch_time_ms,
+                  ROUND(AVG(completion_rate), 2) AS avg_completion_rate
+           FROM post_views
+           GROUP BY post_id
+         ) vs ON vs.post_id = p.id
+         WHERE p.id = $1
+           AND p.author_id = $2
+           AND p.removed_at IS NULL
+         LIMIT 1`,
+        [postId, req.user.id]
+      );
+      if (result.rowCount === 0) {
+        throw httpError(404, "Post not found");
+      }
+      const row = result.rows[0];
+      res.status(200).json({
+        postId: row.post_id,
+        viewCount: row.view_count,
+        avgWatchTimeMs: row.avg_watch_time_ms,
+        avgCompletionRate: row.avg_completion_rate != null ? Number(row.avg_completion_rate) : 0
+      });
     })
   );
 

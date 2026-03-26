@@ -10,6 +10,90 @@ const AUDIENCE_TARGETS = new Set(["b2b", "b2c", "both"]);
 const TIER_STATUSES = new Set(["draft", "published", "archived"]);
 const SUBSCRIPTION_STATUSES = new Set(["active", "canceled", "past_due", "incomplete", "expired"]);
 
+const BOOST_TIER_BPS = Object.freeze({
+  standard: 350,
+  boosted: 2000,
+  aggressive: 3500
+});
+const BOOST_TIER_KEYS = new Set(Object.keys(BOOST_TIER_BPS));
+
+function resolveProductPlatformFeeFields(body, previous, config, { isPatch }) {
+  const minBps = config.monetizationPlatformFeeBpsMin;
+  const maxBps = config.monetizationPlatformFeeBpsMax;
+  const hasTierKey = body && Object.prototype.hasOwnProperty.call(body, "boostTier");
+  const hasBpsKey = body && Object.prototype.hasOwnProperty.call(body, "platformFeeBps");
+
+  if (isPatch && !hasTierKey && !hasBpsKey) {
+    return {
+      platformFeeBps: previous.platform_fee_bps,
+      boostTier: previous.boost_tier || null
+    };
+  }
+
+  let tierFromBody;
+  if (hasTierKey) {
+    const v = body.boostTier;
+    if (v === null || v === "") {
+      tierFromBody = null;
+    } else {
+      const t = String(v).trim().toLowerCase();
+      if (!BOOST_TIER_KEYS.has(t)) {
+        throw httpError(400, "boostTier must be standard, boosted, or aggressive");
+      }
+      tierFromBody = t;
+    }
+  }
+
+  let bpsFromBody;
+  if (hasBpsKey) {
+    const n = Number(body.platformFeeBps);
+    if (!Number.isInteger(n) || n < minBps || n > maxBps) {
+      throw httpError(400, `platformFeeBps must be an integer from ${minBps} to ${maxBps}`);
+    }
+    bpsFromBody = n;
+  }
+
+  if (tierFromBody !== undefined && bpsFromBody !== undefined) {
+    if (tierFromBody !== null && bpsFromBody !== BOOST_TIER_BPS[tierFromBody]) {
+      throw httpError(400, "platformFeeBps must match the selected boostTier");
+    }
+    return { platformFeeBps: bpsFromBody, boostTier: tierFromBody };
+  }
+
+  if (tierFromBody !== undefined) {
+    if (tierFromBody === null) {
+      const bps =
+        bpsFromBody !== undefined
+          ? bpsFromBody
+          : isPatch
+            ? previous.platform_fee_bps
+            : config.monetizationPlatformFeeBps;
+      return { platformFeeBps: bps, boostTier: null };
+    }
+    return { platformFeeBps: BOOST_TIER_BPS[tierFromBody], boostTier: tierFromBody };
+  }
+
+  if (bpsFromBody !== undefined) {
+    return { platformFeeBps: bpsFromBody, boostTier: null };
+  }
+
+  return {
+    platformFeeBps: config.monetizationPlatformFeeBps,
+    boostTier: null
+  };
+}
+
+function clampSessionPlatformFeeBps(raw, config) {
+  const fallback = Number(config.monetizationPlatformFeeBps);
+  const n = Number(raw);
+  if (!Number.isFinite(n) || !Number.isInteger(n)) {
+    return fallback;
+  }
+  const min = config.monetizationPlatformFeeBpsMin;
+  const max = config.monetizationPlatformFeeBpsMax;
+  return Math.min(max, Math.max(min, n));
+}
+
 function normalizeCurrency(value) {
   return String(value || "usd")
     .trim()
@@ -138,6 +222,24 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
     if (!row.charges_enabled || !row.payouts_enabled || !row.details_submitted) {
       throw httpError(409, "Creator payout setup is incomplete");
     }
+  }
+
+  async function requireSellerStripeAccountId(sellerUserId) {
+    const result = await db.query(
+      `SELECT stripe_account_id, charges_enabled, payouts_enabled, details_submitted
+       FROM creator_payout_accounts
+       WHERE user_id = $1
+       LIMIT 1`,
+      [sellerUserId]
+    );
+    if (result.rowCount === 0) {
+      throw httpError(409, "Creator payout account is not connected");
+    }
+    const row = result.rows[0];
+    if (!row.charges_enabled || !row.payouts_enabled || !row.details_submitted) {
+      throw httpError(409, "Creator payout setup is incomplete");
+    }
+    return row.stripe_account_id;
   }
 
   router.post(
@@ -283,13 +385,17 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
 
       const audienceTarget = parseProductAudienceTarget(req.body?.audienceTarget);
       const businessCategory = parseProductBusinessCategory(req.body?.businessCategory);
+      const { platformFeeBps, boostTier } = resolveProductPlatformFeeFields(req.body, null, config, {
+        isPatch: false
+      });
 
       const created = await db.query(
         `INSERT INTO creator_products (
            creator_user_id, title, description, price_minor, currency, delivery_media_key, product_type,
-           service_details, delivery_method, website_url, audience_target, business_category, status
+           service_details, delivery_method, website_url, audience_target, business_category,
+           platform_fee_bps, boost_tier, status
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'draft')
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'draft')
          RETURNING *`,
         [
           req.user.id,
@@ -303,7 +409,9 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
           deliveryMethod,
           websiteUrl,
           audienceTarget,
-          businessCategory
+          businessCategory,
+          platformFeeBps,
+          boostTier
         ]
       );
       res.status(201).json(created.rows[0]);
@@ -434,6 +542,9 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
         req.body?.businessCategory !== undefined
           ? parseProductBusinessCategory(req.body?.businessCategory)
           : previous.business_category;
+      const { platformFeeBps, boostTier } = resolveProductPlatformFeeFields(req.body, previous, config, {
+        isPatch: true
+      });
 
       const updated = await db.query(
         `UPDATE creator_products
@@ -448,6 +559,8 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
              website_url = $11,
              audience_target = $12,
              business_category = $13,
+             platform_fee_bps = $15,
+             boost_tier = $16,
              status = $14,
              updated_at = NOW()
          WHERE id = $1
@@ -467,7 +580,9 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
           websiteUrl,
           audienceTarget,
           businessCategory,
-          status
+          status,
+          platformFeeBps,
+          boostTier
         ]
       );
       res.status(200).json(updated.rows[0]);
@@ -720,12 +835,18 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
       if (product.creator_user_id === req.user.id) {
         throw httpError(400, "You cannot purchase your own product");
       }
-      await ensureSellerPayoutReady(product.creator_user_id);
+      const connectedAccountId = await requireSellerStripeAccountId(product.creator_user_id);
       const affiliateCode = await resolveAffiliateCode({
         rawCode: req.body?.affiliateCode,
         sellerUserId: product.creator_user_id,
         buyerUserId: req.user.id
       });
+
+      const platformFeeBps = clampSessionPlatformFeeBps(product.platform_fee_bps, config);
+      const applicationFeeAmountMinor = Math.max(
+        0,
+        Math.round((Number(product.price_minor) * platformFeeBps) / 10000)
+      );
 
       const session = await monetizationGateway.createCheckoutSession({
         kind: "product",
@@ -736,7 +857,10 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
         productId: product.id,
         affiliateCodeId: affiliateCode?.id || null,
         title: product.title,
-        description: product.description
+        description: product.description,
+        connectedAccountId,
+        applicationFeeAmountMinor,
+        platformFeeBps
       });
 
       await ensureCheckoutSessionRecord({
@@ -749,7 +873,8 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
         currency: product.currency,
         metadata: {
           affiliateCodeId: affiliateCode?.id || null,
-          platformFeeBps: Number(config.monetizationPlatformFeeBps || 350)
+          platformFeeBps,
+          stripeApplicationFeeMinor: applicationFeeAmountMinor
         }
       });
 
@@ -971,14 +1096,46 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
 
       const sessionMetadata =
         sessionRow.metadata && typeof sessionRow.metadata === "object" ? sessionRow.metadata : {};
-      const amountMinor = Number(sessionRow.amount_minor);
-      const platformFeeMinor = Math.round((amountMinor * Number(config.monetizationPlatformFeeBps || 350)) / 10000);
-      const creatorNetMinor = Math.max(0, amountMinor - platformFeeMinor);
+      let amountMinor = Number(sessionRow.amount_minor);
+      const stripeTotal = Number(event.data.object?.amount_total);
+      if (Number.isInteger(stripeTotal) && stripeTotal > 0 && stripeTotal !== amountMinor) {
+        amountMinor = stripeTotal;
+      }
+      const platformFeeBps = clampSessionPlatformFeeBps(sessionMetadata.platformFeeBps, config);
+      const recordedAppFee = Number(sessionMetadata.stripeApplicationFeeMinor);
+      let platformFeeMinor;
+      if (sessionRow.kind === "product" && Number.isInteger(recordedAppFee) && recordedAppFee >= 0) {
+        platformFeeMinor = Math.min(amountMinor, recordedAppFee);
+      } else {
+        platformFeeMinor = Math.max(0, Math.round((amountMinor * platformFeeBps) / 10000));
+      }
       const affiliateCodeId = Number(sessionMetadata.affiliateCodeId || 0) || null;
       const tierId = Number(sessionMetadata.tierId || 0) || null;
 
       await db.query("BEGIN");
       try {
+        let affiliateCommissionMinor = 0;
+        let affiliateCodeRow = null;
+        if (affiliateCodeId) {
+          const affiliateCodeResult = await db.query(
+            `SELECT id, affiliate_user_id
+             FROM affiliate_codes
+             WHERE id = $1
+               AND is_active = true
+             LIMIT 1`,
+            [affiliateCodeId]
+          );
+          if (affiliateCodeResult.rowCount > 0) {
+            affiliateCodeRow = affiliateCodeResult.rows[0];
+            affiliateCommissionMinor = Math.max(
+              0,
+              Math.round((amountMinor * Number(config.affiliateGlobalCommissionBps || 700)) / 10000)
+            );
+          }
+        }
+
+        const creatorNetMinor = Math.max(0, amountMinor - platformFeeMinor - affiliateCommissionMinor);
+
         const order = await db.query(
           `INSERT INTO orders (
              checkout_session_id,
@@ -1049,71 +1206,54 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
           );
         }
 
-        if (affiliateCodeId) {
-          const affiliateCodeResult = await db.query(
-            `SELECT id, affiliate_user_id
-             FROM affiliate_codes
-             WHERE id = $1
-               AND is_active = true
-             LIMIT 1`,
-            [affiliateCodeId]
+        if (affiliateCodeRow) {
+          await db.query(
+            `INSERT INTO affiliate_conversions (
+               affiliate_code_id,
+               checkout_session_id,
+               order_id,
+               affiliate_user_id,
+               seller_user_id,
+               buyer_user_id,
+               amount_minor,
+               commission_minor,
+               currency
+             )
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+             ON CONFLICT (order_id)
+             DO NOTHING`,
+            [
+              affiliateCodeRow.id,
+              sessionRow.id,
+              order.rows[0].id,
+              affiliateCodeRow.affiliate_user_id,
+              sessionRow.seller_user_id,
+              sessionRow.buyer_user_id,
+              amountMinor,
+              affiliateCommissionMinor,
+              sessionRow.currency
+            ]
           );
-          if (affiliateCodeResult.rowCount > 0) {
-            const affiliateCode = affiliateCodeResult.rows[0];
-            const affiliateCommissionMinor = Math.max(
-              0,
-              Math.round(
-                (amountMinor * Number(config.affiliateGlobalCommissionBps || 700)) / 10000
-              )
-            );
+          if (affiliateCommissionMinor > 0) {
             await db.query(
-              `INSERT INTO affiliate_conversions (
-                 affiliate_code_id,
-                 checkout_session_id,
-                 order_id,
-                 affiliate_user_id,
-                 seller_user_id,
-                 buyer_user_id,
-                 amount_minor,
-                 commission_minor,
-                 currency
-               )
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-               ON CONFLICT (order_id)
-               DO NOTHING`,
+              `INSERT INTO earnings_ledger (user_id, order_id, entry_type, amount_minor, currency, note)
+               VALUES ($1, $2, 'credit', $3, $4, $5)`,
               [
-                affiliateCode.id,
-                sessionRow.id,
+                affiliateCodeRow.affiliate_user_id,
                 order.rows[0].id,
-                affiliateCode.affiliate_user_id,
-                sessionRow.seller_user_id,
-                sessionRow.buyer_user_id,
-                amountMinor,
                 affiliateCommissionMinor,
-                sessionRow.currency
+                sessionRow.currency,
+                "Affiliate commission credit"
               ]
             );
-            if (affiliateCommissionMinor > 0) {
-              await db.query(
-                `INSERT INTO earnings_ledger (user_id, order_id, entry_type, amount_minor, currency, note)
-                 VALUES ($1, $2, 'credit', $3, $4, $5)`,
-                [
-                  affiliateCode.affiliate_user_id,
-                  order.rows[0].id,
-                  affiliateCommissionMinor,
-                  sessionRow.currency,
-                  "Affiliate commission credit"
-                ]
-              );
-            }
-            await db.query(
-              `UPDATE affiliate_codes
-               SET uses_count = uses_count + 1,
-                   updated_at = NOW()
-               WHERE id = $1`,
-              [affiliateCode.id]
-            );
           }
+          await db.query(
+            `UPDATE affiliate_codes
+             SET uses_count = uses_count + 1,
+                 updated_at = NOW()
+             WHERE id = $1`,
+            [affiliateCodeRow.id]
+          );
         }
 
         await db.query(

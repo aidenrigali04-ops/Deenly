@@ -3,7 +3,7 @@ import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "@/lib/s
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api/v1";
 
 type RequestOptions = {
-  method?: "GET" | "POST" | "PUT" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   auth?: boolean;
   timeoutMs?: number;

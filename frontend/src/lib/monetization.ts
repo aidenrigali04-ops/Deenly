@@ -9,6 +9,8 @@ export type ConnectStatus = {
   dashboardUrl?: string;
 };
 
+export type BoostTier = "standard" | "boosted" | "aggressive";
+
 export type CreatorProduct = {
   id: number;
   creator_user_id: number;
@@ -23,6 +25,8 @@ export type CreatorProduct = {
   website_url?: string | null;
   audience_target: "b2b" | "b2c" | "both";
   business_category: string | null;
+  platform_fee_bps: number;
+  boost_tier: string | null;
   status: "draft" | "published" | "archived";
   created_at: string;
   updated_at: string;
@@ -84,9 +88,37 @@ export async function createProduct(input: {
   websiteUrl?: string;
   audienceTarget?: "b2b" | "b2c" | "both";
   businessCategory?: string;
+  platformFeeBps?: number;
+  boostTier?: BoostTier | null;
 }) {
   return apiRequest<CreatorProduct>("/monetization/products", {
     method: "POST",
+    auth: true,
+    body: input
+  });
+}
+
+export async function updateProduct(
+  productId: number,
+  input: Partial<{
+    title: string;
+    description: string | null;
+    priceMinor: number;
+    currency: string;
+    deliveryMediaKey: string | null;
+    productType: "digital" | "service" | "subscription";
+    serviceDetails: string | null;
+    deliveryMethod: string | null;
+    websiteUrl: string | null;
+    audienceTarget: "b2b" | "b2c" | "both";
+    businessCategory: string | null;
+    status: "draft" | "published" | "archived";
+    platformFeeBps: number;
+    boostTier: BoostTier | null;
+  }>
+) {
+  return apiRequest<CreatorProduct>(`/monetization/products/${productId}`, {
+    method: "PATCH",
     auth: true,
     body: input
   });
@@ -230,4 +262,15 @@ export function formatMinorCurrency(valueMinor: number, currency = "usd") {
     style: "currency",
     currency: currency.toUpperCase()
   }).format((Number(valueMinor) || 0) / 100);
+}
+
+export type PostDistributionMetrics = {
+  postId: number;
+  viewCount: number;
+  avgWatchTimeMs: number;
+  avgCompletionRate: number;
+};
+
+export async function fetchPostDistribution(postId: number) {
+  return apiRequest<PostDistributionMetrics>(`/posts/${postId}/distribution`, { auth: true });
 }

@@ -100,9 +100,9 @@ export function CreatorEconomyScreen() {
       <View style={styles.card}>
         <Text style={styles.title}>Products</Text>
         {(productsQuery.data?.items || []).length ? (
-          (productsQuery.data?.items || []).slice(0, 5).map((item, index) => (
-            <Text key={index} style={styles.muted}>
-              {(item as { title?: string }).title || "Product"}
+          (productsQuery.data?.items || []).slice(0, 5).map((item) => (
+            <Text key={item.id} style={styles.muted}>
+              {item.title} · {(item.platform_fee_bps / 100).toFixed(1)}% platform fee
             </Text>
           ))
         ) : (
