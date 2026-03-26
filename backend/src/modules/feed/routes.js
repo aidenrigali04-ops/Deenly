@@ -370,7 +370,18 @@ function createFeedRouter({ db, config, mediaStorage }) {
                )
              )
            )
-         GROUP BY p.id, pr.display_name, pr.avatar_url, cpr.id, cpr.title, cpr.price_minor, cpr.currency
+         GROUP BY
+           p.id,
+           pr.display_name,
+           pr.avatar_url,
+           cpr.id,
+           cpr.title,
+           cpr.price_minor,
+           cpr.currency,
+           cpr.product_type,
+           cpr.website_url,
+           vb.b2b_purchases,
+           vb.b2c_purchases
          ),
          ranked AS (
            SELECT *,
