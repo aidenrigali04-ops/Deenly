@@ -55,7 +55,15 @@ const TABLE_SQL = {
   affiliate_conversions:
     "SELECT id, affiliate_code_id, checkout_session_id, order_id, affiliate_user_id, seller_user_id, buyer_user_id, amount_minor, commission_minor, currency, created_at FROM affiliate_conversions ORDER BY id DESC LIMIT $1 OFFSET $2",
   creator_ranking_snapshots:
-    "SELECT id, snapshot_date, creator_user_id, gross_earnings_minor, supporters_count, conversions_count, score, created_at FROM creator_ranking_snapshots ORDER BY snapshot_date DESC, id DESC LIMIT $1 OFFSET $2"
+    "SELECT id, snapshot_date, creator_user_id, gross_earnings_minor, supporters_count, conversions_count, score, created_at FROM creator_ranking_snapshots ORDER BY snapshot_date DESC, id DESC LIMIT $1 OFFSET $2",
+  ad_campaigns:
+    "SELECT id, creator_user_id, post_id, status, budget_minor, spent_minor, currency, daily_cap_impressions, starts_at, ends_at, created_at, updated_at FROM ad_campaigns ORDER BY id DESC LIMIT $1 OFFSET $2",
+  ad_events:
+    "SELECT id, campaign_id, event_type, viewer_user_id, metadata, created_at FROM ad_events ORDER BY id DESC LIMIT $1 OFFSET $2",
+  ad_spend_ledger:
+    "SELECT id, campaign_id, event_id, amount_minor, currency, note, created_at FROM ad_spend_ledger ORDER BY id DESC LIMIT $1 OFFSET $2",
+  ad_creative_reviews:
+    "SELECT id, campaign_id, reviewer_user_id, status, notes, reviewed_at, created_at FROM ad_creative_reviews ORDER BY id DESC LIMIT $1 OFFSET $2"
 };
 
 function createAdminRouter({ db, config }) {
@@ -201,6 +209,160 @@ function createAdminRouter({ db, config }) {
         throw httpError(404, "Support ticket not found");
       }
       res.status(200).json(result.rows[0]);
+    })
+  );
+
+  router.get(
+    "/ads/reviews",
+    authMiddleware,
+    modGuard,
+    asyncHandler(async (req, res) => {
+      const status = optionalString(req.query.status, "status", 20) || "pending";
+      const items = await db.query(
+        `SELECT acr.id, acr.campaign_id, acr.status, acr.notes, acr.reviewed_at,
+                ac.creator_user_id, ac.post_id, ac.status AS campaign_status, ac.budget_minor, ac.spent_minor
+         FROM ad_creative_reviews acr
+         JOIN ad_campaigns ac ON ac.id = acr.campaign_id
+         WHERE acr.status = $1
+         ORDER BY acr.created_at ASC, acr.id ASC
+         LIMIT 200`,
+        [status]
+      );
+      res.status(200).json({ items: items.rows });
+    })
+  );
+
+  router.post(
+    "/ads/reviews/:id/approve",
+    authMiddleware,
+    modGuard,
+    asyncHandler(async (req, res) => {
+      const id = Number(req.params.id);
+      if (!id) {
+        throw httpError(400, "id must be a number");
+      }
+      const updated = await db.query(
+        `UPDATE ad_creative_reviews
+         SET status = 'approved',
+             reviewer_user_id = $2,
+             notes = COALESCE($3, notes),
+             reviewed_at = NOW(),
+             updated_at = NOW()
+         WHERE id = $1
+         RETURNING *`,
+        [id, req.user.id, optionalString(req.body?.notes, "notes", 1000)]
+      );
+      if (updated.rowCount === 0) {
+        throw httpError(404, "Review not found");
+      }
+      await db.query(
+        `UPDATE ad_campaigns
+         SET status = CASE WHEN status = 'draft' THEN 'active' ELSE status END,
+             updated_at = NOW()
+         WHERE id = $1`,
+        [updated.rows[0].campaign_id]
+      );
+      res.status(200).json(updated.rows[0]);
+    })
+  );
+
+  router.post(
+    "/ads/reviews/:id/reject",
+    authMiddleware,
+    modGuard,
+    asyncHandler(async (req, res) => {
+      const id = Number(req.params.id);
+      if (!id) {
+        throw httpError(400, "id must be a number");
+      }
+      const note = requireString(req.body?.notes, "notes", 3, 1000);
+      const updated = await db.query(
+        `UPDATE ad_creative_reviews
+         SET status = 'rejected',
+             reviewer_user_id = $2,
+             notes = $3,
+             reviewed_at = NOW(),
+             updated_at = NOW()
+         WHERE id = $1
+         RETURNING *`,
+        [id, req.user.id, note]
+      );
+      if (updated.rowCount === 0) {
+        throw httpError(404, "Review not found");
+      }
+      await db.query(
+        `UPDATE ad_campaigns
+         SET status = 'rejected',
+             updated_at = NOW()
+         WHERE id = $1`,
+        [updated.rows[0].campaign_id]
+      );
+      res.status(200).json(updated.rows[0]);
+    })
+  );
+
+  router.get(
+    "/moderation/ads",
+    authMiddleware,
+    modGuard,
+    asyncHandler(async (_req, res) => {
+      const items = await db.query(
+        `SELECT ac.id, ac.creator_user_id, ac.post_id, ac.status, ac.budget_minor, ac.spent_minor,
+                acr.status AS review_status, acr.notes AS review_notes, acr.reviewed_at
+         FROM ad_campaigns ac
+         LEFT JOIN ad_creative_reviews acr ON acr.campaign_id = ac.id
+         ORDER BY ac.created_at DESC, ac.id DESC
+         LIMIT 200`
+      );
+      res.status(200).json({ items: items.rows });
+    })
+  );
+
+  router.post(
+    "/moderation/ads/:campaignId/action",
+    authMiddleware,
+    modGuard,
+    asyncHandler(async (req, res) => {
+      const campaignId = Number(req.params.campaignId);
+      const action = requireString(req.body?.action, "action", 4, 16);
+      if (!campaignId) {
+        throw httpError(400, "campaignId must be a number");
+      }
+      if (!["approve", "reject", "pause"].includes(action)) {
+        throw httpError(400, "action must be approve, reject, or pause");
+      }
+      const status = action === "approve" ? "active" : action === "reject" ? "rejected" : "paused";
+      const updated = await db.query(
+        `UPDATE ad_campaigns
+         SET status = $2,
+             updated_at = NOW()
+         WHERE id = $1
+         RETURNING *`,
+        [campaignId, status]
+      );
+      if (updated.rowCount === 0) {
+        throw httpError(404, "Campaign not found");
+      }
+      if (action === "approve" || action === "reject") {
+        await db.query(
+          `INSERT INTO ad_creative_reviews (campaign_id, reviewer_user_id, status, notes, reviewed_at)
+           VALUES ($1, $2, $3, $4, NOW())
+           ON CONFLICT (campaign_id)
+           DO UPDATE SET
+             reviewer_user_id = EXCLUDED.reviewer_user_id,
+             status = EXCLUDED.status,
+             notes = EXCLUDED.notes,
+             reviewed_at = EXCLUDED.reviewed_at,
+             updated_at = NOW()`,
+          [
+            campaignId,
+            req.user.id,
+            action === "approve" ? "approved" : "rejected",
+            optionalString(req.body?.notes, "notes", 1000)
+          ]
+        );
+      }
+      res.status(200).json(updated.rows[0]);
     })
   );
 

@@ -75,7 +75,14 @@ export async function fetchSubscriptionAccess(creatorUserId: number) {
 }
 
 export async function fetchMyProducts() {
-  return apiRequest<{ items: Record<string, unknown>[] }>("/monetization/products/me", { auth: true });
+  return apiRequest<{
+    items: Array<{
+      id: number;
+      title: string;
+      product_type: "digital" | "service" | "subscription";
+      website_url?: string | null;
+    }>;
+  }>("/monetization/products/me", { auth: true });
 }
 
 export async function attachProductToPost(postId: number, productId: number) {

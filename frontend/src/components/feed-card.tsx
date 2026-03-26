@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import type { FeedItem } from "@/types";
+import { apiRequest } from "@/lib/api";
 import { resolveMediaUrl } from "@/lib/media-url";
 import { createProductCheckout, formatMinorCurrency } from "@/lib/monetization";
 
@@ -27,8 +28,12 @@ export function FeedCard({
   layout?: "default" | "home";
 }) {
   const [mediaFailed, setMediaFailed] = useState(false);
+  const [liked, setLiked] = useState(Boolean(item.liked_by_viewer));
+  const [benefitedCount, setBenefitedCount] = useState(Number(item.benefited_count || 0));
   useEffect(() => {
     setMediaFailed(false);
+    setLiked(Boolean(item.liked_by_viewer));
+    setBenefitedCount(Number(item.benefited_count || 0));
   }, [item.id, item.media_url]);
 
   const mediaUrl = resolveMediaUrl(item.media_url) || undefined;
@@ -50,6 +55,37 @@ export function FeedCard({
     }
   });
   const hasAttachedProduct = Boolean(item.attached_product_id);
+  const attachedProductType = item.attached_product_type || "digital";
+  const likeMutation = useMutation({
+    mutationFn: async (nextLiked: boolean) => {
+      if (nextLiked) {
+        return apiRequest("/interactions", {
+          method: "POST",
+          auth: true,
+          body: {
+            postId: item.id,
+            interactionType: "benefited"
+          }
+        });
+      }
+      return apiRequest("/interactions", {
+        method: "DELETE",
+        auth: true,
+        body: {
+          postId: item.id,
+          interactionType: "benefited"
+        }
+      });
+    },
+    onMutate: (nextLiked) => {
+      setLiked(nextLiked);
+      setBenefitedCount((value) => Math.max(0, value + (nextLiked ? 1 : -1)));
+    },
+    onError: (_error, nextLiked) => {
+      setLiked(!nextLiked);
+      setBenefitedCount((value) => Math.max(0, value + (nextLiked ? -1 : 1)));
+    }
+  });
 
   if (layout === "home") {
     return (
@@ -70,6 +106,7 @@ export function FeedCard({
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold leading-tight">{item.author_display_name}</p>
               <p className="truncate text-xs text-muted">
+                {item.sponsored ? `${item.sponsored_label || "Sponsored"} - ` : ""}
                 {item.post_type === "recitation" ? "Original audio" : "Community post"} -{" "}
                 {new Date(item.created_at).toLocaleString()}
               </p>
@@ -108,8 +145,13 @@ export function FeedCard({
 
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2 text-muted">
-            <button className="feed-action h-8 w-8 border-none">
-              <span aria-hidden="true">♡</span>
+            <button
+              className="feed-action h-8 w-8 border-none"
+              onClick={() => likeMutation.mutate(!liked)}
+              disabled={likeMutation.isPending}
+              aria-label="Like post"
+            >
+              <span aria-hidden="true">{liked ? "♥" : "♡"}</span>
             </button>
             <button className="feed-action h-8 w-8 border-none">
               <span aria-hidden="true">◌</span>
@@ -136,16 +178,53 @@ export function FeedCard({
                 </p>
                 <button
                   className="btn-secondary px-3 py-1 text-xs"
-                  onClick={() => item.attached_product_id && checkoutMutation.mutate(item.attached_product_id)}
+                  onClick={() => {
+                    if (
+                      attachedProductType !== "digital" &&
+                      item.attached_product_website_url
+                    ) {
+                      window.open(item.attached_product_website_url, "_blank", "noopener,noreferrer");
+                      return;
+                    }
+                    if (item.attached_product_id) {
+                      checkoutMutation.mutate(item.attached_product_id);
+                    }
+                  }}
                   disabled={checkoutMutation.isPending}
                 >
-                  {checkoutMutation.isPending ? "Opening..." : "Buy"}
+                  {checkoutMutation.isPending
+                    ? "Opening..."
+                    : attachedProductType === "digital"
+                      ? "Buy"
+                      : "View offer"}
                 </button>
               </div>
             </div>
           ) : null}
+          {item.cta_label && item.cta_url ? (
+            <button
+              className="btn-secondary w-full px-3 py-2 text-xs"
+              onClick={async () => {
+                await apiRequest("/interactions/cta-click", {
+                  method: "POST",
+                  auth: true,
+                  body: { postId: item.id }
+                }).catch(() => null);
+                if (item.sponsored && item.ad_campaign_id) {
+                  await apiRequest("/ads/events/click", {
+                    method: "POST",
+                    auth: true,
+                    body: { campaignId: item.ad_campaign_id, destinationUrl: item.cta_url }
+                  }).catch(() => null);
+                }
+                window.open(item.cta_url || "", "_blank", "noopener,noreferrer");
+              }}
+            >
+              {item.cta_label}
+            </button>
+          ) : null}
           <p className="text-xs text-muted">
-            {item.benefited_count || 0} benefited - {item.comment_count || 0} comments
+            {benefitedCount} benefited - {item.comment_count || 0} comments
           </p>
           <p className="text-sm leading-relaxed">
             <span className="font-semibold">{item.author_display_name}</span>{" "}
@@ -182,6 +261,7 @@ export function FeedCard({
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold tracking-tight">{item.author_display_name}</p>
             <time className="text-xs text-muted" dateTime={item.created_at}>
+              {item.sponsored ? `${item.sponsored_label || "Sponsored"} - ` : ""}
               {new Date(item.created_at).toLocaleString()}
             </time>
           </div>
@@ -224,8 +304,13 @@ export function FeedCard({
       </div>
 
       <div className="flex items-center gap-2 px-6 pb-3 text-muted">
-        <button className="feed-action" aria-label="Benefited">
-          <span aria-hidden="true">♡</span>
+        <button
+          className="feed-action"
+          aria-label="Benefited"
+          onClick={() => likeMutation.mutate(!liked)}
+          disabled={likeMutation.isPending}
+        >
+          <span aria-hidden="true">{liked ? "♥" : "♡"}</span>
         </button>
         <button className="feed-action" aria-label="Comment">
           <span aria-hidden="true">◌</span>
@@ -252,18 +337,57 @@ export function FeedCard({
             </div>
             <button
               className="btn-secondary px-3 py-1.5 text-xs"
-              onClick={() => item.attached_product_id && checkoutMutation.mutate(item.attached_product_id)}
+              onClick={() => {
+                if (
+                  attachedProductType !== "digital" &&
+                  item.attached_product_website_url
+                ) {
+                  window.open(item.attached_product_website_url, "_blank", "noopener,noreferrer");
+                  return;
+                }
+                if (item.attached_product_id) {
+                  checkoutMutation.mutate(item.attached_product_id);
+                }
+              }}
               disabled={checkoutMutation.isPending}
             >
-              {checkoutMutation.isPending ? "Opening..." : "Buy now"}
+              {checkoutMutation.isPending
+                ? "Opening..."
+                : attachedProductType === "digital"
+                  ? "Buy now"
+                  : "View offer"}
             </button>
           </div>
+        </div>
+      ) : null}
+      {item.cta_label && item.cta_url ? (
+        <div className="mx-6 mb-3">
+          <button
+            className="btn-secondary w-full px-3 py-2 text-xs"
+            onClick={async () => {
+              await apiRequest("/interactions/cta-click", {
+                method: "POST",
+                auth: true,
+                body: { postId: item.id }
+              }).catch(() => null);
+              if (item.sponsored && item.ad_campaign_id) {
+                await apiRequest("/ads/events/click", {
+                  method: "POST",
+                  auth: true,
+                  body: { campaignId: item.ad_campaign_id, destinationUrl: item.cta_url }
+                }).catch(() => null);
+              }
+              window.open(item.cta_url || "", "_blank", "noopener,noreferrer");
+            }}
+          >
+            {item.cta_label}
+          </button>
         </div>
       ) : null}
 
       <div className="flex flex-wrap gap-2 px-6 pb-4 text-xs text-muted">
         <span className="rounded-pill border border-black/10 px-2 py-1">
-          Benefited: {item.benefited_count || 0}
+          Benefited: {benefitedCount}
         </span>
         <span className="rounded-pill border border-black/10 px-2 py-1">
           Comments: {item.comment_count || 0}
@@ -271,6 +395,11 @@ export function FeedCard({
         <span className="rounded-pill border border-black/10 px-2 py-1">
           Reflect later: {item.reflect_later_count || 0}
         </span>
+        {item.tags?.length ? (
+          <span className="rounded-pill border border-black/10 px-2 py-1">
+            #{item.tags.slice(0, 3).join(" #")}
+          </span>
+        ) : null}
       </div>
 
       <footer className="flex items-center justify-between border-t border-black/10 px-6 py-3">

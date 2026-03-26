@@ -13,17 +13,21 @@ function createAnalyticsRouter({ db, config }) {
     modGuard,
     asyncHandler(async (req, res) => {
       const days = Math.min(Math.max(Number(req.query.days) || 7, 1), 30);
+      const byDay = String(req.query.byDay || "false") === "true";
       const result = await db.query(
-        `SELECT event_name, COUNT(*)::int AS total
+        `SELECT event_name,
+                ${byDay ? "DATE_TRUNC('day', created_at) AS event_day," : ""}
+                COUNT(*)::int AS total
          FROM analytics_events
          WHERE created_at >= NOW() - ($1::int * INTERVAL '1 day')
-         GROUP BY event_name
-         ORDER BY total DESC`,
+         GROUP BY event_name ${byDay ? ", DATE_TRUNC('day', created_at)" : ""}
+         ORDER BY ${byDay ? "event_day DESC," : ""} total DESC`,
         [days]
       );
 
       res.status(200).json({
         days,
+        byDay,
         totals: result.rows
       });
     })
@@ -100,7 +104,13 @@ function createAnalyticsRouter({ db, config }) {
         `SELECT
            ROUND(COALESCE(AVG(completion_rate), 0), 2)::numeric AS avg_completion_rate,
            ROUND(COALESCE(AVG(watch_time_ms), 0), 2)::numeric AS avg_watch_time_ms,
-           COUNT(*)::int AS total_views
+           COUNT(*)::int AS total_views,
+           (
+             SELECT COUNT(*)::int
+             FROM reports
+             WHERE target_type = 'post'
+               AND status IN ('open', 'reviewing')
+           ) AS open_post_reports
          FROM post_views`
       );
       res.status(200).json(result.rows[0]);

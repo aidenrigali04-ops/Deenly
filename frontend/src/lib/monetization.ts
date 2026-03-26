@@ -16,7 +16,11 @@ export type CreatorProduct = {
   description: string | null;
   price_minor: number;
   currency: string;
-  delivery_media_key: string;
+  delivery_media_key: string | null;
+  product_type: "digital" | "service" | "subscription";
+  service_details?: string | null;
+  delivery_method?: string | null;
+  website_url?: string | null;
   status: "draft" | "published" | "archived";
   created_at: string;
   updated_at: string;
@@ -71,7 +75,11 @@ export async function createProduct(input: {
   description?: string;
   priceMinor: number;
   currency?: string;
-  deliveryMediaKey: string;
+  deliveryMediaKey?: string;
+  productType?: "digital" | "service" | "subscription";
+  serviceDetails?: string;
+  deliveryMethod?: string;
+  websiteUrl?: string;
 }) {
   return apiRequest<CreatorProduct>("/monetization/products", {
     method: "POST",

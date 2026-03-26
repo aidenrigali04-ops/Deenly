@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
@@ -187,6 +187,22 @@ export function FeedView({
   });
 
   const items = feedQuery.data?.pages.flatMap((page) => page.items) || [];
+  useEffect(() => {
+    const sponsoredIds = items
+      .filter((item) => item.sponsored && item.ad_campaign_id)
+      .map((item) => Number(item.ad_campaign_id))
+      .filter((id) => Number.isFinite(id));
+    if (!sponsoredIds.length) {
+      return;
+    }
+    sponsoredIds.forEach((campaignId) => {
+      apiRequest("/ads/events/impression", {
+        method: "POST",
+        auth: true,
+        body: { campaignId }
+      }).catch(() => null);
+    });
+  }, [items]);
 
   const toggleFollow = (authorId: number, currentlyFollowing: boolean) => {
     if (currentlyFollowing) {

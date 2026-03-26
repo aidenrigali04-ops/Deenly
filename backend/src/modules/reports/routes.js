@@ -6,7 +6,7 @@ const { optionalString, requireString } = require("../../utils/validators");
 
 const REPORT_TARGET_TYPES = new Set(["post", "user", "comment"]);
 const REPORT_STATUSES = new Set(["open", "reviewing", "resolved", "dismissed"]);
-const MOD_ACTIONS = new Set(["hide_post", "remove_post", "suspend_user", "restore_post"]);
+const MOD_ACTIONS = new Set(["hide_post", "remove_post", "suspend_user", "restore_post", "dismiss"]);
 const REPORT_CATEGORIES = new Set([
   "haram_content",
   "misinformation",
@@ -135,13 +135,35 @@ function createReportsRouter({ db, config, analytics }) {
         }
         const postId = Number(target.rows[0].target_id);
         if (postId) {
-          const visibilityStatus = actionType === "restore_post" ? "visible" : "hidden";
-          await db.query(
-            `UPDATE posts
-             SET visibility_status = $1, updated_at = NOW()
-             WHERE id = $2`,
-            [visibilityStatus, postId]
-          );
+          if (actionType === "hide_post") {
+            await db.query(
+              `UPDATE posts
+               SET visibility_status = 'hidden',
+                   updated_at = NOW()
+               WHERE id = $1`,
+              [postId]
+            );
+          } else if (actionType === "remove_post") {
+            await db.query(
+              `UPDATE posts
+               SET visibility_status = 'hidden',
+                   removed_at = NOW(),
+                   removed_by = $2,
+                   updated_at = NOW()
+               WHERE id = $1`,
+              [postId, req.user.id]
+            );
+          } else {
+            await db.query(
+              `UPDATE posts
+               SET visibility_status = 'visible',
+                   removed_at = NULL,
+                   removed_by = NULL,
+                   updated_at = NOW()
+               WHERE id = $1`,
+              [postId]
+            );
+          }
         }
       }
 
@@ -164,14 +186,15 @@ function createReportsRouter({ db, config, analytics }) {
         }
       }
 
+      const reportStatus = actionType === "dismiss" ? "dismissed" : "resolved";
       const report = await db.query(
         `UPDATE reports
-         SET status = 'resolved',
+         SET status = $3,
              reviewed_by = $1,
              reviewed_at = NOW()
          WHERE id = $2
          RETURNING id, status, reviewed_by, reviewed_at`,
-        [req.user.id, reportId]
+        [req.user.id, reportId, reportStatus]
       );
 
       if (report.rowCount === 0) {

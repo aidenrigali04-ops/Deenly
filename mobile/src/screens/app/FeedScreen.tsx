@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { CompositeScreenProps } from "@react-navigation/native";
@@ -25,6 +25,7 @@ type Props = CompositeScreenProps<
 export function FeedScreen({ navigation }: Props) {
   const [followingOnly, setFollowingOnly] = useState(false);
   const feedQueryKey = useMemo(() => ["mobile-feed", followingOnly] as const, [followingOnly]);
+  const queryClient = useQueryClient();
 
   const feedQuery = useInfiniteQuery({
     queryKey: feedQueryKey,
@@ -63,6 +64,36 @@ export function FeedScreen({ navigation }: Props) {
   };
 
   const items = feedQuery.data?.pages.flatMap((page) => page.items) || [];
+  useEffect(() => {
+    const sponsoredCampaignIds = items
+      .filter((item) => item.sponsored && item.ad_campaign_id)
+      .map((item) => Number(item.ad_campaign_id))
+      .filter((id) => Number.isFinite(id));
+    sponsoredCampaignIds.forEach((campaignId) => {
+      apiRequest("/ads/events/impression", {
+        method: "POST",
+        auth: true,
+        body: { campaignId }
+      }).catch(() => null);
+    });
+  }, [items]);
+  const likeMutation = useMutation({
+    mutationFn: ({ postId, nextLiked }: { postId: number; nextLiked: boolean }) =>
+      nextLiked
+        ? apiRequest("/interactions", {
+            method: "POST",
+            auth: true,
+            body: { postId, interactionType: "benefited" }
+          })
+        : apiRequest("/interactions", {
+            method: "DELETE",
+            auth: true,
+            body: { postId, interactionType: "benefited" }
+          }),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: feedQueryKey });
+    }
+  });
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -110,6 +141,8 @@ export function FeedScreen({ navigation }: Props) {
             layout="home"
             onOpen={() => navigation.navigate("PostDetail", { id: item.id })}
             onAuthor={() => navigation.navigate("UserProfile", { id: item.author_id })}
+            onLike={() => likeMutation.mutate({ postId: item.id, nextLiked: !item.liked_by_viewer })}
+            liking={likeMutation.isPending}
           />
         ))}
       </View>

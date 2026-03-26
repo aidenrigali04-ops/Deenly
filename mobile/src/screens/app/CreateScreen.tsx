@@ -36,10 +36,22 @@ export function CreateScreen({ navigation }: Props) {
     "community"
   );
   const [content, setContent] = useState("");
+  const [tagsInput, setTagsInput] = useState("");
   const [selectedFile, setSelectedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
+  const [productFile, setProductFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
+  const [sellThis, setSellThis] = useState(false);
+  const [productType, setProductType] = useState<"digital" | "service" | "subscription">("digital");
+  const [priceMinor, setPriceMinor] = useState("");
+  const [productTitle, setProductTitle] = useState("");
+  const [productDescription, setProductDescription] = useState("");
+  const [serviceDetails, setServiceDetails] = useState("");
+  const [deliveryMethod, setDeliveryMethod] = useState("");
+  const [websiteUrl, setWebsiteUrl] = useState("");
+  const [ctaLabel, setCtaLabel] = useState("");
+  const [ctaUrl, setCtaUrl] = useState("");
   const myProductsQuery = useQuery({
     queryKey: ["mobile-create-my-products"],
     queryFn: () => fetchMyProducts()
@@ -55,16 +67,74 @@ export function CreateScreen({ navigation }: Props) {
     }
   };
 
+  const pickProductFile = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ["image/*", "video/*"],
+      copyToCacheDirectory: true
+    });
+    if (!result.canceled && result.assets.length > 0) {
+      setProductFile(result.assets[0]);
+    }
+  };
+
   const createPost = async () => {
     setIsSubmitting(true);
     setError("");
     try {
+      let deliveryMediaKey: string | undefined;
+      if (sellThis && productType === "digital") {
+        if (!productFile) {
+          throw new Error("Select a delivery file for digital product.");
+        }
+        const productMimeType = productFile.mimeType || "application/octet-stream";
+        const productMediaType = deriveMediaType(productMimeType);
+        if (!productMediaType) {
+          throw new Error("Digital delivery file must be image or video.");
+        }
+        const signature = await apiRequest<UploadSignatureResponse>("/media/upload-signature", {
+          method: "POST",
+          auth: true,
+          body: {
+            mediaType: productMediaType,
+            mimeType: productMimeType,
+            originalFilename: productFile.name,
+            fileSizeBytes: productFile.size || 1
+          }
+        });
+        const productFileResponse = await fetch(productFile.uri);
+        const productFileBlob = await productFileResponse.blob();
+        const productUploadResponse = await fetch(signature.uploadUrl, {
+          method: "PUT",
+          headers: signature.headers,
+          body: productFileBlob
+        });
+        if (!productUploadResponse.ok) {
+          throw new Error("Unable to upload product delivery file.");
+        }
+        deliveryMediaKey = signature.key;
+      }
       const post = await apiRequest<CreatePostResponse>("/posts", {
         method: "POST",
         auth: true,
         body: {
           postType,
-          content
+          content,
+          tags: tagsInput
+            .split(",")
+            .map((tag) => tag.trim())
+            .filter(Boolean),
+          isBusinessPost: sellThis,
+          ctaLabel: sellThis && ctaLabel.trim() ? ctaLabel.trim() : undefined,
+          ctaUrl: sellThis && ctaUrl.trim() ? ctaUrl.trim() : undefined,
+          sellThis,
+          productType,
+          priceMinor: sellThis ? Number(priceMinor) : undefined,
+          productTitle: sellThis && productTitle.trim() ? productTitle.trim() : undefined,
+          productDescription: sellThis && productDescription.trim() ? productDescription.trim() : undefined,
+          serviceDetails: sellThis && serviceDetails.trim() ? serviceDetails.trim() : undefined,
+          deliveryMethod: sellThis && deliveryMethod.trim() ? deliveryMethod.trim() : undefined,
+          websiteUrl: sellThis && websiteUrl.trim() ? websiteUrl.trim() : undefined,
+          deliveryMediaKey
         }
       });
 
@@ -117,8 +187,20 @@ export function CreateScreen({ navigation }: Props) {
       }
 
       setContent("");
+      setTagsInput("");
       setSelectedFile(null);
+      setProductFile(null);
       setSelectedProductId(null);
+      setSellThis(false);
+      setProductType("digital");
+      setPriceMinor("");
+      setProductTitle("");
+      setProductDescription("");
+      setServiceDetails("");
+      setDeliveryMethod("");
+      setWebsiteUrl("");
+      setCtaLabel("");
+      setCtaUrl("");
       navigation.navigate("PostDetail", { id: post.id });
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Unable to create post";
@@ -149,6 +231,13 @@ export function CreateScreen({ navigation }: Props) {
         placeholderTextColor={colors.muted}
         value={content}
         onChangeText={setContent}
+      />
+      <TextInput
+        style={styles.inputSingle}
+        placeholder="Tags (comma separated)"
+        placeholderTextColor={colors.muted}
+        value={tagsInput}
+        onChangeText={setTagsInput}
       />
       <View style={styles.fileRow}>
         <Pressable style={styles.buttonSecondary} onPress={pickMedia}>
@@ -190,6 +279,104 @@ export function CreateScreen({ navigation }: Props) {
           </View>
         </View>
       ) : null}
+      <View style={styles.fileRow}>
+        <Pressable
+          style={[styles.chip, sellThis ? styles.chipActive : null]}
+          onPress={() => setSellThis((value) => !value)}
+        >
+          <Text style={styles.chipText}>Sell This</Text>
+        </Pressable>
+        {sellThis ? (
+          <>
+            <TextInput
+              style={styles.inputSingle}
+              placeholder="Price (minor units)"
+              placeholderTextColor={colors.muted}
+              value={priceMinor}
+              onChangeText={setPriceMinor}
+              keyboardType="number-pad"
+            />
+            <View style={styles.typeRow}>
+              {(["digital", "service", "subscription"] as const).map((type) => (
+                <Pressable
+                  key={type}
+                  onPress={() => setProductType(type)}
+                  style={[styles.chip, productType === type ? styles.chipActive : null]}
+                >
+                  <Text style={styles.chipText}>{type}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <TextInput
+              style={styles.inputSingle}
+              placeholder="Product title"
+              placeholderTextColor={colors.muted}
+              value={productTitle}
+              onChangeText={setProductTitle}
+            />
+            <TextInput
+              style={styles.input}
+              multiline
+              placeholder="Product / offer description"
+              placeholderTextColor={colors.muted}
+              value={productDescription}
+              onChangeText={setProductDescription}
+            />
+            {productType === "digital" ? (
+              <View style={styles.fileRow}>
+                <Pressable style={styles.buttonSecondary} onPress={pickProductFile}>
+                  <Text style={styles.buttonText}>Upload delivery file</Text>
+                </Pressable>
+                {productFile ? (
+                  <Text style={styles.muted} numberOfLines={1}>
+                    {productFile.name}
+                  </Text>
+                ) : null}
+              </View>
+            ) : (
+              <TextInput
+                style={styles.input}
+                multiline
+                placeholder="Service details"
+                placeholderTextColor={colors.muted}
+                value={serviceDetails}
+                onChangeText={setServiceDetails}
+              />
+            )}
+            <TextInput
+              style={styles.inputSingle}
+              placeholder="Delivery method (email, DM, booking call)"
+              placeholderTextColor={colors.muted}
+              value={deliveryMethod}
+              onChangeText={setDeliveryMethod}
+            />
+            <TextInput
+              style={styles.inputSingle}
+              placeholder="Website URL (https://...)"
+              placeholderTextColor={colors.muted}
+              value={websiteUrl}
+              onChangeText={setWebsiteUrl}
+              autoCapitalize="none"
+            />
+            <TextInput
+              style={styles.inputSingle}
+              placeholder="CTA label"
+              placeholderTextColor={colors.muted}
+              value={ctaLabel}
+              onChangeText={setCtaLabel}
+              maxLength={80}
+            />
+            <TextInput
+              style={styles.inputSingle}
+              placeholder="CTA URL (https://...)"
+              placeholderTextColor={colors.muted}
+              value={ctaUrl}
+              onChangeText={setCtaUrl}
+              autoCapitalize="none"
+            />
+          </>
+        ) : null}
+      </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Pressable style={styles.button} onPress={createPost} disabled={isSubmitting}>
         <Text style={styles.buttonPrimaryText}>{isSubmitting ? "Publishing..." : "Publish"}</Text>
@@ -238,6 +425,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     padding: 12,
     textAlignVertical: "top"
+  },
+  inputSingle: {
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 10,
+    color: colors.text,
+    backgroundColor: colors.surface,
+    padding: 12
   },
   button: {
     backgroundColor: colors.accent,

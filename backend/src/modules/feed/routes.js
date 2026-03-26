@@ -66,6 +66,58 @@ async function getViewerIdFromAuthHeader({ db, config, authorization }) {
 function createFeedRouter({ db, config, mediaStorage }) {
   const router = express.Router();
 
+  async function getSponsoredCampaign({ db, viewerId }) {
+    const result = await db.query(
+      `SELECT ac.id AS campaign_id,
+              ac.creator_user_id,
+              ac.post_id,
+              ac.budget_minor,
+              ac.spent_minor,
+              ac.currency,
+              p.author_id,
+              p.post_type,
+              p.content,
+              p.media_url,
+              p.media_mime_type,
+              p.style_tag,
+              p.tags,
+              p.created_at,
+              p.is_business_post,
+              p.cta_label,
+              p.cta_url,
+              pr.display_name AS author_display_name,
+              pr.avatar_url AS author_avatar_url
+       FROM ad_campaigns ac
+       JOIN posts p ON p.id = ac.post_id
+       JOIN profiles pr ON pr.user_id = p.author_id
+       JOIN ad_creative_reviews acr ON acr.campaign_id = ac.id
+       WHERE ac.status = 'active'
+         AND acr.status = 'approved'
+         AND ac.spent_minor < ac.budget_minor
+         AND p.visibility_status = 'visible'
+         AND p.media_status = 'ready'
+         AND p.removed_at IS NULL
+         AND (
+           $1::int IS NULL
+           OR (
+             NOT EXISTS (
+               SELECT 1 FROM user_blocks ub
+               WHERE (ub.user_id = $1 AND ub.blocked_user_id = p.author_id)
+                  OR (ub.user_id = p.author_id AND ub.blocked_user_id = $1)
+             )
+             AND NOT EXISTS (
+               SELECT 1 FROM user_mutes um
+               WHERE um.user_id = $1 AND um.muted_user_id = p.author_id
+             )
+           )
+         )
+       ORDER BY ac.updated_at DESC, ac.id DESC
+       LIMIT 1`,
+      [viewerId]
+    );
+    return result.rows[0] || null;
+  }
+
   router.get(
     "/",
     asyncHandler(async (req, res) => {
@@ -114,12 +166,18 @@ function createFeedRouter({ db, config, mediaStorage }) {
                 p.media_url,
                 p.media_mime_type,
                 p.style_tag,
+                p.tags,
                 p.created_at,
+                p.is_business_post,
+                p.cta_label,
+                p.cta_url,
                 pr.avatar_url AS author_avatar_url,
                 cpr.id AS attached_product_id,
                 cpr.title AS attached_product_title,
                 cpr.price_minor AS attached_product_price_minor,
                 cpr.currency AS attached_product_currency,
+                cpr.product_type AS attached_product_type,
+                cpr.website_url AS attached_product_website_url,
                 COALESCE(MAX(vs.view_count), 0)::int AS view_count,
                 COALESCE(MAX(vs.avg_watch_time_ms), 0)::int AS avg_watch_time_ms,
                 COALESCE(MAX(vs.avg_completion_rate), 0)::numeric AS avg_completion_rate,
@@ -135,6 +193,16 @@ function createFeedRouter({ db, config, mediaStorage }) {
                       AND f.following_id = p.author_id
                   )
                 END AS is_following_author,
+                CASE
+                  WHEN $1::int IS NULL THEN false
+                  ELSE EXISTS (
+                    SELECT 1 FROM interactions li
+                    WHERE li.user_id = $1
+                      AND li.post_id = p.id
+                      AND li.interaction_type = 'benefited'
+                      AND li.deleted_at IS NULL
+                  )
+                END AS liked_by_viewer,
                 CASE
                   WHEN $1::int IS NULL THEN 0
                   WHEN EXISTS (
@@ -165,6 +233,14 @@ function createFeedRouter({ db, config, mediaStorage }) {
                   ) THEN 1.8
                   ELSE 0
                 END AS interest_boost
+                ,
+                COALESCE((
+                  SELECT COUNT(*)::int
+                  FROM reports r
+                  WHERE r.target_type = 'post'
+                    AND r.target_id = p.id::text
+                    AND r.status IN ('open', 'reviewing')
+                ), 0) AS trust_report_count
          FROM posts p
          JOIN profiles pr ON pr.user_id = p.author_id
          LEFT JOIN post_product_links ppl ON ppl.post_id = p.id
@@ -190,6 +266,21 @@ function createFeedRouter({ db, config, mediaStorage }) {
            ))
            AND p.visibility_status = 'visible'
            AND p.media_status = 'ready'
+           AND p.removed_at IS NULL
+           AND (
+             $1::int IS NULL
+             OR (
+               NOT EXISTS (
+                 SELECT 1 FROM user_blocks ub
+                 WHERE (ub.user_id = $1 AND ub.blocked_user_id = p.author_id)
+                    OR (ub.user_id = p.author_id AND ub.blocked_user_id = $1)
+               )
+               AND NOT EXISTS (
+                 SELECT 1 FROM user_mutes um
+                 WHERE um.user_id = $1 AND um.muted_user_id = p.author_id
+               )
+             )
+           )
          GROUP BY p.id, pr.display_name, pr.avatar_url, cpr.id, cpr.title, cpr.price_minor, cpr.currency
          ),
          ranked AS (
@@ -203,6 +294,7 @@ function createFeedRouter({ db, config, mediaStorage }) {
                     + (follow_boost * $10::numeric)
                     + (affinity_score * $11::numeric)
                     + (interest_boost * $12::numeric)
+                    - (trust_report_count * $17::numeric)
                   )::numeric AS rank_score
            FROM post_agg
          )
@@ -232,13 +324,14 @@ function createFeedRouter({ db, config, mediaStorage }) {
           cursor ? cursor.rankScore : null,
           cursor ? cursor.createdAt : null,
           cursor ? cursor.id : null,
-          limit + 1
+          limit + 1,
+          Number(config.feedTrustReportPenaltyWeight || 250)
         ]
       );
 
       const hasMore = result.rows.length > limit;
       const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
-      const items = rows.map((row) => ({
+      let items = rows.map((row) => ({
         ...row,
         media_url: mediaStorage?.resolveMediaUrl
           ? mediaStorage.resolveMediaUrl({
@@ -253,7 +346,50 @@ function createFeedRouter({ db, config, mediaStorage }) {
             })
           : row.author_avatar_url
       }));
-      const nextCursor = hasMore ? encodeCursor(items[items.length - 1]) : null;
+      const adInsertEvery = Math.max(Number(config.feedSponsoredInsertEvery || 6), 3);
+      const canInsertSponsored = !followingOnly && items.length >= adInsertEvery - 1;
+      if (canInsertSponsored) {
+        const sponsored = await getSponsoredCampaign({ db, viewerId });
+        if (sponsored && !items.some((item) => Number(item.id) === Number(sponsored.post_id))) {
+          const sponsoredItem = {
+            id: sponsored.post_id,
+            author_id: sponsored.author_id,
+            post_type: sponsored.post_type,
+            content: sponsored.content,
+            media_url: mediaStorage?.resolveMediaUrl
+              ? mediaStorage.resolveMediaUrl({
+                  mediaKey: sponsored.media_url,
+                  mediaUrl: sponsored.media_url
+                })
+              : sponsored.media_url,
+            media_mime_type: sponsored.media_mime_type,
+            style_tag: sponsored.style_tag,
+            tags: sponsored.tags || [],
+            created_at: sponsored.created_at,
+            author_display_name: sponsored.author_display_name,
+            author_avatar_url: mediaStorage?.resolveMediaUrl
+              ? mediaStorage.resolveMediaUrl({
+                  mediaKey: sponsored.author_avatar_url,
+                  mediaUrl: sponsored.author_avatar_url
+                })
+              : sponsored.author_avatar_url,
+            benefited_count: 0,
+            comment_count: 0,
+            reflect_later_count: 0,
+            is_following_author: false,
+            liked_by_viewer: false,
+            is_business_post: sponsored.is_business_post,
+            cta_label: sponsored.cta_label,
+            cta_url: sponsored.cta_url,
+            sponsored: true,
+            sponsored_label: "Sponsored",
+            ad_campaign_id: sponsored.campaign_id
+          };
+          const insertIndex = Math.min(adInsertEvery - 1, items.length);
+          items = [...items.slice(0, insertIndex), sponsoredItem, ...items.slice(insertIndex)];
+        }
+      }
+      const nextCursor = hasMore ? encodeCursor(rows[rows.length - 1]) : null;
 
       res.status(200).json({
         items,

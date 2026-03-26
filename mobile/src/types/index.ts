@@ -38,6 +38,16 @@ export type FeedItem = {
   attached_product_title?: string | null;
   attached_product_price_minor?: number | null;
   attached_product_currency?: string | null;
+  attached_product_type?: "digital" | "service" | "subscription" | null;
+  attached_product_website_url?: string | null;
+  is_business_post?: boolean;
+  cta_label?: string | null;
+  cta_url?: string | null;
+  tags?: string[];
+  liked_by_viewer?: boolean;
+  sponsored?: boolean;
+  sponsored_label?: string | null;
+  ad_campaign_id?: number | null;
   benefited_count: number;
   comment_count: number;
   reflect_later_count: number;

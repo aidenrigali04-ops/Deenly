@@ -169,6 +169,12 @@ function loadEnv(envSource = process.env) {
       affinity: parseNumber(envSource.FEED_RANK_AFFINITY_WEIGHT, 45),
       interestBoost: parseNumber(envSource.FEED_RANK_INTEREST_BOOST_WEIGHT, 220)
     },
+    feedSponsoredInsertEvery: parsePositiveInt(
+      envSource.FEED_SPONSORED_INSERT_EVERY,
+      6,
+      "FEED_SPONSORED_INSERT_EVERY"
+    ),
+    feedTrustReportPenaltyWeight: parseNumber(envSource.FEED_TRUST_REPORT_PENALTY_WEIGHT, 250),
     stripeSecretKey: String(envSource.STRIPE_SECRET_KEY || "").trim(),
     stripeWebhookSecret: String(envSource.STRIPE_WEBHOOK_SECRET || "").trim(),
     stripeConnectClientId: String(envSource.STRIPE_CONNECT_CLIENT_ID || "").trim(),

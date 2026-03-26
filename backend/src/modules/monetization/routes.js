@@ -5,6 +5,7 @@ const { httpError } = require("../../utils/http-error");
 const { requireString, optionalString } = require("../../utils/validators");
 
 const PRODUCT_STATUSES = new Set(["draft", "published", "archived"]);
+const PRODUCT_TYPES = new Set(["digital", "service", "subscription"]);
 const TIER_STATUSES = new Set(["draft", "published", "archived"]);
 const SUBSCRIPTION_STATUSES = new Set(["active", "canceled", "past_due", "incomplete", "expired"]);
 
@@ -103,6 +104,23 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
       throw httpError(400, "You cannot use your own affiliate code");
     }
     return affiliateCode;
+  }
+
+  async function ensureSellerPayoutReady(sellerUserId) {
+    const result = await db.query(
+      `SELECT charges_enabled, payouts_enabled, details_submitted
+       FROM creator_payout_accounts
+       WHERE user_id = $1
+       LIMIT 1`,
+      [sellerUserId]
+    );
+    if (result.rowCount === 0) {
+      throw httpError(409, "Creator payout account is not connected");
+    }
+    const row = result.rows[0];
+    if (!row.charges_enabled || !row.payouts_enabled || !row.details_submitted) {
+      throw httpError(409, "Creator payout setup is incomplete");
+    }
   }
 
   router.post(
@@ -228,18 +246,43 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
       const description = optionalString(req.body?.description, "description", 2000) || null;
       const priceMinor = Number(req.body?.priceMinor);
       const currency = normalizeCurrency(req.body?.currency);
-      const deliveryMediaKey = requireString(req.body?.deliveryMediaKey, "deliveryMediaKey", 5, 512);
+      const productType = String(req.body?.productType || "digital").trim().toLowerCase();
+      if (!PRODUCT_TYPES.has(productType)) {
+        throw httpError(400, "productType must be digital, service, or subscription");
+      }
+      const deliveryMediaKey = optionalString(req.body?.deliveryMediaKey, "deliveryMediaKey", 512) || null;
+      const serviceDetails = optionalString(req.body?.serviceDetails, "serviceDetails", 2000) || null;
+      const deliveryMethod = optionalString(req.body?.deliveryMethod, "deliveryMethod", 120) || null;
+      const websiteUrl = optionalString(req.body?.websiteUrl, "websiteUrl", 2000) || null;
+      if (websiteUrl && !/^https?:\/\//i.test(websiteUrl)) {
+        throw httpError(400, "websiteUrl must be an absolute http(s) URL");
+      }
       if (!Number.isInteger(priceMinor) || priceMinor <= 0) {
         throw httpError(400, "priceMinor must be a positive integer");
+      }
+      if (productType === "digital" && !deliveryMediaKey) {
+        throw httpError(400, "deliveryMediaKey is required for digital products");
       }
 
       const created = await db.query(
         `INSERT INTO creator_products (
-           creator_user_id, title, description, price_minor, currency, delivery_media_key, status
+           creator_user_id, title, description, price_minor, currency, delivery_media_key, product_type,
+           service_details, delivery_method, website_url, status
          )
-         VALUES ($1, $2, $3, $4, $5, $6, 'draft')
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'draft')
          RETURNING *`,
-        [req.user.id, title, description, priceMinor, currency, deliveryMediaKey]
+        [
+          req.user.id,
+          title,
+          description,
+          priceMinor,
+          currency,
+          deliveryMediaKey,
+          productType,
+          serviceDetails,
+          deliveryMethod,
+          websiteUrl
+        ]
       );
       res.status(201).json(created.rows[0]);
     })
@@ -327,9 +370,35 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
       }
       const currency =
         req.body?.currency !== undefined ? normalizeCurrency(req.body.currency) : previous.currency;
-      const deliveryMediaKey = req.body?.deliveryMediaKey
-        ? requireString(req.body?.deliveryMediaKey, "deliveryMediaKey", 5, 512)
-        : previous.delivery_media_key;
+      const productType =
+        req.body?.productType !== undefined
+          ? String(req.body.productType).trim().toLowerCase()
+          : previous.product_type;
+      if (!PRODUCT_TYPES.has(productType)) {
+        throw httpError(400, "productType must be digital, service, or subscription");
+      }
+      const deliveryMediaKey =
+        req.body?.deliveryMediaKey !== undefined
+          ? optionalString(req.body?.deliveryMediaKey, "deliveryMediaKey", 512)
+          : previous.delivery_media_key;
+      const serviceDetails =
+        req.body?.serviceDetails !== undefined
+          ? optionalString(req.body?.serviceDetails, "serviceDetails", 2000)
+          : previous.service_details;
+      const deliveryMethod =
+        req.body?.deliveryMethod !== undefined
+          ? optionalString(req.body?.deliveryMethod, "deliveryMethod", 120)
+          : previous.delivery_method;
+      const websiteUrl =
+        req.body?.websiteUrl !== undefined
+          ? optionalString(req.body?.websiteUrl, "websiteUrl", 2000)
+          : previous.website_url;
+      if (websiteUrl && !/^https?:\/\//i.test(websiteUrl)) {
+        throw httpError(400, "websiteUrl must be an absolute http(s) URL");
+      }
+      if (productType === "digital" && !deliveryMediaKey) {
+        throw httpError(400, "deliveryMediaKey is required for digital products");
+      }
       const status =
         req.body?.status !== undefined ? String(req.body.status).trim().toLowerCase() : previous.status;
       if (!PRODUCT_STATUSES.has(status)) {
@@ -343,12 +412,29 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
              price_minor = $5,
              currency = $6,
              delivery_media_key = $7,
-             status = $8,
+             product_type = $8,
+             service_details = $9,
+             delivery_method = $10,
+             website_url = $11,
+             status = $12,
              updated_at = NOW()
          WHERE id = $1
            AND creator_user_id = $2
          RETURNING *`,
-        [productId, req.user.id, title, description, priceMinor, currency, deliveryMediaKey, status]
+        [
+          productId,
+          req.user.id,
+          title,
+          description,
+          priceMinor,
+          currency,
+          deliveryMediaKey,
+          productType,
+          serviceDetails,
+          deliveryMethod,
+          websiteUrl,
+          status
+        ]
       );
       res.status(200).json(updated.rows[0]);
     })
@@ -600,6 +686,7 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
       if (product.creator_user_id === req.user.id) {
         throw httpError(400, "You cannot purchase your own product");
       }
+      await ensureSellerPayoutReady(product.creator_user_id);
       const affiliateCode = await resolveAffiliateCode({
         rawCode: req.body?.affiliateCode,
         sellerUserId: product.creator_user_id,
@@ -627,7 +714,8 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
         amountMinor: product.price_minor,
         currency: product.currency,
         metadata: {
-          affiliateCodeId: affiliateCode?.id || null
+          affiliateCodeId: affiliateCode?.id || null,
+          platformFeeBps: Number(config.monetizationPlatformFeeBps || 350)
         }
       });
 
@@ -658,6 +746,7 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
       if (creatorExists.rowCount === 0) {
         throw httpError(404, "Creator not found");
       }
+      await ensureSellerPayoutReady(creatorUserId);
       const affiliateCode = await resolveAffiliateCode({
         rawCode: req.body?.affiliateCode,
         sellerUserId: creatorUserId,
@@ -683,7 +772,8 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
         amountMinor,
         currency,
         metadata: {
-          affiliateCodeId: affiliateCode?.id || null
+          affiliateCodeId: affiliateCode?.id || null,
+          platformFeeBps: Number(config.monetizationPlatformFeeBps || 350)
         }
       });
       res.status(200).json({
@@ -716,6 +806,7 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
       if (tier.creator_user_id === req.user.id) {
         throw httpError(400, "You cannot subscribe to your own tier");
       }
+      await ensureSellerPayoutReady(tier.creator_user_id);
       const affiliateCode = await resolveAffiliateCode({
         rawCode: req.body?.affiliateCode,
         sellerUserId: tier.creator_user_id,
@@ -744,7 +835,8 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
         currency: tier.currency,
         metadata: {
           tierId: tier.id,
-          affiliateCodeId: affiliateCode?.id || null
+          affiliateCodeId: affiliateCode?.id || null,
+          platformFeeBps: Number(config.monetizationPlatformFeeBps || 350)
         }
       });
       res.status(200).json({
@@ -1172,7 +1264,7 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
         throw httpError(400, "productId must be a number");
       }
       const accessResult = await db.query(
-        `SELECT cp.id, cp.creator_user_id, cp.delivery_media_key,
+        `SELECT cp.id, cp.creator_user_id, cp.delivery_media_key, cp.product_type, cp.website_url,
                 EXISTS (
                   SELECT 1
                   FROM orders o
@@ -1193,12 +1285,15 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
       if (!canAccess) {
         throw httpError(403, "Purchase required");
       }
-      const downloadUrl = mediaStorage?.resolveMediaUrl
-        ? mediaStorage.resolveMediaUrl({
-            mediaKey: row.delivery_media_key,
-            mediaUrl: row.delivery_media_key
-          })
-        : row.delivery_media_key;
+      const downloadUrl =
+        row.product_type === "digital"
+          ? mediaStorage?.resolveMediaUrl
+            ? mediaStorage.resolveMediaUrl({
+                mediaKey: row.delivery_media_key,
+                mediaUrl: row.delivery_media_key
+              })
+            : row.delivery_media_key
+          : row.website_url || null;
       return res.status(200).json({
         productId,
         downloadUrl

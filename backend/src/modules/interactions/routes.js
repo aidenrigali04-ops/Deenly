@@ -150,6 +150,41 @@ function createInteractionsRouter({ db, config, analytics, pushNotifications }) 
   );
 
   router.post(
+    "/cta-click",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const postId = Number(req.body?.postId);
+      if (!postId) {
+        throw httpError(400, "postId must be a number");
+      }
+      const postResult = await db.query(
+        `SELECT id, author_id, cta_url
+         FROM posts
+         WHERE id = $1
+           AND visibility_status = 'visible'
+           AND removed_at IS NULL
+         LIMIT 1`,
+        [postId]
+      );
+      if (postResult.rowCount === 0) {
+        throw httpError(404, "Post not found");
+      }
+      const post = postResult.rows[0];
+      if (!post.cta_url) {
+        throw httpError(400, "Post has no CTA");
+      }
+      if (analytics) {
+        await analytics.trackEvent("creator_cta_click", {
+          userId: req.user.id,
+          postId,
+          authorId: post.author_id
+        });
+      }
+      res.status(201).json({ ok: true, postId });
+    })
+  );
+
+  router.post(
     "/view",
     authMiddleware,
     asyncHandler(async (req, res) => {

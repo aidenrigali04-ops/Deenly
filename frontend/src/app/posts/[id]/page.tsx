@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
@@ -14,6 +14,7 @@ import {
   formatMinorCurrency,
   requestProductDownloadLink
 } from "@/lib/monetization";
+import { useSessionStore } from "@/store/session-store";
 
 type PostDetail = FeedItem & {
   view_count?: number;
@@ -33,10 +34,14 @@ function isImageMedia(post: PostDetail) {
 
 export default function PostDetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const postId = Number(params.id);
+  const sessionUser = useSessionStore((state) => state.user);
   const [comment, setComment] = useState("");
   const [reportReason, setReportReason] = useState("");
   const [mediaFailed, setMediaFailed] = useState(false);
+  const [liked, setLiked] = useState(false);
+  const [benefitedCount, setBenefitedCount] = useState(0);
 
   const postQuery = useQuery({
     queryKey: ["post-detail", postId],
@@ -67,6 +72,10 @@ export default function PostDetailPage() {
   useEffect(() => {
     setMediaFailed(false);
   }, [postId, postQuery.data?.media_url]);
+  useEffect(() => {
+    setLiked(Boolean(postQuery.data?.liked_by_viewer));
+    setBenefitedCount(Number(postQuery.data?.benefited_count || 0));
+  }, [postQuery.data?.liked_by_viewer, postQuery.data?.benefited_count]);
 
   const interact = useMutation({
     mutationFn: (payload: { interactionType: string; commentText?: string }) =>
@@ -91,6 +100,38 @@ export default function PostDetailPage() {
         }
       })
   });
+  const likeToggleMutation = useMutation({
+    mutationFn: (nextLiked: boolean) =>
+      nextLiked
+        ? apiRequest("/interactions", {
+            method: "POST",
+            auth: true,
+            body: { postId, interactionType: "benefited" }
+          })
+        : apiRequest("/interactions", {
+            method: "DELETE",
+            auth: true,
+            body: { postId, interactionType: "benefited" }
+          }),
+    onMutate: (nextLiked) => {
+      setLiked(nextLiked);
+      setBenefitedCount((value) => Math.max(0, value + (nextLiked ? 1 : -1)));
+    },
+    onError: (_error, nextLiked) => {
+      setLiked(!nextLiked);
+      setBenefitedCount((value) => Math.max(0, value + (nextLiked ? -1 : 1)));
+    }
+  });
+  const deletePostMutation = useMutation({
+    mutationFn: () =>
+      apiRequest(`/posts/${postId}`, {
+        method: "DELETE",
+        auth: true
+      }),
+    onSuccess: () => {
+      router.push("/");
+    }
+  });
 
   const stats = useMemo(() => {
     const post = postQuery.data;
@@ -98,13 +139,13 @@ export default function PostDetailPage() {
       return null;
     }
     return [
-      `Benefited: ${post.benefited_count || 0}`,
+      `Benefited: ${benefitedCount}`,
       `Comments: ${post.comment_count || 0}`,
       `Views: ${post.view_count || 0}`,
       `Avg watch: ${post.avg_watch_time_ms || 0}ms`,
       `Completion: ${post.avg_completion_rate || 0}%`
     ];
-  }, [postQuery.data]);
+  }, [postQuery.data, benefitedCount]);
   const productId = Number(postQuery.data?.attached_product_id || 0) || null;
   const productAccessQuery = useQuery({
     queryKey: ["post-product-access", productId],
@@ -119,6 +160,8 @@ export default function PostDetailPage() {
       }
     }
   });
+  const attachedProductType = postQuery.data?.attached_product_type || "digital";
+  const attachedProductWebsiteUrl = postQuery.data?.attached_product_website_url || null;
   const downloadMutation = useMutation({
     mutationFn: () => requestProductDownloadLink(productId as number),
     onSuccess: (result) => {
@@ -184,9 +227,10 @@ export default function PostDetailPage() {
         <div className="flex flex-wrap gap-2">
           <button
             className="btn-secondary"
-            onClick={() => interact.mutate({ interactionType: "benefited" })}
+            onClick={() => likeToggleMutation.mutate(!liked)}
+            disabled={likeToggleMutation.isPending}
           >
-            Benefited
+            {liked ? "Unlike" : "Like"}
           </button>
           <button
             className="btn-secondary"
@@ -197,7 +241,31 @@ export default function PostDetailPage() {
           <Link className="btn-secondary" href={`/users/${post.author_id}`}>
             Author Profile
           </Link>
+          {sessionUser?.id === post.author_id ? (
+            <button
+              className="btn-secondary"
+              onClick={() => deletePostMutation.mutate()}
+              disabled={deletePostMutation.isPending}
+            >
+              {deletePostMutation.isPending ? "Deleting..." : "Delete post"}
+            </button>
+          ) : null}
         </div>
+        {post.cta_label && post.cta_url ? (
+          <button
+            className="btn-secondary w-full"
+            onClick={async () => {
+              await apiRequest("/interactions/cta-click", {
+                method: "POST",
+                auth: true,
+                body: { postId }
+              }).catch(() => null);
+              window.open(post.cta_url || "", "_blank", "noopener,noreferrer");
+            }}
+          >
+            {post.cta_label}
+          </button>
+        ) : null}
         {productId ? (
           <div className="rounded-panel border border-black/10 bg-surface p-3">
             <p className="text-xs font-semibold text-text">{post.attached_product_title || "Creator product"}</p>
@@ -219,10 +287,20 @@ export default function PostDetailPage() {
               ) : (
                 <button
                   className="btn-secondary"
-                  onClick={() => productCheckoutMutation.mutate()}
+                  onClick={() => {
+                    if (attachedProductType !== "digital" && attachedProductWebsiteUrl) {
+                      window.open(attachedProductWebsiteUrl, "_blank", "noopener,noreferrer");
+                      return;
+                    }
+                    productCheckoutMutation.mutate();
+                  }}
                   disabled={productCheckoutMutation.isPending}
                 >
-                  {productCheckoutMutation.isPending ? "Opening..." : "Buy product"}
+                  {productCheckoutMutation.isPending
+                    ? "Opening..."
+                    : attachedProductType === "digital"
+                      ? "Buy product"
+                      : "View offer"}
                 </button>
               )}
             </div>

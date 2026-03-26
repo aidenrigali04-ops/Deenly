@@ -24,6 +24,8 @@ const { createAdminRouter } = require("./modules/admin/routes");
 const { createBetaRouter } = require("./modules/beta/routes");
 const { createSupportRouter } = require("./modules/support/routes");
 const { createMonetizationRouter } = require("./modules/monetization/routes");
+const { createAdsRouter } = require("./modules/ads/routes");
+const { createCreatorRouter } = require("./modules/creator/routes");
 const { createMetrics } = require("./observability/metrics");
 const { createMonetizationGateway } = require("./services/monetization-gateway");
 const { authenticate, authorize } = require("./middleware/auth");
@@ -229,6 +231,8 @@ function createApp({
       analytics: app.locals.analytics
     })
   );
+  apiRouter.use("/ads", createAdsRouter({ db, config, analytics: app.locals.analytics }));
+  apiRouter.use("/creator", createCreatorRouter({ db, config, mediaStorage: app.locals.mediaStorage }));
 
   app.use("/api", apiRouter);
   app.use("/api/v1", apiRouter);

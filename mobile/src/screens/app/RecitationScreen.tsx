@@ -1,4 +1,5 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { CompositeScreenProps } from "@react-navigation/native";
@@ -21,6 +22,7 @@ type Props = CompositeScreenProps<
 >;
 
 export function RecitationScreen({ navigation }: Props) {
+  const queryClient = useQueryClient();
   const feedQuery = useInfiniteQuery({
     queryKey: ["mobile-recitation-feed"],
     queryFn: ({ pageParam }) => {
@@ -37,6 +39,36 @@ export function RecitationScreen({ navigation }: Props) {
   });
 
   const items = feedQuery.data?.pages.flatMap((page) => page.items) || [];
+  const likeMutation = useMutation({
+    mutationFn: ({ postId, nextLiked }: { postId: number; nextLiked: boolean }) =>
+      nextLiked
+        ? apiRequest("/interactions", {
+            method: "POST",
+            auth: true,
+            body: { postId, interactionType: "benefited" }
+          })
+        : apiRequest("/interactions", {
+            method: "DELETE",
+            auth: true,
+            body: { postId, interactionType: "benefited" }
+          }),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["mobile-recitation-feed"] });
+    }
+  });
+  useEffect(() => {
+    const sponsoredCampaignIds = items
+      .filter((item) => item.sponsored && item.ad_campaign_id)
+      .map((item) => Number(item.ad_campaign_id))
+      .filter((id) => Number.isFinite(id));
+    sponsoredCampaignIds.forEach((campaignId) => {
+      apiRequest("/ads/events/impression", {
+        method: "POST",
+        auth: true,
+        body: { campaignId }
+      }).catch(() => null);
+    });
+  }, [items]);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -64,6 +96,8 @@ export function RecitationScreen({ navigation }: Props) {
             item={item}
             onOpen={() => navigation.navigate("PostDetail", { id: item.id })}
             onAuthor={() => navigation.navigate("UserProfile", { id: item.author_id })}
+            onLike={() => likeMutation.mutate({ postId: item.id, nextLiked: !item.liked_by_viewer })}
+            liking={likeMutation.isPending}
           />
         ))}
       </View>

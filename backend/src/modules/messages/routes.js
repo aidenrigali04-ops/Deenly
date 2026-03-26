@@ -8,6 +8,29 @@ function createMessagesRouter({ db, config }) {
   const router = express.Router();
   const authMiddleware = authenticate({ config, db });
 
+  function hasBlockedTerm(text) {
+    const blockedTerms = config.commentBlockedTerms || [];
+    if (!text || blockedTerms.length === 0) {
+      return false;
+    }
+    const normalized = String(text).toLowerCase();
+    return blockedTerms.some((term) => normalized.includes(String(term || "").toLowerCase()));
+  }
+
+  async function ensureNoSafetyBlockBetween(userA, userB) {
+    const blocked = await db.query(
+      `SELECT 1
+       FROM user_blocks ub
+       WHERE (ub.user_id = $1 AND ub.blocked_user_id = $2)
+          OR (ub.user_id = $2 AND ub.blocked_user_id = $1)
+       LIMIT 1`,
+      [userA, userB]
+    );
+    if (blocked.rowCount > 0) {
+      throw httpError(403, "Messaging unavailable due to safety settings");
+    }
+  }
+
   async function ensureParticipant(conversationId, userId) {
     const participant = await db.query(
       `SELECT id
@@ -33,6 +56,7 @@ function createMessagesRouter({ db, config }) {
       if (participantUserId === req.user.id) {
         throw httpError(400, "Cannot create conversation with yourself");
       }
+      await ensureNoSafetyBlockBetween(req.user.id, participantUserId);
 
       const existing = await db.query(
         `SELECT cp1.conversation_id
@@ -108,6 +132,18 @@ function createMessagesRouter({ db, config }) {
            LIMIT 1
          ) lm ON true
          WHERE cp.user_id = $1
+           AND NOT EXISTS (
+             SELECT 1
+             FROM user_blocks ub
+             WHERE (ub.user_id = $1 AND ub.blocked_user_id = p.user_id)
+                OR (ub.user_id = p.user_id AND ub.blocked_user_id = $1)
+           )
+           AND NOT EXISTS (
+             SELECT 1
+             FROM user_mutes um
+             WHERE um.user_id = $1
+               AND um.muted_user_id = p.user_id
+           )
          ORDER BY c.updated_at DESC, c.id DESC
          LIMIT $2 OFFSET $3`,
         [req.user.id, limit, offset]
@@ -170,6 +206,20 @@ function createMessagesRouter({ db, config }) {
       await ensureParticipant(conversationId, req.user.id);
 
       const body = requireString(req.body?.body, "body", 1, 4000);
+      if (hasBlockedTerm(body)) {
+        throw httpError(400, "Message includes blocked language");
+      }
+      const peer = await db.query(
+        `SELECT user_id
+         FROM conversation_participants
+         WHERE conversation_id = $1
+           AND user_id <> $2
+         LIMIT 1`,
+        [conversationId, req.user.id]
+      );
+      if (peer.rowCount > 0) {
+        await ensureNoSafetyBlockBetween(req.user.id, peer.rows[0].user_id);
+      }
       const created = await db.query(
         `INSERT INTO messages (conversation_id, sender_id, body)
          VALUES ($1, $2, $3)

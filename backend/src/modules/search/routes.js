@@ -42,7 +42,8 @@ function createSearchRouter({ db, config }) {
       }
 
       const result = await db.query(
-        `SELECT p.id, p.author_id, p.post_type, p.content, p.media_url, p.style_tag, p.created_at,
+        `SELECT p.id, p.author_id, p.post_type, p.content, p.media_url, p.style_tag, p.tags, p.created_at,
+                p.is_business_post, p.cta_label, p.cta_url,
                 pr.display_name AS author_display_name
          FROM posts p
          JOIN profiles pr ON pr.user_id = p.author_id
@@ -50,6 +51,7 @@ function createSearchRouter({ db, config }) {
            AND ($2::text IS NULL OR p.post_type = $2::text)
            AND p.visibility_status = 'visible'
            AND p.media_status = 'ready'
+           AND p.removed_at IS NULL
          ORDER BY p.created_at DESC, p.id DESC
          LIMIT $3 OFFSET $4`,
         [query, postType, limit, offset]

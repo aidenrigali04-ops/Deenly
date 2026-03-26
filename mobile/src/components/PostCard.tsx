@@ -1,10 +1,11 @@
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { ResizeMode, Video } from "expo-av";
 import { useEffect, useState } from "react";
 import { colors } from "../theme";
 import { resolveMediaUrl } from "../lib/media-url";
 import type { FeedItem } from "../types";
 import { formatMinorCurrency } from "../lib/monetization";
+import { apiRequest } from "../lib/api";
 
 function isImageMedia(item: FeedItem) {
   if (item.media_mime_type?.startsWith("image/")) {
@@ -44,6 +45,30 @@ export function PostCard({
     .map((part) => part[0]?.toUpperCase())
     .join("");
   const authorAvatarUri = resolveMediaUrl(item.author_avatar_url) || undefined;
+  const handleCtaPress = async () => {
+    if (!item.cta_url) {
+      return;
+    }
+    await apiRequest("/interactions/cta-click", {
+      method: "POST",
+      auth: true,
+      body: { postId: item.id }
+    }).catch(() => null);
+    if (item.sponsored && item.ad_campaign_id) {
+      await apiRequest("/ads/events/click", {
+        method: "POST",
+        auth: true,
+        body: { campaignId: item.ad_campaign_id, destinationUrl: item.cta_url }
+      }).catch(() => null);
+    }
+    await Linking.openURL(item.cta_url);
+  };
+  const [liked, setLiked] = useState(Boolean(item.liked_by_viewer));
+  const [benefitedCount, setBenefitedCount] = useState(Number(item.benefited_count || 0));
+  useEffect(() => {
+    setLiked(Boolean(item.liked_by_viewer));
+    setBenefitedCount(Number(item.benefited_count || 0));
+  }, [item.liked_by_viewer, item.benefited_count]);
 
   if (layout === "home") {
     return (
@@ -60,6 +85,7 @@ export function PostCard({
             <View style={{ flex: 1 }}>
               <Text style={styles.homeAuthor}>{item.author_display_name}</Text>
               <Text style={styles.homeSubtle}>
+                {item.sponsored ? `${item.sponsored_label || "Sponsored"} - ` : ""}
                 {item.post_type === "recitation" ? "Original audio" : "Community post"} -{" "}
                 {new Date(item.created_at).toLocaleDateString()}
               </Text>
@@ -96,7 +122,17 @@ export function PostCard({
 
         <View style={styles.homeActionRow}>
           <View style={styles.homeActionIcons}>
-            <Text style={styles.homeActionIcon}>♡</Text>
+            <Pressable
+              onPress={() => {
+                const next = !liked;
+                setLiked(next);
+                setBenefitedCount((value) => Math.max(0, value + (next ? 1 : -1)));
+                onLike?.();
+              }}
+              disabled={liking}
+            >
+              <Text style={styles.homeActionIcon}>{liked ? "♥" : "♡"}</Text>
+            </Pressable>
             <Text style={styles.homeActionIcon}>◌</Text>
             <Text style={styles.homeActionIcon}>➤</Text>
           </View>
@@ -116,8 +152,16 @@ export function PostCard({
             </View>
           ) : null}
           <Text style={styles.homeMetaText}>
-            {item.benefited_count || 0} benefited - {item.comment_count || 0} comments
+            {benefitedCount} benefited - {item.comment_count || 0} comments
           </Text>
+          {item.tags?.length ? (
+            <Text style={styles.homeMetaText}>#{item.tags.slice(0, 3).join(" #")}</Text>
+          ) : null}
+          {item.cta_label && item.cta_url ? (
+            <Pressable style={styles.buttonSecondary} onPress={handleCtaPress}>
+              <Text style={styles.buttonText}>{item.cta_label}</Text>
+            </Pressable>
+          ) : null}
           <Text style={styles.content}>
             <Text style={styles.homeAuthor}>{item.author_display_name} </Text>
             {item.content}
@@ -170,9 +214,17 @@ export function PostCard({
         <Text style={styles.muted}>Media unavailable right now.</Text>
       ) : null}
       <View style={styles.metricsRow}>
-        <Text style={styles.muted}>Benefited: {item.benefited_count || 0}</Text>
+        <Text style={styles.muted}>Benefited: {benefitedCount}</Text>
         <Text style={styles.muted}>Comments: {item.comment_count || 0}</Text>
       </View>
+      {item.tags?.length ? (
+        <Text style={styles.muted}>#{item.tags.slice(0, 3).join(" #")}</Text>
+      ) : null}
+      {item.cta_label && item.cta_url ? (
+        <Pressable style={styles.buttonSecondary} onPress={handleCtaPress}>
+          <Text style={styles.buttonText}>{item.cta_label}</Text>
+        </Pressable>
+      ) : null}
       {item.attached_product_id ? (
         <View style={styles.monetizationChip}>
           <Text style={styles.monetizationChipText}>

@@ -11,6 +11,7 @@ import { colors } from "../../theme";
 import type { FeedItem } from "../../types";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { createProductCheckout, formatMinorCurrency } from "../../lib/monetization";
+import { useSessionStore } from "../../store/session-store";
 
 type PostDetail = FeedItem & {
   view_count?: number;
@@ -38,6 +39,9 @@ export function PostDetailScreen({ route, navigation }: Props) {
   const [reportEvidenceUrl, setReportEvidenceUrl] = useState("");
   const [message, setMessage] = useState("");
   const [mediaFailed, setMediaFailed] = useState(false);
+  const [liked, setLiked] = useState(false);
+  const [benefitedCount, setBenefitedCount] = useState(0);
+  const sessionUser = useSessionStore((state) => state.user);
 
   const postQuery = useQuery({
     queryKey: ["mobile-post-detail", postId],
@@ -66,6 +70,10 @@ export function PostDetailScreen({ route, navigation }: Props) {
   useEffect(() => {
     setMediaFailed(false);
   }, [postId, postQuery.data?.media_url]);
+  useEffect(() => {
+    setLiked(Boolean(postQuery.data?.liked_by_viewer));
+    setBenefitedCount(Number(postQuery.data?.benefited_count || 0));
+  }, [postQuery.data?.liked_by_viewer, postQuery.data?.benefited_count]);
 
   const interact = useMutation({
     mutationFn: (payload: { interactionType: string; commentText?: string }) =>
@@ -92,6 +100,16 @@ export function PostDetailScreen({ route, navigation }: Props) {
         }
       })
   });
+  const deleteMutation = useMutation({
+    mutationFn: () =>
+      apiRequest(`/posts/${postId}`, {
+        method: "DELETE",
+        auth: true
+      }),
+    onSuccess: () => {
+      navigation.goBack();
+    }
+  });
 
   const stats = useMemo(() => {
     const post = postQuery.data;
@@ -99,13 +117,13 @@ export function PostDetailScreen({ route, navigation }: Props) {
       return null;
     }
     return [
-      `Benefited: ${post.benefited_count || 0}`,
+      `Benefited: ${benefitedCount}`,
       `Comments: ${post.comment_count || 0}`,
       `Views: ${post.view_count || 0}`,
       `Avg watch: ${post.avg_watch_time_ms || 0}ms`,
       `Completion: ${post.avg_completion_rate || 0}%`
     ];
-  }, [postQuery.data]);
+  }, [postQuery.data, benefitedCount]);
   const productCheckoutMutation = useMutation({
     mutationFn: (productId: number) => createProductCheckout(productId),
     onSuccess: async (result) => {
@@ -114,6 +132,8 @@ export function PostDetailScreen({ route, navigation }: Props) {
       }
     }
   });
+  const attachedProductType = postQuery.data?.attached_product_type || "digital";
+  const attachedProductWebsiteUrl = postQuery.data?.attached_product_website_url || null;
 
   if (postQuery.isLoading) {
     return <LoadingState label="Loading post..." />;
@@ -167,8 +187,20 @@ export function PostDetailScreen({ route, navigation }: Props) {
             style={styles.buttonSecondary}
             onPress={async () => {
               try {
-                await interact.mutateAsync({ interactionType: "benefited" });
-                setMessage("Marked as benefited.");
+                const nextLiked = !liked;
+                if (nextLiked) {
+                  await interact.mutateAsync({ interactionType: "benefited" });
+                } else {
+                  await apiRequest("/interactions", {
+                    method: "DELETE",
+                    auth: true,
+                    body: { postId, interactionType: "benefited" }
+                  });
+                  await postQuery.refetch();
+                }
+                setLiked(nextLiked);
+                setBenefitedCount((value) => Math.max(0, value + (nextLiked ? 1 : -1)));
+                setMessage(nextLiked ? "Marked as benefited." : "Like removed.");
               } catch (error) {
                 if (error instanceof ApiError && error.status === 0) {
                   await enqueueMutation({
@@ -184,7 +216,7 @@ export function PostDetailScreen({ route, navigation }: Props) {
               }
             }}
           >
-            <Text style={styles.buttonText}>Benefited</Text>
+            <Text style={styles.buttonText}>{liked ? "Unlike" : "Like"}</Text>
           </Pressable>
           <Pressable
             style={styles.buttonSecondary}
@@ -216,6 +248,32 @@ export function PostDetailScreen({ route, navigation }: Props) {
             <Text style={styles.buttonText}>Author</Text>
           </Pressable>
         </View>
+        {post.cta_label && post.cta_url ? (
+          <Pressable
+            style={styles.buttonSecondary}
+            onPress={async () => {
+              await apiRequest("/interactions/cta-click", {
+                method: "POST",
+                auth: true,
+                body: { postId }
+              }).catch(() => null);
+              await Linking.openURL(post.cta_url || "");
+            }}
+          >
+            <Text style={styles.buttonText}>{post.cta_label}</Text>
+          </Pressable>
+        ) : null}
+        {sessionUser?.id === post.author_id ? (
+          <Pressable
+            style={styles.buttonSecondary}
+            onPress={() => deleteMutation.mutate()}
+            disabled={deleteMutation.isPending}
+          >
+            <Text style={styles.buttonText}>
+              {deleteMutation.isPending ? "Deleting..." : "Delete post"}
+            </Text>
+          </Pressable>
+        ) : null}
         {post.attached_product_id ? (
           <View style={styles.card}>
             <Text style={styles.label}>{post.attached_product_title || "Creator product"}</Text>
@@ -227,11 +285,21 @@ export function PostDetailScreen({ route, navigation }: Props) {
             </Text>
             <Pressable
               style={styles.buttonSecondary}
-              onPress={() => productCheckoutMutation.mutate(post.attached_product_id as number)}
+              onPress={async () => {
+                if (attachedProductType !== "digital" && attachedProductWebsiteUrl) {
+                  await Linking.openURL(attachedProductWebsiteUrl);
+                  return;
+                }
+                productCheckoutMutation.mutate(post.attached_product_id as number);
+              }}
               disabled={productCheckoutMutation.isPending}
             >
               <Text style={styles.buttonText}>
-                {productCheckoutMutation.isPending ? "Opening..." : "Buy product"}
+                {productCheckoutMutation.isPending
+                  ? "Opening..."
+                  : attachedProductType === "digital"
+                    ? "Buy product"
+                    : "View offer"}
               </Text>
             </Pressable>
           </View>
