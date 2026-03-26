@@ -1,0 +1,5 @@
+# Local editor / agent state
+.cursor/
+
+# OS
+.DS_Store
