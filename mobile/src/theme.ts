@@ -7,5 +7,13 @@ export const colors = {
   muted: "#9FB0CF",
   accent: "#6EA8FE",
   danger: "#F87171",
-  success: "#4ADE80"
+  success: "#4ADE80",
+  createHeaderBar: "#0A0A0A",
+  composerBg: "#E8EDF5",
+  composerText: "#0F172A",
+  composerMuted: "#64748B",
+  composerInputBg: "#FFFFFF",
+  composerBorder: "#CBD5E1",
+  mediaPreviewBg: "#FFFFFF",
+  mediaPreviewBorder: "#CBD5E1"
 };

@@ -1,14 +1,29 @@
-import { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useMemo, useState } from "react";
+import {
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View
+} from "react-native";
 import * as DocumentPicker from "expo-document-picker";
+import { Video, ResizeMode } from "expo-av";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { CompositeScreenProps } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { ApiError, apiRequest } from "../../lib/api";
+import { fetchSessionMe } from "../../lib/auth";
 import { attachProductToPost, fetchMyProducts } from "../../lib/monetization";
 import { fetchInstagramStatus, requestInstagramCrossPost } from "../../lib/instagram";
 import { useQuery } from "@tanstack/react-query";
 import { colors } from "../../theme";
+import { resolveMediaUrl } from "../../lib/media-url";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 
 type CreatePostResponse = { id: number };
@@ -32,7 +47,12 @@ function deriveMediaType(mimeType: string): "image" | "video" | null {
   return null;
 }
 
+function SectionTitle({ children }: { children: string }) {
+  return <Text style={styles.sectionTitle}>{children}</Text>;
+}
+
 export function CreateScreen({ navigation }: Props) {
+  const insets = useSafeAreaInsets();
   const [postType, setPostType] = useState<"community" | "recitation" | "short_video">(
     "community"
   );
@@ -56,6 +76,49 @@ export function CreateScreen({ navigation }: Props) {
   const [ctaLabel, setCtaLabel] = useState("");
   const [ctaUrl, setCtaUrl] = useState("");
   const [crossPostToInstagram, setCrossPostToInstagram] = useState(false);
+
+  const sessionQuery = useQuery({
+    queryKey: ["mobile-create-session"],
+    queryFn: () => fetchSessionMe()
+  });
+  const profileQuery = useQuery({
+    queryKey: ["mobile-create-profile"],
+    queryFn: () =>
+      apiRequest<{
+        display_name: string;
+        avatar_url?: string | null;
+      }>("/users/me", { auth: true }),
+    enabled: Boolean(sessionQuery.data?.id)
+  });
+
+  const composerName = useMemo(() => {
+    const p = profileQuery.data;
+    const s = sessionQuery.data;
+    if (p?.display_name?.trim()) {
+      return p.display_name.trim();
+    }
+    if (s?.username?.trim()) {
+      return s.username.trim();
+    }
+    if (s?.email) {
+      return s.email.split("@")[0] || "You";
+    }
+    return "You";
+  }, [profileQuery.data, sessionQuery.data]);
+
+  const avatarUri = resolveMediaUrl(profileQuery.data?.avatar_url) || undefined;
+
+  const previewMime = useMemo(() => {
+    if (!selectedFile) {
+      return null;
+    }
+    const fallback = selectedFile.name?.toLowerCase().match(/\.(png|jpe?g|webp|gif)$/)
+      ? "image/jpeg"
+      : "video/mp4";
+    return selectedFile.mimeType || fallback;
+  }, [selectedFile]);
+  const previewKind = previewMime ? deriveMediaType(previewMime) : null;
+
   const myProductsQuery = useQuery({
     queryKey: ["mobile-create-my-products"],
     queryFn: () => fetchMyProducts()
@@ -238,245 +301,520 @@ export function CreateScreen({ navigation }: Props) {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.heading}>Create Post</Text>
-      <View style={styles.typeRow}>
-        {(["community", "recitation", "short_video"] as const).map((type) => (
-          <Pressable
-            key={type}
-            onPress={() => setPostType(type)}
-            style={[styles.chip, postType === type ? styles.chipActive : null]}
-          >
-            <Text style={styles.chipText}>{type}</Text>
-          </Pressable>
-        ))}
+    <View style={styles.root}>
+      <View style={[styles.headerBar, { paddingTop: insets.top + 10 }]}>
+        <Text style={styles.headerTitle}>Create New Post</Text>
       </View>
-      <TextInput
-        style={styles.input}
-        multiline
-        placeholder="Share your message..."
-        placeholderTextColor={colors.muted}
-        value={content}
-        onChangeText={setContent}
-      />
-      <TextInput
-        style={styles.inputSingle}
-        placeholder="Tags (comma separated)"
-        placeholderTextColor={colors.muted}
-        value={tagsInput}
-        onChangeText={setTagsInput}
-      />
-      <View style={styles.fileRow}>
-        <Pressable style={styles.buttonSecondary} onPress={pickMedia}>
-          <Text style={styles.buttonText}>Attach media</Text>
-        </Pressable>
-        {selectedFile ? (
-          <Text style={styles.muted} numberOfLines={1}>
-            {selectedFile.name}
-          </Text>
-        ) : (
-          <Text style={styles.muted}>Optional: image/video upload</Text>
-        )}
-      </View>
-      <View style={styles.fileRow}>
-        <Pressable
-          style={[styles.chip, crossPostToInstagram && igConnected ? styles.chipActive : null]}
-          onPress={() => {
-            if (igConnected) {
-              setCrossPostToInstagram((v) => !v);
-            }
-          }}
-          disabled={!igConnected}
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+      >
+        <ScrollView
+          style={styles.flex}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.chipText}>Also share to Instagram</Text>
-        </Pressable>
-        {!igConnected ? (
-          <Text style={styles.muted}>Connect Instagram on Profile first.</Text>
-        ) : (
-          <Text style={styles.muted}>Runs after upload; needs public HTTPS media.</Text>
-        )}
-      </View>
-      {(myProductsQuery.data?.items || []).length ? (
-        <View style={styles.fileRow}>
-          <Text style={styles.muted}>Attach product (optional)</Text>
-          <View style={styles.typeRow}>
-            {myProductsQuery.data?.items.slice(0, 4).map((item) => {
-              const product = item as { id?: number; title?: string };
-              const productId = Number(product.id || 0);
-              if (!productId) {
-                return null;
-              }
-              return (
-                <Pressable
-                  key={productId}
-                  onPress={() => setSelectedProductId(productId)}
-                  style={[styles.chip, selectedProductId === productId ? styles.chipActive : null]}
-                >
-                  <Text style={styles.chipText}>{product.title || `Product ${productId}`}</Text>
-                </Pressable>
-              );
-            })}
-            {selectedProductId ? (
-              <Pressable onPress={() => setSelectedProductId(null)} style={styles.buttonSecondary}>
-                <Text style={styles.buttonText}>Clear</Text>
-              </Pressable>
+          <Pressable
+            onPress={pickMedia}
+            style={styles.mediaPreview}
+            accessibilityRole="button"
+            accessibilityLabel="Add or change photo or video"
+            accessibilityHint="Opens the file picker for an image or video"
+          >
+            {selectedFile && previewKind === "image" ? (
+              <Image
+                source={{ uri: selectedFile.uri }}
+                style={styles.mediaPreviewFill}
+                resizeMode="contain"
+              />
+            ) : null}
+            {selectedFile && previewKind === "video" ? (
+              <Video
+                key={selectedFile.uri}
+                source={{ uri: selectedFile.uri }}
+                style={styles.mediaPreviewFill}
+                resizeMode={ResizeMode.CONTAIN}
+                isLooping
+                shouldPlay
+                isMuted
+                useNativeControls={false}
+              />
+            ) : null}
+            {!selectedFile ? (
+              <Text style={styles.mediaPlaceholder}>Tap to add photo or video</Text>
+            ) : null}
+          </Pressable>
+
+          <View style={styles.composerCard}>
+            <View style={styles.identityRow}>
+              {avatarUri ? (
+                <Image source={{ uri: avatarUri }} style={styles.avatar} resizeMode="cover" />
+              ) : (
+                <View style={styles.avatarFallback}>
+                  <Text style={styles.avatarFallbackText}>{composerName.slice(0, 1).toUpperCase()}</Text>
+                </View>
+              )}
+              <Text style={styles.composerName} numberOfLines={1}>
+                {composerName}
+              </Text>
+            </View>
+            <TextInput
+              style={styles.inputComposer}
+              multiline
+              placeholder="What's on your mind?"
+              placeholderTextColor={colors.composerMuted}
+              value={content}
+              onChangeText={setContent}
+              textAlignVertical="top"
+              accessibilityLabel="Post caption"
+            />
+            <TextInput
+              style={styles.inputComposerSingle}
+              placeholder="Tags (comma separated)"
+              placeholderTextColor={colors.composerMuted}
+              value={tagsInput}
+              onChangeText={setTagsInput}
+            />
+            <View style={styles.divider} />
+            <View style={styles.promoteRow}>
+              <View style={styles.promoteTextBlock}>
+                <Text style={styles.promoteLabel}>Promote</Text>
+                <Text style={styles.promoteHint}>Add pricing and offer details</Text>
+              </View>
+              <Switch
+                value={sellThis}
+                onValueChange={setSellThis}
+                trackColor={{ false: colors.composerBorder, true: colors.accent }}
+                thumbColor={Platform.OS === "android" ? colors.composerInputBg : undefined}
+                accessibilityLabel="Promote this post"
+              />
+            </View>
+            {sellThis ? (
+              <View style={styles.promoteFields}>
+                <SectionTitle>Pricing and type</SectionTitle>
+                <TextInput
+                  style={styles.inputComposerSingle}
+                  placeholder="Price (minor units)"
+                  placeholderTextColor={colors.composerMuted}
+                  value={priceMinor}
+                  onChangeText={setPriceMinor}
+                  keyboardType="number-pad"
+                />
+                <View style={styles.typeRowWrap}>
+                  {(["digital", "service", "subscription"] as const).map((type) => (
+                    <Pressable
+                      key={type}
+                      onPress={() => setProductType(type)}
+                      style={[styles.chipLight, productType === type ? styles.chipLightActive : null]}
+                    >
+                      <Text
+                        style={[
+                          styles.chipLightText,
+                          productType === type ? styles.chipLightTextActive : null
+                        ]}
+                      >
+                        {type}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <SectionTitle>Who it is for</SectionTitle>
+                <View style={styles.typeRowWrap}>
+                  {([
+                    { key: "b2c", label: "Consumers" },
+                    { key: "b2b", label: "Businesses" },
+                    { key: "both", label: "Both" }
+                  ] as const).map((item) => (
+                    <Pressable
+                      key={item.key}
+                      onPress={() => setAudienceTarget(item.key)}
+                      style={[
+                        styles.chipLight,
+                        audienceTarget === item.key ? styles.chipLightActive : null
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.chipLightText,
+                          audienceTarget === item.key ? styles.chipLightTextActive : null
+                        ]}
+                      >
+                        {item.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <SectionTitle>Category</SectionTitle>
+                <View style={styles.typeRowWrap}>
+                  {([
+                    { key: "tools_growth", label: "Tools" },
+                    { key: "professional_services", label: "Services" },
+                    { key: "digital_products", label: "Digital" },
+                    { key: "education_coaching", label: "Coaching" },
+                    { key: "lifestyle_inspiration", label: "Lifestyle" }
+                  ] as const).map((item) => (
+                    <Pressable
+                      key={item.key}
+                      onPress={() => setBusinessCategory(item.key)}
+                      style={[
+                        styles.chipLight,
+                        businessCategory === item.key ? styles.chipLightActive : null
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.chipLightText,
+                          businessCategory === item.key ? styles.chipLightTextActive : null
+                        ]}
+                      >
+                        {item.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <SectionTitle>Offer copy</SectionTitle>
+                <TextInput
+                  style={styles.inputComposerSingle}
+                  placeholder="Product title"
+                  placeholderTextColor={colors.composerMuted}
+                  value={productTitle}
+                  onChangeText={setProductTitle}
+                />
+                <TextInput
+                  style={styles.inputComposer}
+                  multiline
+                  placeholder="Product or offer description"
+                  placeholderTextColor={colors.composerMuted}
+                  value={productDescription}
+                  onChangeText={setProductDescription}
+                  textAlignVertical="top"
+                />
+                <SectionTitle>Delivery</SectionTitle>
+                {productType === "digital" ? (
+                  <View style={styles.fileRow}>
+                    <Pressable style={styles.buttonSecondaryLight} onPress={pickProductFile}>
+                      <Text style={styles.buttonSecondaryLightText}>Upload delivery file</Text>
+                    </Pressable>
+                    {productFile ? (
+                      <Text style={styles.mutedLight} numberOfLines={1}>
+                        {productFile.name}
+                      </Text>
+                    ) : null}
+                  </View>
+                ) : (
+                  <TextInput
+                    style={styles.inputComposer}
+                    multiline
+                    placeholder="Service details"
+                    placeholderTextColor={colors.composerMuted}
+                    value={serviceDetails}
+                    onChangeText={setServiceDetails}
+                    textAlignVertical="top"
+                  />
+                )}
+                <TextInput
+                  style={styles.inputComposerSingle}
+                  placeholder="Delivery method (email, DM, booking call)"
+                  placeholderTextColor={colors.composerMuted}
+                  value={deliveryMethod}
+                  onChangeText={setDeliveryMethod}
+                />
+                <TextInput
+                  style={styles.inputComposerSingle}
+                  placeholder="Website URL (https://...)"
+                  placeholderTextColor={colors.composerMuted}
+                  value={websiteUrl}
+                  onChangeText={setWebsiteUrl}
+                  autoCapitalize="none"
+                />
+                <SectionTitle>Call to action</SectionTitle>
+                <TextInput
+                  style={styles.inputComposerSingle}
+                  placeholder="CTA label"
+                  placeholderTextColor={colors.composerMuted}
+                  value={ctaLabel}
+                  onChangeText={setCtaLabel}
+                  maxLength={80}
+                />
+                <TextInput
+                  style={styles.inputComposerSingle}
+                  placeholder="CTA URL (https://...)"
+                  placeholderTextColor={colors.composerMuted}
+                  value={ctaUrl}
+                  onChangeText={setCtaUrl}
+                  autoCapitalize="none"
+                />
+                <Text style={styles.helperLight}>Add both CTA fields or leave both empty.</Text>
+              </View>
             ) : null}
           </View>
-        </View>
-      ) : null}
-      <View style={styles.fileRow}>
-        <Pressable
-          style={[styles.chip, sellThis ? styles.chipActive : null]}
-          onPress={() => setSellThis((value) => !value)}
-        >
-          <Text style={styles.chipText}>Sell This</Text>
-        </Pressable>
-        {sellThis ? (
-          <>
-            <TextInput
-              style={styles.inputSingle}
-              placeholder="Price (minor units)"
-              placeholderTextColor={colors.muted}
-              value={priceMinor}
-              onChangeText={setPriceMinor}
-              keyboardType="number-pad"
-            />
-            <View style={styles.typeRow}>
-              {(["digital", "service", "subscription"] as const).map((type) => (
+
+          <View style={styles.moreSection}>
+            <Text style={styles.moreHeading}>Post type</Text>
+            <View style={styles.typeRowWrap}>
+              {(["community", "recitation", "short_video"] as const).map((type) => (
                 <Pressable
                   key={type}
-                  onPress={() => setProductType(type)}
-                  style={[styles.chip, productType === type ? styles.chipActive : null]}
+                  onPress={() => setPostType(type)}
+                  style={[styles.chip, postType === type ? styles.chipActive : null]}
                 >
                   <Text style={styles.chipText}>{type}</Text>
                 </Pressable>
               ))}
             </View>
-            <View style={styles.typeRow}>
-              {([
-                { key: "b2c", label: "Consumers" },
-                { key: "b2b", label: "Businesses" },
-                { key: "both", label: "Both" }
-              ] as const).map((item) => (
-                <Pressable
-                  key={item.key}
-                  onPress={() => setAudienceTarget(item.key)}
-                  style={[styles.chip, audienceTarget === item.key ? styles.chipActive : null]}
-                >
-                  <Text style={styles.chipText}>{item.label}</Text>
-                </Pressable>
-              ))}
+            <View style={styles.fileRow}>
+              <Pressable
+                style={[styles.chip, crossPostToInstagram && igConnected ? styles.chipActive : null]}
+                onPress={() => {
+                  if (igConnected) {
+                    setCrossPostToInstagram((v) => !v);
+                  }
+                }}
+                disabled={!igConnected}
+              >
+                <Text style={styles.chipText}>Also share to Instagram</Text>
+              </Pressable>
+              {!igConnected ? (
+                <Text style={styles.muted}>Connect Instagram on Profile first.</Text>
+              ) : (
+                <Text style={styles.muted}>Runs after upload; needs public HTTPS media.</Text>
+              )}
             </View>
-            <View style={styles.typeRow}>
-              {([
-                { key: "tools_growth", label: "Tools" },
-                { key: "professional_services", label: "Services" },
-                { key: "digital_products", label: "Digital" },
-                { key: "education_coaching", label: "Coaching" },
-                { key: "lifestyle_inspiration", label: "Lifestyle" }
-              ] as const).map((item) => (
-                <Pressable
-                  key={item.key}
-                  onPress={() => setBusinessCategory(item.key)}
-                  style={[styles.chip, businessCategory === item.key ? styles.chipActive : null]}
-                >
-                  <Text style={styles.chipText}>{item.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-            <TextInput
-              style={styles.inputSingle}
-              placeholder="Product title"
-              placeholderTextColor={colors.muted}
-              value={productTitle}
-              onChangeText={setProductTitle}
-            />
-            <TextInput
-              style={styles.input}
-              multiline
-              placeholder="Product / offer description"
-              placeholderTextColor={colors.muted}
-              value={productDescription}
-              onChangeText={setProductDescription}
-            />
-            {productType === "digital" ? (
+            {(myProductsQuery.data?.items || []).length ? (
               <View style={styles.fileRow}>
-                <Pressable style={styles.buttonSecondary} onPress={pickProductFile}>
-                  <Text style={styles.buttonText}>Upload delivery file</Text>
-                </Pressable>
-                {productFile ? (
-                  <Text style={styles.muted} numberOfLines={1}>
-                    {productFile.name}
-                  </Text>
-                ) : null}
+                <Text style={styles.muted}>Attach product (optional)</Text>
+                <View style={styles.typeRowWrap}>
+                  {myProductsQuery.data?.items.slice(0, 4).map((item) => {
+                    const product = item as { id?: number; title?: string };
+                    const productId = Number(product.id || 0);
+                    if (!productId) {
+                      return null;
+                    }
+                    return (
+                      <Pressable
+                        key={productId}
+                        onPress={() => setSelectedProductId(productId)}
+                        style={[styles.chip, selectedProductId === productId ? styles.chipActive : null]}
+                      >
+                        <Text style={styles.chipText}>{product.title || `Product ${productId}`}</Text>
+                      </Pressable>
+                    );
+                  })}
+                  {selectedProductId ? (
+                    <Pressable onPress={() => setSelectedProductId(null)} style={styles.buttonSecondary}>
+                      <Text style={styles.buttonText}>Clear</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
               </View>
-            ) : (
-              <TextInput
-                style={styles.input}
-                multiline
-                placeholder="Service details"
-                placeholderTextColor={colors.muted}
-                value={serviceDetails}
-                onChangeText={setServiceDetails}
-              />
-            )}
-            <TextInput
-              style={styles.inputSingle}
-              placeholder="Delivery method (email, DM, booking call)"
-              placeholderTextColor={colors.muted}
-              value={deliveryMethod}
-              onChangeText={setDeliveryMethod}
-            />
-            <TextInput
-              style={styles.inputSingle}
-              placeholder="Website URL (https://...)"
-              placeholderTextColor={colors.muted}
-              value={websiteUrl}
-              onChangeText={setWebsiteUrl}
-              autoCapitalize="none"
-            />
-            <TextInput
-              style={styles.inputSingle}
-              placeholder="CTA label"
-              placeholderTextColor={colors.muted}
-              value={ctaLabel}
-              onChangeText={setCtaLabel}
-              maxLength={80}
-            />
-            <TextInput
-              style={styles.inputSingle}
-              placeholder="CTA URL (https://...)"
-              placeholderTextColor={colors.muted}
-              value={ctaUrl}
-              onChangeText={setCtaUrl}
-              autoCapitalize="none"
-            />
-          </>
-        ) : null}
-      </View>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <Pressable style={styles.button} onPress={createPost} disabled={isSubmitting}>
-        <Text style={styles.buttonPrimaryText}>{isSubmitting ? "Publishing..." : "Publish"}</Text>
-      </Pressable>
+            ) : null}
+          </View>
+
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          <Pressable style={styles.button} onPress={createPost} disabled={isSubmitting}>
+            <Text style={styles.buttonPrimaryText}>{isSubmitting ? "Publishing..." : "Publish"}</Text>
+          </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: colors.background,
-    padding: 14,
-    gap: 12
+    backgroundColor: colors.background
   },
-  heading: {
+  flex: {
+    flex: 1
+  },
+  headerBar: {
+    backgroundColor: colors.createHeaderBar,
+    paddingBottom: 14,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  headerTitle: {
     color: colors.text,
-    fontSize: 24,
+    fontSize: 17,
     fontWeight: "700"
   },
-  typeRow: {
+  scrollContent: {
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    gap: 14
+  },
+  mediaPreview: {
+    minHeight: 220,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.mediaPreviewBorder,
+    backgroundColor: colors.mediaPreviewBg,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  mediaPreviewFill: {
+    width: "100%",
+    height: 220
+  },
+  mediaPlaceholder: {
+    color: colors.composerMuted,
+    fontSize: 15,
+    padding: 20,
+    textAlign: "center"
+  },
+  composerCard: {
+    backgroundColor: colors.composerBg,
+    borderRadius: 14,
+    padding: 14,
+    gap: 10
+  },
+  identityRow: {
     flexDirection: "row",
+    alignItems: "center",
+    gap: 10
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.composerBorder
+  },
+  avatarFallback: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    backgroundColor: colors.composerBorder,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  avatarFallbackText: {
+    color: colors.composerText,
+    fontSize: 16,
+    fontWeight: "700"
+  },
+  composerName: {
+    flex: 1,
+    color: colors.composerText,
+    fontSize: 16,
+    fontWeight: "700"
+  },
+  inputComposer: {
+    minHeight: 120,
+    borderColor: colors.composerBorder,
+    borderWidth: 1,
+    borderRadius: 10,
+    color: colors.composerText,
+    backgroundColor: colors.composerInputBg,
+    padding: 12,
+    fontSize: 16
+  },
+  inputComposerSingle: {
+    borderColor: colors.composerBorder,
+    borderWidth: 1,
+    borderRadius: 10,
+    color: colors.composerText,
+    backgroundColor: colors.composerInputBg,
+    padding: 12,
+    fontSize: 15
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.composerBorder,
+    marginVertical: 4
+  },
+  promoteRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12
+  },
+  promoteTextBlock: {
+    flex: 1,
+    minWidth: 0
+  },
+  promoteLabel: {
+    color: colors.composerText,
+    fontSize: 16,
+    fontWeight: "700"
+  },
+  promoteHint: {
+    color: colors.composerMuted,
+    fontSize: 12,
+    marginTop: 2
+  },
+  promoteFields: {
+    gap: 8,
+    marginTop: 4
+  },
+  sectionTitle: {
+    color: colors.composerText,
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginTop: 6
+  },
+  typeRowWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8
+  },
+  chipLight: {
+    borderColor: colors.composerBorder,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: colors.composerInputBg
+  },
+  chipLightActive: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent
+  },
+  chipLightText: {
+    color: colors.composerText,
+    fontSize: 12,
+    fontWeight: "700"
+  },
+  chipLightTextActive: {
+    color: colors.text
+  },
+  buttonSecondaryLight: {
+    borderColor: colors.composerBorder,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    alignSelf: "flex-start",
+    backgroundColor: colors.composerInputBg
+  },
+  buttonSecondaryLightText: {
+    color: colors.composerText,
+    fontWeight: "700",
+    fontSize: 14
+  },
+  mutedLight: {
+    color: colors.composerMuted,
+    fontSize: 12
+  },
+  helperLight: {
+    color: colors.composerMuted,
+    fontSize: 11
+  },
+  moreSection: {
+    gap: 10
+  },
+  moreHeading: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.6
   },
   chip: {
     borderColor: colors.border,
@@ -493,37 +831,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700"
   },
-  input: {
-    minHeight: 150,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 10,
-    color: colors.text,
-    backgroundColor: colors.surface,
-    padding: 12,
-    textAlignVertical: "top"
-  },
-  inputSingle: {
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 10,
-    color: colors.text,
-    backgroundColor: colors.surface,
-    padding: 12
-  },
   button: {
     backgroundColor: colors.accent,
     borderRadius: 10,
-    paddingVertical: 12,
+    paddingVertical: 14,
     alignItems: "center"
-  },
-  buttonText: {
-    color: colors.text,
-    fontWeight: "700"
   },
   buttonPrimaryText: {
     color: colors.background,
-    fontWeight: "700"
+    fontWeight: "700",
+    fontSize: 16
   },
   buttonSecondary: {
     borderColor: colors.border,
@@ -531,6 +848,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8
+  },
+  buttonText: {
+    color: colors.text,
+    fontWeight: "700"
   },
   fileRow: {
     gap: 8

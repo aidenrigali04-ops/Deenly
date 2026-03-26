@@ -128,7 +128,7 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
   await expect(page.getByText("Followed successfully.")).toBeVisible();
 
   await page.goto(`${baseURL}/create`);
-  await page.getByPlaceholder("Share your message...").fill(`Uploaded post ${timestamp}`);
+  await page.getByLabel("Post caption").fill(`Uploaded post ${timestamp}`);
   await page.locator('input[name="mediaFile"]').setInputFiles({
     name: "clip.mp4",
     mimeType: "video/mp4",
@@ -164,7 +164,7 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
   await expect(page.getByText("Report submitted.")).toBeVisible();
 
   await page.goto(`${baseURL}/create`);
-  await page.getByPlaceholder("Share your message...").fill(`Image post ${timestamp}`);
+  await page.getByLabel("Post caption").fill(`Image post ${timestamp}`);
   await page.locator('input[name="mediaFile"]').setInputFiles({
     name: "cover.jpg",
     mimeType: "image/jpeg",
