@@ -6,6 +6,7 @@ import { apiRequest } from "../../lib/api";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { colors } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
+import { useSessionStore } from "../../store/session-store";
 import type { FeedItem } from "../../types";
 import { followUser, unfollowUser } from "../../lib/follows";
 import { resolveMediaUrl } from "../../lib/media-url";
@@ -36,6 +37,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "UserProfile">;
 export function UserProfileScreen({ route, navigation }: Props) {
   const { width } = useWindowDimensions();
   const userId = route.params.id;
+  const sessionUser = useSessionStore((s) => s.user);
   const [activeTab, setActiveTab] = useState<"posts" | "media">("posts");
   const queryClient = useQueryClient();
   const profileQuery = useQuery({
@@ -179,6 +181,19 @@ export function UserProfileScreen({ route, navigation }: Props) {
                   : "Follow"}
             </Text>
           </Pressable>
+          {sessionUser && sessionUser.id !== userId ? (
+            <Pressable
+              style={styles.buttonSecondary}
+              onPress={() =>
+                navigation.navigate("AppTabs", {
+                  screen: "MessagesTab",
+                  params: { openUserId: userId }
+                })
+              }
+            >
+              <Text style={styles.buttonText}>Message</Text>
+            </Pressable>
+          ) : null}
           <Pressable style={styles.buttonSecondary} onPress={() => supportMutation.mutate()}>
             <Text style={styles.buttonText}>
               {supportMutation.isPending ? "Opening..." : "Support $5"}

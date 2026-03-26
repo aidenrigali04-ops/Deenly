@@ -15,6 +15,7 @@ import {
   fetchCreatorTiers,
   formatMinorCurrency
 } from "@/lib/monetization";
+import { useSessionStore } from "@/store/session-store";
 
 type UserProfile = {
   user_id: number;
@@ -49,6 +50,7 @@ type FeedResponse = {
 export default function UserProfilePage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const sessionUser = useSessionStore((state) => state.user);
   const userId = Number(params.id);
   const [profileSectionTab, setProfileSectionTab] = useState<"grid" | "reels" | "saved" | "tagged">("grid");
   const queryClient = useQueryClient();
@@ -229,6 +231,14 @@ export default function UserProfilePage() {
                       ? "Unfollow"
                       : "Follow"}
                 </button>
+                {sessionUser && sessionUser.id !== userId ? (
+                  <Link
+                    href={`/messages?with=${userId}`}
+                    className="btn-secondary px-5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
+                  >
+                    Message
+                  </Link>
+                ) : null}
               </div>
               <div className="mt-6 flex flex-wrap gap-8 text-sm">
                 <div>

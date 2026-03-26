@@ -1,9 +1,13 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useRoute, type RouteProp } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "../../lib/api";
+import { createOrOpenConversation, markConversationRead } from "../../lib/messages";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { colors } from "../../theme";
+import type { AppTabParamList } from "../../navigation/AppNavigator";
+import { useSessionStore } from "../../store/session-store";
 
 type ConversationItem = {
   conversation_id: number;
@@ -14,16 +18,40 @@ type ConversationItem = {
 
 type MessageItem = {
   id: number;
+  sender_id: number;
   sender_display_name: string;
   body: string;
   created_at: string;
 };
 
+type MessagesRoute = RouteProp<AppTabParamList, "MessagesTab">;
+
 export function MessagesScreen() {
+  const route = useRoute<MessagesRoute>();
   const queryClient = useQueryClient();
+  const sessionUserId = useSessionStore((s) => s.user?.id ?? null);
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
   const [participantUserId, setParticipantUserId] = useState("");
   const [body, setBody] = useState("");
+
+  const openUserId = route.params?.openUserId;
+
+  useEffect(() => {
+    if (!openUserId || !sessionUserId || openUserId === sessionUserId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await createOrOpenConversation(openUserId);
+        if (cancelled) return;
+        setSelectedConversationId(result.conversationId);
+      } catch {
+        /* blocked or invalid */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [openUserId, sessionUserId]);
 
   const conversationsQuery = useQuery({
     queryKey: ["mobile-messages-conversations"],
@@ -47,15 +75,21 @@ export function MessagesScreen() {
     enabled: Boolean(selectedConversationId)
   });
 
+  const orderedMessages = useMemo(() => {
+    const list = messagesQuery.data?.items || [];
+    return [...list].sort((a, b) => a.id - b.id);
+  }, [messagesQuery.data?.items]);
+
+  useEffect(() => {
+    if (!selectedConversationId || !messagesQuery.data?.items?.length) return;
+    const maxId = Math.max(...messagesQuery.data.items.map((m) => m.id));
+    void markConversationRead(selectedConversationId, maxId).then(() => {
+      queryClient.invalidateQueries({ queryKey: ["mobile-messages-conversations"] });
+    });
+  }, [selectedConversationId, messagesQuery.data?.items, queryClient]);
+
   const createConversation = useMutation({
-    mutationFn: () =>
-      apiRequest<{ conversationId: number }>("/messages/conversations", {
-        method: "POST",
-        auth: true,
-        body: {
-          participantUserId: Number(participantUserId)
-        }
-      }),
+    mutationFn: () => createOrOpenConversation(Number(participantUserId)),
     onSuccess: (result) => {
       setSelectedConversationId(result.conversationId);
       setParticipantUserId("");
@@ -68,7 +102,7 @@ export function MessagesScreen() {
       apiRequest(`/messages/conversations/${selectedConversationId}/messages`, {
         method: "POST",
         auth: true,
-        body: { body }
+        body: { body: body.trim() }
       }),
     onSuccess: () => {
       setBody("");
@@ -89,7 +123,14 @@ export function MessagesScreen() {
           keyboardType="number-pad"
           onChangeText={setParticipantUserId}
         />
-        <Pressable style={styles.buttonSecondary} onPress={() => createConversation.mutate()}>
+        <Pressable
+          style={styles.buttonSecondary}
+          onPress={() => {
+            const n = Number(participantUserId);
+            if (!Number.isFinite(n) || n <= 0) return;
+            createConversation.mutate();
+          }}
+        >
           <Text style={styles.buttonText}>
             {createConversation.isPending ? "Starting..." : "Start conversation"}
           </Text>
@@ -102,7 +143,14 @@ export function MessagesScreen() {
       ) : null}
       <View style={styles.stack}>
         {(conversationsQuery.data?.items || []).map((item) => (
-          <Pressable key={item.conversation_id} style={styles.card} onPress={() => setSelectedConversationId(item.conversation_id)}>
+          <Pressable
+            key={item.conversation_id}
+            style={[
+              styles.card,
+              selectedConversationId === item.conversation_id ? styles.cardActive : null
+            ]}
+            onPress={() => setSelectedConversationId(item.conversation_id)}
+          >
             <Text style={styles.title}>{item.other_display_name}</Text>
             <Text style={styles.muted}>@{item.other_username}</Text>
             {item.unread_count > 0 ? <Text style={styles.muted}>{item.unread_count} unread</Text> : null}
@@ -119,12 +167,18 @@ export function MessagesScreen() {
           {messagesQuery.isLoading ? <LoadingState label="Loading messages..." /> : null}
           {messagesQuery.error ? <ErrorState message={(messagesQuery.error as Error).message} /> : null}
           <View style={styles.stack}>
-            {(messagesQuery.data?.items || []).map((message) => (
-              <View key={message.id} style={styles.message}>
-                <Text style={styles.muted}>{message.sender_display_name}</Text>
-                <Text style={styles.body}>{message.body}</Text>
-              </View>
-            ))}
+            {orderedMessages.map((message) => {
+              const mine = sessionUserId != null && message.sender_id === sessionUserId;
+              return (
+                <View
+                  key={message.id}
+                  style={[styles.message, mine ? styles.messageMine : null]}
+                >
+                  <Text style={styles.muted}>{message.sender_display_name}</Text>
+                  <Text style={styles.body}>{message.body}</Text>
+                </View>
+              );
+            })}
           </View>
           <TextInput
             style={styles.input}
@@ -133,7 +187,14 @@ export function MessagesScreen() {
             value={body}
             onChangeText={setBody}
           />
-          <Pressable style={styles.buttonSecondary} onPress={() => sendMessage.mutate()}>
+          <Pressable
+            style={styles.buttonSecondary}
+            onPress={() => {
+              if (!selectedConversationId || !body.trim()) return;
+              sendMessage.mutate();
+            }}
+            disabled={sendMessage.isPending || !body.trim()}
+          >
             <Text style={styles.buttonText}>{sendMessage.isPending ? "Sending..." : "Send"}</Text>
           </Pressable>
         </View>
@@ -155,6 +216,9 @@ const styles = StyleSheet.create({
     padding: 12,
     gap: 8
   },
+  cardActive: {
+    borderColor: colors.accent
+  },
   title: { color: colors.text, fontWeight: "700" },
   muted: { color: colors.muted, fontSize: 12 },
   body: { color: colors.text },
@@ -163,7 +227,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8,
     padding: 8,
-    gap: 4
+    gap: 4,
+    alignSelf: "flex-start",
+    maxWidth: "92%"
+  },
+  messageMine: {
+    alignSelf: "flex-end",
+    backgroundColor: colors.surface
   },
   input: {
     borderColor: colors.border,

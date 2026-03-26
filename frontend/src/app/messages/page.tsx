@@ -1,8 +1,10 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState, Suspense } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter, useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/api";
+import { createOrOpenConversation, markConversationRead } from "@/lib/messages";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useSessionStore } from "@/store/session-store";
 
@@ -23,13 +25,47 @@ type MessageItem = {
   created_at: string;
 };
 
-export default function MessagesPage() {
+function MessagesPageInner() {
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const currentUserId = useSessionStore((state) => state.user?.id || null);
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
   const [newParticipantUserId, setNewParticipantUserId] = useState("");
   const [messageBody, setMessageBody] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  const withUserIdRaw = searchParams.get("with");
+  const withUserId = withUserIdRaw ? Number(withUserIdRaw) : NaN;
+  const openConversationParam = searchParams.get("conversation");
+  const openConversationId = openConversationParam ? Number(openConversationParam) : NaN;
+
+  useEffect(() => {
+    if (!Number.isFinite(openConversationId) || openConversationId <= 0) return;
+    setSelectedConversationId(openConversationId);
+    router.replace("/messages", { scroll: false });
+  }, [openConversationId, router]);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    if (!Number.isFinite(withUserId) || withUserId <= 0) return;
+    if (withUserId === currentUserId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await createOrOpenConversation(withUserId);
+        if (cancelled) return;
+        setSelectedConversationId(result.conversationId);
+        router.replace("/messages", { scroll: false });
+      } catch {
+        /* user may be blocked or invalid id */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [withUserId, currentUserId, router]);
 
   const conversationsQuery = useQuery({
     queryKey: ["messages-conversations"],
@@ -63,13 +99,25 @@ export default function MessagesPage() {
     enabled: Boolean(selectedConversationId)
   });
 
+  const orderedMessages = useMemo(() => {
+    const list = messagesQuery.data?.items || [];
+    return [...list].sort((a, b) => a.id - b.id);
+  }, [messagesQuery.data?.items]);
+
+  useEffect(() => {
+    if (!selectedConversationId || !messagesQuery.data?.items?.length) return;
+    const maxId = Math.max(...messagesQuery.data.items.map((m) => m.id));
+    void markConversationRead(selectedConversationId, maxId).then(() => {
+      queryClient.invalidateQueries({ queryKey: ["messages-conversations"] });
+    });
+  }, [selectedConversationId, messagesQuery.data?.items, queryClient]);
+
+  useLayoutEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [selectedConversationId, orderedMessages.length]);
+
   const createConversation = useMutation({
-    mutationFn: (participantUserId: number) =>
-      apiRequest<{ conversationId: number }>("/messages/conversations", {
-        method: "POST",
-        auth: true,
-        body: { participantUserId }
-      }),
+    mutationFn: (participantUserId: number) => createOrOpenConversation(participantUserId),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["messages-conversations"] });
       setSelectedConversationId(result.conversationId);
@@ -97,21 +145,8 @@ export default function MessagesPage() {
         <header className="messages-sidebar-header">
           <div className="flex items-center justify-between">
             <h1 className="text-base font-semibold">Messages</h1>
-            <button className="messages-icon-btn" aria-label="Compose message">
-              +
-            </button>
           </div>
-          <nav className="messages-tab-row">
-            <button className="messages-tab messages-tab-active" type="button">
-              Primary
-            </button>
-            <button className="messages-tab" type="button">
-              General
-            </button>
-            <button className="messages-tab" type="button">
-              Requests
-            </button>
-          </nav>
+          <p className="text-xs text-muted">Direct messages with other members.</p>
           <input
             className="messages-search"
             placeholder="Search"
@@ -156,6 +191,7 @@ export default function MessagesPage() {
             return (
               <button
                 key={conversation.conversation_id}
+                type="button"
                 className={`messages-conversation-item ${
                   selectedConversationId === conversation.conversation_id ? "messages-conversation-item-active" : ""
                 }`}
@@ -188,16 +224,12 @@ export default function MessagesPage() {
                 <h2 className="truncate text-base font-semibold">{selectedConversation.other_display_name}</h2>
                 <p className="truncate text-xs text-muted">@{selectedConversation.other_username}</p>
               </div>
-              <div className="flex items-center gap-2">
-                <button className="messages-icon-btn" aria-label="Call">Call</button>
-                <button className="messages-icon-btn" aria-label="Info">Info</button>
-              </div>
             </header>
 
             <div className="messages-thread-body">
               {messagesQuery.isLoading ? <LoadingState label="Loading messages..." /> : null}
               {messagesQuery.error ? <ErrorState message={(messagesQuery.error as Error).message} /> : null}
-              {(messagesQuery.data?.items || []).map((message) => {
+              {orderedMessages.map((message) => {
                 const isMine = currentUserId ? message.sender_id === currentUserId : false;
                 return (
                   <div
@@ -211,9 +243,10 @@ export default function MessagesPage() {
                   </div>
                 );
               })}
-              {!messagesQuery.isLoading && !messagesQuery.error && (messagesQuery.data?.items || []).length === 0 ? (
+              {!messagesQuery.isLoading && !messagesQuery.error && orderedMessages.length === 0 ? (
                 <EmptyState title="No messages yet" />
               ) : null}
+              <div ref={bottomRef} />
             </div>
 
             <footer className="messages-composer">
@@ -240,10 +273,18 @@ export default function MessagesPage() {
           </>
         ) : (
           <div className="messages-thread-empty">
-            <EmptyState title="Select a conversation" subtitle="Choose one from the left to start messaging." />
+            <EmptyState title="Select a conversation" subtitle="Choose one from the left or open a chat from a profile." />
           </div>
         )}
       </article>
     </section>
+  );
+}
+
+export default function MessagesPage() {
+  return (
+    <Suspense fallback={<LoadingState label="Loading messages…" />}>
+      <MessagesPageInner />
+    </Suspense>
   );
 }

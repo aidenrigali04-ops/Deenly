@@ -4,7 +4,7 @@ const { asyncHandler } = require("../../utils/async-handler");
 const { httpError } = require("../../utils/http-error");
 const { requireString } = require("../../utils/validators");
 
-function createMessagesRouter({ db, config }) {
+function createMessagesRouter({ db, config, pushNotifications = null }) {
   const router = express.Router();
   const authMiddleware = authenticate({ config, db });
 
@@ -233,7 +233,42 @@ function createMessagesRouter({ db, config }) {
         [conversationId]
       );
 
-      res.status(201).json(created.rows[0]);
+      const row = created.rows[0];
+      if (peer.rowCount > 0) {
+        const peerUserId = peer.rows[0].user_id;
+        const senderProfile = await db.query(
+          `SELECT display_name FROM profiles WHERE user_id = $1 LIMIT 1`,
+          [req.user.id]
+        );
+        const senderDisplayName = senderProfile.rows[0]?.display_name || "Someone";
+        const payload = {
+          conversationId,
+          senderId: req.user.id,
+          senderDisplayName,
+          messageId: row.id,
+          bodyPreview: body.slice(0, 200)
+        };
+        try {
+          await db.query(
+            `INSERT INTO notifications (user_id, type, payload)
+             VALUES ($1, 'direct_message', $2::jsonb)`,
+            [peerUserId, JSON.stringify(payload)]
+          );
+        } catch {
+          // Non-fatal: message already stored
+        }
+        if (pushNotifications && typeof pushNotifications.sendUserPush === "function") {
+          void pushNotifications
+            .sendUserPush({
+              userId: peerUserId,
+              type: "direct_message",
+              payload
+            })
+            .catch(() => {});
+        }
+      }
+
+      res.status(201).json(row);
     })
   );
 

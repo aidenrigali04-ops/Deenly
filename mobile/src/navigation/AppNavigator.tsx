@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
-import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
+import { NavigationContainer, DefaultTheme, NavigatorScreenParams } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useQuery } from "@tanstack/react-query";
@@ -38,7 +38,7 @@ export type AppTabParamList = {
   HomeTab: undefined;
   MarketplaceTab: undefined;
   RecitationTab: undefined;
-  MessagesTab: undefined;
+  MessagesTab: { openUserId?: number };
   SearchTab: undefined;
   AccountTab: undefined;
   FeedTab: undefined;
@@ -52,7 +52,7 @@ export type RootStackParamList = {
   Welcome: undefined;
   Login: undefined;
   Signup: undefined;
-  AppTabs: undefined;
+  AppTabs: NavigatorScreenParams<AppTabParamList> | undefined;
   PostDetail: { id: number };
   UserProfile: { id: number };
   Onboarding: undefined;

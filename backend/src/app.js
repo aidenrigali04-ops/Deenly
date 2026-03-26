@@ -237,7 +237,10 @@ function createApp({
     "/notifications",
     createNotificationsRouter({ db, config, pushNotifications: app.locals.pushNotifications })
   );
-  apiRouter.use("/messages", createMessagesRouter({ db, config }));
+  apiRouter.use(
+    "/messages",
+    createMessagesRouter({ db, config, pushNotifications: app.locals.pushNotifications })
+  );
   apiRouter.use("/search", createSearchRouter({ db, config }));
   apiRouter.use(
     "/admin",
