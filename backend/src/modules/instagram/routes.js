@@ -32,27 +32,27 @@ function createInstagramRouter({ db, config, enqueueInstagramCrossPostByPostId }
     "/oauth/callback",
     asyncHandler(async (req, res) => {
       const base = normalizeAppBase(config);
-      const accountUrl = `${base}/account`;
+      const postFlowUrl = `${base}/create`;
       const { code, state, error, error_description: errorDescription } = req.query;
       if (error) {
         const msg = encodeURIComponent(String(errorDescription || error || "oauth_error"));
-        return res.redirect(302, `${accountUrl}?instagram_error=${msg}`);
+        return res.redirect(302, `${postFlowUrl}?instagram_error=${msg}`);
       }
       if (!code || !state) {
-        return res.redirect(302, `${accountUrl}?instagram_error=missing_code`);
+        return res.redirect(302, `${postFlowUrl}?instagram_error=missing_code`);
       }
       if (!isMetaConfigured(config)) {
-        return res.redirect(302, `${accountUrl}?instagram_error=not_configured`);
+        return res.redirect(302, `${postFlowUrl}?instagram_error=not_configured`);
       }
       try {
         const userId = verifyOAuthState(config, state);
         await persistConnectionFromOAuthCode({ db, config, userId, code });
-        return res.redirect(302, `${accountUrl}?instagram_connected=1`);
+        return res.redirect(302, `${postFlowUrl}?instagram_connected=1`);
       } catch (err) {
         const msg = encodeURIComponent(
           String(err.statusCode === 400 ? err.message : err.message || "connect_failed").slice(0, 500)
         );
-        return res.redirect(302, `${accountUrl}?instagram_error=${msg}`);
+        return res.redirect(302, `${postFlowUrl}?instagram_error=${msg}`);
       }
     })
   );

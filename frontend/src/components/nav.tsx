@@ -8,7 +8,7 @@ import { useSessionStore } from "@/store/session-store";
 function Icon({
   kind
 }: {
-  kind: "home" | "video" | "send" | "search" | "upload" | "user" | "admin" | "dhikr";
+  kind: "home" | "video" | "send" | "search" | "upload" | "user" | "admin" | "dhikr" | "creator";
 }) {
   const common = "h-5 w-5";
   if (kind === "home") {
@@ -75,6 +75,16 @@ function Icon({
       </svg>
     );
   }
+  if (kind === "creator") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common} aria-hidden="true">
+        <path d="M4 18V10" />
+        <path d="M10 18V6" />
+        <path d="M16 18v-5" />
+        <path d="M22 18v-9" />
+      </svg>
+    );
+  }
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common} aria-hidden="true">
       <circle cx="12" cy="8" r="3.5" />
@@ -92,7 +102,7 @@ function NavLink({
   href: string;
   label: string;
   active: boolean;
-  icon: "home" | "video" | "send" | "search" | "upload" | "user" | "admin" | "dhikr";
+  icon: "home" | "video" | "send" | "search" | "upload" | "user" | "admin" | "dhikr" | "creator";
 }) {
   return (
     <Link
@@ -122,6 +132,7 @@ const railLinks = [
   { href: "/search", label: "Search", icon: "search" as const },
   { href: "/dhikr", label: "Dhikr", icon: "dhikr" as const },
   { href: "/create", label: "Upload", icon: "upload" as const },
+  { href: "/account/creator", label: "Creator", icon: "creator" as const },
   { href: "/account", label: "Account", icon: "user" as const }
 ];
 
@@ -152,16 +163,22 @@ export function Nav() {
         <span className="hidden text-[10px] uppercase tracking-[0.2em] text-muted md:block">Deenly</span>
       </div>
 
-      <nav className="grid grid-cols-3 gap-1.5 sm:grid-cols-6 md:grid-cols-1 md:gap-2.5" aria-label="Primary">
-        {railLinks.map((link) => (
-          <NavLink
-            key={link.href}
-            href={link.href}
-            label={link.label}
-            icon={link.icon}
-            active={pathname.startsWith(link.href)}
-          />
-        ))}
+      <nav className="grid grid-cols-3 gap-1.5 sm:grid-cols-7 md:grid-cols-1 md:gap-2.5" aria-label="Primary">
+        {railLinks.map((link) => {
+          const active =
+            link.href === "/account"
+              ? pathname.startsWith("/account") && !pathname.startsWith("/account/creator")
+              : pathname.startsWith(link.href);
+          return (
+            <NavLink
+              key={link.href}
+              href={link.href}
+              label={link.label}
+              icon={link.icon}
+              active={active}
+            />
+          );
+        })}
         {canAccessAdmin ? (
           <NavLink
             href="/admin"

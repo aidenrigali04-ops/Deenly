@@ -1,0 +1,115 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { fetchSessionMe } from "@/lib/auth";
+import { apiRequest } from "@/lib/api";
+import { ErrorState, LoadingState } from "@/components/states";
+
+type AccountProfile = {
+  display_name: string;
+  bio: string | null;
+  avatar_url: string | null;
+};
+
+export default function AccountEditProfilePage() {
+  const queryClient = useQueryClient();
+  const [displayName, setDisplayName] = useState("");
+  const [bio, setBio] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const sessionQuery = useQuery({
+    queryKey: ["account-edit-session-me"],
+    queryFn: () => fetchSessionMe()
+  });
+  const profileQuery = useQuery({
+    queryKey: ["account-profile-me"],
+    queryFn: () => apiRequest<AccountProfile>("/users/me", { auth: true }),
+    enabled: Boolean(sessionQuery.data?.id)
+  });
+
+  useEffect(() => {
+    if (profileQuery.data) {
+      setDisplayName(profileQuery.data.display_name);
+      setBio(profileQuery.data.bio || "");
+    }
+  }, [profileQuery.data]);
+
+  if (sessionQuery.isLoading || profileQuery.isLoading) {
+    return <LoadingState label="Loading..." />;
+  }
+  if (sessionQuery.error || !sessionQuery.data) {
+    return <ErrorState message="Sign in to edit your profile." />;
+  }
+  if (profileQuery.error || !profileQuery.data) {
+    return <ErrorState message={(profileQuery.error as Error)?.message || "Unable to load profile."} />;
+  }
+
+  const profile = profileQuery.data;
+
+  return (
+    <div className="container-shell py-8">
+      <div className="mx-auto max-w-lg">
+        <p className="text-sm text-muted">
+          <Link href="/account" className="text-sky-600 hover:underline">
+            Back to profile
+          </Link>
+        </p>
+        <div className="surface-card mt-4 px-6 py-6">
+          <h1 className="section-title text-base">Edit profile</h1>
+          <p className="mt-1 text-xs text-muted">How your name and bio appear on Deenly.</p>
+          <form
+            className="mt-4 grid gap-3"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setSaving(true);
+              setMessage("");
+              try {
+                const dn = displayName.trim();
+                if (dn.length < 2) {
+                  throw new Error("Display name must be at least 2 characters.");
+                }
+                await apiRequest("/users/me", {
+                  method: "PUT",
+                  auth: true,
+                  body: {
+                    displayName: dn,
+                    bio: bio.trim() || null,
+                    avatarUrl: profile.avatar_url ?? null
+                  }
+                });
+                await queryClient.invalidateQueries({ queryKey: ["account-profile-me"] });
+                setMessage("Saved.");
+              } catch (err) {
+                setMessage((err as Error).message || "Unable to save.");
+              } finally {
+                setSaving(false);
+              }
+            }}
+          >
+            <label className="space-y-1 text-sm">
+              <span className="text-muted">Display name</span>
+              <input
+                className="input"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                maxLength={64}
+                required
+              />
+            </label>
+            <label className="space-y-1 text-sm">
+              <span className="text-muted">Bio</span>
+              <textarea className="input min-h-24" value={bio} onChange={(e) => setBio(e.target.value)} maxLength={240} />
+            </label>
+            {message ? <p className="text-xs text-muted">{message}</p> : null}
+            <button type="submit" className="btn-primary w-fit" disabled={saving}>
+              {saving ? "Saving..." : "Save profile"}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}

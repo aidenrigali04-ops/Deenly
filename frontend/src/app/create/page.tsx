@@ -2,10 +2,15 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
 import { fetchSessionMe } from "@/lib/auth";
-import { fetchInstagramStatus, requestInstagramCrossPost } from "@/lib/instagram";
+import {
+  disconnectInstagram,
+  fetchInstagramOAuthUrl,
+  fetchInstagramStatus,
+  requestInstagramCrossPost
+} from "@/lib/instagram";
 import { resolveMediaUrl } from "@/lib/media-url";
 import { ErrorState } from "@/components/states";
 
@@ -37,6 +42,7 @@ function deriveMediaType(mimeType: string): "image" | "video" | null {
 
 export default function CreatePage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const mediaInputRef = useRef<HTMLInputElement>(null);
 
   const sessionQuery = useQuery({
@@ -77,6 +83,32 @@ export default function CreatePage() {
   const [businessCategory, setBusinessCategory] = useState("");
   const [ctaLabel, setCtaLabel] = useState("");
   const [ctaUrl, setCtaUrl] = useState("");
+  const [instagramBanner, setInstagramBanner] = useState("");
+
+  const disconnectInstagramMutation = useMutation({
+    mutationFn: () => disconnectInstagram(),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["instagram-status"] });
+    }
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const err = params.get("instagram_error");
+    const ok = params.get("instagram_connected");
+    if (err) {
+      setInstagramBanner(`Instagram: ${decodeURIComponent(err).slice(0, 400)}`);
+    } else if (ok === "1") {
+      setInstagramBanner("Instagram connected. You can enable “Also share to Instagram” when you publish.");
+    }
+    if (err || ok) {
+      window.history.replaceState({}, "", "/create");
+      void queryClient.invalidateQueries({ queryKey: ["instagram-status"] });
+    }
+  }, [queryClient]);
 
   useEffect(() => {
     if (!mediaFile) {
@@ -453,18 +485,66 @@ export default function CreatePage() {
             ) : null}
           </div>
 
-          <div className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted">Post type</p>
-            <select
-              className="input"
-              value={postType}
-              onChange={(event) => setPostType(event.target.value)}
-              aria-label="Post type"
-            >
-              <option value="community">Community</option>
-              <option value="recitation">Recitation</option>
-              <option value="short_video">Short video</option>
-            </select>
+          <div className="surface-card space-y-3 px-4 py-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">Instagram (optional)</p>
+            <p className="text-xs text-muted">
+              Link a Facebook Page with an Instagram Professional account here. Cross-post runs after you publish; media
+              must be reachable over public HTTPS (CDN).
+            </p>
+            {instagramBanner ? (
+              <p className="rounded-panel border border-black/10 bg-surface px-3 py-2 text-sm text-text">{instagramBanner}</p>
+            ) : null}
+            {instagramQuery.isError ? (
+              <p className="text-sm text-muted">Instagram integration is not available on this server.</p>
+            ) : instagramQuery.data?.connected ? (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-control border border-black/10 bg-surface px-3 py-2">
+                <p className="text-sm text-text">
+                  Connected
+                  {instagramQuery.data.igUsername
+                    ? ` as @${instagramQuery.data.igUsername}`
+                    : instagramQuery.data.igUserId
+                      ? ` (IG ${instagramQuery.data.igUserId})`
+                      : ""}
+                </p>
+                <button
+                  type="button"
+                  className="btn-secondary px-3 py-1.5 text-xs"
+                  onClick={() => disconnectInstagramMutation.mutate()}
+                  disabled={disconnectInstagramMutation.isPending}
+                >
+                  {disconnectInstagramMutation.isPending ? "..." : "Disconnect"}
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="btn-secondary px-3 py-2 text-sm"
+                onClick={async () => {
+                  try {
+                    const { url } = await fetchInstagramOAuthUrl();
+                    window.location.assign(url);
+                  } catch (e) {
+                    setInstagramBanner((e as Error).message || "Could not start Instagram connect.");
+                  }
+                }}
+              >
+                Connect Instagram
+              </button>
+            )}
+
+            <div className="border-t border-black/10 pt-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Post type</p>
+              <select
+                className="input mt-2"
+                value={postType}
+                onChange={(event) => setPostType(event.target.value)}
+                aria-label="Post type"
+              >
+                <option value="community">Community</option>
+                <option value="recitation">Recitation</option>
+                <option value="short_video">Short video</option>
+              </select>
+            </div>
 
             <label className="flex items-center gap-2 text-sm text-text">
               <input
@@ -473,17 +553,11 @@ export default function CreatePage() {
                 disabled={!igConnected}
                 onChange={(event) => setCrossPostToInstagram(event.target.checked)}
               />
-              Also share to Instagram
+              Also share this post to Instagram
             </label>
-            {!igConnected ? (
-              <p className="text-xs text-muted">
-                Connect an Instagram Business/Creator account on Account to enable cross-posting.
-              </p>
-            ) : (
-              <p className="text-xs text-muted">
-                Requires public HTTPS media (configure CDN). Publishing runs in the background after upload.
-              </p>
-            )}
+            {igConnected ? (
+              <p className="text-xs text-muted">Requires image or video. Publishing runs in the background after upload.</p>
+            ) : null}
           </div>
 
           {error ? <ErrorState message={error} /> : null}

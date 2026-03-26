@@ -42,8 +42,8 @@ function createMonetizationGateway({ config }) {
     return client.accountLinks.create({
       account: accountId,
       type: "account_onboarding",
-      refresh_url: `${appBaseUrl}/account?connect=refresh`,
-      return_url: `${appBaseUrl}/account?connect=return`
+      refresh_url: `${appBaseUrl}/account/creator?connect=refresh`,
+      return_url: `${appBaseUrl}/account/creator?connect=return`
     });
   }
 
@@ -70,8 +70,8 @@ function createMonetizationGateway({ config }) {
     const normalizedMode = mode === "subscription" ? "subscription" : "payment";
     return client.checkout.sessions.create({
       mode: normalizedMode,
-      success_url: `${appBaseUrl}/account?checkout=success`,
-      cancel_url: `${appBaseUrl}/account?checkout=cancel`,
+      success_url: `${appBaseUrl}/account/creator?checkout=success`,
+      cancel_url: `${appBaseUrl}/account/creator?checkout=cancel`,
       payment_method_types: ["card"],
       line_items: [
         {

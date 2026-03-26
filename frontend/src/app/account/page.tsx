@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchSessionMe } from "@/lib/auth";
@@ -9,29 +9,7 @@ import { apiRequest } from "@/lib/api";
 import { resolveMediaUrl } from "@/lib/media-url";
 import { ErrorState, LoadingState } from "@/components/states";
 import { DeenStrip } from "@/components/profile/deen-strip";
-import { fetchPrayerSettings, updatePrayerSettings } from "@/lib/prayer";
-import {
-  disconnectInstagram,
-  fetchInstagramOAuthUrl,
-  fetchInstagramStatus
-} from "@/lib/instagram";
-import {
-  createAffiliateCode,
-  createConnectAccount,
-  createOnboardingLink,
-  createProduct,
-  createTier,
-  fetchConnectStatus,
-  fetchEarnings,
-  fetchMyAffiliateCodes,
-  fetchMyAffiliatePerformance,
-  fetchMyProducts,
-  fetchMyTiers,
-  fetchCreatorRankings,
-  formatMinorCurrency,
-  publishProduct,
-  publishTier
-} from "@/lib/monetization";
+import { SalahSettingsPanel } from "@/components/profile/salah-settings-panel";
 
 type AccountProfile = {
   user_id: number;
@@ -77,14 +55,8 @@ function deriveMediaType(mimeType: string): "image" | "video" | null {
 export default function AccountPage() {
   const router = useRouter();
   const [profileSectionTab, setProfileSectionTab] = useState<"grid" | "reels" | "saved" | "tagged">("grid");
-  const [editDisplayName, setEditDisplayName] = useState("");
-  const [editBio, setEditBio] = useState("");
-  const [profileEditSaving, setProfileEditSaving] = useState(false);
-  const [profileEditMessage, setProfileEditMessage] = useState("");
-  const [savingPrayer, setSavingPrayer] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState("");
-  const [instagramBanner, setInstagramBanner] = useState("");
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const queryClient = useQueryClient();
   const sessionQuery = useQuery({
@@ -118,128 +90,6 @@ export default function AccountPage() {
       ]);
     }
   });
-  const prayerSettingsQuery = useQuery({
-    queryKey: ["account-prayer-settings"],
-    queryFn: () => fetchPrayerSettings()
-  });
-  const connectStatusQuery = useQuery({
-    queryKey: ["account-monetization-connect"],
-    queryFn: () => fetchConnectStatus(),
-    enabled: Boolean(sessionQuery.data?.id)
-  });
-  const myProductsQuery = useQuery({
-    queryKey: ["account-monetization-products"],
-    queryFn: () => fetchMyProducts(),
-    enabled: Boolean(sessionQuery.data?.id)
-  });
-  const myTiersQuery = useQuery({
-    queryKey: ["account-monetization-tiers"],
-    queryFn: () => fetchMyTiers(),
-    enabled: Boolean(sessionQuery.data?.id)
-  });
-  const earningsQuery = useQuery({
-    queryKey: ["account-monetization-earnings"],
-    queryFn: () => fetchEarnings(),
-    enabled: Boolean(sessionQuery.data?.id)
-  });
-  const affiliateCodesQuery = useQuery({
-    queryKey: ["account-monetization-affiliate-codes"],
-    queryFn: () => fetchMyAffiliateCodes(),
-    enabled: Boolean(sessionQuery.data?.id)
-  });
-  const affiliatePerfQuery = useQuery({
-    queryKey: ["account-monetization-affiliate-performance"],
-    queryFn: () => fetchMyAffiliatePerformance(),
-    enabled: Boolean(sessionQuery.data?.id)
-  });
-  const rankingsQuery = useQuery({
-    queryKey: ["public-creator-rankings"],
-    queryFn: () => fetchCreatorRankings(10),
-    enabled: Boolean(sessionQuery.data?.id)
-  });
-  const instagramStatusQuery = useQuery({
-    queryKey: ["instagram-status"],
-    queryFn: () => fetchInstagramStatus(),
-    enabled: Boolean(sessionQuery.data?.id),
-    retry: false
-  });
-  const disconnectInstagramMutation = useMutation({
-    mutationFn: () => disconnectInstagram(),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["instagram-status"] });
-    }
-  });
-
-  useEffect(() => {
-    if (profileQuery.data) {
-      setEditDisplayName(profileQuery.data.display_name);
-      setEditBio(profileQuery.data.bio || "");
-    }
-  }, [profileQuery.data]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const params = new URLSearchParams(window.location.search);
-    const err = params.get("instagram_error");
-    const ok = params.get("instagram_connected");
-    if (err) {
-      setInstagramBanner(`Instagram: ${decodeURIComponent(err).slice(0, 400)}`);
-    } else if (ok === "1") {
-      setInstagramBanner("Instagram connected. You can cross-post when publishing media.");
-    }
-    if (err || ok) {
-      window.history.replaceState({}, "", "/account");
-      void queryClient.invalidateQueries({ queryKey: ["instagram-status"] });
-    }
-  }, [queryClient]);
-  const connectAccountMutation = useMutation({
-    mutationFn: () => createConnectAccount(),
-    onSuccess: async () => {
-      await connectStatusQuery.refetch();
-    }
-  });
-  const onboardingMutation = useMutation({
-    mutationFn: () => createOnboardingLink(),
-    onSuccess: (result) => {
-      if (typeof window !== "undefined" && result?.url) {
-        window.open(result.url, "_blank", "noopener,noreferrer");
-      }
-    }
-  });
-  const createProductMutation = useMutation({
-    mutationFn: () =>
-      createProduct({
-        title: "New digital product",
-        description: "Creator digital download",
-        priceMinor: 1500,
-        currency: "usd",
-        deliveryMediaKey: "uploads/products/digital-file.pdf"
-      }),
-    onSuccess: async () => {
-      await myProductsQuery.refetch();
-    }
-  });
-  const createTierMutation = useMutation({
-    mutationFn: () =>
-      createTier({
-        title: "Supporter Tier",
-        description: "Monthly supporter tier",
-        monthlyPriceMinor: 500,
-        currency: "usd"
-      }),
-    onSuccess: async () => {
-      await myTiersQuery.refetch();
-    }
-  });
-  const createAffiliateCodeMutation = useMutation({
-    mutationFn: () => createAffiliateCode(),
-    onSuccess: async () => {
-      await affiliateCodesQuery.refetch();
-    }
-  });
-
   if (sessionQuery.isLoading) {
     return <LoadingState label="Loading account..." />;
   }
@@ -351,7 +201,7 @@ export default function AccountPage() {
                   @{user.username || "user"}
                 </h1>
                 <Link
-                  href="#account-settings"
+                  href="/account/settings"
                   className="rounded-lg p-1.5 text-muted transition hover:bg-black/[0.04] hover:text-text"
                   aria-label="Account settings"
                 >
@@ -407,6 +257,8 @@ export default function AccountPage() {
 
               <DeenStrip />
 
+              <SalahSettingsPanel />
+
               {profile?.display_name ? (
                 <p className="mt-4 font-semibold text-text">{profile.display_name}</p>
               ) : null}
@@ -417,9 +269,9 @@ export default function AccountPage() {
               )}
 
               <div className="mt-5 flex flex-wrap gap-2">
-                <a href="#profile-edit" className="btn-primary min-w-[120px] flex-1 text-center sm:flex-none">
+                <Link href="/account/edit" className="btn-primary min-w-[120px] flex-1 text-center sm:flex-none">
                   Edit profile
-                </a>
+                </Link>
                 <button
                   type="button"
                   disabled
@@ -537,395 +389,6 @@ export default function AccountPage() {
           </div>
         </article>
       </section>
-
-      <section className="mx-auto max-w-4xl px-3 sm:px-5">
-        <div id="profile-edit" className="surface-card mt-4 px-6 py-6">
-          <h2 className="section-title text-base">Edit profile</h2>
-          <p className="mt-1 text-xs text-muted">Update how your name and bio appear on your profile.</p>
-          <form
-            className="mt-4 grid gap-3"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (!profile) return;
-              setProfileEditSaving(true);
-              setProfileEditMessage("");
-              try {
-                const dn = editDisplayName.trim();
-                if (dn.length < 2) {
-                  throw new Error("Display name must be at least 2 characters.");
-                }
-                await apiRequest("/users/me", {
-                  method: "PUT",
-                  auth: true,
-                  body: {
-                    displayName: dn,
-                    bio: editBio.trim() || null,
-                    avatarUrl: profile.avatar_url ?? null
-                  }
-                });
-                await queryClient.invalidateQueries({ queryKey: ["account-profile-me"] });
-                setProfileEditMessage("Saved.");
-              } catch (err) {
-                setProfileEditMessage((err as Error).message || "Unable to save.");
-              } finally {
-                setProfileEditSaving(false);
-              }
-            }}
-          >
-            <label className="space-y-1 text-sm">
-              <span className="text-muted">Display name</span>
-              <input
-                className="input"
-                value={editDisplayName}
-                onChange={(e) => setEditDisplayName(e.target.value)}
-                maxLength={64}
-                required
-              />
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="text-muted">Bio</span>
-              <textarea className="input min-h-24" value={editBio} onChange={(e) => setEditBio(e.target.value)} maxLength={240} />
-            </label>
-            {profileEditMessage ? <p className="text-xs text-muted">{profileEditMessage}</p> : null}
-            <button type="submit" className="btn-primary w-fit" disabled={profileEditSaving}>
-              {profileEditSaving ? "Saving..." : "Save profile"}
-            </button>
-          </form>
-        </div>
-      </section>
-
-      <section id="account-settings" className="profile-shell">
-        <article className="surface-card px-6 py-6">
-        <div className="mb-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-2">
-          <div className="rounded-control border border-black/10 bg-surface px-3 py-2 text-muted">
-            Likes received: <span className="font-semibold text-text">{profile?.likes_received_count ?? 0}</span>
-          </div>
-          <div className="rounded-control border border-black/10 bg-surface px-3 py-2 text-muted">
-            Likes by you: <span className="font-semibold text-text">{profile?.likes_given_count ?? 0}</span>
-          </div>
-        </div>
-        <div className="grid gap-3 text-sm sm:grid-cols-2">
-          <div className="rounded-control border border-black/10 bg-surface px-3 py-2">
-            <p className="text-xs uppercase tracking-wide text-muted">Email</p>
-            <p className="mt-1 font-medium text-text">{user.email}</p>
-          </div>
-          <div className="rounded-control border border-black/10 bg-surface px-3 py-2">
-            <p className="text-xs uppercase tracking-wide text-muted">Username</p>
-            <p className="mt-1 font-medium text-text">@{user.username || "unknown"}</p>
-          </div>
-          <div className="rounded-control border border-black/10 bg-surface px-3 py-2 sm:col-span-2">
-            <p className="text-xs uppercase tracking-wide text-muted">Role</p>
-            <p className="mt-1 font-medium text-text">{user.role}</p>
-          </div>
-        </div>
-
-        <div className="pt-4 flex flex-wrap gap-3">
-          <Link href="/onboarding" className="btn-secondary">
-            Interests
-          </Link>
-          <Link href="/sessions" className="btn-secondary">
-            Sessions
-          </Link>
-          <Link href="/notifications" className="btn-secondary">
-            Inbox
-          </Link>
-        </div>
-
-        <div className="pt-5">
-          <h2 className="section-title text-sm">Instagram (Business / Creator)</h2>
-          <p className="mt-1 text-xs text-muted">
-            Link a Facebook Page with an Instagram Professional account. Cross-post runs in the background and
-            needs a public HTTPS media URL (CloudFront).
-          </p>
-          {instagramBanner ? (
-            <p className="mt-2 rounded-panel border border-black/10 bg-surface px-3 py-2 text-sm text-text">
-              {instagramBanner}
-            </p>
-          ) : null}
-          <div className="mt-3 rounded-control border border-black/10 bg-surface px-3 py-2">
-            {instagramStatusQuery.isError ? (
-              <p className="text-sm text-muted">Instagram integration is not available on this server.</p>
-            ) : instagramStatusQuery.data?.connected ? (
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm text-text">
-                  Connected
-                  {instagramStatusQuery.data.igUsername
-                    ? ` as @${instagramStatusQuery.data.igUsername}`
-                    : instagramStatusQuery.data.igUserId
-                      ? ` (IG ${instagramStatusQuery.data.igUserId})`
-                      : ""}
-                </p>
-                <button
-                  type="button"
-                  className="btn-secondary px-3 py-1.5 text-xs"
-                  onClick={() => disconnectInstagramMutation.mutate()}
-                  disabled={disconnectInstagramMutation.isPending}
-                >
-                  {disconnectInstagramMutation.isPending ? "..." : "Disconnect"}
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                className="btn-secondary px-3 py-1.5 text-xs"
-                onClick={async () => {
-                  try {
-                    const { url } = await fetchInstagramOAuthUrl();
-                    window.location.assign(url);
-                  } catch (e) {
-                    setInstagramBanner((e as Error).message || "Could not start Instagram connect.");
-                  }
-                }}
-              >
-                Connect Instagram
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="pt-5">
-          <h2 className="section-title text-sm">Creator Economy</h2>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            <div className="rounded-control border border-black/10 bg-surface px-3 py-2">
-              <p className="text-xs uppercase tracking-wide text-muted">Stripe Connect</p>
-              <p className="mt-1 text-sm text-text">
-                {connectStatusQuery.data?.connected ? "Connected" : "Not connected"}
-              </p>
-              <div className="mt-2 flex gap-2">
-                <button
-                  className="btn-secondary px-3 py-1.5 text-xs"
-                  onClick={() => connectAccountMutation.mutate()}
-                  disabled={connectAccountMutation.isPending}
-                >
-                  {connectAccountMutation.isPending ? "Creating..." : "Create account"}
-                </button>
-                <button
-                  className="btn-secondary px-3 py-1.5 text-xs"
-                  onClick={() => onboardingMutation.mutate()}
-                  disabled={onboardingMutation.isPending}
-                >
-                  {onboardingMutation.isPending ? "Opening..." : "Onboarding"}
-                </button>
-              </div>
-            </div>
-            <div className="rounded-control border border-black/10 bg-surface px-3 py-2">
-              <p className="text-xs uppercase tracking-wide text-muted">Earnings balance</p>
-              <p className="mt-1 text-sm text-text">
-                {formatMinorCurrency(earningsQuery.data?.totals?.balance_minor || 0, "usd")}
-              </p>
-              <p className="mt-1 text-xs text-muted">
-                Affiliate commissions:{" "}
-                {formatMinorCurrency(affiliatePerfQuery.data?.summary?.commission_earned_minor || 0, "usd")}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            <button className="btn-secondary" onClick={() => createProductMutation.mutate()}>
-              {createProductMutation.isPending ? "Creating..." : "Create product"}
-            </button>
-            <button className="btn-secondary" onClick={() => createTierMutation.mutate()}>
-              {createTierMutation.isPending ? "Creating..." : "Create tier"}
-            </button>
-            <button className="btn-secondary" onClick={() => createAffiliateCodeMutation.mutate()}>
-              {createAffiliateCodeMutation.isPending ? "Creating..." : "Create affiliate code"}
-            </button>
-          </div>
-
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            <div className="rounded-control border border-black/10 bg-surface px-3 py-2">
-              <p className="text-xs uppercase tracking-wide text-muted">Products</p>
-              <div className="mt-2 space-y-2">
-                {(myProductsQuery.data?.items || []).slice(0, 4).map((product) => (
-                  <div key={product.id} className="flex items-center justify-between gap-2 text-xs">
-                    <span className="truncate">
-                      {product.title} - {formatMinorCurrency(product.price_minor, product.currency)}
-                    </span>
-                    <button
-                      className="btn-secondary px-2 py-1"
-                      onClick={async () => {
-                        await publishProduct(product.id);
-                        await myProductsQuery.refetch();
-                      }}
-                    >
-                      Publish
-                    </button>
-                  </div>
-                ))}
-                {myProductsQuery.data?.items?.length ? null : (
-                  <p className="text-xs text-muted">No products yet.</p>
-                )}
-              </div>
-            </div>
-            <div className="rounded-control border border-black/10 bg-surface px-3 py-2">
-              <p className="text-xs uppercase tracking-wide text-muted">Subscription tiers</p>
-              <div className="mt-2 space-y-2">
-                {(myTiersQuery.data?.items || []).slice(0, 4).map((tier) => (
-                  <div key={tier.id} className="flex items-center justify-between gap-2 text-xs">
-                    <span className="truncate">
-                      {tier.title} - {formatMinorCurrency(tier.monthly_price_minor, tier.currency)}/mo
-                    </span>
-                    <button
-                      className="btn-secondary px-2 py-1"
-                      onClick={async () => {
-                        await publishTier(tier.id);
-                        await myTiersQuery.refetch();
-                      }}
-                    >
-                      Publish
-                    </button>
-                  </div>
-                ))}
-                {myTiersQuery.data?.items?.length ? null : (
-                  <p className="text-xs text-muted">No tiers yet.</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-3 rounded-control border border-black/10 bg-surface px-3 py-2">
-            <p className="text-xs uppercase tracking-wide text-muted">Affiliate codes</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {(affiliateCodesQuery.data?.items || []).map((code) => (
-                <span key={code.id} className="rounded-pill border border-black/10 px-2 py-1 text-xs">
-                  {code.code} ({code.uses_count})
-                </span>
-              ))}
-              {affiliateCodesQuery.data?.items?.length ? null : (
-                <p className="text-xs text-muted">No affiliate codes yet.</p>
-              )}
-            </div>
-          </div>
-
-          <div className="mt-3 rounded-control border border-black/10 bg-surface px-3 py-2">
-            <p className="text-xs uppercase tracking-wide text-muted">Creator rankings</p>
-            <div className="mt-2 space-y-1">
-              {(rankingsQuery.data?.items || []).slice(0, 5).map((row: any, index: number) => (
-                <p key={`${row.creator_user_id}-${index}`} className="text-xs text-muted">
-                  {index + 1}. {row.creator_display_name} - {formatMinorCurrency(row.gross_earnings_minor || 0, "usd")}
-                </p>
-              ))}
-              {rankingsQuery.data?.items?.length ? null : (
-                <p className="text-xs text-muted">No ranking data yet.</p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div id="salah-settings" className="pt-5">
-          <h2 className="section-title text-sm">Salah notification settings</h2>
-          {prayerSettingsQuery.isLoading ? (
-            <p className="mt-2 text-sm text-muted">Loading Salah settings...</p>
-          ) : prayerSettingsQuery.error ? (
-            <p className="mt-2 text-sm text-muted">Unable to load Salah settings.</p>
-          ) : prayerSettingsQuery.data ? (
-            <form
-              className="mt-3 grid gap-3 sm:grid-cols-2"
-              onSubmit={async (event) => {
-                event.preventDefault();
-                const formData = new FormData(event.currentTarget);
-                setSavingPrayer(true);
-                await updatePrayerSettings({
-                  quiet_mode: String(formData.get("quiet_mode") || "prayer_windows") as
-                    | "off"
-                    | "always"
-                    | "prayer_windows",
-                  calculation_method: String(
-                    formData.get("calculation_method") || "muslim_world_league"
-                  ),
-                  timezone: String(formData.get("timezone") || "UTC"),
-                  quiet_minutes_before: Number(formData.get("quiet_minutes_before") || 10),
-                  quiet_minutes_after: Number(formData.get("quiet_minutes_after") || 20),
-                  latitude: Number(formData.get("latitude") || 21.4225),
-                  longitude: Number(formData.get("longitude") || 39.8262)
-                });
-                await prayerSettingsQuery.refetch();
-                setSavingPrayer(false);
-              }}
-            >
-              <label className="space-y-1 text-sm">
-                <span className="text-muted">Quiet mode</span>
-                <select
-                  name="quiet_mode"
-                  className="input"
-                  defaultValue={prayerSettingsQuery.data.quiet_mode}
-                >
-                  <option value="prayer_windows">Prayer windows</option>
-                  <option value="always">Always pause</option>
-                  <option value="off">Off</option>
-                </select>
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="text-muted">Calculation method</span>
-                <select
-                  name="calculation_method"
-                  className="input"
-                  defaultValue={prayerSettingsQuery.data.calculation_method}
-                >
-                  <option value="muslim_world_league">Muslim World League</option>
-                  <option value="umm_al_qura">Umm al-Qura</option>
-                  <option value="north_america">North America</option>
-                  <option value="egyptian">Egyptian</option>
-                  <option value="karachi">Karachi</option>
-                </select>
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="text-muted">Timezone</span>
-                <input
-                  name="timezone"
-                  className="input"
-                  defaultValue={prayerSettingsQuery.data.timezone}
-                  placeholder="UTC"
-                />
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="text-muted">Quiet mins before</span>
-                <input
-                  name="quiet_minutes_before"
-                  type="number"
-                  className="input"
-                  defaultValue={prayerSettingsQuery.data.quiet_minutes_before}
-                />
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="text-muted">Quiet mins after</span>
-                <input
-                  name="quiet_minutes_after"
-                  type="number"
-                  className="input"
-                  defaultValue={prayerSettingsQuery.data.quiet_minutes_after}
-                />
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="text-muted">Latitude</span>
-                <input
-                  name="latitude"
-                  type="number"
-                  step="0.00001"
-                  className="input"
-                  defaultValue={prayerSettingsQuery.data.latitude}
-                />
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="text-muted">Longitude</span>
-                <input
-                  name="longitude"
-                  type="number"
-                  step="0.00001"
-                  className="input"
-                  defaultValue={prayerSettingsQuery.data.longitude}
-                />
-              </label>
-              <div className="sm:col-span-2">
-                <button className="btn-primary" type="submit" disabled={savingPrayer}>
-                  {savingPrayer ? "Saving..." : "Save Salah settings"}
-                </button>
-              </div>
-            </form>
-          ) : null}
-        </div>
-      </article>
-    </section>
     </>
   );
 }
