@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useDhikrCount } from "@/hooks/use-dhikr-count";
 
 const QURAN_PASSAGES = [
   {
@@ -24,25 +25,11 @@ const QURAN_PASSAGES = [
   }
 ];
 
-const STORAGE_KEY = "deenly_dhikr_count_v1";
-
 export default function DhikrPage() {
   const [tab, setTab] = useState<"tasbeeh" | "quran">("tasbeeh");
-  const [count, setCount] = useState(0);
+  const [count, setCount] = useDhikrCount();
   const [passageIdx, setPassageIdx] = useState(0);
   const currentPassage = useMemo(() => QURAN_PASSAGES[passageIdx], [passageIdx]);
-
-  useEffect(() => {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    const parsed = Number(raw);
-    if (Number.isFinite(parsed) && parsed >= 0) {
-      setCount(parsed);
-    }
-  }, []);
-
-  useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, String(count));
-  }, [count]);
 
   return (
     <section className="space-y-4">

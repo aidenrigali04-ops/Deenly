@@ -2,6 +2,8 @@ function createMetrics() {
   const state = {
     totalRequests: 0,
     totalErrors: 0,
+    apiTotalRequests: 0,
+    apiTotalErrors: 0,
     statusCounts: {},
     routeCounts: {},
     avgResponseMs: 0,
@@ -15,12 +17,20 @@ function createMetrics() {
         const duration = Date.now() - startedAt;
         const status = String(res.statusCode);
         const routeKey = `${req.method} ${req.route?.path || req.path}`;
+        const path = String(req.path || "");
+        const countsForApiSlo = path === "/api" || path.startsWith("/api/");
 
         state.totalRequests += 1;
         state.statusCounts[status] = (state.statusCounts[status] || 0) + 1;
         state.routeCounts[routeKey] = (state.routeCounts[routeKey] || 0) + 1;
+        if (countsForApiSlo) {
+          state.apiTotalRequests += 1;
+        }
         if (res.statusCode >= 500) {
           state.totalErrors += 1;
+          if (countsForApiSlo) {
+            state.apiTotalErrors += 1;
+          }
         }
 
         state.avgResponseMs =
@@ -47,11 +57,14 @@ function createMetrics() {
   function snapshot() {
     const requestErrorRate =
       state.totalRequests > 0 ? state.totalErrors / state.totalRequests : 0;
+    const apiRequestErrorRate =
+      state.apiTotalRequests > 0 ? state.apiTotalErrors / state.apiTotalRequests : 0;
     const p95Ms = calculateP95(state.recentDurationsMs);
     return {
       ...state,
       avgResponseMs: Number(state.avgResponseMs.toFixed(2)),
       requestErrorRate: Number(requestErrorRate.toFixed(4)),
+      apiRequestErrorRate: Number(apiRequestErrorRate.toFixed(4)),
       p95Ms
     };
   }

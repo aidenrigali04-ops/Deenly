@@ -4,6 +4,10 @@ const metricsUrl = String(process.env.OPS_METRICS_URL || "").trim();
 const rawAuthToken = String(process.env.OPS_METRICS_BEARER_TOKEN || "").trim();
 const authToken = rawAuthToken.replace(/^Bearer\s+/i, "").trim();
 const strict = String(process.env.OPS_METRICS_STRICT || "").toLowerCase() === "true";
+const minApiRequests = Number.parseInt(
+  String(process.env.OPS_METRICS_MIN_API_REQUESTS || "0"),
+  10
+);
 
 if (!metricsUrl || !authToken) {
   const missing = [];
@@ -37,10 +41,38 @@ https
           process.exit(1);
         }
         const payload = JSON.parse(body);
-        const errorRate = payload?.requestErrorRate || 0;
+        const hasApiMetric = Object.prototype.hasOwnProperty.call(
+          payload || {},
+          "apiRequestErrorRate"
+        );
+        const apiTotal = Number(payload?.apiTotalRequests || 0);
+        const errorRate = hasApiMetric
+          ? Number(payload.apiRequestErrorRate)
+          : Number(payload?.requestErrorRate || 0);
         const p95 = payload?.p95Ms || 0;
-        if (errorRate > 0.02) {
+
+        const skipErrorRateCheck =
+          hasApiMetric &&
+          Number.isFinite(minApiRequests) &&
+          minApiRequests > 0 &&
+          apiTotal < minApiRequests;
+
+        if (skipErrorRateCheck) {
+          console.log(
+            `Ops metrics: skipping API error rate check (apiTotalRequests=${apiTotal} < OPS_METRICS_MIN_API_REQUESTS=${minApiRequests}).`
+          );
+        } else if (errorRate > 0.02) {
+          const detail = {
+            errorRateChecked: hasApiMetric ? "apiRequestErrorRate" : "requestErrorRate",
+            errorRate,
+            totalRequests: payload?.totalRequests,
+            totalErrors: payload?.totalErrors,
+            apiTotalRequests: payload?.apiTotalRequests,
+            apiTotalErrors: payload?.apiTotalErrors,
+            statusCounts: payload?.statusCounts
+          };
           console.error(`Error rate too high: ${errorRate}`);
+          console.error(`Ops metrics detail: ${JSON.stringify(detail)}`);
           process.exit(1);
         }
         if (p95 > 700) {

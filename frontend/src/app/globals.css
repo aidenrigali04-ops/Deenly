@@ -335,3 +335,11 @@ a {
 .messages-thread-empty {
   @apply grid min-h-full place-items-center px-6;
 }
+
+/* Instagram-style profile (web) */
+.ig-avatar-xl {
+  @apply h-24 w-24 text-2xl md:h-[120px] md:w-[120px];
+}
+.ig-grid-tight {
+  @apply gap-0.5 sm:gap-1;
+}

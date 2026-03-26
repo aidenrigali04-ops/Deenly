@@ -30,7 +30,7 @@ Production-focused Node/Express backend for the Deenly Muslim social platform.
 - `GET /health`
 - `GET /health/db`
 - `GET /ready`
-- `GET /ops/metrics` (moderator/admin auth required)
+- `GET /ops/metrics` (moderator/admin auth required) — includes `requestErrorRate` (all paths with status ≥500), `apiRequestErrorRate` (only `/api` traffic, excludes `/ready`/`/health` noise), and `p95Ms`
 
 ## API Versioning
 

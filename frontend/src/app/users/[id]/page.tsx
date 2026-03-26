@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -49,7 +50,7 @@ export default function UserProfilePage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const userId = Number(params.id);
-  const [activeTab, setActiveTab] = useState<"posts" | "media">("posts");
+  const [igProfileTab, setIgProfileTab] = useState<"grid" | "reels" | "saved" | "tagged">("grid");
   const queryClient = useQueryClient();
 
   const profileQuery = useQuery({
@@ -189,164 +190,197 @@ export default function UserProfilePage() {
 
   const profileItems = postsQuery.data?.items || [];
   const visibleItems =
-    activeTab === "media" ? profileItems.filter((item) => Boolean(item.media_url)) : profileItems;
+    igProfileTab === "saved" || igProfileTab === "tagged"
+      ? []
+      : igProfileTab === "reels"
+        ? profileItems.filter((item) => Boolean(item.media_url))
+        : profileItems;
 
   return (
-    <section className="profile-shell">
-      <article className="profile-top">
-        <div className="profile-row">
-          <div className="flex min-w-0 items-center gap-3">
-            {avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={avatarUrl} alt={`${user.display_name} avatar`} className="profile-avatar object-cover" />
-            ) : (
-              <div className="profile-avatar">{initials}</div>
-            )}
-            <div className="min-w-0">
-              <h1 className="truncate text-[1.75rem] font-semibold tracking-tight">{user.display_name}</h1>
-              <p className="text-sm text-muted">@{user.username || "unknown"}</p>
+    <>
+      <section className="mx-auto max-w-4xl">
+        <article className="rounded-b-2xl bg-black px-4 pb-6 pt-4 text-white md:px-8">
+          <div className="flex flex-col gap-6 md:flex-row md:items-start">
+            <div className="flex shrink-0 justify-center md:block">
+              {avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={avatarUrl}
+                  alt={`${user.display_name} avatar`}
+                  className="profile-avatar ig-avatar-xl h-[96px] w-[96px] border-white/20 object-cover md:h-[120px] md:w-[120px]"
+                />
+              ) : (
+                <div className="profile-avatar ig-avatar-xl grid h-[96px] w-[96px] place-items-center border-white/20 md:h-[120px] md:w-[120px]">
+                  {initials}
+                </div>
+              )}
             </div>
-          </div>
-          <div className="shrink-0">
-            <button
-              className="btn-secondary px-5"
-              onClick={() =>
-                user.is_following ? unfollowMutation.mutate() : followMutation.mutate()
-              }
-            >
-              {followMutation.isPending || unfollowMutation.isPending
-                ? "Updating..."
-                : user.is_following
-                  ? "Unfollow"
-                  : "Follow"}
-            </button>
-          </div>
-        </div>
-
-        <div className="profile-stat-grid">
-          <div>
-            <p className="profile-stat-value">{user.posts_count}</p>
-            <p className="profile-stat-label">Posts</p>
-          </div>
-          <div>
-            <p className="profile-stat-value">{user.followers_count}</p>
-            <p className="profile-stat-label">Followers</p>
-          </div>
-          <div>
-            <p className="profile-stat-value">{user.following_count}</p>
-            <p className="profile-stat-label">Following</p>
-          </div>
-        </div>
-
-        <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted">
-          <div className="rounded-control border border-black/10 bg-surface px-3 py-2">
-            Likes received: {user.likes_received_count}
-          </div>
-          <div className="rounded-control border border-black/10 bg-surface px-3 py-2">
-            Likes by user: {user.likes_given_count}
-          </div>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button className="btn-secondary" onClick={() => supportCheckoutMutation.mutate()}>
-            {supportCheckoutMutation.isPending ? "Opening..." : "Support $5"}
-          </button>
-          <span className="rounded-control border border-black/10 bg-surface px-3 py-2 text-xs text-muted">
-            Membership: {subscriptionAccessQuery.data?.subscribed ? "Active" : "Not subscribed"}
-          </span>
-        </div>
-        {tiersQuery.data?.items?.length ? (
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {tiersQuery.data.items.map((tier) => (
-              <div key={tier.id} className="rounded-control border border-black/10 bg-surface p-3">
-                <p className="text-xs font-semibold text-text">{tier.title}</p>
-                <p className="mt-1 text-xs text-muted">
-                  {formatMinorCurrency(Number(tier.monthly_price_minor || 0), tier.currency || "usd")} / month
-                </p>
-                {tier.description ? <p className="mt-1 text-xs text-muted">{tier.description}</p> : null}
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-xl font-semibold tracking-tight md:text-2xl">@{user.username || "user"}</h1>
                 <button
-                  className="btn-secondary mt-2 w-full"
-                  onClick={() => tierCheckoutMutation.mutate(tier.id)}
-                  disabled={tierCheckoutMutation.isPending}
+                  type="button"
+                  className="rounded-lg bg-sky-500 px-5 py-2 text-sm font-semibold text-white hover:bg-sky-600"
+                  onClick={() => (user.is_following ? unfollowMutation.mutate() : followMutation.mutate())}
                 >
-                  {tierCheckoutMutation.isPending ? "Opening..." : "Subscribe"}
+                  {followMutation.isPending || unfollowMutation.isPending
+                    ? "..."
+                    : user.is_following
+                      ? "Unfollow"
+                      : "Follow"}
                 </button>
               </div>
-            ))}
+              <div className="mt-6 flex flex-wrap gap-8 text-sm">
+                <div>
+                  <p className="text-base font-semibold tabular-nums">{user.posts_count.toLocaleString()}</p>
+                  <p className="text-xs text-white/50">posts</p>
+                </div>
+                <div>
+                  <p className="text-base font-semibold tabular-nums">{user.followers_count.toLocaleString()}</p>
+                  <p className="text-xs text-white/50">followers</p>
+                </div>
+                <div>
+                  <p className="text-base font-semibold tabular-nums">{user.following_count.toLocaleString()}</p>
+                  <p className="text-xs text-white/50">following</p>
+                </div>
+              </div>
+              <p className="mt-4 text-xs text-white/45">
+                Worship activity (Dhikr / Salah) is private and not shown on profiles.
+              </p>
+              <p className="mt-3 font-semibold text-white">{user.display_name}</p>
+              {user.bio ? <p className="mt-2 whitespace-pre-line text-sm text-white/75">{user.bio}</p> : null}
+              {followMutation.isSuccess ? <p className="mt-2 text-xs text-sky-300">Followed successfully.</p> : null}
+              {unfollowMutation.isSuccess ? <p className="mt-2 text-xs text-white/60">Unfollowed.</p> : null}
+              <div className="mt-6 border-t border-white/10 pt-4">
+                <div className="flex justify-center gap-10 md:gap-14">
+                  {(
+                    [
+                      { id: "grid" as const, label: "Posts" },
+                      { id: "reels" as const, label: "Media" },
+                      { id: "saved" as const, label: "Saved" },
+                      { id: "tagged" as const, label: "Tagged" }
+                    ] as const
+                  ).map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setIgProfileTab(tab.id)}
+                      className={`relative pb-3 text-xs font-semibold uppercase tracking-wide transition ${
+                        igProfileTab === tab.id ? "text-white" : "text-white/40 hover:text-white/70"
+                      }`}
+                    >
+                      {tab.label}
+                      {igProfileTab === tab.id ? (
+                        <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-white" />
+                      ) : null}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="pt-6">
+                {postsQuery.isLoading ? <LoadingState label="Loading posts..." /> : null}
+                {postsQuery.error ? <ErrorState message={(postsQuery.error as Error).message} /> : null}
+                {!postsQuery.isLoading && !postsQuery.error && (igProfileTab === "saved" || igProfileTab === "tagged") ? (
+                  <div className="py-16 text-center text-sm text-white/45">Coming soon.</div>
+                ) : null}
+                {!postsQuery.isLoading &&
+                !postsQuery.error &&
+                visibleItems.length === 0 &&
+                igProfileTab !== "saved" &&
+                igProfileTab !== "tagged" ? (
+                  <div className="py-16 text-center text-sm text-white/50">No posts to show yet.</div>
+                ) : null}
+                {visibleItems.length > 0 ? (
+                  <div className="profile-post-grid ig-grid-tight">
+                    {visibleItems.map((item) => {
+                      const mediaUrl = resolveMediaUrl(item.media_url) || undefined;
+                      const isImage = item.media_mime_type?.startsWith("image/");
+                      const isVideo = item.media_mime_type?.startsWith("video/");
+                      const fallbackLabel = item.content?.trim().slice(0, 26) || "Post";
+                      return (
+                        <article key={item.id} className="profile-grid-tile border-white/10 bg-white/5">
+                          <button
+                            type="button"
+                            className="profile-grid-open"
+                            onClick={() => router.push(`/posts/${item.id}`)}
+                            aria-label={`Open post ${item.id}`}
+                          >
+                            {mediaUrl ? (
+                              isImage ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={mediaUrl} alt="post media" className="profile-grid-media" />
+                              ) : (
+                                <div className="profile-grid-fallback profile-grid-fallback-video">Video</div>
+                              )
+                            ) : (
+                              <div className="profile-grid-fallback bg-black/40 text-white/60">{fallbackLabel}</div>
+                            )}
+                            {isVideo ? <span className="profile-grid-badge">Video</span> : null}
+                          </button>
+                          <button
+                            className="profile-grid-like"
+                            onClick={() => likeMutation.mutate(item.id)}
+                            disabled={likeMutation.isPending}
+                            type="button"
+                          >
+                            {likeMutation.isPending ? "..." : "Like"}
+                          </button>
+                          <span className="profile-grid-count">{item.benefited_count || 0}</span>
+                        </article>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            </div>
           </div>
-        ) : null}
-
-        <div className="mt-4 profile-tab-strip">
-          <button
-            className={`profile-tab ${activeTab === "posts" ? "profile-tab-active" : ""}`}
-            onClick={() => setActiveTab("posts")}
-            type="button"
-          >
-            Posts
-          </button>
-          <button
-            className={`profile-tab ${activeTab === "media" ? "profile-tab-active" : ""}`}
-            onClick={() => setActiveTab("media")}
-            type="button"
-          >
-            Media
-          </button>
-        </div>
-
-        <div className="pt-4">
-          {postsQuery.isLoading ? <LoadingState label="Loading posts..." /> : null}
-          {postsQuery.error ? <ErrorState message={(postsQuery.error as Error).message} /> : null}
-          {!postsQuery.isLoading && !postsQuery.error && visibleItems.length === 0 ? (
-            <div className="rounded-panel border border-black/10 bg-surface px-4 py-10 text-center text-sm text-muted">
-              {activeTab === "posts" ? "No posts to show yet." : "No media to show yet."}
+        </article>
+      </section>
+      <section className="profile-shell mx-auto max-w-4xl">
+        <article className="surface-card px-6 py-6">
+          <div className="grid grid-cols-2 gap-2 text-xs text-muted">
+            <div className="rounded-control border border-black/10 bg-surface px-3 py-2">
+              Likes received: <span className="font-semibold text-text">{user.likes_received_count}</span>
+            </div>
+            <div className="rounded-control border border-black/10 bg-surface px-3 py-2">
+              Likes given: <span className="font-semibold text-text">{user.likes_given_count}</span>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button className="btn-secondary" onClick={() => supportCheckoutMutation.mutate()}>
+              {supportCheckoutMutation.isPending ? "Opening..." : "Support $5"}
+            </button>
+            <span className="rounded-control border border-black/10 bg-surface px-3 py-2 text-xs text-muted">
+              Membership: {subscriptionAccessQuery.data?.subscribed ? "Active" : "Not subscribed"}
+            </span>
+          </div>
+          {tiersQuery.data?.items?.length ? (
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {tiersQuery.data.items.map((tier) => (
+                <div key={tier.id} className="rounded-control border border-black/10 bg-surface p-3">
+                  <p className="text-xs font-semibold text-text">{tier.title}</p>
+                  <p className="mt-1 text-xs text-muted">
+                    {formatMinorCurrency(Number(tier.monthly_price_minor || 0), tier.currency || "usd")} / month
+                  </p>
+                  {tier.description ? <p className="mt-1 text-xs text-muted">{tier.description}</p> : null}
+                  <button
+                    className="btn-secondary mt-2 w-full"
+                    onClick={() => tierCheckoutMutation.mutate(tier.id)}
+                    disabled={tierCheckoutMutation.isPending}
+                  >
+                    {tierCheckoutMutation.isPending ? "Opening..." : "Subscribe"}
+                  </button>
+                </div>
+              ))}
             </div>
           ) : null}
-          <div className="profile-post-grid">
-            {visibleItems.map((item) => {
-              const mediaUrl = resolveMediaUrl(item.media_url) || undefined;
-              const isImage = item.media_mime_type?.startsWith("image/");
-              const isVideo = item.media_mime_type?.startsWith("video/");
-              const fallbackLabel = item.content?.trim().slice(0, 26) || "Post";
-              return (
-                <article key={item.id} className="profile-grid-tile">
-                  <button
-                    type="button"
-                    className="profile-grid-open"
-                    onClick={() => router.push(`/posts/${item.id}`)}
-                    aria-label={`Open post ${item.id}`}
-                  >
-                    {mediaUrl ? (
-                      isImage ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={mediaUrl} alt="post media" className="profile-grid-media" />
-                      ) : (
-                        <div className="profile-grid-fallback profile-grid-fallback-video">Video</div>
-                      )
-                    ) : (
-                      <div className="profile-grid-fallback">{fallbackLabel}</div>
-                    )}
-                    {isVideo ? <span className="profile-grid-badge">Video</span> : null}
-                  </button>
-                  <button
-                    className="profile-grid-like"
-                    onClick={() => likeMutation.mutate(item.id)}
-                    disabled={likeMutation.isPending}
-                    type="button"
-                  >
-                    {likeMutation.isPending ? "..." : "Like"}
-                  </button>
-                  <span className="profile-grid-count">{item.benefited_count || 0}</span>
-                </article>
-              );
-            })}
-          </div>
-        </div>
-
-        {user.bio ? <p className="pt-4 text-sm text-muted">{user.bio}</p> : null}
-        {followMutation.isSuccess ? <p className="pt-2 text-xs text-text">Followed successfully.</p> : null}
-        {unfollowMutation.isSuccess ? (
-          <p className="pt-2 text-xs text-text">Unfollowed successfully.</p>
-        ) : null}
-      </article>
-    </section>
+          <p className="mt-4 text-center text-xs text-muted">
+            <Link href="/account" className="text-sky-600 hover:underline">
+              Back to your profile
+            </Link>
+          </p>
+        </article>
+      </section>
+    </>
   );
 }
