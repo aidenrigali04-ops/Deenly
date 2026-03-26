@@ -189,7 +189,13 @@ function loadEnv(envSource = process.env) {
       700,
       "AFFILIATE_GLOBAL_COMMISSION_BPS"
     ),
-    appBaseUrl: derivedAppBaseUrl
+    appBaseUrl: derivedAppBaseUrl,
+    metaAppId: String(envSource.META_APP_ID || "").trim(),
+    metaAppSecret: String(envSource.META_APP_SECRET || "").trim(),
+    metaOauthRedirectUri: parseRequiredUrl(envSource.META_OAUTH_REDIRECT_URI, "META_OAUTH_REDIRECT_URI"),
+    instagramGraphApiVersion: String(envSource.INSTAGRAM_GRAPH_API_VERSION || "v21.0").trim(),
+    metaTokenEncryptionKey: String(envSource.META_TOKEN_ENCRYPTION_KEY || "").trim(),
+    metaOauthStateSecret: String(envSource.META_OAUTH_STATE_SECRET || "").trim()
   };
 
   if (!VALID_DB_SSL_MODES.has(config.dbSslMode)) {

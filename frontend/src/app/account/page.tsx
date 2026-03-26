@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchSessionMe } from "@/lib/auth";
@@ -9,6 +9,11 @@ import { apiRequest } from "@/lib/api";
 import { resolveMediaUrl } from "@/lib/media-url";
 import { ErrorState, LoadingState } from "@/components/states";
 import { fetchPrayerSettings, updatePrayerSettings } from "@/lib/prayer";
+import {
+  disconnectInstagram,
+  fetchInstagramOAuthUrl,
+  fetchInstagramStatus
+} from "@/lib/instagram";
 import {
   createAffiliateCode,
   createConnectAccount,
@@ -74,6 +79,7 @@ export default function AccountPage() {
   const [savingPrayer, setSavingPrayer] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState("");
+  const [instagramBanner, setInstagramBanner] = useState("");
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const queryClient = useQueryClient();
   const sessionQuery = useQuery({
@@ -146,6 +152,36 @@ export default function AccountPage() {
     queryFn: () => fetchCreatorRankings(10),
     enabled: Boolean(sessionQuery.data?.id)
   });
+  const instagramStatusQuery = useQuery({
+    queryKey: ["instagram-status"],
+    queryFn: () => fetchInstagramStatus(),
+    enabled: Boolean(sessionQuery.data?.id),
+    retry: false
+  });
+  const disconnectInstagramMutation = useMutation({
+    mutationFn: () => disconnectInstagram(),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["instagram-status"] });
+    }
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const err = params.get("instagram_error");
+    const ok = params.get("instagram_connected");
+    if (err) {
+      setInstagramBanner(`Instagram: ${decodeURIComponent(err).slice(0, 400)}`);
+    } else if (ok === "1") {
+      setInstagramBanner("Instagram connected. You can cross-post when publishing media.");
+    }
+    if (err || ok) {
+      window.history.replaceState({}, "", "/account");
+      void queryClient.invalidateQueries({ queryKey: ["instagram-status"] });
+    }
+  }, [queryClient]);
   const connectAccountMutation = useMutation({
     mutationFn: () => createConnectAccount(),
     onSuccess: async () => {
@@ -486,6 +522,58 @@ export default function AccountPage() {
           <Link href="/notifications" className="btn-secondary">
             Inbox
           </Link>
+        </div>
+
+        <div className="pt-5">
+          <h2 className="section-title text-sm">Instagram (Business / Creator)</h2>
+          <p className="mt-1 text-xs text-muted">
+            Link a Facebook Page with an Instagram Professional account. Cross-post runs in the background and
+            needs a public HTTPS media URL (CloudFront).
+          </p>
+          {instagramBanner ? (
+            <p className="mt-2 rounded-panel border border-black/10 bg-surface px-3 py-2 text-sm text-text">
+              {instagramBanner}
+            </p>
+          ) : null}
+          <div className="mt-3 rounded-control border border-black/10 bg-surface px-3 py-2">
+            {instagramStatusQuery.isError ? (
+              <p className="text-sm text-muted">Instagram integration is not available on this server.</p>
+            ) : instagramStatusQuery.data?.connected ? (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm text-text">
+                  Connected
+                  {instagramStatusQuery.data.igUsername
+                    ? ` as @${instagramStatusQuery.data.igUsername}`
+                    : instagramStatusQuery.data.igUserId
+                      ? ` (IG ${instagramStatusQuery.data.igUserId})`
+                      : ""}
+                </p>
+                <button
+                  type="button"
+                  className="btn-secondary px-3 py-1.5 text-xs"
+                  onClick={() => disconnectInstagramMutation.mutate()}
+                  disabled={disconnectInstagramMutation.isPending}
+                >
+                  {disconnectInstagramMutation.isPending ? "..." : "Disconnect"}
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="btn-secondary px-3 py-1.5 text-xs"
+                onClick={async () => {
+                  try {
+                    const { url } = await fetchInstagramOAuthUrl();
+                    window.location.assign(url);
+                  } catch (e) {
+                    setInstagramBanner((e as Error).message || "Could not start Instagram connect.");
+                  }
+                }}
+              >
+                Connect Instagram
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="pt-5">

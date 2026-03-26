@@ -6,6 +6,7 @@ import { CompositeScreenProps } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { ApiError, apiRequest } from "../../lib/api";
 import { attachProductToPost, fetchMyProducts } from "../../lib/monetization";
+import { fetchInstagramStatus, requestInstagramCrossPost } from "../../lib/instagram";
 import { useQuery } from "@tanstack/react-query";
 import { colors } from "../../theme";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
@@ -54,10 +55,17 @@ export function CreateScreen({ navigation }: Props) {
   const [businessCategory, setBusinessCategory] = useState("");
   const [ctaLabel, setCtaLabel] = useState("");
   const [ctaUrl, setCtaUrl] = useState("");
+  const [crossPostToInstagram, setCrossPostToInstagram] = useState(false);
   const myProductsQuery = useQuery({
     queryKey: ["mobile-create-my-products"],
     queryFn: () => fetchMyProducts()
   });
+  const instagramQuery = useQuery({
+    queryKey: ["mobile-instagram-status"],
+    queryFn: () => fetchInstagramStatus(),
+    retry: false
+  });
+  const igConnected = Boolean(instagramQuery.data?.connected);
 
   const pickMedia = async () => {
     const result = await DocumentPicker.getDocumentAsync({
@@ -83,6 +91,10 @@ export function CreateScreen({ navigation }: Props) {
     setIsSubmitting(true);
     setError("");
     try {
+      if (crossPostToInstagram && !selectedFile) {
+        throw new Error("Attach image or video to cross-post to Instagram.");
+      }
+
       let deliveryMediaKey: string | undefined;
       if (sellThis && productType === "digital") {
         if (!productFile) {
@@ -185,6 +197,14 @@ export function CreateScreen({ navigation }: Props) {
             fileSizeBytes: selectedFile.size || fileBlob.size || 1
           }
         });
+
+        if (crossPostToInstagram) {
+          try {
+            await requestInstagramCrossPost(post.id);
+          } catch {
+            /* non-blocking */
+          }
+        }
       }
       if (selectedProductId) {
         await attachProductToPost(post.id, selectedProductId);
@@ -207,6 +227,7 @@ export function CreateScreen({ navigation }: Props) {
       setBusinessCategory("");
       setCtaLabel("");
       setCtaUrl("");
+      setCrossPostToInstagram(false);
       navigation.navigate("PostDetail", { id: post.id });
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Unable to create post";
@@ -255,6 +276,24 @@ export function CreateScreen({ navigation }: Props) {
           </Text>
         ) : (
           <Text style={styles.muted}>Optional: image/video upload</Text>
+        )}
+      </View>
+      <View style={styles.fileRow}>
+        <Pressable
+          style={[styles.chip, crossPostToInstagram && igConnected ? styles.chipActive : null]}
+          onPress={() => {
+            if (igConnected) {
+              setCrossPostToInstagram((v) => !v);
+            }
+          }}
+          disabled={!igConnected}
+        >
+          <Text style={styles.chipText}>Also share to Instagram</Text>
+        </Pressable>
+        {!igConnected ? (
+          <Text style={styles.muted}>Connect Instagram on Profile first.</Text>
+        ) : (
+          <Text style={styles.muted}>Runs after upload; needs public HTTPS media.</Text>
         )}
       </View>
       {(myProductsQuery.data?.items || []).length ? (

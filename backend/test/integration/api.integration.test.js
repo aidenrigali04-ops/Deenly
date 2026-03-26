@@ -65,10 +65,12 @@ describeIfDatabase("integration api flows", () => {
     await db.query("TRUNCATE TABLE user_blocks RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE user_mutes RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE interactions RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE instagram_cross_posts RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE posts RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE follows RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE refresh_tokens RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE profiles RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE user_instagram_connections RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE users RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE analytics_events RESTART IDENTITY CASCADE");
   }

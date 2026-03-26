@@ -1,6 +1,15 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import {
+  Image,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions
+} from "react-native";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { CompositeScreenProps } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -14,6 +23,11 @@ import type { FeedItem } from "../../types";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 import { resolveMediaUrl } from "../../lib/media-url";
 import { fetchMyEarnings, fetchConnectStatus, formatMinorCurrency } from "../../lib/monetization";
+import {
+  disconnectInstagram,
+  fetchInstagramOAuthUrl,
+  fetchInstagramStatus
+} from "../../lib/instagram";
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<AppTabParamList, "AccountTab">,
@@ -68,6 +82,18 @@ export function ProfileScreen({ navigation }: Props) {
     queryKey: ["mobile-creator-earnings"],
     queryFn: () => fetchMyEarnings(),
     enabled: Boolean(sessionQuery.data?.id)
+  });
+  const instagramQuery = useQuery({
+    queryKey: ["mobile-instagram-status"],
+    queryFn: () => fetchInstagramStatus(),
+    enabled: Boolean(sessionQuery.data?.id),
+    retry: false
+  });
+  const disconnectInstagramMutation = useMutation({
+    mutationFn: () => disconnectInstagram(),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["mobile-instagram-status"] });
+    }
   });
   const likeMutation = useMutation({
     mutationFn: (postId: number) =>
@@ -173,6 +199,45 @@ export function ProfileScreen({ navigation }: Props) {
           </Pressable>
         </View>
       ) : null}
+      <View style={styles.card}>
+        <Text style={styles.title}>Instagram</Text>
+        <Text style={styles.muted}>
+          Business/Creator account via Facebook Page. OAuth opens in the browser; return to the app when done.
+        </Text>
+        {instagramQuery.isError ? (
+          <Text style={styles.muted}>Instagram is not configured on this server.</Text>
+        ) : instagramQuery.data?.connected ? (
+          <View style={styles.row}>
+            <Text style={styles.muted}>
+              Connected
+              {instagramQuery.data.igUsername ? ` @${instagramQuery.data.igUsername}` : ""}
+            </Text>
+            <Pressable
+              style={styles.buttonSecondary}
+              onPress={() => disconnectInstagramMutation.mutate()}
+              disabled={disconnectInstagramMutation.isPending}
+            >
+              <Text style={styles.buttonText}>
+                {disconnectInstagramMutation.isPending ? "..." : "Disconnect"}
+              </Text>
+            </Pressable>
+          </View>
+        ) : (
+          <Pressable
+            style={styles.buttonSecondary}
+            onPress={async () => {
+              try {
+                const { url } = await fetchInstagramOAuthUrl();
+                await Linking.openURL(url);
+              } catch {
+                /* ignore */
+              }
+            }}
+          >
+            <Text style={styles.buttonText}>Connect Instagram</Text>
+          </Pressable>
+        )}
+      </View>
       <View style={styles.card}>
         <Text style={styles.title}>Stats</Text>
         <View style={styles.row}>

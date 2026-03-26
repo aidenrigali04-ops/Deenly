@@ -26,6 +26,8 @@ const { createSupportRouter } = require("./modules/support/routes");
 const { createMonetizationRouter } = require("./modules/monetization/routes");
 const { createAdsRouter } = require("./modules/ads/routes");
 const { createCreatorRouter } = require("./modules/creator/routes");
+const { createInstagramRouter } = require("./modules/instagram/routes");
+const { createInstagramCrossPostOrchestrator } = require("./services/instagram-graph");
 const { createMetrics } = require("./observability/metrics");
 const { createMonetizationGateway } = require("./services/monetization-gateway");
 const { authenticate, authorize } = require("./middleware/auth");
@@ -76,6 +78,12 @@ function createApp({
   app.locals.mediaStorage = mediaStorage;
   app.locals.pushNotifications = pushNotifications || null;
   app.locals.monetizationGateway = monetizationGateway || createMonetizationGateway({ config });
+
+  const instagramCrossPost = createInstagramCrossPostOrchestrator({
+    db,
+    config,
+    mediaStorage
+  });
 
   if (config.trustProxy) {
     app.set("trust proxy", 1);
@@ -181,7 +189,21 @@ function createApp({
   apiRouter.use("/profiles", createProfileRouter({ db, config }));
   apiRouter.use(
     "/posts",
-    createPostsRouter({ db, config, analytics: app.locals.analytics, mediaStorage: app.locals.mediaStorage })
+    createPostsRouter({
+      db,
+      config,
+      analytics: app.locals.analytics,
+      mediaStorage: app.locals.mediaStorage,
+      enqueueInstagramCrossPost: instagramCrossPost.enqueueAfterCreatePost
+    })
+  );
+  apiRouter.use(
+    "/instagram",
+    createInstagramRouter({
+      db,
+      config,
+      enqueueInstagramCrossPostByPostId: instagramCrossPost.enqueueByPostId
+    })
   );
   apiRouter.use("/feed", createFeedRouter({ db, config, mediaStorage: app.locals.mediaStorage }));
   apiRouter.use(

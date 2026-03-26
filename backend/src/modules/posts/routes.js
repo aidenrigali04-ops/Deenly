@@ -10,7 +10,7 @@ const POST_TYPES = new Set(["recitation", "community", "short_video"]);
 const PRODUCT_TYPES = new Set(["digital", "service", "subscription"]);
 const AUDIENCE_TARGETS = new Set(["b2b", "b2c", "both"]);
 
-function createPostsRouter({ db, config, analytics, mediaStorage }) {
+function createPostsRouter({ db, config, analytics, mediaStorage, enqueueInstagramCrossPost }) {
   async function getViewerIdFromAuthHeader(authorization) {
     if (!authorization || !authorization.startsWith("Bearer ")) {
       return null;
@@ -158,6 +158,8 @@ function createPostsRouter({ db, config, analytics, mediaStorage }) {
       const sellThis = validateSellThis(req.body?.sellThisConfig || req.body);
       const audienceTarget = parseAudienceTarget(req.body?.audienceTarget);
       const businessCategory = parseBusinessCategory(req.body?.businessCategory);
+      const mediaMimeType = optionalString(req.body?.mediaMimeType, "mediaMimeType", 128);
+      const crossPostToInstagram = Boolean(req.body?.crossPostToInstagram);
 
       await db.query("BEGIN");
       let result;
@@ -165,10 +167,10 @@ function createPostsRouter({ db, config, analytics, mediaStorage }) {
         result = await db.query(
           `INSERT INTO posts (
              author_id, post_type, content, media_url, style_tag, media_status, is_business_post, cta_label, cta_url, tags
-           , audience_target, business_category
+           , audience_target, business_category, media_mime_type
            )
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::text[], $11, $12)
-           RETURNING id, author_id, post_type, content, media_url, media_mime_type, style_tag, media_status,
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::text[], $11, $12, $13)
+           RETURNING id, author_id, post_type, content, media_url, media_upload_key, media_mime_type, style_tag, media_status,
                      visibility_status, is_business_post, cta_label, cta_url, tags, audience_target, business_category, created_at, updated_at`,
           [
             req.user.id,
@@ -182,7 +184,8 @@ function createPostsRouter({ db, config, analytics, mediaStorage }) {
             ctaUrl,
             tags,
             audienceTarget,
-            businessCategory
+            businessCategory,
+            mediaMimeType
           ]
         );
         if (sellThis.sellThis) {
@@ -246,6 +249,15 @@ function createPostsRouter({ db, config, analytics, mediaStorage }) {
           isBusinessPost,
           sellThis: sellThis.sellThis
         });
+      }
+
+      if (typeof enqueueInstagramCrossPost === "function" && crossPostToInstagram) {
+        void enqueueInstagramCrossPost({
+          userId: req.user.id,
+          postRow: result.rows[0],
+          caption: content,
+          mediaMimeTypeHint: mediaMimeType
+        }).catch(() => {});
       }
 
       res.status(201).json(result.rows[0]);

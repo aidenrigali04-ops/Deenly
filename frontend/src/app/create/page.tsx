@@ -2,7 +2,9 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
+import { fetchInstagramStatus, requestInstagramCrossPost } from "@/lib/instagram";
 import { ErrorState } from "@/components/states";
 
 type CreatePostResponse = {
@@ -27,6 +29,13 @@ function deriveMediaType(mimeType: string): "image" | "video" | null {
 
 export default function CreatePage() {
   const router = useRouter();
+  const instagramQuery = useQuery({
+    queryKey: ["instagram-status"],
+    queryFn: () => fetchInstagramStatus(),
+    retry: false
+  });
+  const igConnected = Boolean(instagramQuery.data?.connected);
+  const [crossPostToInstagram, setCrossPostToInstagram] = useState(false);
   const [postType, setPostType] = useState("community");
   const [content, setContent] = useState("");
   const [tagsInput, setTagsInput] = useState("");
@@ -55,6 +64,10 @@ export default function CreatePage() {
     const productFile = form.get("productFile") as File | null;
 
     try {
+      if (crossPostToInstagram && (!file || file.size <= 0)) {
+        throw new Error("Add image or video media to cross-post to Instagram.");
+      }
+
       let deliveryMediaKey: string | undefined;
       if (sellThis && productType === "digital") {
         if (!productFile || productFile.size <= 0) {
@@ -149,6 +162,14 @@ export default function CreatePage() {
             fileSizeBytes: file.size
           }
         });
+
+        if (crossPostToInstagram) {
+          try {
+            await requestInstagramCrossPost(post.id);
+          } catch {
+            /* background job may still run; avoid blocking navigation */
+          }
+        }
       }
 
       router.push(`/posts/${post.id}`);
@@ -197,6 +218,24 @@ export default function CreatePage() {
         <p className="text-xs text-muted">
           Upload image or video from your device. Uploads are attached after post creation.
         </p>
+        <label className="flex items-center gap-2 text-sm text-text">
+          <input
+            type="checkbox"
+            checked={crossPostToInstagram}
+            disabled={!igConnected}
+            onChange={(event) => setCrossPostToInstagram(event.target.checked)}
+          />
+          Also share to Instagram
+        </label>
+        {!igConnected ? (
+          <p className="text-xs text-muted">
+            Connect an Instagram Business/Creator account on Account to enable cross-posting.
+          </p>
+        ) : (
+          <p className="text-xs text-muted">
+            Requires public HTTPS media (configure CDN). Publishing runs in the background after upload.
+          </p>
+        )}
         <div className="rounded-panel border border-black/10 p-3">
           <label className="flex items-center gap-2 text-sm text-text">
             <input
