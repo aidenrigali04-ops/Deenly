@@ -18,6 +18,27 @@ a {
   @apply mx-auto max-w-[1180px] px-3 sm:px-5;
 }
 
+/* Authenticated pages: use inside <main>; set width with max-w-* + mx-auto on same element or a child */
+.page-stack {
+  @apply w-full space-y-8 pb-4 md:space-y-10;
+}
+
+.section-stack {
+  @apply flex flex-col gap-6 md:gap-8;
+}
+
+.page-header {
+  @apply mb-6 md:mb-8;
+}
+
+.page-header-title {
+  @apply section-title;
+}
+
+.page-header-subtitle {
+  @apply mt-2 max-w-2xl text-sm leading-relaxed text-muted;
+}
+
 .surface-card {
   @apply rounded-panel border border-black/10 bg-card p-4 shadow-soft;
 }
@@ -27,15 +48,24 @@ a {
 }
 
 .btn {
-  @apply rounded-control px-4 py-2.5 text-sm font-medium transition;
+  @apply rounded-control px-4 py-2.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25 focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+}
+
+.btn:disabled {
+  @apply cursor-not-allowed opacity-60;
 }
 
 .btn-primary {
-  @apply btn bg-black text-white hover:bg-black/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20;
+  @apply btn bg-black text-white hover:bg-black/90;
 }
 
 .btn-secondary {
-  @apply btn border border-black/10 bg-surface text-text hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20;
+  @apply btn border border-black/10 bg-surface text-text hover:bg-black/[0.03];
+}
+
+/* File pickers / large tap targets styled as buttons */
+.media-upload-zone {
+  @apply flex min-h-[220px] w-full cursor-pointer flex-col items-center justify-center rounded-panel border-2 border-dashed border-black/15 bg-card text-center shadow-sm transition hover:border-black/25 hover:bg-black/[0.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25 focus-visible:ring-offset-2 focus-visible:ring-offset-background;
 }
 
 .section-title {

@@ -166,8 +166,8 @@ export default function AccountPage() {
   };
 
   return (
-    <>
-      <section className="mx-auto max-w-4xl">
+    <div className="page-stack">
+      <section className="mx-auto w-full max-w-4xl">
         <article className="surface-card rounded-b-2xl border border-black/10 px-4 pb-10 pt-6 shadow-soft md:px-8">
           <div className="flex flex-col gap-6 md:flex-row md:items-start">
             <div className="flex shrink-0 justify-center md:block">
@@ -201,7 +201,7 @@ export default function AccountPage() {
                 </h1>
                 <Link
                   href="/account/settings"
-                  className="rounded-lg p-1.5 text-muted transition hover:bg-black/[0.04] hover:text-text"
+                  className="rounded-lg p-1.5 text-muted transition hover:bg-black/[0.04] hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25 focus-visible:ring-offset-2 focus-visible:ring-offset-card"
                   aria-label="Account settings"
                 >
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -386,6 +386,6 @@ export default function AccountPage() {
           </div>
         </article>
       </section>
-    </>
+    </div>
   );
 }

@@ -109,10 +109,10 @@ function NavLink({
       href={href}
       aria-label={label}
       title={label}
-      className="group flex items-center justify-center rounded-pill p-1.5 transition"
+      className="group flex min-h-[44px] min-w-[44px] items-center justify-center rounded-pill p-1 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25 focus-visible:ring-offset-2 focus-visible:ring-offset-card"
     >
       <span
-        className={`grid h-10 w-10 place-items-center rounded-full border transition ${
+        className={`grid h-11 w-11 place-items-center rounded-full border transition ${
           active
             ? "border-black bg-black text-white"
             : "border-black/15 bg-surface text-muted group-hover:bg-black/[0.04] group-hover:text-text"
@@ -156,14 +156,14 @@ export function Nav() {
         <Link
           href="/home"
           aria-label="Deenly Home"
-          className="grid h-11 w-11 place-items-center rounded-full border border-black/10 bg-surface text-base"
+          className="grid h-11 w-11 place-items-center rounded-full border border-black/10 bg-surface text-base transition hover:bg-black/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25 focus-visible:ring-offset-2 focus-visible:ring-offset-card"
         >
           ✦
         </Link>
         <span className="hidden text-[10px] uppercase tracking-[0.2em] text-muted md:block">Deenly</span>
       </div>
 
-      <nav className="grid grid-cols-3 gap-1.5 sm:grid-cols-7 md:grid-cols-1 md:gap-2.5" aria-label="Primary">
+      <nav className="grid grid-cols-3 gap-2 sm:grid-cols-7 md:grid-cols-1 md:gap-2.5" aria-label="Primary">
         {railLinks.map((link) => {
           const active =
             link.href === "/account"
@@ -192,7 +192,7 @@ export function Nav() {
       <div className="mt-4 border-t border-black/10 pt-3">
         {user ? (
           <button
-            className="w-full rounded-pill border border-black/10 bg-surface px-3 py-2 text-xs font-medium text-muted transition hover:bg-black/[0.04] hover:text-text"
+            className="min-h-11 w-full rounded-pill border border-black/10 bg-surface px-3 py-2.5 text-xs font-medium text-muted transition hover:bg-black/[0.04] hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25 focus-visible:ring-offset-2 focus-visible:ring-offset-card"
             onClick={async () => {
               await logout();
               setUser(null);
@@ -204,7 +204,7 @@ export function Nav() {
         ) : (
           <Link
             href="/auth/login"
-            className="block w-full rounded-pill border border-black/10 bg-surface px-3 py-2 text-center text-xs font-medium text-muted transition hover:bg-black/[0.04] hover:text-text"
+            className="flex min-h-11 w-full items-center justify-center rounded-pill border border-black/10 bg-surface px-3 py-2.5 text-center text-xs font-medium text-muted transition hover:bg-black/[0.04] hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25 focus-visible:ring-offset-2 focus-visible:ring-offset-card"
           >
             Login
           </Link>

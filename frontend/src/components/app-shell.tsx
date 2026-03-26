@@ -152,7 +152,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       ) : null}
       <Nav />
-      <main className="min-w-0 flex-1">{children}</main>
+      <main className="min-w-0 flex-1 px-1 pb-12 pt-2 sm:px-3 md:px-4 md:pb-14 md:pt-1">{children}</main>
     </div>
   );
 }

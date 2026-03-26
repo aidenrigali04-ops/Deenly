@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { FormEvent, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/api";
 import { fetchSessionMe } from "@/lib/auth";
 import {
   createAffiliateCode,
@@ -21,6 +23,22 @@ import {
   publishTier
 } from "@/lib/monetization";
 import { ErrorState, LoadingState } from "@/components/states";
+
+type UploadSignatureResponse = {
+  uploadUrl: string;
+  headers: Record<string, string>;
+  key: string;
+};
+
+function deriveMediaType(mimeType: string): "image" | "video" | null {
+  if (mimeType.startsWith("image/")) {
+    return "image";
+  }
+  if (mimeType.startsWith("video/")) {
+    return "video";
+  }
+  return null;
+}
 
 export default function AccountCreatorPage() {
   const sessionQuery = useQuery({
@@ -77,19 +95,104 @@ export default function AccountCreatorPage() {
       }
     }
   });
+  const [newProductTitle, setNewProductTitle] = useState("");
+  const [newProductDescription, setNewProductDescription] = useState("");
+  const [newProductPriceMinor, setNewProductPriceMinor] = useState("");
+  const [newProductType, setNewProductType] = useState<"digital" | "service" | "subscription">("digital");
+  const [newProductServiceDetails, setNewProductServiceDetails] = useState("");
+  const [newProductDeliveryMethod, setNewProductDeliveryMethod] = useState("");
+  const [newProductWebsiteUrl, setNewProductWebsiteUrl] = useState("");
+  const [newProductDeliveryFile, setNewProductDeliveryFile] = useState<File | null>(null);
+  const [newProductFormError, setNewProductFormError] = useState("");
+
   const createProductMutation = useMutation({
-    mutationFn: () =>
-      createProduct({
-        title: "New digital product",
-        description: "Creator digital download",
-        priceMinor: 1500,
-        currency: "usd",
-        deliveryMediaKey: "uploads/products/digital-file.pdf"
-      }),
+    mutationFn: (input: {
+      title: string;
+      description?: string;
+      priceMinor: number;
+      productType: "digital" | "service" | "subscription";
+      deliveryMediaKey?: string;
+      serviceDetails?: string;
+      deliveryMethod?: string;
+      websiteUrl?: string;
+    }) => createProduct({ ...input, currency: "usd" }),
     onSuccess: async () => {
       await myProductsQuery.refetch();
     }
   });
+
+  const onCreateProductSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setNewProductFormError("");
+    const title = newProductTitle.trim();
+    if (title.length < 3) {
+      setNewProductFormError("Title must be at least 3 characters.");
+      return;
+    }
+    const priceMinor = Number.parseInt(newProductPriceMinor.replace(/\D/g, ""), 10);
+    if (!Number.isFinite(priceMinor) || priceMinor <= 0) {
+      setNewProductFormError("Enter price in minor units (e.g. 499 for $4.99).");
+      return;
+    }
+
+    try {
+      let deliveryMediaKey: string | undefined;
+      if (newProductType === "digital") {
+        const file = newProductDeliveryFile;
+        if (!file || file.size <= 0) {
+          setNewProductFormError("Upload a delivery file for digital products (image or video).");
+          return;
+        }
+        const mimeType = file.type || "application/octet-stream";
+        const mediaType = deriveMediaType(mimeType);
+        if (!mediaType) {
+          setNewProductFormError("Delivery file must be an image or video.");
+          return;
+        }
+        const signature = await apiRequest<UploadSignatureResponse>("/media/upload-signature", {
+          method: "POST",
+          auth: true,
+          body: {
+            mediaType,
+            mimeType,
+            originalFilename: file.name,
+            fileSizeBytes: file.size
+          }
+        });
+        const uploaded = await fetch(signature.uploadUrl, {
+          method: "PUT",
+          headers: signature.headers,
+          body: file
+        });
+        if (!uploaded.ok) {
+          throw new Error("Unable to upload delivery file.");
+        }
+        deliveryMediaKey = signature.key;
+      }
+
+      await createProductMutation.mutateAsync({
+        title,
+        description: newProductDescription.trim() || undefined,
+        priceMinor,
+        productType: newProductType,
+        deliveryMediaKey,
+        serviceDetails: newProductServiceDetails.trim() || undefined,
+        deliveryMethod: newProductDeliveryMethod.trim() || undefined,
+        websiteUrl: newProductWebsiteUrl.trim() || undefined
+      });
+
+      setNewProductTitle("");
+      setNewProductDescription("");
+      setNewProductPriceMinor("");
+      setNewProductType("digital");
+      setNewProductServiceDetails("");
+      setNewProductDeliveryMethod("");
+      setNewProductWebsiteUrl("");
+      setNewProductDeliveryFile(null);
+    } catch (err) {
+      setNewProductFormError((err as Error).message || "Could not create product.");
+    }
+  };
   const createTierMutation = useMutation({
     mutationFn: () =>
       createTier({
@@ -117,27 +220,33 @@ export default function AccountCreatorPage() {
   }
 
   return (
-    <div className="container-shell py-8">
-      <div className="mx-auto max-w-4xl space-y-6">
-        <p className="text-sm text-muted">
-          <Link href="/account" className="text-sky-600 hover:underline">
+    <div className="page-stack mx-auto w-full max-w-4xl">
+      <header className="page-header">
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
+          <Link
+            href="/account"
+            className="rounded-sm text-sky-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
             Back to profile
-          </Link>{" "}
-          ·{" "}
-          <Link href="/account/settings" className="text-sky-600 hover:underline">
+          </Link>
+          <span aria-hidden className="text-black/20">
+            ·
+          </span>
+          <Link
+            href="/account/settings"
+            className="rounded-sm text-sky-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
             Account settings
           </Link>
         </p>
+        <h1 className="page-header-title mt-4">Creator hub</h1>
+        <p className="page-header-subtitle">
+          Stripe Connect, products, subscription tiers, and affiliate tools. Separate from your public profile so you can
+          focus when you are ready to earn on Deenly.
+        </p>
+      </header>
 
-        <header>
-          <h1 className="section-title text-2xl">Creator hub</h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted">
-            Stripe Connect, products, subscription tiers, and affiliate tools. This space is separate from your public
-            profile so you can focus when you are ready to earn on Deenly.
-          </p>
-        </header>
-
-        <article className="surface-card space-y-8 px-6 py-6">
+      <article className="surface-card section-stack px-6 py-6">
           <section>
             <h2 className="section-title text-sm">Stripe & balance</h2>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -179,11 +288,107 @@ export default function AccountCreatorPage() {
           </section>
 
           <section>
-            <h2 className="section-title text-sm">Create</h2>
-            <div className="mt-3 grid gap-2 sm:grid-cols-3">
-              <button className="btn-secondary" type="button" onClick={() => createProductMutation.mutate()}>
-                {createProductMutation.isPending ? "Creating..." : "Create product"}
+            <h2 className="section-title text-sm">Create product</h2>
+            <p className="mt-1 text-xs text-muted">
+              Save offers here as drafts, publish when ready, then attach them from{" "}
+              <Link href="/create" className="text-sky-600 underline-offset-2 hover:underline">
+                Create post
+              </Link>
+              .
+            </p>
+            <form className="mt-4 space-y-4" onSubmit={onCreateProductSubmit}>
+              <div className="space-y-3 border-t border-black/10 pt-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted">Pricing and type</p>
+                <input
+                  className="input bg-white"
+                  placeholder="e.g. 499 for $4.99"
+                  value={newProductPriceMinor}
+                  onChange={(e) => setNewProductPriceMinor(e.target.value)}
+                  inputMode="numeric"
+                  aria-label="Price in minor units"
+                />
+                <select
+                  className="input bg-white"
+                  value={newProductType}
+                  onChange={(e) =>
+                    setNewProductType(e.target.value as "digital" | "service" | "subscription")
+                  }
+                  aria-label="Product type"
+                >
+                  <option value="digital">Digital</option>
+                  <option value="service">Service</option>
+                  <option value="subscription">Subscription</option>
+                </select>
+              </div>
+
+              <div className="space-y-3 border-t border-black/10 pt-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted">Offer copy</p>
+                <input
+                  className="input bg-white"
+                  placeholder="Product title"
+                  value={newProductTitle}
+                  onChange={(e) => setNewProductTitle(e.target.value)}
+                  maxLength={180}
+                  aria-label="Product title"
+                />
+                <textarea
+                  className="input min-h-24 resize-y bg-white"
+                  placeholder="Product or offer details"
+                  value={newProductDescription}
+                  onChange={(e) => setNewProductDescription(e.target.value)}
+                  aria-label="Product description"
+                />
+              </div>
+
+              <div className="space-y-3 border-t border-black/10 pt-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted">Delivery</p>
+                {newProductType === "digital" ? (
+                  <input
+                    type="file"
+                    accept="image/*,video/*"
+                    className="input cursor-pointer bg-white"
+                    onChange={(e) => setNewProductDeliveryFile(e.target.files?.[0] ?? null)}
+                    aria-label="Digital delivery file"
+                  />
+                ) : (
+                  <textarea
+                    className="input min-h-24 resize-y bg-white"
+                    placeholder="Service details / what buyer receives"
+                    value={newProductServiceDetails}
+                    onChange={(e) => setNewProductServiceDetails(e.target.value)}
+                    aria-label="Service details"
+                  />
+                )}
+                <input
+                  className="input bg-white"
+                  placeholder="Delivery method (email, DM, booking call, etc.)"
+                  value={newProductDeliveryMethod}
+                  onChange={(e) => setNewProductDeliveryMethod(e.target.value)}
+                  aria-label="Delivery method"
+                />
+                <input
+                  className="input bg-white"
+                  placeholder="Website URL (https://...)"
+                  value={newProductWebsiteUrl}
+                  onChange={(e) => setNewProductWebsiteUrl(e.target.value)}
+                  aria-label="Website URL"
+                />
+              </div>
+
+              {newProductFormError ? (
+                <p className="text-sm text-red-600" role="alert">
+                  {newProductFormError}
+                </p>
+              ) : null}
+              <button className="btn-primary" type="submit" disabled={createProductMutation.isPending}>
+                {createProductMutation.isPending ? "Saving..." : "Save product (draft)"}
               </button>
+            </form>
+          </section>
+
+          <section>
+            <h2 className="section-title text-sm">Shortcuts</h2>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <button className="btn-secondary" type="button" onClick={() => createTierMutation.mutate()}>
                 {createTierMutation.isPending ? "Creating..." : "Create tier"}
               </button>
@@ -280,8 +485,7 @@ export default function AccountCreatorPage() {
               </div>
             </div>
           </section>
-        </article>
-      </div>
+      </article>
     </div>
   );
 }

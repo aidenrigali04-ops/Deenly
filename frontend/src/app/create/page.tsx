@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
@@ -13,6 +14,7 @@ import {
 } from "@/lib/instagram";
 import { resolveMediaUrl } from "@/lib/media-url";
 import { ErrorState } from "@/components/states";
+import { attachProductToPost, fetchMyProducts, formatMinorCurrency } from "@/lib/monetization";
 
 type CreatePostResponse = {
   id: number;
@@ -54,6 +56,11 @@ export default function CreatePage() {
     queryFn: () => apiRequest<MeProfile>("/users/me", { auth: true }),
     enabled: Boolean(sessionQuery.data?.id)
   });
+  const myProductsQuery = useQuery({
+    queryKey: ["create-my-products"],
+    queryFn: () => fetchMyProducts(),
+    enabled: Boolean(sessionQuery.data?.id)
+  });
 
   const instagramQuery = useQuery({
     queryKey: ["instagram-status"],
@@ -68,17 +75,10 @@ export default function CreatePage() {
   const [tagsInput, setTagsInput] = useState("");
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaPreviewUrl, setMediaPreviewUrl] = useState<string | null>(null);
-  const [productDeliveryFile, setProductDeliveryFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [sellThis, setSellThis] = useState(false);
-  const [productType, setProductType] = useState<"digital" | "service" | "subscription">("digital");
-  const [priceMinor, setPriceMinor] = useState("");
-  const [productTitle, setProductTitle] = useState("");
-  const [productDescription, setProductDescription] = useState("");
-  const [serviceDetails, setServiceDetails] = useState("");
-  const [deliveryMethod, setDeliveryMethod] = useState("");
-  const [websiteUrl, setWebsiteUrl] = useState("");
+  const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [audienceTarget, setAudienceTarget] = useState<"b2b" | "b2c" | "both">("both");
   const [businessCategory, setBusinessCategory] = useState("");
   const [ctaLabel, setCtaLabel] = useState("");
@@ -120,6 +120,12 @@ export default function CreatePage() {
     return () => URL.revokeObjectURL(url);
   }, [mediaFile]);
 
+  useEffect(() => {
+    if (!sellThis) {
+      setSelectedProductId("");
+    }
+  }, [sellThis]);
+
   const composerName =
     profileQuery.data?.display_name?.trim() ||
     profileQuery.data?.username?.trim() ||
@@ -137,43 +143,19 @@ export default function CreatePage() {
     setError("");
 
     const file = mediaFile;
-    const productFile = productDeliveryFile;
 
     try {
       if (crossPostToInstagram && (!file || file.size <= 0)) {
         throw new Error("Add image or video media to cross-post to Instagram.");
       }
 
-      let deliveryMediaKey: string | undefined;
-      if (sellThis && productType === "digital") {
-        if (!productFile || productFile.size <= 0) {
-          throw new Error("Upload a delivery file for digital product.");
+      if (sellThis) {
+        const pid = Number(selectedProductId);
+        if (!pid) {
+          throw new Error("Choose a product from your catalog, or create one in Creator hub.");
         }
-        const productMimeType = productFile.type || "application/octet-stream";
-        const productMediaType = deriveMediaType(productMimeType);
-        if (!productMediaType) {
-          throw new Error("Digital delivery file must be image or video.");
-        }
-        const signature = await apiRequest<UploadSignatureResponse>("/media/upload-signature", {
-          method: "POST",
-          auth: true,
-          body: {
-            mediaType: productMediaType,
-            mimeType: productMimeType,
-            originalFilename: productFile.name,
-            fileSizeBytes: productFile.size
-          }
-        });
-        const uploaded = await fetch(signature.uploadUrl, {
-          method: "PUT",
-          headers: signature.headers,
-          body: productFile
-        });
-        if (!uploaded.ok) {
-          throw new Error("Unable to upload product delivery file.");
-        }
-        deliveryMediaKey = signature.key;
       }
+
       const post = await apiRequest<CreatePostResponse>("/posts", {
         method: "POST",
         auth: true,
@@ -187,19 +169,15 @@ export default function CreatePage() {
           isBusinessPost: sellThis,
           ctaLabel: sellThis && ctaLabel.trim() ? ctaLabel.trim() : undefined,
           ctaUrl: sellThis && ctaUrl.trim() ? ctaUrl.trim() : undefined,
-          sellThis,
+          sellThis: false,
           audienceTarget: sellThis ? audienceTarget : "both",
-          businessCategory: sellThis && businessCategory ? businessCategory : undefined,
-          productType,
-          priceMinor: sellThis ? Number(priceMinor) : undefined,
-          productTitle: sellThis && productTitle.trim() ? productTitle.trim() : undefined,
-          productDescription: sellThis && productDescription.trim() ? productDescription.trim() : undefined,
-          serviceDetails: sellThis && serviceDetails.trim() ? serviceDetails.trim() : undefined,
-          deliveryMethod: sellThis && deliveryMethod.trim() ? deliveryMethod.trim() : undefined,
-          websiteUrl: sellThis && websiteUrl.trim() ? websiteUrl.trim() : undefined,
-          deliveryMediaKey
+          businessCategory: sellThis && businessCategory ? businessCategory : undefined
         }
       });
+
+      if (sellThis && selectedProductId) {
+        await attachProductToPost(post.id, Number(selectedProductId));
+      }
 
       if (file && file.size > 0) {
         const mimeType = file.type || "application/octet-stream";
@@ -256,56 +234,78 @@ export default function CreatePage() {
     }
   };
 
+  const openMediaPicker = () => mediaInputRef.current?.click();
+  const onMediaZoneKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      openMediaPicker();
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-background pb-10">
-      <header className="bg-black px-4 py-4 text-center text-white">
-        <h1 className="text-lg font-semibold tracking-tight">Create New Post</h1>
+    <div className="page-stack mx-auto w-full max-w-2xl">
+      <header className="page-header">
+        <p className="text-sm text-muted">
+          <Link
+            href="/home"
+            className="rounded-sm text-sky-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
+            Back to home
+          </Link>
+        </p>
+        <h1 className="page-header-title mt-4">Create a post</h1>
+        <p className="page-header-subtitle">
+          Add a photo or video, write a caption, and optionally promote your offer or cross-post to Instagram.
+        </p>
       </header>
 
-      <div className="mx-auto max-w-2xl px-4 pt-6">
-        <form className="space-y-5" onSubmit={onSubmit}>
-          <div>
-            <input
-              ref={mediaInputRef}
-              id="create-media-file"
-              name="mediaFile"
-              type="file"
-              accept="image/*,video/*"
-              className="sr-only"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                setMediaFile(f ?? null);
-              }}
-            />
-            <button
-              type="button"
-              className="flex min-h-[220px] w-full cursor-pointer flex-col items-center justify-center rounded-panel border border-black/15 bg-white text-center shadow-sm transition hover:border-black/25"
-              onClick={() => mediaInputRef.current?.click()}
-            >
-              {mediaPreviewUrl && previewKind === "image" ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={mediaPreviewUrl}
-                  alt=""
-                  className="max-h-[280px] w-full object-contain"
-                />
-              ) : null}
-              {mediaPreviewUrl && previewKind === "video" ? (
-                <video
-                  src={mediaPreviewUrl}
-                  className="max-h-[280px] w-full object-contain"
-                  controls
-                  muted
-                  playsInline
-                />
-              ) : null}
-              {!mediaPreviewUrl ? (
-                <span className="px-6 text-sm text-muted">Tap to add photo or video</span>
-              ) : null}
-            </button>
-          </div>
+      <form className="section-stack" onSubmit={onSubmit}>
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Media</p>
+          <input
+            ref={mediaInputRef}
+            id="create-media-file"
+            name="mediaFile"
+            type="file"
+            accept="image/*,video/*"
+            className="sr-only"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              setMediaFile(f ?? null);
+            }}
+          />
+          <button
+            type="button"
+            className="media-upload-zone min-h-[220px]"
+            aria-label="Add photo or video for this post"
+            onClick={openMediaPicker}
+            onKeyDown={onMediaZoneKeyDown}
+          >
+            {mediaPreviewUrl && previewKind === "image" ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={mediaPreviewUrl}
+                alt=""
+                className="max-h-[280px] w-full object-contain"
+              />
+            ) : null}
+            {mediaPreviewUrl && previewKind === "video" ? (
+              <video
+                src={mediaPreviewUrl}
+                className="max-h-[280px] w-full object-contain"
+                controls
+                muted
+                playsInline
+              />
+            ) : null}
+            {!mediaPreviewUrl ? (
+              <span className="px-6 text-sm font-medium text-text">Tap to add photo or video</span>
+            ) : null}
+          </button>
+          <p className="mt-2 text-center text-xs text-muted">Optional for text-only posts. JPEG, PNG, GIF, or MP4.</p>
+        </div>
 
-          <div className="surface-card space-y-3 bg-[#E8EDF5] !shadow-none">
+        <div className="surface-card space-y-4">
             <div className="flex items-center gap-3">
               {avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -345,7 +345,7 @@ export default function CreatePage() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="font-semibold text-text">Promote</p>
-                  <p className="text-xs text-muted">Add pricing and offer details</p>
+                  <p className="text-xs text-muted">Attach a catalog product and tune how it shows in feed</p>
                 </div>
                 <input
                   type="checkbox"
@@ -373,26 +373,46 @@ export default function CreatePage() {
 
             {sellThis ? (
               <div className="space-y-3 border-t border-black/10 pt-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted">Pricing and type</p>
-                <input
-                  className="input bg-white"
-                  placeholder="e.g. 499 for $4.99"
-                  value={priceMinor}
-                  onChange={(event) => setPriceMinor(event.target.value)}
-                  inputMode="numeric"
-                />
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted">Choose product</p>
+                <p className="text-xs text-muted">
+                  Products are created in{" "}
+                  <Link
+                    href="/account/creator"
+                    className="text-sky-600 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
+                  >
+                    Creator hub
+                  </Link>
+                  . Publish there before buyers can check out.
+                </p>
                 <select
                   className="input bg-white"
-                  value={productType}
-                  onChange={(event) =>
-                    setProductType(event.target.value as "digital" | "service" | "subscription")
-                  }
-                  aria-label="Product type"
+                  value={selectedProductId}
+                  onChange={(event) => setSelectedProductId(event.target.value)}
+                  aria-label="Product to attach"
                 >
-                  <option value="digital">Digital</option>
-                  <option value="service">Service</option>
-                  <option value="subscription">Subscription</option>
+                  <option value="">Select a product</option>
+                  {(myProductsQuery.data?.items || [])
+                    .slice()
+                    .sort((a, b) => {
+                      const rank = (s: string) => (s === "published" ? 0 : s === "draft" ? 1 : 2);
+                      const d = rank(a.status) - rank(b.status);
+                      if (d !== 0) {
+                        return d;
+                      }
+                      return b.id - a.id;
+                    })
+                    .map((product) => (
+                      <option key={product.id} value={String(product.id)}>
+                        {product.title} — {formatMinorCurrency(product.price_minor, product.currency)}
+                        {product.status === "published" ? "" : ` (${product.status})`}
+                      </option>
+                    ))}
                 </select>
+                {myProductsQuery.isFetching ? (
+                  <p className="text-xs text-muted">Loading your products…</p>
+                ) : (myProductsQuery.data?.items?.length ?? 0) === 0 ? (
+                  <p className="text-xs text-muted">No products yet. Add one in Creator hub first.</p>
+                ) : null}
 
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted">Who it is for</p>
                 <select
@@ -421,51 +441,6 @@ export default function CreatePage() {
                   <option value="lifestyle_inspiration">Lifestyle & Inspiration</option>
                 </select>
 
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted">Offer copy</p>
-                <input
-                  className="input bg-white"
-                  placeholder="Product title"
-                  value={productTitle}
-                  onChange={(event) => setProductTitle(event.target.value)}
-                  maxLength={180}
-                />
-                <textarea
-                  className="input min-h-24 bg-white"
-                  placeholder="Product or offer details"
-                  value={productDescription}
-                  onChange={(event) => setProductDescription(event.target.value)}
-                />
-
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted">Delivery</p>
-                {productType === "digital" ? (
-                  <input
-                    name="productFile"
-                    type="file"
-                    accept="image/*,video/*"
-                    className="input cursor-pointer bg-white"
-                    onChange={(e) => setProductDeliveryFile(e.target.files?.[0] ?? null)}
-                  />
-                ) : (
-                  <textarea
-                    className="input min-h-24 bg-white"
-                    placeholder="Service details / what buyer receives"
-                    value={serviceDetails}
-                    onChange={(event) => setServiceDetails(event.target.value)}
-                  />
-                )}
-                <input
-                  className="input bg-white"
-                  placeholder="Delivery method (email, DM, booking call, etc.)"
-                  value={deliveryMethod}
-                  onChange={(event) => setDeliveryMethod(event.target.value)}
-                />
-                <input
-                  className="input bg-white"
-                  placeholder="Website URL (https://...)"
-                  value={websiteUrl}
-                  onChange={(event) => setWebsiteUrl(event.target.value)}
-                />
-
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted">Call to action</p>
                 <input
                   className="input bg-white"
@@ -483,9 +458,9 @@ export default function CreatePage() {
                 <p className="text-xs text-muted">Add both CTA fields or leave both empty.</p>
               </div>
             ) : null}
-          </div>
+        </div>
 
-          <div className="surface-card space-y-3 px-4 py-4">
+        <div className="surface-card space-y-3 px-4 py-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted">Instagram (optional)</p>
             <p className="text-xs text-muted">
               Link a Facebook Page with an Instagram Professional account here. Cross-post runs after you publish; media
@@ -560,12 +535,11 @@ export default function CreatePage() {
             ) : null}
           </div>
 
-          {error ? <ErrorState message={error} /> : null}
-          <button className="btn-primary w-full" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Publishing..." : "Publish"}
-          </button>
-        </form>
-      </div>
+        {error ? <ErrorState message={error} /> : null}
+        <button className="btn-primary w-full" type="submit" disabled={isSubmitting}>
+          {isSubmitting ? "Publishing..." : "Publish"}
+        </button>
+      </form>
     </div>
   );
 }

@@ -50,18 +50,22 @@ export default function AccountEditProfilePage() {
   const profile = profileQuery.data;
 
   return (
-    <div className="container-shell py-8">
-      <div className="mx-auto max-w-lg">
+    <div className="page-stack mx-auto w-full max-w-lg">
+      <header className="page-header">
         <p className="text-sm text-muted">
-          <Link href="/account" className="text-sky-600 hover:underline">
+          <Link
+            href="/account"
+            className="rounded-sm text-sky-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
             Back to profile
           </Link>
         </p>
-        <div className="surface-card mt-4 px-6 py-6">
-          <h1 className="section-title text-base">Edit profile</h1>
-          <p className="mt-1 text-xs text-muted">How your name and bio appear on Deenly.</p>
+        <h1 className="page-header-title mt-4 text-xl sm:text-2xl">Edit profile</h1>
+        <p className="page-header-subtitle text-xs sm:text-sm">How your name and bio appear on Deenly.</p>
+      </header>
+      <div className="surface-card px-6 py-6">
           <form
-            className="mt-4 grid gap-3"
+            className="grid gap-4"
             onSubmit={async (e) => {
               e.preventDefault();
               setSaving(true);
@@ -108,7 +112,6 @@ export default function AccountEditProfilePage() {
               {saving ? "Saving..." : "Save profile"}
             </button>
           </form>
-        </div>
       </div>
     </div>
   );

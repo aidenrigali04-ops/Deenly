@@ -197,8 +197,8 @@ export default function UserProfilePage() {
         : profileItems;
 
   return (
-    <>
-      <section className="mx-auto max-w-4xl">
+    <div className="page-stack">
+      <section className="mx-auto w-full max-w-4xl">
         <article className="surface-card rounded-b-2xl border border-black/10 px-4 pb-6 pt-6 shadow-soft md:px-8">
           <div className="flex flex-col gap-6 md:flex-row md:items-start">
             <div className="flex shrink-0 justify-center md:block">
@@ -336,7 +336,7 @@ export default function UserProfilePage() {
           </div>
         </article>
       </section>
-      <section className="profile-shell mx-auto max-w-4xl">
+      <section className="profile-shell mx-auto w-full max-w-4xl">
         <article className="surface-card px-6 py-6">
           <div className="grid grid-cols-2 gap-2 text-xs text-muted">
             <div className="rounded-control border border-black/10 bg-surface px-3 py-2">
@@ -375,12 +375,15 @@ export default function UserProfilePage() {
             </div>
           ) : null}
           <p className="mt-4 text-center text-xs text-muted">
-            <Link href="/account" className="text-sky-600 hover:underline">
+            <Link
+              href="/account"
+              className="rounded-sm text-sky-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
               Back to your profile
             </Link>
           </p>
         </article>
       </section>
-    </>
+    </div>
   );
 }

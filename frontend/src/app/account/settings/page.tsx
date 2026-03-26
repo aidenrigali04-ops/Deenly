@@ -33,19 +33,21 @@ export default function AccountSettingsPage() {
   const likes = profileQuery.data;
 
   return (
-    <div className="container-shell py-8">
-      <div className="mx-auto max-w-2xl space-y-6">
+    <div className="page-stack mx-auto w-full max-w-2xl">
+      <header className="page-header">
         <p className="text-sm text-muted">
-          <Link href="/account" className="text-sky-600 hover:underline">
+          <Link
+            href="/account"
+            className="rounded-sm text-sky-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
             Back to profile
           </Link>
         </p>
+        <h1 className="page-header-title mt-4">Account</h1>
+        <p className="page-header-subtitle">Preferences and account details for Deenly.</p>
+      </header>
 
-        <header>
-          <h1 className="section-title text-xl">Account</h1>
-          <p className="mt-1 text-sm text-muted">Preferences and account details for Deenly.</p>
-        </header>
-
+      <div className="section-stack">
         <div className="surface-card px-6 py-6">
           <h2 className="text-sm font-semibold text-text">Overview</h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -75,19 +77,19 @@ export default function AccountSettingsPage() {
           <h2 className="text-sm font-semibold text-text">Navigate</h2>
           <p className="mt-1 text-xs text-muted">Jump to other areas of the app.</p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <Link href="/account/edit" className="btn-secondary">
+            <Link href="/account/edit" className="btn-secondary inline-flex">
               Edit profile
             </Link>
-            <Link href="/account/creator" className="btn-secondary">
+            <Link href="/account/creator" className="btn-secondary inline-flex">
               Creator hub
             </Link>
-            <Link href="/onboarding" className="btn-secondary">
+            <Link href="/onboarding" className="btn-secondary inline-flex">
               Interests
             </Link>
-            <Link href="/sessions" className="btn-secondary">
+            <Link href="/sessions" className="btn-secondary inline-flex">
               Sessions
             </Link>
-            <Link href="/notifications" className="btn-secondary">
+            <Link href="/notifications" className="btn-secondary inline-flex">
               Inbox
             </Link>
           </div>

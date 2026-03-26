@@ -215,8 +215,10 @@ export function FeedView({
   };
 
   return (
-    <section className={`space-y-3 md:space-y-4 ${homeStyle ? "mx-auto max-w-[680px]" : ""}`}>
-      <header className="surface-card sticky top-4 z-10 space-y-3 px-4 py-4">
+    <section
+      className={`flex w-full flex-col gap-4 md:gap-5 ${homeStyle ? "mx-auto max-w-[680px]" : "mx-auto max-w-[1100px]"}`}
+    >
+      <header className="surface-card sticky top-4 z-10 space-y-3 px-4 py-4 shadow-soft">
         <div className="flex items-center justify-between gap-3">
           <h1 className="section-title text-base sm:text-lg">{heading}</h1>
           <div className="flex items-center gap-2">
@@ -243,7 +245,8 @@ export function FeedView({
           ].map((tab) => (
             <button
               key={tab.id}
-              className={`rounded-pill border px-3 py-1.5 text-xs font-medium transition ${
+              type="button"
+              className={`rounded-pill border px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
                 feedTab === tab.id
                   ? "border-text bg-text text-background"
                   : "border-black/10 text-muted hover:bg-black/[0.04] hover:text-text"
