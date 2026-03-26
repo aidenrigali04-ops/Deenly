@@ -7,7 +7,7 @@ export default function MarketplacePage() {
     <FeedView
       heading="Marketplace"
       fixedFeedTab="marketplace"
-      feedSubtitle="Promotions and creator offers for individuals and families (B2C)."
+      feedSubtitle="Promotions and creator offers (all marketplace listings)."
       homeStyle
     />
   );

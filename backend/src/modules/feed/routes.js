@@ -100,17 +100,13 @@ function createFeedRouter({ db, config, mediaStorage }) {
          AND p.media_status = 'ready'
          AND p.removed_at IS NULL
          AND (
-           ($2::text = 'for_you' AND p.post_type IN ('post', 'recitation'))
+           ($2::text = 'for_you' AND p.post_type IN ('post', 'recitation', 'marketplace'))
            OR (
              $2::text = 'opportunities'
              AND p.post_type = 'marketplace'
              AND p.audience_target IN ('b2b', 'both')
            )
-           OR (
-             $2::text = 'marketplace'
-             AND p.post_type = 'marketplace'
-             AND p.audience_target IN ('b2c', 'both')
-           )
+           OR ($2::text = 'marketplace' AND p.post_type = 'marketplace')
          )
          AND (
            $1::int IS NULL
@@ -360,16 +356,15 @@ function createFeedRouter({ db, config, mediaStorage }) {
            AND p.media_status = 'ready'
            AND p.removed_at IS NULL
            AND (
-             ($18::text = 'for_you' AND p.post_type IN ('post', 'recitation'))
+             $3::int IS NOT NULL
              OR (
-               $18::text = 'opportunities'
-               AND p.post_type = 'marketplace'
-               AND p.audience_target IN ('b2b', 'both')
-             )
-             OR (
-               $18::text = 'marketplace'
-               AND p.post_type = 'marketplace'
-               AND p.audience_target IN ('b2c', 'both')
+               ($18::text = 'for_you' AND p.post_type IN ('post', 'recitation', 'marketplace'))
+               OR (
+                 $18::text = 'opportunities'
+                 AND p.post_type = 'marketplace'
+                 AND p.audience_target IN ('b2b', 'both')
+               )
+               OR ($18::text = 'marketplace' AND p.post_type = 'marketplace')
              )
            )
            AND (

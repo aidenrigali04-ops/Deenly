@@ -124,7 +124,7 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
       ) : null}
       <View style={styles.filters}>
         {feedVariant === "marketplace" ? (
-          <Text style={styles.marketplaceHint}>Creator offers and promotions (B2C).</Text>
+          <Text style={styles.marketplaceHint}>Creator offers and promotions.</Text>
         ) : (
           <>
             <Pressable
