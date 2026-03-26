@@ -40,6 +40,8 @@ export default function CreatePage() {
   const [serviceDetails, setServiceDetails] = useState("");
   const [deliveryMethod, setDeliveryMethod] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
+  const [audienceTarget, setAudienceTarget] = useState<"b2b" | "b2c" | "both">("both");
+  const [businessCategory, setBusinessCategory] = useState("");
   const [ctaLabel, setCtaLabel] = useState("");
   const [ctaUrl, setCtaUrl] = useState("");
 
@@ -97,6 +99,8 @@ export default function CreatePage() {
           ctaLabel: sellThis && ctaLabel.trim() ? ctaLabel.trim() : undefined,
           ctaUrl: sellThis && ctaUrl.trim() ? ctaUrl.trim() : undefined,
           sellThis,
+          audienceTarget: sellThis ? audienceTarget : "both",
+          businessCategory: sellThis && businessCategory ? businessCategory : undefined,
           productType,
           priceMinor: sellThis ? Number(priceMinor) : undefined,
           productTitle: sellThis && productTitle.trim() ? productTitle.trim() : undefined,
@@ -223,6 +227,29 @@ export default function CreatePage() {
                 <option value="digital">Digital</option>
                 <option value="service">Service</option>
                 <option value="subscription">Subscription</option>
+              </select>
+              <label className="text-xs uppercase tracking-wide text-muted">Audience</label>
+              <select
+                className="input"
+                value={audienceTarget}
+                onChange={(event) => setAudienceTarget(event.target.value as "b2b" | "b2c" | "both")}
+              >
+                <option value="b2c">Consumers (B2C)</option>
+                <option value="b2b">Businesses (B2B)</option>
+                <option value="both">Both</option>
+              </select>
+              <label className="text-xs uppercase tracking-wide text-muted">Category</label>
+              <select
+                className="input"
+                value={businessCategory}
+                onChange={(event) => setBusinessCategory(event.target.value)}
+              >
+                <option value="">Select category</option>
+                <option value="tools_growth">Tools & Growth</option>
+                <option value="professional_services">Professional Services</option>
+                <option value="digital_products">Digital Products</option>
+                <option value="education_coaching">Education & Coaching</option>
+                <option value="lifestyle_inspiration">Lifestyle & Inspiration</option>
               </select>
               <input
                 className="input"

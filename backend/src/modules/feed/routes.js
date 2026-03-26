@@ -66,7 +66,7 @@ async function getViewerIdFromAuthHeader({ db, config, authorization }) {
 function createFeedRouter({ db, config, mediaStorage }) {
   const router = express.Router();
 
-  async function getSponsoredCampaign({ db, viewerId }) {
+  async function getSponsoredCampaign({ db, viewerId, feedTab }) {
     const result = await db.query(
       `SELECT ac.id AS campaign_id,
               ac.creator_user_id,
@@ -85,6 +85,8 @@ function createFeedRouter({ db, config, mediaStorage }) {
               p.is_business_post,
               p.cta_label,
               p.cta_url,
+              p.audience_target,
+              p.business_category,
               pr.display_name AS author_display_name,
               pr.avatar_url AS author_avatar_url
        FROM ad_campaigns ac
@@ -97,6 +99,11 @@ function createFeedRouter({ db, config, mediaStorage }) {
          AND p.visibility_status = 'visible'
          AND p.media_status = 'ready'
          AND p.removed_at IS NULL
+         AND (
+           $2::text = 'for_you'
+           OR ($2::text = 'opportunities' AND p.audience_target IN ('b2b', 'both'))
+           OR ($2::text = 'marketplace' AND p.audience_target IN ('b2c', 'both'))
+         )
          AND (
            $1::int IS NULL
            OR (
@@ -113,7 +120,7 @@ function createFeedRouter({ db, config, mediaStorage }) {
          )
        ORDER BY ac.updated_at DESC, ac.id DESC
        LIMIT 1`,
-      [viewerId]
+      [viewerId, feedTab]
     );
     return result.rows[0] || null;
   }
@@ -124,6 +131,7 @@ function createFeedRouter({ db, config, mediaStorage }) {
       const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 50);
       const followingOnly = String(req.query.followingOnly || "false") === "true";
       const postType = req.query.postType || null;
+      const feedTab = String(req.query.feedTab || "for_you").trim().toLowerCase();
       const authorId = req.query.authorId ? Number(req.query.authorId) : null;
       const minCreatedAt = req.query.minCreatedAt
         ? new Date(String(req.query.minCreatedAt))
@@ -147,6 +155,9 @@ function createFeedRouter({ db, config, mediaStorage }) {
       if (postType && !["recitation", "community", "short_video"].includes(postType)) {
         throw httpError(400, "postType must be recitation, community, or short_video");
       }
+      if (!["for_you", "opportunities", "marketplace"].includes(feedTab)) {
+        throw httpError(400, "feedTab must be for_you, opportunities, or marketplace");
+      }
       if (req.query.authorId && !authorId) {
         throw httpError(400, "authorId must be a number");
       }
@@ -156,9 +167,67 @@ function createFeedRouter({ db, config, mediaStorage }) {
       if (followingOnly && !viewerId) {
         throw httpError(401, "followingOnly feed requires authentication");
       }
+      let behavior = { b2bPurchases: 0, b2cPurchases: 0 };
+      if (viewerId) {
+        const behaviorResult = await db.query(
+          `SELECT
+             COALESCE(
+               SUM(
+                 CASE
+                   WHEN cp.product_type IN ('service', 'subscription') THEN 1
+                   ELSE 0
+                 END
+               ),
+               0
+             )::int AS b2b_purchases,
+             COALESCE(
+               SUM(
+                 CASE
+                   WHEN cp.product_type = 'digital' THEN 1
+                   ELSE 0
+                 END
+               ),
+               0
+             )::int AS b2c_purchases
+           FROM orders o
+           LEFT JOIN creator_products cp ON cp.id = o.product_id
+           WHERE o.buyer_user_id = $1
+             AND o.status = 'completed'`,
+          [viewerId]
+        );
+        behavior = {
+          b2bPurchases: Number(behaviorResult.rows[0]?.b2b_purchases || 0),
+          b2cPurchases: Number(behaviorResult.rows[0]?.b2c_purchases || 0)
+        };
+      }
 
       const result = await db.query(
-        `WITH post_agg AS (
+        `WITH viewer_behavior AS (
+           SELECT
+             COALESCE(
+               SUM(
+                 CASE
+                   WHEN cp.product_type IN ('service', 'subscription') THEN 1
+                   ELSE 0
+                 END
+               ),
+               0
+             )::int AS b2b_purchases,
+             COALESCE(
+               SUM(
+                 CASE
+                   WHEN cp.product_type = 'digital' THEN 1
+                   ELSE 0
+                 END
+               ),
+               0
+             )::int AS b2c_purchases
+           FROM orders o
+           LEFT JOIN creator_products cp ON cp.id = o.product_id
+           WHERE o.buyer_user_id = $1
+             AND o.status = 'completed'
+         ),
+         post_agg AS (
            SELECT p.id,
                 p.author_id,
                 p.post_type,
@@ -171,6 +240,8 @@ function createFeedRouter({ db, config, mediaStorage }) {
                 p.is_business_post,
                 p.cta_label,
                 p.cta_url,
+                p.audience_target,
+                p.business_category,
                 pr.avatar_url AS author_avatar_url,
                 cpr.id AS attached_product_id,
                 cpr.title AS attached_product_title,
@@ -232,7 +303,19 @@ function createFeedRouter({ db, config, mediaStorage }) {
                       AND ui.interest_key = p.post_type
                   ) THEN 1.8
                   ELSE 0
-                END AS interest_boost
+                END AS interest_boost,
+                CASE
+                  WHEN $18::text = 'opportunities' AND p.audience_target = 'b2b' THEN 320
+                  WHEN $18::text = 'opportunities' AND p.audience_target = 'both' THEN 140
+                  WHEN $18::text = 'opportunities' AND p.audience_target = 'b2c' THEN -80
+                  WHEN $18::text = 'marketplace' AND p.audience_target = 'b2c' THEN 320
+                  WHEN $18::text = 'marketplace' AND p.audience_target = 'both' THEN 140
+                  WHEN $18::text = 'marketplace' AND p.audience_target = 'b2b' THEN -80
+                  WHEN $18::text = 'for_you' AND vb.b2b_purchases > vb.b2c_purchases AND p.audience_target = 'b2b' THEN 180
+                  WHEN $18::text = 'for_you' AND vb.b2c_purchases > vb.b2b_purchases AND p.audience_target = 'b2c' THEN 180
+                  WHEN $18::text = 'for_you' AND p.audience_target = 'both' THEN 90
+                  ELSE 0
+                END AS audience_tab_boost
                 ,
                 COALESCE((
                   SELECT COUNT(*)::int
@@ -242,6 +325,7 @@ function createFeedRouter({ db, config, mediaStorage }) {
                     AND r.status IN ('open', 'reviewing')
                 ), 0) AS trust_report_count
          FROM posts p
+         CROSS JOIN viewer_behavior vb
          JOIN profiles pr ON pr.user_id = p.author_id
          LEFT JOIN post_product_links ppl ON ppl.post_id = p.id
          LEFT JOIN creator_products cpr
@@ -267,6 +351,11 @@ function createFeedRouter({ db, config, mediaStorage }) {
            AND p.visibility_status = 'visible'
            AND p.media_status = 'ready'
            AND p.removed_at IS NULL
+           AND (
+             $18::text = 'for_you'
+             OR ($18::text = 'opportunities' AND p.audience_target IN ('b2b', 'both'))
+             OR ($18::text = 'marketplace' AND p.audience_target IN ('b2c', 'both'))
+           )
            AND (
              $1::int IS NULL
              OR (
@@ -294,6 +383,7 @@ function createFeedRouter({ db, config, mediaStorage }) {
                     + (follow_boost * $10::numeric)
                     + (affinity_score * $11::numeric)
                     + (interest_boost * $12::numeric)
+                    + (audience_tab_boost * $19::numeric)
                     - (trust_report_count * $17::numeric)
                   )::numeric AS rank_score
            FROM post_agg
@@ -325,7 +415,9 @@ function createFeedRouter({ db, config, mediaStorage }) {
           cursor ? cursor.createdAt : null,
           cursor ? cursor.id : null,
           limit + 1,
-          Number(config.feedTrustReportPenaltyWeight || 250)
+          Number(config.feedTrustReportPenaltyWeight || 250),
+          feedTab,
+          Number(config.feedAudienceTabBoostWeight || 1)
         ]
       );
 
@@ -349,7 +441,7 @@ function createFeedRouter({ db, config, mediaStorage }) {
       const adInsertEvery = Math.max(Number(config.feedSponsoredInsertEvery || 6), 3);
       const canInsertSponsored = !followingOnly && items.length >= adInsertEvery - 1;
       if (canInsertSponsored) {
-        const sponsored = await getSponsoredCampaign({ db, viewerId });
+        const sponsored = await getSponsoredCampaign({ db, viewerId, feedTab });
         if (sponsored && !items.some((item) => Number(item.id) === Number(sponsored.post_id))) {
           const sponsoredItem = {
             id: sponsored.post_id,
@@ -381,6 +473,8 @@ function createFeedRouter({ db, config, mediaStorage }) {
             is_business_post: sponsored.is_business_post,
             cta_label: sponsored.cta_label,
             cta_url: sponsored.cta_url,
+            audience_target: sponsored.audience_target,
+            business_category: sponsored.business_category,
             sponsored: true,
             sponsored_label: "Sponsored",
             ad_campaign_id: sponsored.campaign_id
@@ -396,8 +490,19 @@ function createFeedRouter({ db, config, mediaStorage }) {
         hasMore,
         nextCursor,
         limit,
+        persona: {
+          inferred:
+            behavior.b2bPurchases > behavior.b2cPurchases
+              ? "b2b"
+              : behavior.b2cPurchases > behavior.b2bPurchases
+                ? "b2c"
+                : "balanced",
+          b2bPurchases: behavior.b2bPurchases,
+          b2cPurchases: behavior.b2cPurchases
+        },
         filters: {
           postType: postType || null,
+          feedTab,
           followingOnly,
           authorId: authorId || null,
           minCreatedAt: minCreatedAt ? minCreatedAt.toISOString() : null

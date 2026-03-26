@@ -50,6 +50,8 @@ export function CreateScreen({ navigation }: Props) {
   const [serviceDetails, setServiceDetails] = useState("");
   const [deliveryMethod, setDeliveryMethod] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
+  const [audienceTarget, setAudienceTarget] = useState<"b2b" | "b2c" | "both">("both");
+  const [businessCategory, setBusinessCategory] = useState("");
   const [ctaLabel, setCtaLabel] = useState("");
   const [ctaUrl, setCtaUrl] = useState("");
   const myProductsQuery = useQuery({
@@ -127,6 +129,8 @@ export function CreateScreen({ navigation }: Props) {
           ctaLabel: sellThis && ctaLabel.trim() ? ctaLabel.trim() : undefined,
           ctaUrl: sellThis && ctaUrl.trim() ? ctaUrl.trim() : undefined,
           sellThis,
+          audienceTarget: sellThis ? audienceTarget : "both",
+          businessCategory: sellThis && businessCategory ? businessCategory : undefined,
           productType,
           priceMinor: sellThis ? Number(priceMinor) : undefined,
           productTitle: sellThis && productTitle.trim() ? productTitle.trim() : undefined,
@@ -199,6 +203,8 @@ export function CreateScreen({ navigation }: Props) {
       setServiceDetails("");
       setDeliveryMethod("");
       setWebsiteUrl("");
+      setAudienceTarget("both");
+      setBusinessCategory("");
       setCtaLabel("");
       setCtaUrl("");
       navigation.navigate("PostDetail", { id: post.id });
@@ -304,6 +310,38 @@ export function CreateScreen({ navigation }: Props) {
                   style={[styles.chip, productType === type ? styles.chipActive : null]}
                 >
                   <Text style={styles.chipText}>{type}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <View style={styles.typeRow}>
+              {([
+                { key: "b2c", label: "Consumers" },
+                { key: "b2b", label: "Businesses" },
+                { key: "both", label: "Both" }
+              ] as const).map((item) => (
+                <Pressable
+                  key={item.key}
+                  onPress={() => setAudienceTarget(item.key)}
+                  style={[styles.chip, audienceTarget === item.key ? styles.chipActive : null]}
+                >
+                  <Text style={styles.chipText}>{item.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <View style={styles.typeRow}>
+              {([
+                { key: "tools_growth", label: "Tools" },
+                { key: "professional_services", label: "Services" },
+                { key: "digital_products", label: "Digital" },
+                { key: "education_coaching", label: "Coaching" },
+                { key: "lifestyle_inspiration", label: "Lifestyle" }
+              ] as const).map((item) => (
+                <Pressable
+                  key={item.key}
+                  onPress={() => setBusinessCategory(item.key)}
+                  style={[styles.chip, businessCategory === item.key ? styles.chipActive : null]}
+                >
+                  <Text style={styles.chipText}>{item.label}</Text>
                 </Pressable>
               ))}
             </View>

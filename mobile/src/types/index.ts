@@ -41,6 +41,8 @@ export type FeedItem = {
   attached_product_type?: "digital" | "service" | "subscription" | null;
   attached_product_website_url?: string | null;
   is_business_post?: boolean;
+  audience_target?: "b2b" | "b2c" | "both";
+  business_category?: string | null;
   cta_label?: string | null;
   cta_url?: string | null;
   tags?: string[];

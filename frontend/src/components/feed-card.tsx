@@ -226,6 +226,16 @@ export function FeedCard({
           <p className="text-xs text-muted">
             {benefitedCount} benefited - {item.comment_count || 0} comments
           </p>
+          {item.audience_target ? (
+            <p className="text-[11px] text-muted">
+              {item.audience_target === "b2b"
+                ? "B2B"
+                : item.audience_target === "b2c"
+                  ? "B2C"
+                  : "B2B/B2C"}
+              {item.business_category ? ` - ${item.business_category.replace(/_/g, " ")}` : ""}
+            </p>
+          ) : null}
           <p className="text-sm leading-relaxed">
             <span className="font-semibold">{item.author_display_name}</span>{" "}
             <span className="text-text">{item.content}</span>

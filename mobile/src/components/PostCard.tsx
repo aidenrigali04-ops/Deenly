@@ -154,6 +154,16 @@ export function PostCard({
           <Text style={styles.homeMetaText}>
             {benefitedCount} benefited - {item.comment_count || 0} comments
           </Text>
+          {item.audience_target ? (
+            <Text style={styles.homeMetaText}>
+              {item.audience_target === "b2b"
+                ? "B2B"
+                : item.audience_target === "b2c"
+                  ? "B2C"
+                  : "B2B/B2C"}
+              {item.business_category ? ` - ${item.business_category.replace(/_/g, " ")}` : ""}
+            </Text>
+          ) : null}
           {item.tags?.length ? (
             <Text style={styles.homeMetaText}>#{item.tags.slice(0, 3).join(" #")}</Text>
           ) : null}

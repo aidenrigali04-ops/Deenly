@@ -8,6 +8,7 @@ const { httpError } = require("../../utils/http-error");
 
 const POST_TYPES = new Set(["recitation", "community", "short_video"]);
 const PRODUCT_TYPES = new Set(["digital", "service", "subscription"]);
+const AUDIENCE_TARGETS = new Set(["b2b", "b2c", "both"]);
 
 function createPostsRouter({ db, config, analytics, mediaStorage }) {
   async function getViewerIdFromAuthHeader(authorization) {
@@ -102,6 +103,22 @@ function createPostsRouter({ db, config, analytics, mediaStorage }) {
     };
   }
 
+  function parseAudienceTarget(rawValue) {
+    if (rawValue === undefined || rawValue === null || rawValue === "") {
+      return "both";
+    }
+    const target = String(rawValue).trim().toLowerCase();
+    if (!AUDIENCE_TARGETS.has(target)) {
+      throw httpError(400, "audienceTarget must be b2b, b2c, or both");
+    }
+    return target;
+  }
+
+  function parseBusinessCategory(rawValue) {
+    const value = optionalString(rawValue, "businessCategory", 64);
+    return value ? value.trim().toLowerCase() : null;
+  }
+
   router.post(
     "/",
     authMiddleware,
@@ -139,6 +156,8 @@ function createPostsRouter({ db, config, analytics, mediaStorage }) {
       const tags = parseTags(req.body?.tags);
       const { isBusinessPost, ctaLabel, ctaUrl } = validateBusinessFields(req.body);
       const sellThis = validateSellThis(req.body?.sellThisConfig || req.body);
+      const audienceTarget = parseAudienceTarget(req.body?.audienceTarget);
+      const businessCategory = parseBusinessCategory(req.body?.businessCategory);
 
       await db.query("BEGIN");
       let result;
@@ -146,11 +165,25 @@ function createPostsRouter({ db, config, analytics, mediaStorage }) {
         result = await db.query(
           `INSERT INTO posts (
              author_id, post_type, content, media_url, style_tag, media_status, is_business_post, cta_label, cta_url, tags
+           , audience_target, business_category
            )
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::text[])
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::text[], $11, $12)
            RETURNING id, author_id, post_type, content, media_url, media_mime_type, style_tag, media_status,
-                     visibility_status, is_business_post, cta_label, cta_url, tags, created_at, updated_at`,
-          [req.user.id, postType, content, mediaUrl, styleTag, "ready", isBusinessPost, ctaLabel, ctaUrl, tags]
+                     visibility_status, is_business_post, cta_label, cta_url, tags, audience_target, business_category, created_at, updated_at`,
+          [
+            req.user.id,
+            postType,
+            content,
+            mediaUrl,
+            styleTag,
+            "ready",
+            isBusinessPost,
+            ctaLabel,
+            ctaUrl,
+            tags,
+            audienceTarget,
+            businessCategory
+          ]
         );
         if (sellThis.sellThis) {
           const title =
@@ -239,7 +272,7 @@ function createPostsRouter({ db, config, analytics, mediaStorage }) {
       const result = await db.query(
         `SELECT p.id, p.author_id, p.post_type, p.content, p.media_url, p.media_mime_type, p.style_tag, p.media_status,
                 p.visibility_status, p.created_at, p.updated_at,
-                p.is_business_post, p.cta_label, p.cta_url, p.tags,
+                p.is_business_post, p.cta_label, p.cta_url, p.tags, p.audience_target, p.business_category,
                 pr.display_name AS author_display_name,
                 cpr.id AS attached_product_id,
                 cpr.title AS attached_product_title,
@@ -310,7 +343,7 @@ function createPostsRouter({ db, config, analytics, mediaStorage }) {
 
       const result = await db.query(
         `SELECT p.id, p.author_id, p.post_type, p.content, p.media_url, p.media_mime_type, p.style_tag, p.media_status, p.visibility_status, p.created_at, p.updated_at,
-                p.is_business_post, p.cta_label, p.cta_url, p.tags,
+                p.is_business_post, p.cta_label, p.cta_url, p.tags, p.audience_target, p.business_category,
                 pr.display_name AS author_display_name,
                 cpr.id AS attached_product_id,
                 cpr.title AS attached_product_title,

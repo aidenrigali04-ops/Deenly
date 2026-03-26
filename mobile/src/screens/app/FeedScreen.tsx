@@ -24,7 +24,11 @@ type Props = CompositeScreenProps<
 
 export function FeedScreen({ navigation }: Props) {
   const [followingOnly, setFollowingOnly] = useState(false);
-  const feedQueryKey = useMemo(() => ["mobile-feed", followingOnly] as const, [followingOnly]);
+  const [feedTab, setFeedTab] = useState<"for_you" | "opportunities" | "marketplace">("for_you");
+  const feedQueryKey = useMemo(
+    () => ["mobile-feed", followingOnly, feedTab] as const,
+    [followingOnly, feedTab]
+  );
   const queryClient = useQueryClient();
 
   const feedQuery = useInfiniteQuery({
@@ -38,6 +42,7 @@ export function FeedScreen({ navigation }: Props) {
       if (followingOnly) {
         query.set("followingOnly", "true");
       }
+      query.set("feedTab", feedTab);
       return apiRequest<FeedResponse>(`/feed?${query.toString()}`, { auth: true });
     },
     initialPageParam: "",
@@ -114,6 +119,24 @@ export function FeedScreen({ navigation }: Props) {
         </View>
       ) : null}
       <View style={styles.filters}>
+        <Pressable
+          style={[styles.chip, feedTab === "for_you" ? styles.chipActive : null]}
+          onPress={() => setFeedTab("for_you")}
+        >
+          <Text style={styles.chipText}>For You</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.chip, feedTab === "opportunities" ? styles.chipActive : null]}
+          onPress={() => setFeedTab("opportunities")}
+        >
+          <Text style={styles.chipText}>Opportunities</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.chip, feedTab === "marketplace" ? styles.chipActive : null]}
+          onPress={() => setFeedTab("marketplace")}
+        >
+          <Text style={styles.chipText}>Marketplace</Text>
+        </Pressable>
         <Pressable
           style={[styles.chip, followingOnly ? styles.chipActive : null]}
           onPress={() => setFollowingOnly((value) => !value)}

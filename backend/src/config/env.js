@@ -175,6 +175,7 @@ function loadEnv(envSource = process.env) {
       "FEED_SPONSORED_INSERT_EVERY"
     ),
     feedTrustReportPenaltyWeight: parseNumber(envSource.FEED_TRUST_REPORT_PENALTY_WEIGHT, 250),
+    feedAudienceTabBoostWeight: parseNumber(envSource.FEED_AUDIENCE_TAB_BOOST_WEIGHT, 1),
     stripeSecretKey: String(envSource.STRIPE_SECRET_KEY || "").trim(),
     stripeWebhookSecret: String(envSource.STRIPE_WEBHOOK_SECRET || "").trim(),
     stripeConnectClientId: String(envSource.STRIPE_CONNECT_CLIENT_ID || "").trim(),

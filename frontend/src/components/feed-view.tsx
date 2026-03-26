@@ -82,14 +82,15 @@ export function FeedView({
   homeStyle = false
 }: FeedViewProps) {
   const [postType, setPostType] = useState(fixedPostType);
+  const [feedTab, setFeedTab] = useState<"for_you" | "opportunities" | "marketplace">("for_you");
   const [followingOnly, setFollowingOnly] = useState(false);
   const [busyAuthorId, setBusyAuthorId] = useState<number | null>(null);
   const user = useSessionStore((state) => state.user);
   const queryClient = useQueryClient();
 
   const feedQueryKey = useMemo(
-    () => ["feed", postType, followingOnly] as const,
-    [postType, followingOnly]
+    () => ["feed", postType, followingOnly, feedTab] as const,
+    [postType, followingOnly, feedTab]
   );
 
   const feedQuery = useInfiniteQuery({
@@ -106,6 +107,7 @@ export function FeedView({
       if (followingOnly) {
         query.set("followingOnly", "true");
       }
+      query.set("feedTab", feedTab);
       return apiRequest<FeedResponse>(`/feed?${query.toString()}`, {
         auth: true
       });
@@ -232,6 +234,27 @@ export function FeedView({
               Dhikr
             </Link>
           </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {[
+            { id: "for_you", label: "For You" },
+            { id: "opportunities", label: "Opportunities" },
+            { id: "marketplace", label: "Marketplace" }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              className={`rounded-pill border px-3 py-1.5 text-xs font-medium transition ${
+                feedTab === tab.id
+                  ? "border-text bg-text text-background"
+                  : "border-black/10 text-muted hover:bg-black/[0.04] hover:text-text"
+              }`}
+              onClick={() =>
+                setFeedTab(tab.id as "for_you" | "opportunities" | "marketplace")
+              }
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
         <div className={`subtle-divider pt-3 ${homeStyle ? "hidden" : ""}`}>
           <div className="flex flex-wrap items-center gap-3">
