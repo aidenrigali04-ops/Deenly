@@ -38,30 +38,30 @@ export function DeenStrip() {
 
   return (
     <div className="mt-5 grid gap-3 sm:grid-cols-2">
-      <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-white/50">Dhikr</p>
-        <p className="mt-1 text-3xl font-semibold tabular-nums text-white">{dhikrCount.toLocaleString()}</p>
-        <p className="mt-1 text-xs text-white/45">Tasbeeh total on this device · not public</p>
-        <Link href="/dhikr" className="mt-2 inline-block text-sm font-medium text-sky-400 hover:underline">
+      <div className="rounded-xl border border-black/10 bg-surface px-4 py-3">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Dhikr</p>
+        <p className="mt-1 text-3xl font-semibold tabular-nums text-text">{dhikrCount.toLocaleString()}</p>
+        <p className="mt-1 text-xs text-muted">Tasbeeh on this device · only you see this</p>
+        <Link href="/dhikr" className="mt-2 inline-block text-sm font-medium text-sky-600 hover:underline">
           Open Dhikr
         </Link>
       </div>
-      <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-white/50">Salah</p>
+      <div className="rounded-xl border border-black/10 bg-surface px-4 py-3">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Salah</p>
         {prayerStatusQuery.isError ? (
-          <p className="mt-2 text-sm text-white/50">Salah times unavailable.</p>
+          <p className="mt-2 text-sm text-muted">Salah times unavailable.</p>
         ) : nextName ? (
-          <p className="mt-2 text-sm text-white/90">
-            Next: <span className="font-semibold text-white">{nextName}</span>
-            {timeStr ? <span className="text-white/60"> · {timeStr}</span> : null}
+          <p className="mt-2 text-sm text-text">
+            Next: <span className="font-semibold">{nextName}</span>
+            {timeStr ? <span className="text-muted"> · {timeStr}</span> : null}
           </p>
         ) : (
-          <p className="mt-2 text-sm text-white/50">No upcoming prayer in window.</p>
+          <p className="mt-2 text-sm text-muted">No upcoming prayer in window.</p>
         )}
-        <Link href="#salah-settings" className="mt-2 inline-block text-sm font-medium text-sky-400 hover:underline">
+        <Link href="#salah-settings" className="mt-2 inline-block text-sm font-medium text-sky-600 hover:underline">
           Salah settings
         </Link>
-        <p className="mt-3 text-[10px] font-semibold uppercase tracking-wider text-white/50">
+        <p className="mt-3 text-[10px] font-semibold uppercase tracking-wider text-muted">
           Today on this device · {salahDone}/5
         </p>
         <div className="mt-2 flex flex-wrap gap-1.5">
@@ -75,8 +75,8 @@ export function DeenStrip() {
                 onClick={() => toggleSalah(i)}
                 className={`rounded-full border px-2 py-1 text-[10px] font-semibold transition ${
                   on
-                    ? "border-sky-500/80 bg-sky-500/25 text-sky-100"
-                    : "border-white/15 bg-black/30 text-white/50 hover:border-white/30"
+                    ? "border-sky-500/60 bg-sky-500/15 text-sky-900"
+                    : "border-black/15 bg-card text-muted hover:border-black/25"
                 }`}
               >
                 {label}

@@ -50,7 +50,7 @@ export default function UserProfilePage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const userId = Number(params.id);
-  const [igProfileTab, setIgProfileTab] = useState<"grid" | "reels" | "saved" | "tagged">("grid");
+  const [profileSectionTab, setProfileSectionTab] = useState<"grid" | "reels" | "saved" | "tagged">("grid");
   const queryClient = useQueryClient();
 
   const profileQuery = useQuery({
@@ -190,16 +190,16 @@ export default function UserProfilePage() {
 
   const profileItems = postsQuery.data?.items || [];
   const visibleItems =
-    igProfileTab === "saved" || igProfileTab === "tagged"
+    profileSectionTab === "saved" || profileSectionTab === "tagged"
       ? []
-      : igProfileTab === "reels"
+      : profileSectionTab === "reels"
         ? profileItems.filter((item) => Boolean(item.media_url))
         : profileItems;
 
   return (
     <>
       <section className="mx-auto max-w-4xl">
-        <article className="rounded-b-2xl bg-black px-4 pb-6 pt-4 text-white md:px-8">
+        <article className="surface-card rounded-b-2xl border border-black/10 px-4 pb-6 pt-6 shadow-soft md:px-8">
           <div className="flex flex-col gap-6 md:flex-row md:items-start">
             <div className="flex shrink-0 justify-center md:block">
               {avatarUrl ? (
@@ -207,20 +207,20 @@ export default function UserProfilePage() {
                 <img
                   src={avatarUrl}
                   alt={`${user.display_name} avatar`}
-                  className="profile-avatar ig-avatar-xl h-[96px] w-[96px] border-white/20 object-cover md:h-[120px] md:w-[120px]"
+                  className="profile-avatar profile-hero-avatar h-[96px] w-[96px] border-black/15 object-cover md:h-[120px] md:w-[120px]"
                 />
               ) : (
-                <div className="profile-avatar ig-avatar-xl grid h-[96px] w-[96px] place-items-center border-white/20 md:h-[120px] md:w-[120px]">
+                <div className="profile-avatar profile-hero-avatar grid h-[96px] w-[96px] place-items-center border-black/15 md:h-[120px] md:w-[120px]">
                   {initials}
                 </div>
               )}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-xl font-semibold tracking-tight md:text-2xl">@{user.username || "user"}</h1>
+                <h1 className="text-xl font-semibold tracking-tight text-text md:text-2xl">@{user.username || "user"}</h1>
                 <button
                   type="button"
-                  className="rounded-lg bg-sky-500 px-5 py-2 text-sm font-semibold text-white hover:bg-sky-600"
+                  className={user.is_following ? "btn-secondary px-5 py-2 text-sm" : "btn-primary px-5 py-2 text-sm"}
                   onClick={() => (user.is_following ? unfollowMutation.mutate() : followMutation.mutate())}
                 >
                   {followMutation.isPending || unfollowMutation.isPending
@@ -232,26 +232,26 @@ export default function UserProfilePage() {
               </div>
               <div className="mt-6 flex flex-wrap gap-8 text-sm">
                 <div>
-                  <p className="text-base font-semibold tabular-nums">{user.posts_count.toLocaleString()}</p>
-                  <p className="text-xs text-white/50">posts</p>
+                  <p className="text-base font-semibold tabular-nums text-text">{user.posts_count.toLocaleString()}</p>
+                  <p className="text-xs text-muted">posts</p>
                 </div>
                 <div>
-                  <p className="text-base font-semibold tabular-nums">{user.followers_count.toLocaleString()}</p>
-                  <p className="text-xs text-white/50">followers</p>
+                  <p className="text-base font-semibold tabular-nums text-text">{user.followers_count.toLocaleString()}</p>
+                  <p className="text-xs text-muted">followers</p>
                 </div>
                 <div>
-                  <p className="text-base font-semibold tabular-nums">{user.following_count.toLocaleString()}</p>
-                  <p className="text-xs text-white/50">following</p>
+                  <p className="text-base font-semibold tabular-nums text-text">{user.following_count.toLocaleString()}</p>
+                  <p className="text-xs text-muted">following</p>
                 </div>
               </div>
-              <p className="mt-4 text-xs text-white/45">
-                Worship activity (Dhikr / Salah) is private and not shown on profiles.
+              <p className="mt-4 text-xs text-muted">
+                Dhikr and Salah stay on your own account — not shown on someone else&apos;s profile.
               </p>
-              <p className="mt-3 font-semibold text-white">{user.display_name}</p>
-              {user.bio ? <p className="mt-2 whitespace-pre-line text-sm text-white/75">{user.bio}</p> : null}
-              {followMutation.isSuccess ? <p className="mt-2 text-xs text-sky-300">Followed successfully.</p> : null}
-              {unfollowMutation.isSuccess ? <p className="mt-2 text-xs text-white/60">Unfollowed.</p> : null}
-              <div className="mt-6 border-t border-white/10 pt-4">
+              <p className="mt-3 font-semibold text-text">{user.display_name}</p>
+              {user.bio ? <p className="mt-2 whitespace-pre-line text-sm text-text/90">{user.bio}</p> : null}
+              {followMutation.isSuccess ? <p className="mt-2 text-xs text-emerald-700">You&apos;re now following {user.display_name}.</p> : null}
+              {unfollowMutation.isSuccess ? <p className="mt-2 text-xs text-muted">Unfollowed.</p> : null}
+              <div className="mt-6 border-t border-black/10 pt-4">
                 <div className="flex justify-center gap-10 md:gap-14">
                   {(
                     [
@@ -264,14 +264,14 @@ export default function UserProfilePage() {
                     <button
                       key={tab.id}
                       type="button"
-                      onClick={() => setIgProfileTab(tab.id)}
+                      onClick={() => setProfileSectionTab(tab.id)}
                       className={`relative pb-3 text-xs font-semibold uppercase tracking-wide transition ${
-                        igProfileTab === tab.id ? "text-white" : "text-white/40 hover:text-white/70"
+                        profileSectionTab === tab.id ? "text-text" : "text-muted hover:text-text"
                       }`}
                     >
                       {tab.label}
-                      {igProfileTab === tab.id ? (
-                        <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-white" />
+                      {profileSectionTab === tab.id ? (
+                        <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-text" />
                       ) : null}
                     </button>
                   ))}
@@ -280,25 +280,25 @@ export default function UserProfilePage() {
               <div className="pt-6">
                 {postsQuery.isLoading ? <LoadingState label="Loading posts..." /> : null}
                 {postsQuery.error ? <ErrorState message={(postsQuery.error as Error).message} /> : null}
-                {!postsQuery.isLoading && !postsQuery.error && (igProfileTab === "saved" || igProfileTab === "tagged") ? (
-                  <div className="py-16 text-center text-sm text-white/45">Coming soon.</div>
+                {!postsQuery.isLoading && !postsQuery.error && (profileSectionTab === "saved" || profileSectionTab === "tagged") ? (
+                  <div className="py-16 text-center text-sm text-muted">Coming soon.</div>
                 ) : null}
                 {!postsQuery.isLoading &&
                 !postsQuery.error &&
                 visibleItems.length === 0 &&
-                igProfileTab !== "saved" &&
-                igProfileTab !== "tagged" ? (
-                  <div className="py-16 text-center text-sm text-white/50">No posts to show yet.</div>
+                profileSectionTab !== "saved" &&
+                profileSectionTab !== "tagged" ? (
+                  <div className="py-16 text-center text-sm text-muted">No posts from this member yet.</div>
                 ) : null}
                 {visibleItems.length > 0 ? (
-                  <div className="profile-post-grid ig-grid-tight">
+                  <div className="profile-post-grid profile-post-grid-tight">
                     {visibleItems.map((item) => {
                       const mediaUrl = resolveMediaUrl(item.media_url) || undefined;
                       const isImage = item.media_mime_type?.startsWith("image/");
                       const isVideo = item.media_mime_type?.startsWith("video/");
                       const fallbackLabel = item.content?.trim().slice(0, 26) || "Post";
                       return (
-                        <article key={item.id} className="profile-grid-tile border-white/10 bg-white/5">
+                        <article key={item.id} className="profile-grid-tile">
                           <button
                             type="button"
                             className="profile-grid-open"
@@ -313,7 +313,7 @@ export default function UserProfilePage() {
                                 <div className="profile-grid-fallback profile-grid-fallback-video">Video</div>
                               )
                             ) : (
-                              <div className="profile-grid-fallback bg-black/40 text-white/60">{fallbackLabel}</div>
+                              <div className="profile-grid-fallback">{fallbackLabel}</div>
                             )}
                             {isVideo ? <span className="profile-grid-badge">Video</span> : null}
                           </button>

@@ -76,7 +76,7 @@ function deriveMediaType(mimeType: string): "image" | "video" | null {
 
 export default function AccountPage() {
   const router = useRouter();
-  const [igProfileTab, setIgProfileTab] = useState<"grid" | "reels" | "saved" | "tagged">("grid");
+  const [profileSectionTab, setProfileSectionTab] = useState<"grid" | "reels" | "saved" | "tagged">("grid");
   const [editDisplayName, setEditDisplayName] = useState("");
   const [editBio, setEditBio] = useState("");
   const [profileEditSaving, setProfileEditSaving] = useState(false);
@@ -263,9 +263,9 @@ export default function AccountPage() {
 
   const profileItems = postsQuery.data?.items || [];
   const visibleItems =
-    igProfileTab === "saved" || igProfileTab === "tagged"
+    profileSectionTab === "saved" || profileSectionTab === "tagged"
       ? []
-      : igProfileTab === "reels"
+      : profileSectionTab === "reels"
         ? profileItems.filter((item) => Boolean(item.media_url))
         : profileItems;
 
@@ -280,21 +280,6 @@ export default function AccountPage() {
     }
     setAvatarUploading(true);
     try {
-      // #region agent log
-      fetch("http://127.0.0.1:7244/ingest/25316d93-ed82-40c8-b2f0-64204fe30501", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "29a8f0" },
-        body: JSON.stringify({
-          sessionId: "29a8f0",
-          runId: "e2e-avatar-debug",
-          hypothesisId: "H1",
-          location: "frontend/src/app/account/page.tsx:231",
-          message: "avatar_upload_start",
-          data: { fileType: file.type || "unknown", fileSize: file.size || 0 },
-          timestamp: Date.now()
-        })
-      }).catch(() => {});
-      // #endregion
       const signature = await apiRequest<UploadSignatureResponse>("/media/upload-signature", {
         method: "POST",
         auth: true,
@@ -305,41 +290,11 @@ export default function AccountPage() {
           fileSizeBytes: file.size || 1
         }
       });
-      // #region agent log
-      fetch("http://127.0.0.1:7244/ingest/25316d93-ed82-40c8-b2f0-64204fe30501", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "29a8f0" },
-        body: JSON.stringify({
-          sessionId: "29a8f0",
-          runId: "e2e-avatar-debug",
-          hypothesisId: "H2",
-          location: "frontend/src/app/account/page.tsx:247",
-          message: "avatar_signature_received",
-          data: { hasUploadUrl: Boolean(signature.uploadUrl), hasKey: Boolean(signature.key) },
-          timestamp: Date.now()
-        })
-      }).catch(() => {});
-      // #endregion
       const uploadResponse = await fetch(signature.uploadUrl, {
         method: "PUT",
         headers: signature.headers,
         body: file
       });
-      // #region agent log
-      fetch("http://127.0.0.1:7244/ingest/25316d93-ed82-40c8-b2f0-64204fe30501", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "29a8f0" },
-        body: JSON.stringify({
-          sessionId: "29a8f0",
-          runId: "e2e-avatar-debug",
-          hypothesisId: "H2",
-          location: "frontend/src/app/account/page.tsx:259",
-          message: "avatar_put_result",
-          data: { ok: uploadResponse.ok, status: uploadResponse.status },
-          timestamp: Date.now()
-        })
-      }).catch(() => {});
-      // #endregion
       if (!uploadResponse.ok) {
         throw new Error("Unable to upload avatar.");
       }
@@ -352,21 +307,6 @@ export default function AccountPage() {
           avatarUrl: signature.key
         }
       });
-      // #region agent log
-      fetch("http://127.0.0.1:7244/ingest/25316d93-ed82-40c8-b2f0-64204fe30501", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "29a8f0" },
-        body: JSON.stringify({
-          sessionId: "29a8f0",
-          runId: "e2e-avatar-debug",
-          hypothesisId: "H3",
-          location: "frontend/src/app/account/page.tsx:283",
-          message: "avatar_profile_update_success",
-          data: { avatarKeySet: Boolean(signature.key) },
-          timestamp: Date.now()
-        })
-      }).catch(() => {});
-      // #endregion
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["account-profile-me"] }),
         queryClient.invalidateQueries({ queryKey: ["feed"] })
@@ -379,7 +319,7 @@ export default function AccountPage() {
   return (
     <>
       <section className="mx-auto max-w-4xl">
-        <article className="rounded-b-2xl bg-black px-4 pb-10 pt-4 text-white md:px-8">
+        <article className="surface-card rounded-b-2xl border border-black/10 px-4 pb-10 pt-6 shadow-soft md:px-8">
           <div className="flex flex-col gap-6 md:flex-row md:items-start">
             <div className="flex shrink-0 justify-center md:block">
               <div className="relative">
@@ -388,16 +328,16 @@ export default function AccountPage() {
                   <img
                     src={avatarUrl}
                     alt="Profile avatar"
-                    className="profile-avatar ig-avatar-xl h-[96px] w-[96px] border-white/20 object-cover text-2xl md:h-[120px] md:w-[120px]"
+                    className="profile-avatar profile-hero-avatar h-[96px] w-[96px] border-black/15 object-cover text-2xl md:h-[120px] md:w-[120px]"
                   />
                 ) : (
-                  <div className="profile-avatar ig-avatar-xl grid h-[96px] w-[96px] place-items-center border-white/20 text-2xl md:h-[120px] md:w-[120px]">
+                  <div className="profile-avatar profile-hero-avatar grid h-[96px] w-[96px] place-items-center border-black/15 text-2xl md:h-[120px] md:w-[120px]">
                     {initials}
                   </div>
                 )}
                 <button
                   type="button"
-                  className="mt-3 w-full rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/15 md:hidden"
+                  className="btn-secondary mt-3 w-full px-3 py-2 text-xs md:hidden"
                   disabled={avatarUploading}
                   onClick={() => avatarInputRef.current?.click()}
                 >
@@ -407,12 +347,12 @@ export default function AccountPage() {
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
+                <h1 className="text-xl font-semibold tracking-tight text-text md:text-2xl">
                   @{user.username || "user"}
                 </h1>
                 <Link
                   href="#account-settings"
-                  className="rounded-lg p-1.5 text-white/80 hover:bg-white/10 hover:text-white"
+                  className="rounded-lg p-1.5 text-muted transition hover:bg-black/[0.04] hover:text-text"
                   aria-label="Account settings"
                 >
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -423,7 +363,7 @@ export default function AccountPage() {
                 <div className="hidden md:block">
                   <button
                     type="button"
-                    className="rounded-lg bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/15"
+                    className="btn-secondary px-4 py-2 text-sm"
                     disabled={avatarUploading}
                     onClick={() => avatarInputRef.current?.click()}
                   >
@@ -448,61 +388,58 @@ export default function AccountPage() {
                   }}
                 />
               </div>
-              {avatarError ? <p className="mt-2 text-xs text-rose-300">{avatarError}</p> : null}
+              {avatarError ? <p className="mt-2 text-xs text-rose-600">{avatarError}</p> : null}
 
               <div className="mt-6 flex flex-wrap gap-8 text-sm">
                 <div>
-                  <p className="text-base font-semibold tabular-nums">{(profile?.posts_count ?? 0).toLocaleString()}</p>
-                  <p className="text-xs text-white/50">posts</p>
+                  <p className="text-base font-semibold tabular-nums text-text">{(profile?.posts_count ?? 0).toLocaleString()}</p>
+                  <p className="text-xs text-muted">posts</p>
                 </div>
                 <div>
-                  <p className="text-base font-semibold tabular-nums">{(profile?.followers_count ?? 0).toLocaleString()}</p>
-                  <p className="text-xs text-white/50">followers</p>
+                  <p className="text-base font-semibold tabular-nums text-text">{(profile?.followers_count ?? 0).toLocaleString()}</p>
+                  <p className="text-xs text-muted">followers</p>
                 </div>
                 <div>
-                  <p className="text-base font-semibold tabular-nums">{(profile?.following_count ?? 0).toLocaleString()}</p>
-                  <p className="text-xs text-white/50">following</p>
+                  <p className="text-base font-semibold tabular-nums text-text">{(profile?.following_count ?? 0).toLocaleString()}</p>
+                  <p className="text-xs text-muted">following</p>
                 </div>
               </div>
 
               <DeenStrip />
 
               {profile?.display_name ? (
-                <p className="mt-4 font-semibold text-white">{profile.display_name}</p>
+                <p className="mt-4 font-semibold text-text">{profile.display_name}</p>
               ) : null}
               {profile?.bio ? (
-                <p className="mt-2 whitespace-pre-line text-sm text-white/75">{profile.bio}</p>
+                <p className="mt-2 whitespace-pre-line text-sm text-text/90">{profile.bio}</p>
               ) : (
-                <p className="mt-2 text-sm text-white/40">No bio yet. Edit profile to add one.</p>
+                <p className="mt-2 text-sm text-muted">Add a short bio so friends know you on Deenly.</p>
               )}
 
               <div className="mt-5 flex flex-wrap gap-2">
-                <a
-                  href="#profile-edit"
-                  className="min-w-[120px] flex-1 rounded-lg bg-white/10 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-white/15 sm:flex-none"
-                >
+                <a href="#profile-edit" className="btn-primary min-w-[120px] flex-1 text-center sm:flex-none">
                   Edit profile
                 </a>
                 <button
                   type="button"
                   disabled
-                  className="min-w-[120px] flex-1 rounded-lg bg-white/5 px-4 py-2 text-sm font-semibold text-white/35 sm:flex-none"
+                  className="btn cursor-not-allowed min-w-[120px] flex-1 border border-black/10 bg-surface/60 text-muted opacity-60 sm:flex-none"
                   title="Coming soon"
                 >
-                  View archive
+                  Highlights
                 </button>
               </div>
 
               <div className="mt-6 flex gap-6 overflow-x-auto pb-1">
-                <button type="button" className="story-chip min-w-[68px] text-white/80">
-                  <span className="story-ring story-ring-own inline-flex rounded-full border border-dashed border-white/35 p-[2px]">
-                    <span className="grid h-14 w-14 place-items-center rounded-full bg-white/10 text-lg font-light">+</span>
+                <button type="button" className="story-chip min-w-[68px] text-muted">
+                  <span className="story-ring story-ring-own inline-flex rounded-full border border-dashed border-black/25 p-[2px]">
+                    <span className="grid h-14 w-14 place-items-center rounded-full bg-surface text-lg font-light text-muted">+</span>
                   </span>
-                  <span className="text-[11px] text-white/60">New</span>
+                  <span className="text-[11px] text-muted">Add</span>
                 </button>
               </div>
 
-              <div className="mt-2 border-t border-white/10 pt-2">
+              <div className="mt-2 border-t border-black/10 pt-2">
                 <div className="flex justify-center gap-10 md:gap-14">
                   {(
                     [
@@ -515,14 +452,14 @@ export default function AccountPage() {
                     <button
                       key={t.id}
                       type="button"
-                      onClick={() => setIgProfileTab(t.id)}
+                      onClick={() => setProfileSectionTab(t.id)}
                       className={`relative pb-3 text-xs font-semibold uppercase tracking-wide transition ${
-                        igProfileTab === t.id ? "text-white" : "text-white/40 hover:text-white/70"
+                        profileSectionTab === t.id ? "text-text" : "text-muted hover:text-text"
                       }`}
                     >
                       {t.label}
-                      {igProfileTab === t.id ? (
-                        <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-white" />
+                      {profileSectionTab === t.id ? (
+                        <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-text" />
                       ) : null}
                     </button>
                   ))}
@@ -532,37 +469,37 @@ export default function AccountPage() {
               <div className="pt-6">
                 {postsQuery.isLoading ? <LoadingState label="Loading your posts..." /> : null}
                 {postsQuery.error ? <ErrorState message={(postsQuery.error as Error).message} /> : null}
-                {!postsQuery.isLoading && !postsQuery.error && (igProfileTab === "saved" || igProfileTab === "tagged") ? (
-                  <div className="py-16 text-center text-sm text-white/45">Coming soon.</div>
+                {!postsQuery.isLoading && !postsQuery.error && (profileSectionTab === "saved" || profileSectionTab === "tagged") ? (
+                  <div className="py-16 text-center text-sm text-muted">Coming soon.</div>
                 ) : null}
                 {!postsQuery.isLoading &&
                 !postsQuery.error &&
                 visibleItems.length === 0 &&
-                igProfileTab !== "saved" &&
-                igProfileTab !== "tagged" ? (
+                profileSectionTab !== "saved" &&
+                profileSectionTab !== "tagged" ? (
                   <div className="py-16 text-center">
-                    <div className="mx-auto mb-4 grid h-24 w-24 place-items-center rounded-full border-2 border-white/25">
-                      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="text-white/50">
+                    <div className="mx-auto mb-4 grid h-24 w-24 place-items-center rounded-full border-2 border-dashed border-black/15 bg-surface">
+                      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="text-muted">
                         <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
                         <circle cx="12" cy="13" r="4" />
                       </svg>
                     </div>
-                    <p className="text-xl font-semibold text-white">Share photos</p>
-                    <p className="mt-2 text-sm text-white/50">When you share photos, they will appear on your profile.</p>
-                    <Link href="/create" className="mt-4 inline-block text-sm font-semibold text-sky-400 hover:underline">
-                      Share your first photo
+                    <p className="text-xl font-semibold text-text">Your posts live here</p>
+                    <p className="mt-2 text-sm text-muted">Share recitations, reminders, or clips — they show up on your Deenly profile.</p>
+                    <Link href="/create" className="mt-4 inline-block text-sm font-semibold text-sky-600 hover:underline">
+                      Create a post
                     </Link>
                   </div>
                 ) : null}
                 {visibleItems.length > 0 ? (
-                  <div className="profile-post-grid ig-grid-tight">
+                  <div className="profile-post-grid profile-post-grid-tight">
                     {visibleItems.map((item) => {
                       const mediaUrl = resolveMediaUrl(item.media_url) || undefined;
                       const isImage = item.media_mime_type?.startsWith("image/");
                       const isVideo = item.media_mime_type?.startsWith("video/");
                       const fallbackLabel = item.content?.trim().slice(0, 26) || "Post";
                       return (
-                        <article key={item.id} className="profile-grid-tile border-white/10 bg-white/5">
+                        <article key={item.id} className="profile-grid-tile">
                           <button
                             type="button"
                             className="profile-grid-open"
@@ -577,7 +514,7 @@ export default function AccountPage() {
                                 <div className="profile-grid-fallback profile-grid-fallback-video">Video</div>
                               )
                             ) : (
-                              <div className="profile-grid-fallback bg-black/40 text-white/60">{fallbackLabel}</div>
+                              <div className="profile-grid-fallback">{fallbackLabel}</div>
                             )}
                             {isVideo ? <span className="profile-grid-badge">Video</span> : null}
                           </button>
