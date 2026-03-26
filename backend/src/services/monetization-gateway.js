@@ -30,7 +30,7 @@ function createMonetizationGateway({ config }) {
   }
 
   async function createConnectedAccount({ email, country = "US" }) {
-    const client = requireStripe();
+    const client = requireStripeClient();
     return client.accounts.create({
       type: "express",
       country,
