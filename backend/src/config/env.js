@@ -123,6 +123,7 @@ function loadEnv(envSource = process.env) {
     trustProxy: parseBoolean(envSource.TRUST_PROXY, false),
     adminOwnerEmail: String(envSource.ADMIN_OWNER_EMAIL || "").trim().toLowerCase(),
     processingWebhookToken: envSource.PROCESSING_WEBHOOK_TOKEN || "",
+    mediaAsyncVideoProcessing: parseBoolean(envSource.MEDIA_ASYNC_VIDEO_PROCESSING, false),
     mediaProvider: envSource.MEDIA_PROVIDER || "mock",
     mediaMaxUploadBytes: parseNumber(envSource.MEDIA_MAX_UPLOAD_BYTES, 100 * 1024 * 1024),
     mediaAllowedMimeTypes: parseList(

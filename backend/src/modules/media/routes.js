@@ -88,7 +88,10 @@ function createMediaRouter({ db, config, mediaStorage, analytics }) {
       ) {
         throw httpError(400, "durationSeconds must be a positive number");
       }
-      const mediaStatus = mimeType.startsWith("image/") ? "ready" : "processing";
+      const mediaStatus =
+        mimeType.startsWith("image/") || !config.mediaAsyncVideoProcessing
+          ? "ready"
+          : "processing";
       const mediaUrl = mediaStorage.resolveMediaUrl({
         mediaKey,
         mediaUrl: inputMediaUrl

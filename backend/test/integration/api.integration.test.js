@@ -23,7 +23,8 @@ describeIfDatabase("integration api flows", () => {
     ADMIN_OWNER_EMAIL: process.env.ADMIN_OWNER_EMAIL || "admin-growth@example.com",
     PROCESSING_WEBHOOK_TOKEN: process.env.PROCESSING_WEBHOOK_TOKEN || "test-processing-token",
     MEDIA_PROVIDER: "mock",
-    MEDIA_PUBLIC_BASE_URL: process.env.MEDIA_PUBLIC_BASE_URL || "https://media.test-cdn.example"
+    MEDIA_PUBLIC_BASE_URL: process.env.MEDIA_PUBLIC_BASE_URL || "https://media.test-cdn.example",
+    MEDIA_ASYNC_VIDEO_PROCESSING: process.env.MEDIA_ASYNC_VIDEO_PROCESSING || "false"
   });
 
   const logger = createLogger({ ...config, logLevel: "silent" });
@@ -335,8 +336,14 @@ describeIfDatabase("integration api flows", () => {
         durationSeconds: 23
       });
     expect(attached.statusCode).toBe(200);
-    expect(attached.body.media_status).toBe("processing");
+    expect(attached.body.media_status).toBe("ready");
     expect(attached.body.media_mime_type).toBe("video/mp4");
+
+    const feedAfterVideoAttach = await request(app)
+      .get(`/api/v1/feed?authorId=${creatorRegister.body.user.id}&limit=10`);
+    expect(feedAfterVideoAttach.statusCode).toBe(200);
+    expect(feedAfterVideoAttach.body.items.some((item) => item.id === createdPost.body.id)).toBe(true);
+
     const processed = await request(app)
       .post(`/api/v1/media/processing/post/${createdPost.body.id}`)
       .set("x-processing-token", config.processingWebhookToken)
@@ -589,15 +596,7 @@ describeIfDatabase("integration api flows", () => {
     expect(keyOnlyAttach.body.media_url).toBe(
       "https://media.test-cdn.example/uploads/normalizer/key-only.mp4"
     );
-    const keyOnlyProcessed = await request(app)
-      .post(`/api/v1/media/processing/post/${keyOnlyPost.body.id}`)
-      .set("x-processing-token", config.processingWebhookToken)
-      .send({
-        status: "ready",
-        mediaUrl: "uploads/normalizer/key-only.mp4"
-      });
-    expect(keyOnlyProcessed.statusCode).toBe(200);
-    expect(keyOnlyProcessed.body.media_status).toBe("ready");
+    expect(keyOnlyAttach.body.media_status).toBe("ready");
 
     const keyUrlPost = await request(app)
       .post("/api/v1/posts")
@@ -622,15 +621,6 @@ describeIfDatabase("integration api flows", () => {
     expect(keyUrlAttach.body.media_url).toBe(
       "https://media.test-cdn.example/uploads/normalizer/key-url.jpg"
     );
-    const keyUrlProcessed = await request(app)
-      .post(`/api/v1/media/processing/post/${keyUrlPost.body.id}`)
-      .set("x-processing-token", config.processingWebhookToken)
-      .send({
-        status: "ready",
-        mediaUrl: "uploads/normalizer/key-url.jpg"
-      });
-    expect(keyUrlProcessed.statusCode).toBe(200);
-    expect(keyUrlProcessed.body.media_status).toBe("ready");
 
     const feed = await request(app).get("/api/v1/feed?limit=20");
     expect(feed.statusCode).toBe(200);
@@ -947,5 +937,83 @@ describeIfDatabase("integration api flows", () => {
       .set("Authorization", `Bearer ${buyerToken}`);
     expect(buyerAccess.statusCode).toBe(200);
     expect(buyerAccess.body.canAccess).toBe(false);
+  });
+
+  it("excludes video from feed until processing when MEDIA_ASYNC_VIDEO_PROCESSING=true", async () => {
+    const asyncConfig = loadEnv({
+      ...process.env,
+      NODE_ENV: "test",
+      DB_SSL_MODE: process.env.DB_SSL_MODE || "disable",
+      CORS_ORIGINS: process.env.CORS_ORIGINS || "http://localhost:3000",
+      JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET || "test-access",
+      JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || "test-refresh",
+      GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || "test-google-client-id",
+      ADMIN_OWNER_EMAIL: process.env.ADMIN_OWNER_EMAIL || "admin-growth@example.com",
+      PROCESSING_WEBHOOK_TOKEN: process.env.PROCESSING_WEBHOOK_TOKEN || "test-processing-token",
+      MEDIA_PROVIDER: "mock",
+      MEDIA_PUBLIC_BASE_URL: process.env.MEDIA_PUBLIC_BASE_URL || "https://media.test-cdn.example",
+      MEDIA_ASYNC_VIDEO_PROCESSING: "true"
+    });
+
+    const asyncLogger = createLogger({ ...asyncConfig, logLevel: "silent" });
+    const asyncDb = createDb(asyncConfig);
+    try {
+      const asyncAnalytics = createAnalytics({ db: asyncDb, logger: asyncLogger });
+      const asyncMediaStorage = createMediaStorage(asyncConfig);
+      const asyncPush = createPushNotifications({ db: asyncDb, logger: asyncLogger });
+      const asyncApp = createApp({
+        config: asyncConfig,
+        logger: asyncLogger,
+        db: asyncDb,
+        analytics: asyncAnalytics,
+        mediaStorage: asyncMediaStorage,
+        pushNotifications: asyncPush
+      });
+
+      const ts = Date.now();
+      const reg = await request(asyncApp).post("/api/v1/auth/register").send({
+        email: `async-vid-${ts}@example.com`,
+        username: `async_vid_${ts}`,
+        password: "StrongPass123",
+        displayName: "Async Vid"
+      });
+      expect(reg.statusCode).toBe(201);
+      const token = reg.body.tokens.accessToken;
+      const userId = reg.body.user.id;
+
+      const created = await request(asyncApp)
+        .post("/api/v1/posts")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ postType: "community", content: "video pending processing" });
+      expect(created.statusCode).toBe(201);
+
+      const attach = await request(asyncApp)
+        .post(`/api/v1/media/posts/${created.body.id}/attach`)
+        .set("Authorization", `Bearer ${token}`)
+        .send({
+          mediaKey: "uploads/async/pending.mp4",
+          mediaUrl: "uploads/async/pending.mp4",
+          mimeType: "video/mp4",
+          fileSizeBytes: 2048
+        });
+      expect(attach.statusCode).toBe(200);
+      expect(attach.body.media_status).toBe("processing");
+
+      const feedBefore = await request(asyncApp).get(`/api/v1/feed?authorId=${userId}&limit=10`);
+      expect(feedBefore.statusCode).toBe(200);
+      expect(feedBefore.body.items.some((item) => item.id === created.body.id)).toBe(false);
+
+      const processed = await request(asyncApp)
+        .post(`/api/v1/media/processing/post/${created.body.id}`)
+        .set("x-processing-token", asyncConfig.processingWebhookToken)
+        .send({ status: "ready", mediaUrl: "uploads/async/pending.mp4" });
+      expect(processed.statusCode).toBe(200);
+
+      const feedAfter = await request(asyncApp).get(`/api/v1/feed?authorId=${userId}&limit=10`);
+      expect(feedAfter.statusCode).toBe(200);
+      expect(feedAfter.body.items.some((item) => item.id === created.body.id)).toBe(true);
+    } finally {
+      await asyncDb.close();
+    }
   });
 });
