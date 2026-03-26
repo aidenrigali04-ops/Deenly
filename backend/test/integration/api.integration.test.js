@@ -907,6 +907,8 @@ describeIfDatabase("integration api flows", () => {
       });
     expect(product.statusCode).toBe(201);
     expect(product.body.status).toBe("draft");
+    expect(product.body.audience_target).toBe("both");
+    expect(product.body.business_category).toBeNull();
 
     const published = await request(app)
       .post(`/api/v1/monetization/products/${product.body.id}/publish`)

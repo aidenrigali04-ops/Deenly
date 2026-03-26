@@ -126,6 +126,19 @@ export default function CreatePage() {
     }
   }, [sellThis]);
 
+  useEffect(() => {
+    if (!sellThis || !selectedProductId) {
+      return;
+    }
+    const items = myProductsQuery.data?.items ?? [];
+    const product = items.find((p) => String(p.id) === selectedProductId);
+    if (!product) {
+      return;
+    }
+    setAudienceTarget(product.audience_target ?? "both");
+    setBusinessCategory(product.business_category ?? "");
+  }, [sellThis, selectedProductId, myProductsQuery.data?.items]);
+
   const composerName =
     profileQuery.data?.display_name?.trim() ||
     profileQuery.data?.username?.trim() ||
@@ -413,6 +426,10 @@ export default function CreatePage() {
                 ) : (myProductsQuery.data?.items?.length ?? 0) === 0 ? (
                   <p className="text-xs text-muted">No products yet. Add one in Creator hub first.</p>
                 ) : null}
+
+                <p className="text-xs text-muted">
+                  Audience and category load from the product; change below if this post should differ in the feed.
+                </p>
 
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted">Who it is for</p>
                 <select

@@ -99,6 +99,8 @@ export default function AccountCreatorPage() {
   const [newProductDescription, setNewProductDescription] = useState("");
   const [newProductPriceMinor, setNewProductPriceMinor] = useState("");
   const [newProductType, setNewProductType] = useState<"digital" | "service" | "subscription">("digital");
+  const [newProductAudienceTarget, setNewProductAudienceTarget] = useState<"b2b" | "b2c" | "both">("both");
+  const [newProductBusinessCategory, setNewProductBusinessCategory] = useState("");
   const [newProductServiceDetails, setNewProductServiceDetails] = useState("");
   const [newProductDeliveryMethod, setNewProductDeliveryMethod] = useState("");
   const [newProductWebsiteUrl, setNewProductWebsiteUrl] = useState("");
@@ -115,6 +117,8 @@ export default function AccountCreatorPage() {
       serviceDetails?: string;
       deliveryMethod?: string;
       websiteUrl?: string;
+      audienceTarget?: "b2b" | "b2c" | "both";
+      businessCategory?: string;
     }) => createProduct({ ...input, currency: "usd" }),
     onSuccess: async () => {
       await myProductsQuery.refetch();
@@ -178,13 +182,17 @@ export default function AccountCreatorPage() {
         deliveryMediaKey,
         serviceDetails: newProductServiceDetails.trim() || undefined,
         deliveryMethod: newProductDeliveryMethod.trim() || undefined,
-        websiteUrl: newProductWebsiteUrl.trim() || undefined
+        websiteUrl: newProductWebsiteUrl.trim() || undefined,
+        audienceTarget: newProductAudienceTarget,
+        businessCategory: newProductBusinessCategory.trim() || undefined
       });
 
       setNewProductTitle("");
       setNewProductDescription("");
       setNewProductPriceMinor("");
       setNewProductType("digital");
+      setNewProductAudienceTarget("both");
+      setNewProductBusinessCategory("");
       setNewProductServiceDetails("");
       setNewProductDeliveryMethod("");
       setNewProductWebsiteUrl("");
@@ -318,6 +326,39 @@ export default function AccountCreatorPage() {
                   <option value="digital">Digital</option>
                   <option value="service">Service</option>
                   <option value="subscription">Subscription</option>
+                </select>
+              </div>
+
+              <div className="space-y-3 border-t border-black/10 pt-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted">Who it is for</p>
+                <select
+                  className="input bg-white"
+                  value={newProductAudienceTarget}
+                  onChange={(e) =>
+                    setNewProductAudienceTarget(e.target.value as "b2b" | "b2c" | "both")
+                  }
+                  aria-label="Product audience"
+                >
+                  <option value="b2c">Consumers (B2C)</option>
+                  <option value="b2b">Businesses (B2B)</option>
+                  <option value="both">Both</option>
+                </select>
+              </div>
+
+              <div className="space-y-3 border-t border-black/10 pt-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted">Category</p>
+                <select
+                  className="input bg-white"
+                  value={newProductBusinessCategory}
+                  onChange={(e) => setNewProductBusinessCategory(e.target.value)}
+                  aria-label="Business category"
+                >
+                  <option value="">Select category</option>
+                  <option value="tools_growth">Tools & Growth</option>
+                  <option value="professional_services">Professional Services</option>
+                  <option value="digital_products">Digital Products</option>
+                  <option value="education_coaching">Education & Coaching</option>
+                  <option value="lifestyle_inspiration">Lifestyle & Inspiration</option>
                 </select>
               </div>
 

@@ -6,6 +6,7 @@ const { requireString, optionalString } = require("../../utils/validators");
 
 const PRODUCT_STATUSES = new Set(["draft", "published", "archived"]);
 const PRODUCT_TYPES = new Set(["digital", "service", "subscription"]);
+const AUDIENCE_TARGETS = new Set(["b2b", "b2c", "both"]);
 const TIER_STATUSES = new Set(["draft", "published", "archived"]);
 const SUBSCRIPTION_STATUSES = new Set(["active", "canceled", "past_due", "incomplete", "expired"]);
 
@@ -22,6 +23,22 @@ function normalizeAffiliateCode(value) {
     .toUpperCase()
     .replace(/[^A-Z0-9_-]/g, "")
     .slice(0, 64);
+}
+
+function parseProductAudienceTarget(rawValue) {
+  if (rawValue === undefined || rawValue === null || rawValue === "") {
+    return "both";
+  }
+  const target = String(rawValue).trim().toLowerCase();
+  if (!AUDIENCE_TARGETS.has(target)) {
+    throw httpError(400, "audienceTarget must be b2b, b2c, or both");
+  }
+  return target;
+}
+
+function parseProductBusinessCategory(rawValue) {
+  const value = optionalString(rawValue, "businessCategory", 64);
+  return value ? value.trim().toLowerCase() : null;
 }
 
 function createMonetizationRouter({ db, config, monetizationGateway, mediaStorage, analytics }) {
@@ -264,12 +281,15 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
         throw httpError(400, "deliveryMediaKey is required for digital products");
       }
 
+      const audienceTarget = parseProductAudienceTarget(req.body?.audienceTarget);
+      const businessCategory = parseProductBusinessCategory(req.body?.businessCategory);
+
       const created = await db.query(
         `INSERT INTO creator_products (
            creator_user_id, title, description, price_minor, currency, delivery_media_key, product_type,
-           service_details, delivery_method, website_url, status
+           service_details, delivery_method, website_url, audience_target, business_category, status
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'draft')
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'draft')
          RETURNING *`,
         [
           req.user.id,
@@ -281,7 +301,9 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
           productType,
           serviceDetails,
           deliveryMethod,
-          websiteUrl
+          websiteUrl,
+          audienceTarget,
+          businessCategory
         ]
       );
       res.status(201).json(created.rows[0]);
@@ -404,6 +426,14 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
       if (!PRODUCT_STATUSES.has(status)) {
         throw httpError(400, "status must be draft, published, or archived");
       }
+      const audienceTarget =
+        req.body?.audienceTarget !== undefined
+          ? parseProductAudienceTarget(req.body?.audienceTarget)
+          : previous.audience_target;
+      const businessCategory =
+        req.body?.businessCategory !== undefined
+          ? parseProductBusinessCategory(req.body?.businessCategory)
+          : previous.business_category;
 
       const updated = await db.query(
         `UPDATE creator_products
@@ -416,7 +446,9 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
              service_details = $9,
              delivery_method = $10,
              website_url = $11,
-             status = $12,
+             audience_target = $12,
+             business_category = $13,
+             status = $14,
              updated_at = NOW()
          WHERE id = $1
            AND creator_user_id = $2
@@ -433,6 +465,8 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
           serviceDetails,
           deliveryMethod,
           websiteUrl,
+          audienceTarget,
+          businessCategory,
           status
         ]
       );

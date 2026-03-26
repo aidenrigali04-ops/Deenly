@@ -21,6 +21,8 @@ export type CreatorProduct = {
   service_details?: string | null;
   delivery_method?: string | null;
   website_url?: string | null;
+  audience_target: "b2b" | "b2c" | "both";
+  business_category: string | null;
   status: "draft" | "published" | "archived";
   created_at: string;
   updated_at: string;
@@ -80,6 +82,8 @@ export async function createProduct(input: {
   serviceDetails?: string;
   deliveryMethod?: string;
   websiteUrl?: string;
+  audienceTarget?: "b2b" | "b2c" | "both";
+  businessCategory?: string;
 }) {
   return apiRequest<CreatorProduct>("/monetization/products", {
     method: "POST",

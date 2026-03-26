@@ -207,9 +207,11 @@ function createPostsRouter({ db, config, analytics, mediaStorage, enqueueInstagr
                service_details,
                delivery_method,
                website_url,
+               audience_target,
+               business_category,
                status
              )
-             VALUES ($1, $2, $3, $4, 'usd', $5, $6, $7, $8, $9, 'published')
+             VALUES ($1, $2, $3, $4, 'usd', $5, $6, $7, $8, $9, $10, $11, 'published')
              RETURNING id`,
             [
               req.user.id,
@@ -220,7 +222,9 @@ function createPostsRouter({ db, config, analytics, mediaStorage, enqueueInstagr
               sellThis.productType,
               sellThis.serviceDetails,
               sellThis.deliveryMethod,
-              sellThis.websiteUrl
+              sellThis.websiteUrl,
+              audienceTarget,
+              businessCategory
             ]
           );
           await db.query(
