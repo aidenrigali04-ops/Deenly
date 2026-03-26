@@ -6,7 +6,7 @@ import { apiRequest } from "../../lib/api";
 import { colors } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 
-const options = ["recitation", "community", "short_video"] as const;
+const options = ["recitation", "post", "marketplace"] as const;
 
 type InterestsResponse = { items: string[] };
 type Props = NativeStackScreenProps<RootStackParamList, "Onboarding">;

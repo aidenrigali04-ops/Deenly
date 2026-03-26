@@ -17,9 +17,16 @@ type FeedResponse = {
   hasMore: boolean;
 };
 
+type FeedTabId = "for_you" | "opportunities" | "marketplace";
+
 type FeedViewProps = {
   heading: string;
-  fixedPostType?: "" | "recitation" | "community" | "short_video";
+  /** When set, feed only loads this post type (e.g. recitation page). */
+  fixedPostType?: "" | "recitation" | "post" | "marketplace";
+  /** When set, feed is locked to this tab and tab pills are hidden (e.g. /marketplace). */
+  fixedFeedTab?: FeedTabId;
+  /** Shown under the heading when provided. */
+  feedSubtitle?: string;
   showStories?: boolean;
   homeStyle?: boolean;
 };
@@ -78,11 +85,13 @@ function FeedSkeletonList({ homeStyle = false }: { homeStyle?: boolean }) {
 export function FeedView({
   heading,
   fixedPostType = "",
+  fixedFeedTab,
+  feedSubtitle,
   showStories = false,
   homeStyle = false
 }: FeedViewProps) {
   const [postType, setPostType] = useState(fixedPostType);
-  const [feedTab, setFeedTab] = useState<"for_you" | "opportunities" | "marketplace">("for_you");
+  const [feedTab, setFeedTab] = useState<FeedTabId>(fixedFeedTab ?? "for_you");
   const [followingOnly, setFollowingOnly] = useState(false);
   const [busyAuthorId, setBusyAuthorId] = useState<number | null>(null);
   const user = useSessionStore((state) => state.user);
@@ -214,13 +223,29 @@ export function FeedView({
     followMutation.mutate(authorId);
   };
 
+  useEffect(() => {
+    if (fixedFeedTab) {
+      setFeedTab(fixedFeedTab);
+    }
+  }, [fixedFeedTab]);
+
+  const emptySubtitle =
+    feedTab === "marketplace"
+      ? "Publish a marketplace post with an attached product, or browse Home for general updates."
+      : feedTab === "opportunities"
+        ? "No B2B-style listings match this feed yet."
+        : "Try changing filters or be the first to share.";
+
   return (
     <section
       className={`flex w-full flex-col gap-4 md:gap-5 ${homeStyle ? "mx-auto max-w-[680px]" : "mx-auto max-w-[1100px]"}`}
     >
       <header className="surface-card sticky top-4 z-10 space-y-3 px-4 py-4 shadow-soft">
         <div className="flex items-center justify-between gap-3">
-          <h1 className="section-title text-base sm:text-lg">{heading}</h1>
+          <div className="min-w-0">
+            <h1 className="section-title text-base sm:text-lg">{heading}</h1>
+            {feedSubtitle ? <p className="mt-1 text-xs text-muted">{feedSubtitle}</p> : null}
+          </div>
           <div className="flex items-center gap-2">
             <Link href="/search" className="btn-secondary px-3 py-2 text-xs" aria-label="Quick search">
               Search
@@ -237,28 +262,28 @@ export function FeedView({
             </Link>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {[
-            { id: "for_you", label: "For You" },
-            { id: "opportunities", label: "Opportunities" },
-            { id: "marketplace", label: "Marketplace" }
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              className={`rounded-pill border px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
-                feedTab === tab.id
-                  ? "border-text bg-text text-background"
-                  : "border-black/10 text-muted hover:bg-black/[0.04] hover:text-text"
-              }`}
-              onClick={() =>
-                setFeedTab(tab.id as "for_you" | "opportunities" | "marketplace")
-              }
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        {fixedFeedTab ? null : (
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: "for_you" as const, label: "For You" },
+              { id: "opportunities" as const, label: "Opportunities" },
+              { id: "marketplace" as const, label: "Marketplace" }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`rounded-pill border px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+                  feedTab === tab.id
+                    ? "border-text bg-text text-background"
+                    : "border-black/10 text-muted hover:bg-black/[0.04] hover:text-text"
+                }`}
+                onClick={() => setFeedTab(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
         <div className={`subtle-divider pt-3 ${homeStyle ? "hidden" : ""}`}>
           <div className="flex flex-wrap items-center gap-3">
             {!fixedPostType ? (
@@ -266,13 +291,13 @@ export function FeedView({
                 className="input max-w-44 py-2 text-xs"
                 value={postType}
                 onChange={(event) =>
-                  setPostType(event.target.value as "" | "recitation" | "community" | "short_video")
+                  setPostType(event.target.value as "" | "recitation" | "post" | "marketplace")
                 }
               >
                 <option value="">All types</option>
+                <option value="post">Post</option>
                 <option value="recitation">Recitation</option>
-                <option value="community">Community</option>
-                <option value="short_video">Short video</option>
+                <option value="marketplace">Marketplace</option>
               </select>
             ) : null}
             <label className="flex items-center gap-2 text-xs sm:text-sm text-muted">
@@ -302,7 +327,7 @@ export function FeedView({
             <ErrorState message={(feedQuery.error as Error).message} onRetry={() => feedQuery.refetch()} />
           ) : null}
           {!feedQuery.isLoading && !feedQuery.error && items.length === 0 ? (
-            <EmptyState title="No posts yet" subtitle="Try changing filters or be the first to share." />
+            <EmptyState title="No posts yet" subtitle={emptySubtitle} />
           ) : null}
 
           <div className={homeStyle ? "space-y-3" : "space-y-5"}>

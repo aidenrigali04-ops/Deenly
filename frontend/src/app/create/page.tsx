@@ -70,7 +70,7 @@ export default function CreatePage() {
   const igConnected = Boolean(instagramQuery.data?.connected);
 
   const [crossPostToInstagram, setCrossPostToInstagram] = useState(false);
-  const [postType, setPostType] = useState("community");
+  const [postType, setPostType] = useState("post");
   const [content, setContent] = useState("");
   const [tagsInput, setTagsInput] = useState("");
   const [mediaFile, setMediaFile] = useState<File | null>(null);
@@ -123,6 +123,12 @@ export default function CreatePage() {
   useEffect(() => {
     if (!sellThis) {
       setSelectedProductId("");
+    }
+  }, [sellThis]);
+
+  useEffect(() => {
+    if (sellThis) {
+      setPostType("marketplace");
     }
   }, [sellThis]);
 
@@ -531,11 +537,15 @@ export default function CreatePage() {
                 value={postType}
                 onChange={(event) => setPostType(event.target.value)}
                 aria-label="Post type"
+                disabled={sellThis}
               >
-                <option value="community">Community</option>
+                <option value="post">Post</option>
                 <option value="recitation">Recitation</option>
-                <option value="short_video">Short video</option>
+                <option value="marketplace">Marketplace</option>
               </select>
+              {sellThis ? (
+                <p className="mt-1 text-xs text-muted">Promoted posts use the Marketplace type.</p>
+              ) : null}
             </div>
 
             <label className="flex items-center gap-2 text-sm text-text">

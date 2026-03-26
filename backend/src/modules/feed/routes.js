@@ -100,9 +100,17 @@ function createFeedRouter({ db, config, mediaStorage }) {
          AND p.media_status = 'ready'
          AND p.removed_at IS NULL
          AND (
-           $2::text = 'for_you'
-           OR ($2::text = 'opportunities' AND p.audience_target IN ('b2b', 'both'))
-           OR ($2::text = 'marketplace' AND p.audience_target IN ('b2c', 'both'))
+           ($2::text = 'for_you' AND p.post_type IN ('post', 'recitation'))
+           OR (
+             $2::text = 'opportunities'
+             AND p.post_type = 'marketplace'
+             AND p.audience_target IN ('b2b', 'both')
+           )
+           OR (
+             $2::text = 'marketplace'
+             AND p.post_type = 'marketplace'
+             AND p.audience_target IN ('b2c', 'both')
+           )
          )
          AND (
            $1::int IS NULL
@@ -152,8 +160,8 @@ function createFeedRouter({ db, config, mediaStorage }) {
         authorization: req.headers.authorization
       });
 
-      if (postType && !["recitation", "community", "short_video"].includes(postType)) {
-        throw httpError(400, "postType must be recitation, community, or short_video");
+      if (postType && !["post", "recitation", "marketplace"].includes(postType)) {
+        throw httpError(400, "postType must be post, recitation, or marketplace");
       }
       if (!["for_you", "opportunities", "marketplace"].includes(feedTab)) {
         throw httpError(400, "feedTab must be for_you, opportunities, or marketplace");
@@ -352,9 +360,17 @@ function createFeedRouter({ db, config, mediaStorage }) {
            AND p.media_status = 'ready'
            AND p.removed_at IS NULL
            AND (
-             $18::text = 'for_you'
-             OR ($18::text = 'opportunities' AND p.audience_target IN ('b2b', 'both'))
-             OR ($18::text = 'marketplace' AND p.audience_target IN ('b2c', 'both'))
+             ($18::text = 'for_you' AND p.post_type IN ('post', 'recitation'))
+             OR (
+               $18::text = 'opportunities'
+               AND p.post_type = 'marketplace'
+               AND p.audience_target IN ('b2b', 'both')
+             )
+             OR (
+               $18::text = 'marketplace'
+               AND p.post_type = 'marketplace'
+               AND p.audience_target IN ('b2c', 'both')
+             )
            )
            AND (
              $1::int IS NULL

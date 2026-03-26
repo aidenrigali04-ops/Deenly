@@ -6,7 +6,7 @@ const { asyncHandler } = require("../../utils/async-handler");
 const { optionalString, requireString } = require("../../utils/validators");
 const { httpError } = require("../../utils/http-error");
 
-const POST_TYPES = new Set(["recitation", "community", "short_video"]);
+const POST_TYPES = new Set(["post", "recitation", "marketplace"]);
 const PRODUCT_TYPES = new Set(["digital", "service", "subscription"]);
 const AUDIENCE_TARGETS = new Set(["b2b", "b2c", "both"]);
 
@@ -139,7 +139,7 @@ function createPostsRouter({ db, config, analytics, mediaStorage, enqueueInstagr
 
       const postType = requireString(req.body?.postType, "postType", 3, 32);
       if (!POST_TYPES.has(postType)) {
-        throw httpError(400, "postType must be recitation, community, or short_video");
+        throw httpError(400, "postType must be post, recitation, or marketplace");
       }
 
       const content = requireString(req.body?.content, "content", 1, 2000);
@@ -279,7 +279,7 @@ function createPostsRouter({ db, config, analytics, mediaStorage, enqueueInstagr
       const videoOnly = String(req.query.videoOnly || "false") === "true";
 
       if (postType && !POST_TYPES.has(postType)) {
-        throw httpError(400, "postType must be recitation, community, or short_video");
+        throw httpError(400, "postType must be post, recitation, or marketplace");
       }
       if (req.query.authorId && !authorId) {
         throw httpError(400, "authorId must be a number");

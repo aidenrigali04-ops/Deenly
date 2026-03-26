@@ -6,7 +6,7 @@ const { asyncHandler } = require("../../utils/async-handler");
 const { optionalString, requireString } = require("../../utils/validators");
 const { httpError } = require("../../utils/http-error");
 const { getPrayerSettings, updatePrayerSettings } = require("../../services/prayer-settings");
-const INTEREST_KEYS = new Set(["recitation", "community", "short_video"]);
+const INTEREST_KEYS = new Set(["post", "recitation", "marketplace"]);
 
 function createUsersRouter({ db, config }) {
   const router = express.Router();

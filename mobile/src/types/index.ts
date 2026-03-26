@@ -25,7 +25,7 @@ export type AuthResponse = {
 export type FeedItem = {
   id: number;
   author_id: number;
-  post_type: "recitation" | "community" | "short_video";
+  post_type: "post" | "recitation" | "marketplace";
   content: string;
   media_url: string | null;
   media_mime_type?: string | null;

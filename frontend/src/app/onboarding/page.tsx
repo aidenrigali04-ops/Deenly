@@ -7,8 +7,8 @@ import { ErrorState, LoadingState } from "@/components/states";
 
 const interestOptions = [
   { key: "recitation", label: "Recitation" },
-  { key: "community", label: "Community" },
-  { key: "short_video", label: "Short Video Reminders" }
+  { key: "post", label: "Posts & reminders" },
+  { key: "marketplace", label: "Marketplace & offers" }
 ];
 
 type InterestsResponse = { items: string[] };

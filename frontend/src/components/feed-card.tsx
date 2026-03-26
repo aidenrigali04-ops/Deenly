@@ -6,6 +6,26 @@ import { apiRequest } from "@/lib/api";
 import { resolveMediaUrl } from "@/lib/media-url";
 import { createProductCheckout, formatMinorCurrency } from "@/lib/monetization";
 
+function feedPostTypeLabel(postType: string) {
+  if (postType === "recitation") {
+    return "Original audio";
+  }
+  if (postType === "marketplace") {
+    return "Marketplace";
+  }
+  return "Post";
+}
+
+function feedReflectionLabel(postType: string) {
+  if (postType === "recitation") {
+    return "Recitation reflection";
+  }
+  if (postType === "marketplace") {
+    return "Marketplace listing";
+  }
+  return "Post reflection";
+}
+
 function isImageMedia(item: FeedItem) {
   if (item.media_mime_type?.startsWith("image/")) {
     return true;
@@ -107,7 +127,7 @@ export function FeedCard({
               <p className="truncate text-sm font-semibold leading-tight">{item.author_display_name}</p>
               <p className="truncate text-xs text-muted">
                 {item.sponsored ? `${item.sponsored_label || "Sponsored"} - ` : ""}
-                {item.post_type === "recitation" ? "Original audio" : "Community post"} -{" "}
+                {feedPostTypeLabel(item.post_type)} -{" "}
                 {new Date(item.created_at).toLocaleString()}
               </p>
             </div>
@@ -139,7 +159,7 @@ export function FeedCard({
           <div className="feed-media-frame-home flex items-center justify-center px-5 text-center text-sm text-muted">
             {item.media_url
               ? "Media unavailable right now"
-              : `${item.post_type.replace("_", " ")} reflection`}
+              : feedReflectionLabel(item.post_type)}
           </div>
         )}
 
@@ -308,7 +328,7 @@ export function FeedCard({
           <div className="feed-media-frame flex items-center justify-center px-5 text-center text-sm text-muted">
             {item.media_url
               ? "Media unavailable right now"
-              : `${item.post_type.replace("_", " ")} reflection`}
+              : feedReflectionLabel(item.post_type)}
           </div>
         )}
       </div>

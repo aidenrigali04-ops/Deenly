@@ -18,13 +18,17 @@ type FeedResponse = {
 };
 
 type Props = CompositeScreenProps<
-  BottomTabScreenProps<AppTabParamList, "HomeTab">,
+  BottomTabScreenProps<AppTabParamList>,
   NativeStackScreenProps<RootStackParamList>
->;
+> & {
+  feedVariant?: "home" | "marketplace";
+};
 
-export function FeedScreen({ navigation }: Props) {
+export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
   const [followingOnly, setFollowingOnly] = useState(false);
-  const [feedTab, setFeedTab] = useState<"for_you" | "opportunities" | "marketplace">("for_you");
+  const [feedTab, setFeedTab] = useState<"for_you" | "opportunities" | "marketplace">(
+    feedVariant === "marketplace" ? "marketplace" : "for_you"
+  );
   const feedQueryKey = useMemo(
     () => ["mobile-feed", followingOnly, feedTab] as const,
     [followingOnly, feedTab]
@@ -103,7 +107,7 @@ export function FeedScreen({ navigation }: Props) {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.headerRow}>
-        <Text style={styles.heading}>Home</Text>
+        <Text style={styles.heading}>{feedVariant === "marketplace" ? "Marketplace" : "Home"}</Text>
         <Pressable style={styles.topPill} onPress={() => navigation.navigate("Dhikr")}>
           <Text style={styles.topPillText}>Dhikr</Text>
         </Pressable>
@@ -119,24 +123,30 @@ export function FeedScreen({ navigation }: Props) {
         </View>
       ) : null}
       <View style={styles.filters}>
-        <Pressable
-          style={[styles.chip, feedTab === "for_you" ? styles.chipActive : null]}
-          onPress={() => setFeedTab("for_you")}
-        >
-          <Text style={styles.chipText}>For You</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.chip, feedTab === "opportunities" ? styles.chipActive : null]}
-          onPress={() => setFeedTab("opportunities")}
-        >
-          <Text style={styles.chipText}>Opportunities</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.chip, feedTab === "marketplace" ? styles.chipActive : null]}
-          onPress={() => setFeedTab("marketplace")}
-        >
-          <Text style={styles.chipText}>Marketplace</Text>
-        </Pressable>
+        {feedVariant === "marketplace" ? (
+          <Text style={styles.marketplaceHint}>Creator offers and promotions (B2C).</Text>
+        ) : (
+          <>
+            <Pressable
+              style={[styles.chip, feedTab === "for_you" ? styles.chipActive : null]}
+              onPress={() => setFeedTab("for_you")}
+            >
+              <Text style={styles.chipText}>For You</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.chip, feedTab === "opportunities" ? styles.chipActive : null]}
+              onPress={() => setFeedTab("opportunities")}
+            >
+              <Text style={styles.chipText}>Opportunities</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.chip, feedTab === "marketplace" ? styles.chipActive : null]}
+              onPress={() => setFeedTab("marketplace")}
+            >
+              <Text style={styles.chipText}>Marketplace</Text>
+            </Pressable>
+          </>
+        )}
         <Pressable
           style={[styles.chip, followingOnly ? styles.chipActive : null]}
           onPress={() => setFollowingOnly((value) => !value)}
@@ -153,7 +163,14 @@ export function FeedScreen({ navigation }: Props) {
         />
       ) : null}
       {!feedQuery.isLoading && !feedQuery.error && items.length === 0 ? (
-        <EmptyState title="No posts yet" subtitle="Create the first beneficial post." />
+        <EmptyState
+          title="No posts yet"
+          subtitle={
+            feedVariant === "marketplace"
+              ? "Add a marketplace post with a product from Creator hub."
+              : "Create the first beneficial post."
+          }
+        />
       ) : null}
 
       <View style={styles.stack}>
@@ -258,6 +275,13 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 12,
     fontWeight: "700"
+  },
+  marketplaceHint: {
+    flex: 1,
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: "600",
+    paddingVertical: 4
   },
   stack: {
     gap: 12

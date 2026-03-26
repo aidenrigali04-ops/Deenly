@@ -86,7 +86,12 @@ export function PostCard({
               <Text style={styles.homeAuthor}>{item.author_display_name}</Text>
               <Text style={styles.homeSubtle}>
                 {item.sponsored ? `${item.sponsored_label || "Sponsored"} - ` : ""}
-                {item.post_type === "recitation" ? "Original audio" : "Community post"} -{" "}
+                {item.post_type === "recitation"
+                  ? "Original audio"
+                  : item.post_type === "marketplace"
+                    ? "Marketplace"
+                    : "Post"}{" "}
+                -{" "}
                 {new Date(item.created_at).toLocaleDateString()}
               </Text>
             </View>

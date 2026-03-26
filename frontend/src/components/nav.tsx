@@ -8,7 +8,7 @@ import { useSessionStore } from "@/store/session-store";
 function Icon({
   kind
 }: {
-  kind: "home" | "video" | "send" | "search" | "upload" | "user" | "admin" | "dhikr" | "creator";
+  kind: "home" | "video" | "marketplace" | "send" | "search" | "upload" | "user" | "admin" | "dhikr" | "creator";
 }) {
   const common = "h-5 w-5";
   if (kind === "home") {
@@ -24,6 +24,19 @@ function Icon({
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common} aria-hidden="true">
         <rect x="3.5" y="6" width="11.5" height="12" rx="2" />
         <path d="M15 10.5l5.5-2v7l-5.5-2z" />
+      </svg>
+    );
+  }
+  if (kind === "marketplace") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common} aria-hidden="true">
+        <path d="M4 10V8a2 2 0 0 1 2-2h2" />
+        <path d="M4 14v2a2 2 0 0 0 2 2h2" />
+        <path d="M20 10V8a2 2 0 0 0-2-2h-2" />
+        <path d="M20 14v2a2 2 0 0 1-2 2h-2" />
+        <path d="M8 6V4h8v2" />
+        <path d="M8 18v2h8v-2" />
+        <path d="M9 10h6v4H9z" />
       </svg>
     );
   }
@@ -102,7 +115,7 @@ function NavLink({
   href: string;
   label: string;
   active: boolean;
-  icon: "home" | "video" | "send" | "search" | "upload" | "user" | "admin" | "dhikr" | "creator";
+  icon: "home" | "video" | "marketplace" | "send" | "search" | "upload" | "user" | "admin" | "dhikr" | "creator";
 }) {
   return (
     <Link
@@ -127,6 +140,7 @@ function NavLink({
 
 const railLinks = [
   { href: "/home", label: "Home", icon: "home" as const },
+  { href: "/marketplace", label: "Marketplace", icon: "marketplace" as const },
   { href: "/recitation", label: "Recitation", icon: "video" as const },
   { href: "/messages", label: "Messages", icon: "send" as const },
   { href: "/search", label: "Search", icon: "search" as const },
@@ -163,12 +177,14 @@ export function Nav() {
         <span className="hidden text-[10px] uppercase tracking-[0.2em] text-muted md:block">Deenly</span>
       </div>
 
-      <nav className="grid grid-cols-3 gap-2 sm:grid-cols-7 md:grid-cols-1 md:gap-2.5" aria-label="Primary">
+      <nav className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-1 md:gap-2.5" aria-label="Primary">
         {railLinks.map((link) => {
           const active =
             link.href === "/account"
               ? pathname.startsWith("/account") && !pathname.startsWith("/account/creator")
-              : pathname.startsWith(link.href);
+              : link.href === "/home"
+                ? pathname === "/home" || pathname === "/"
+                : pathname.startsWith(link.href);
           return (
             <NavLink
               key={link.href}

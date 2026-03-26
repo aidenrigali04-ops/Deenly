@@ -80,7 +80,7 @@ Production-focused Node/Express backend for the Deenly Muslim social platform.
 - `POST /api/v1/posts` (auth)
 - `GET /api/v1/posts/:postId`
 - `GET /api/v1/posts?postType=&authorId=&limit=&offset=`
-- `GET /api/v1/feed?limit=20&offset=0&postType=community`
+- `GET /api/v1/feed?limit=20&feedTab=for_you&postType=post`
 
 ### Interactions and Follows
 

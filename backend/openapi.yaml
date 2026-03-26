@@ -126,7 +126,9 @@ paths:
       parameters:
         - in: query
           name: postType
-          schema: { type: string }
+          schema:
+            type: string
+            enum: [post, recitation, marketplace]
         - in: query
           name: limit
           schema: { type: integer, minimum: 1, maximum: 50 }
@@ -162,7 +164,14 @@ paths:
           schema: { type: string }
         - in: query
           name: postType
-          schema: { type: string }
+          schema:
+            type: string
+            enum: [post, recitation, marketplace]
+        - in: query
+          name: feedTab
+          schema:
+            type: string
+            enum: [for_you, opportunities, marketplace]
         - in: query
           name: followingOnly
           schema: { type: boolean }
@@ -427,7 +436,9 @@ paths:
           schema: { type: string }
         - in: query
           name: postType
-          schema: { type: string }
+          schema:
+            type: string
+            enum: [post, recitation, marketplace]
         - in: query
           name: limit
           schema: { type: integer, minimum: 1, maximum: 50 }

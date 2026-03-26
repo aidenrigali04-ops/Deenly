@@ -238,7 +238,7 @@ describeIfDatabase("integration api flows", () => {
       .post("/api/v1/posts")
       .set("Authorization", `Bearer ${token}`)
       .send({
-        postType: "community",
+        postType: "post",
         content: "Assalamu alaikum everyone",
         mediaUrl: null
       });
@@ -427,7 +427,7 @@ describeIfDatabase("integration api flows", () => {
       .post("/api/v1/posts")
       .set("Authorization", `Bearer ${authorToken}`)
       .send({
-        postType: "community",
+        postType: "post",
         content: "Comment target post"
       });
     expect(post.statusCode).toBe(201);
@@ -497,7 +497,7 @@ describeIfDatabase("integration api flows", () => {
       .post("/api/v1/posts")
       .set("Authorization", `Bearer ${creatorToken}`)
       .send({
-        postType: "community",
+        postType: "post",
         content: "View dedupe post"
       });
     expect(post.statusCode).toBe(201);
@@ -544,7 +544,7 @@ describeIfDatabase("integration api flows", () => {
         .post("/api/v1/posts")
         .set("Authorization", `Bearer ${token}`)
         .send({
-          postType: "community",
+          postType: "post",
           content: `Cursor post ${index}`
         });
       expect(created.statusCode).toBe(201);
@@ -578,7 +578,7 @@ describeIfDatabase("integration api flows", () => {
       .post("/api/v1/posts")
       .set("Authorization", `Bearer ${creatorToken}`)
       .send({
-        postType: "community",
+        postType: "post",
         content: "Normalize media URL from key"
       });
     expect(keyOnlyPost.statusCode).toBe(201);
@@ -602,7 +602,7 @@ describeIfDatabase("integration api flows", () => {
       .post("/api/v1/posts")
       .set("Authorization", `Bearer ${creatorToken}`)
       .send({
-        postType: "community",
+        postType: "post",
         content: "Normalize media URL from S3 URL"
       });
     expect(keyUrlPost.statusCode).toBe(201);
@@ -708,7 +708,7 @@ describeIfDatabase("integration api flows", () => {
       .post("/api/v1/posts")
       .set("Authorization", `Bearer ${authorToken}`)
       .send({
-        postType: "community",
+        postType: "post",
         content: "Profile stats post"
       });
     expect(post.statusCode).toBe(201);
@@ -772,7 +772,7 @@ describeIfDatabase("integration api flows", () => {
     const updateInterests = await request(app)
       .put("/api/v1/users/me/interests")
       .set("Authorization", `Bearer ${userToken}`)
-      .send({ interests: ["recitation", "community"] });
+      .send({ interests: ["recitation", "post"] });
     expect(updateInterests.statusCode).toBe(200);
     expect(updateInterests.body.items).toContain("recitation");
 
@@ -824,7 +824,7 @@ describeIfDatabase("integration api flows", () => {
       .post("/api/v1/posts")
       .set("Authorization", `Bearer ${tokenA}`)
       .send({
-        postType: "community",
+        postType: "post",
         content: "This post is searchable in integration test"
       });
     expect(createdPost.statusCode).toBe(201);
@@ -890,7 +890,7 @@ describeIfDatabase("integration api flows", () => {
       .post("/api/v1/posts")
       .set("Authorization", `Bearer ${creatorToken}`)
       .send({
-        postType: "community",
+        postType: "post",
         content: "Post with attached product"
       });
     expect(post.statusCode).toBe(201);
@@ -986,7 +986,7 @@ describeIfDatabase("integration api flows", () => {
       const created = await request(asyncApp)
         .post("/api/v1/posts")
         .set("Authorization", `Bearer ${token}`)
-        .send({ postType: "community", content: "video pending processing" });
+        .send({ postType: "post", content: "video pending processing" });
       expect(created.statusCode).toBe(201);
 
       const attach = await request(asyncApp)

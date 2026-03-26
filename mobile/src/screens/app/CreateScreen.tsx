@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Image,
   KeyboardAvoidingView,
@@ -53,9 +53,7 @@ function SectionTitle({ children }: { children: string }) {
 
 export function CreateScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const [postType, setPostType] = useState<"community" | "recitation" | "short_video">(
-    "community"
-  );
+  const [postType, setPostType] = useState<"post" | "recitation" | "marketplace">("post");
   const [content, setContent] = useState("");
   const [tagsInput, setTagsInput] = useState("");
   const [selectedFile, setSelectedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
@@ -129,6 +127,12 @@ export function CreateScreen({ navigation }: Props) {
     retry: false
   });
   const igConnected = Boolean(instagramQuery.data?.connected);
+
+  useEffect(() => {
+    if (sellThis) {
+      setPostType("marketplace");
+    }
+  }, [sellThis]);
 
   const pickMedia = async () => {
     const result = await DocumentPicker.getDocumentAsync({
@@ -554,13 +558,20 @@ export function CreateScreen({ navigation }: Props) {
           <View style={styles.moreSection}>
             <Text style={styles.moreHeading}>Post type</Text>
             <View style={styles.typeRowWrap}>
-              {(["community", "recitation", "short_video"] as const).map((type) => (
+              {(
+                [
+                  ["post", "Post"],
+                  ["recitation", "Recitation"],
+                  ["marketplace", "Marketplace"]
+                ] as const
+              ).map(([type, label]) => (
                 <Pressable
                   key={type}
                   onPress={() => setPostType(type)}
-                  style={[styles.chip, postType === type ? styles.chipActive : null]}
+                  disabled={sellThis}
+                  style={[styles.chip, postType === type ? styles.chipActive : null, sellThis ? { opacity: 0.5 } : null]}
                 >
-                  <Text style={styles.chipText}>{type}</Text>
+                  <Text style={styles.chipText}>{label}</Text>
                 </Pressable>
               ))}
             </View>

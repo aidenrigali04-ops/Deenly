@@ -64,7 +64,7 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
     const response = await request.post(`${backendBaseUrl}/posts`, {
       headers: { Authorization: `Bearer ${creatorToken}` },
       data: {
-        postType: "community",
+        postType: "post",
         content: `Seed post ${i} for pagination ${timestamp}`
       }
     });

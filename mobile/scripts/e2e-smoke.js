@@ -80,7 +80,7 @@ async function run() {
     method: "POST",
     token,
     body: {
-      postType: "community",
+      postType: "post",
       content: "Mobile smoke post"
     }
   });
@@ -157,7 +157,7 @@ async function run() {
     method: "POST",
     token,
     body: {
-      postType: "community",
+      postType: "post",
       content: "Mobile smoke media post"
     }
   });

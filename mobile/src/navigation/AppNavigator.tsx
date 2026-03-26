@@ -12,6 +12,7 @@ import { LoginScreen } from "../screens/auth/LoginScreen";
 import { SignupScreen } from "../screens/auth/SignupScreen";
 import { WelcomeScreen } from "../screens/auth/WelcomeScreen";
 import { FeedScreen } from "../screens/app/FeedScreen";
+import { MarketplaceFeedScreen } from "../screens/app/MarketplaceFeedScreen";
 import { RecitationScreen } from "../screens/app/RecitationScreen";
 import { MessagesScreen } from "../screens/app/MessagesScreen";
 import { SearchScreen } from "../screens/app/SearchScreen";
@@ -35,6 +36,7 @@ import { CreatorEconomyScreen } from "../screens/app/CreatorEconomyScreen";
 
 export type AppTabParamList = {
   HomeTab: undefined;
+  MarketplaceTab: undefined;
   RecitationTab: undefined;
   MessagesTab: undefined;
   SearchTab: undefined;
@@ -85,6 +87,11 @@ function AppTabs() {
       }}
     >
       <Tab.Screen name="HomeTab" component={FeedScreen} options={{ title: "Home" }} />
+      <Tab.Screen
+        name="MarketplaceTab"
+        component={MarketplaceFeedScreen}
+        options={{ title: "Marketplace" }}
+      />
       <Tab.Screen
         name="RecitationTab"
         component={RecitationScreen}
