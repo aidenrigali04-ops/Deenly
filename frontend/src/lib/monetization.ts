@@ -6,7 +6,8 @@ export type ConnectStatus = {
   chargesEnabled?: boolean;
   payoutsEnabled?: boolean;
   detailsSubmitted?: boolean;
-  dashboardUrl?: string;
+  /** Present when Stripe allows an Express login link for this account */
+  dashboardUrl?: string | null;
 };
 
 export type BoostTier = "standard" | "boosted" | "aggressive";

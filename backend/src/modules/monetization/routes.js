@@ -345,14 +345,21 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
         ]
       );
 
-      const dashboardLink = await monetizationGateway.createDashboardLink(accountRow.stripe_account_id);
+      let dashboardUrl = null;
+      try {
+        const dashboardLink = await monetizationGateway.createDashboardLink(accountRow.stripe_account_id);
+        dashboardUrl = dashboardLink.url;
+      } catch {
+        // Express login links are not available until Stripe enables dashboard access for this account.
+      }
+
       return res.status(200).json({
         connected: true,
         stripeAccountId: accountRow.stripe_account_id,
         chargesEnabled: Boolean(stripeAccount.charges_enabled),
         payoutsEnabled: Boolean(stripeAccount.payouts_enabled),
         detailsSubmitted: Boolean(stripeAccount.details_submitted),
-        dashboardUrl: dashboardLink.url
+        dashboardUrl
       });
     })
   );
@@ -1009,8 +1016,12 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
     "/webhooks/stripe",
     asyncHandler(async (req, res) => {
       const signature = req.headers["stripe-signature"];
+      const rawBody = req.rawBody;
+      if (!Buffer.isBuffer(rawBody) || rawBody.length === 0) {
+        throw httpError(400, "Stripe webhook requires the raw request body for signature verification");
+      }
       const event = monetizationGateway.constructWebhookEvent({
-        rawBody: req.rawBody || Buffer.from(JSON.stringify(req.body || {})),
+        rawBody,
         signature: signature ? String(signature) : "",
         webhookSecret: config.stripeWebhookSecret
       });

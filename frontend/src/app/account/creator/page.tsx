@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
 import { fetchSessionMe } from "@/lib/auth";
@@ -52,6 +52,22 @@ export default function AccountCreatorPage() {
     queryFn: () => fetchConnectStatus(),
     enabled: Boolean(sessionQuery.data?.id)
   });
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const connect = params.get("connect");
+    if (connect !== "return" && connect !== "refresh") {
+      return;
+    }
+    void connectStatusQuery.refetch();
+    params.delete("connect");
+    const qs = params.toString();
+    const next = `${window.location.pathname}${qs ? `?${qs}` : ""}${window.location.hash}`;
+    window.history.replaceState({}, "", next);
+  }, [connectStatusQuery.refetch]);
   const myProductsQuery = useQuery({
     queryKey: ["account-monetization-products"],
     queryFn: () => fetchMyProducts(),

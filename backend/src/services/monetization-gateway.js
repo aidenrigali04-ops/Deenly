@@ -6,14 +6,20 @@ function createMonetizationGateway({ config }) {
   const appBaseUrl = String(config?.appBaseUrl || "").replace(/\/+$/, "");
   const stripe = stripeSecretKey ? new Stripe(stripeSecretKey) : null;
 
-  function requireStripe() {
+  /** API calls that need Stripe (Connect, webhooks). Does not require APP_BASE_URL. */
+  function requireStripeClient() {
     if (!stripe) {
       throw httpError(503, "Monetization is not configured");
     }
+    return stripe;
+  }
+
+  /** Checkout and hosted redirect URLs need a public web app base URL. */
+  function requireAppBaseUrl() {
     if (!appBaseUrl) {
       throw httpError(503, "APP_BASE_URL is not configured");
     }
-    return stripe;
+    return appBaseUrl;
   }
 
   function normalizeCurrency(value) {
@@ -33,22 +39,23 @@ function createMonetizationGateway({ config }) {
   }
 
   async function retrieveConnectedAccount(accountId) {
-    const client = requireStripe();
+    const client = requireStripeClient();
     return client.accounts.retrieve(accountId);
   }
 
   async function createOnboardingLink(accountId) {
-    const client = requireStripe();
+    const client = requireStripeClient();
+    const base = requireAppBaseUrl();
     return client.accountLinks.create({
       account: accountId,
       type: "account_onboarding",
-      refresh_url: `${appBaseUrl}/account/creator?connect=refresh`,
-      return_url: `${appBaseUrl}/account/creator?connect=return`
+      refresh_url: `${base}/account/creator?connect=refresh`,
+      return_url: `${base}/account/creator?connect=return`
     });
   }
 
   async function createDashboardLink(accountId) {
-    const client = requireStripe();
+    const client = requireStripeClient();
     return client.accounts.createLoginLink(accountId);
   }
 
@@ -69,7 +76,8 @@ function createMonetizationGateway({ config }) {
     applicationFeeAmountMinor = null,
     platformFeeBps = null
   }) {
-    const client = requireStripe();
+    const client = requireStripeClient();
+    const base = requireAppBaseUrl();
     const normalizedMode = mode === "subscription" ? "subscription" : "payment";
     const paymentIntentData = {};
     if (
@@ -85,8 +93,8 @@ function createMonetizationGateway({ config }) {
     }
     return client.checkout.sessions.create({
       mode: normalizedMode,
-      success_url: `${appBaseUrl}/account/creator?checkout=success`,
-      cancel_url: `${appBaseUrl}/account/creator?checkout=cancel`,
+      success_url: `${base}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${base}/checkout/cancel`,
       payment_method_types: ["card"],
       line_items: [
         {
@@ -124,15 +132,15 @@ function createMonetizationGateway({ config }) {
   }
 
   function constructWebhookEvent({ rawBody, signature, webhookSecret }) {
-    const client = requireStripe();
     if (!signature || !webhookSecret) {
       throw httpError(401, "Missing webhook signature configuration");
     }
+    const client = requireStripeClient();
     return client.webhooks.constructEvent(rawBody, signature, webhookSecret);
   }
 
   async function retrieveCheckoutSession(sessionId) {
-    const client = requireStripe();
+    const client = requireStripeClient();
     return client.checkout.sessions.retrieve(sessionId);
   }
 

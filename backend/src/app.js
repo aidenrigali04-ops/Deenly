@@ -107,7 +107,11 @@ function createApp({
       windowMs: 60 * 1000,
       limit: 120,
       standardHeaders: true,
-      legacyHeaders: false
+      legacyHeaders: false,
+      skip: (req) => {
+        const url = String(req.originalUrl || req.url || req.path || "");
+        return url.includes("/monetization/webhooks/stripe");
+      }
     })
   );
   app.use(
@@ -127,6 +131,7 @@ function createApp({
         status: "ok",
         service: "deenly-backend",
         databaseConfigured: Boolean(config.databaseUrl),
+        stripeConfigured: Boolean(config.stripeSecretKey && config.stripeWebhookSecret),
         timestamp: new Date().toISOString()
       });
     })
