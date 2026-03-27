@@ -80,6 +80,9 @@ export default function AccountSettingsPage() {
             <Link href="/account/edit" className="btn-secondary inline-flex">
               Edit profile
             </Link>
+            <Link href="/account/purchases" className="btn-secondary inline-flex">
+              Purchases
+            </Link>
             <Link href="/account/creator" className="btn-secondary inline-flex">
               Creator hub
             </Link>

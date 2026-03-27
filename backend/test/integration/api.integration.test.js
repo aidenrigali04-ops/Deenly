@@ -135,6 +135,24 @@ describeIfDatabase("integration api flows", () => {
     expect(userMe.body.website_url).toBe("https://example.com/shop");
   });
 
+  it("returns empty monetization purchase history for a new user", async () => {
+    const register = await request(app).post("/api/v1/auth/register").send({
+      email: "purchases-empty@example.com",
+      username: "purchases_empty",
+      password: "StrongPass123",
+      displayName: "No Purchases Yet"
+    });
+    expect(register.statusCode).toBe(201);
+    const res = await request(app)
+      .get("/api/v1/monetization/purchases/me")
+      .set("Authorization", `Bearer ${register.body.tokens.accessToken}`);
+    expect(res.statusCode).toBe(200);
+    expect(Array.isArray(res.body.items)).toBe(true);
+    expect(res.body.items).toEqual([]);
+    expect(res.body.limit).toBe(20);
+    expect(res.body.offset).toBe(0);
+  });
+
   it("refreshes access tokens and invalidates refresh token on logout", async () => {
     const register = await request(app).post("/api/v1/auth/register").send({
       email: "refresh-user@example.com",

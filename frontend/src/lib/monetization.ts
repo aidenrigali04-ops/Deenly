@@ -210,6 +210,32 @@ export async function createTierCheckout(tierId: number, affiliateCode?: string)
   );
 }
 
+export type MyPurchaseRow = {
+  order_id: number;
+  kind: "product" | "support" | "subscription";
+  status: string;
+  amount_minor: number;
+  currency: string;
+  created_at: string;
+  seller_user_id: number;
+  seller_username: string;
+  seller_display_name: string;
+  product_id: number | null;
+  product_title: string | null;
+  product_type: "digital" | "service" | "subscription" | null;
+  tier_title: string | null;
+};
+
+export async function fetchMyPurchases(params?: { limit?: number; offset?: number }) {
+  const limit = params?.limit ?? 20;
+  const offset = params?.offset ?? 0;
+  const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  return apiRequest<{ limit: number; offset: number; items: MyPurchaseRow[] }>(
+    `/monetization/purchases/me?${qs.toString()}`,
+    { auth: true }
+  );
+}
+
 export async function fetchProductAccess(productId: number) {
   return apiRequest<{ canAccess: boolean; hasPurchased: boolean; isOwner: boolean }>(
     `/monetization/products/${productId}/access`,

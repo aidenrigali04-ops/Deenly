@@ -11,7 +11,29 @@ type UserResult = {
   username: string;
   display_name: string;
   bio: string | null;
+  business_offering: string | null;
+  is_verified: boolean;
 };
+
+function truncateOffering(text: string, max = 120) {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, max - 1)}…`;
+}
+
+function SearchVerifiedBadge() {
+  return (
+    <span
+      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sky-600 text-white"
+      title="Verified on Deenly"
+    >
+      <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
+        <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <span className="sr-only">Verified</span>
+    </span>
+  );
+}
 
 type PostResult = {
   id: number;
@@ -86,8 +108,14 @@ export default function SearchPage() {
                 href={`/users/${user.user_id}`}
                 className="block rounded-lg border border-white/10 bg-surface/30 p-3 hover:border-accent/40"
               >
-                <p className="font-medium">{user.display_name}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-medium">{user.display_name}</p>
+                  {user.is_verified ? <SearchVerifiedBadge /> : null}
+                </div>
                 <p className="text-sm text-muted">@{user.username}</p>
+                {user.business_offering ? (
+                  <p className="mt-2 line-clamp-2 text-xs text-text/80">{truncateOffering(user.business_offering)}</p>
+                ) : null}
                 {user.bio ? <p className="mt-2 line-clamp-2 text-xs text-muted">{user.bio}</p> : null}
               </Link>
             ))}

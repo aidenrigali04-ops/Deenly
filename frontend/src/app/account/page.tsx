@@ -323,6 +323,9 @@ export default function AccountPage() {
                 <Link href="/account/edit" className="btn-primary min-w-[120px] flex-1 text-center sm:flex-none">
                   Edit profile
                 </Link>
+                <Link href="/account/purchases" className="btn-secondary min-w-[120px] flex-1 text-center sm:flex-none">
+                  Purchases
+                </Link>
                 <button
                   type="button"
                   disabled

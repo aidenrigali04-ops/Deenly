@@ -242,6 +242,49 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
     return row.stripe_account_id;
   }
 
+  router.get(
+    "/purchases/me",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+      const offset = Math.max(Number(req.query.offset) || 0, 0);
+      const result = await db.query(
+        `SELECT
+           o.id AS order_id,
+           o.kind,
+           o.status,
+           o.amount_minor,
+           o.currency,
+           o.created_at,
+           o.seller_user_id,
+           u.username AS seller_username,
+           sp.display_name AS seller_display_name,
+           o.product_id,
+           cp.title AS product_title,
+           cp.product_type,
+           cst.title AS tier_title
+         FROM orders o
+         JOIN users u ON u.id = o.seller_user_id
+         JOIN profiles sp ON sp.user_id = o.seller_user_id
+         LEFT JOIN checkout_sessions cs ON cs.id = o.checkout_session_id
+         LEFT JOIN creator_products cp ON cp.id = o.product_id
+         LEFT JOIN creator_subscription_tiers cst
+           ON o.kind = 'subscription'
+          AND (cs.metadata->>'tierId') ~ '^[0-9]+$'
+          AND cst.id = (cs.metadata->>'tierId')::int
+         WHERE o.buyer_user_id = $1
+         ORDER BY o.created_at DESC, o.id DESC
+         LIMIT $2 OFFSET $3`,
+        [req.user.id, limit, offset]
+      );
+      res.status(200).json({
+        limit,
+        offset,
+        items: result.rows
+      });
+    })
+  );
+
   router.post(
     "/connect/account",
     authMiddleware,
