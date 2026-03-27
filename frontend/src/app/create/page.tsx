@@ -14,7 +14,78 @@ import {
 } from "@/lib/instagram";
 import { resolveMediaUrl } from "@/lib/media-url";
 import { ErrorState } from "@/components/states";
-import { attachProductToPost, fetchMyProducts, formatMinorCurrency } from "@/lib/monetization";
+import {
+  attachProductToPost,
+  fetchConnectStatus,
+  fetchMyProducts,
+  formatMinorCurrency
+} from "@/lib/monetization";
+
+const CREATE_DRAFT_VERSION = 1 as const;
+
+type CreatePostDraftV1 = {
+  v: typeof CREATE_DRAFT_VERSION;
+  content: string;
+  tagsInput: string;
+  sellThis: boolean;
+  selectedProductId: string;
+  audienceTarget: "b2b" | "b2c" | "both";
+  businessCategory: string;
+  ctaLabel: string;
+  ctaUrl: string;
+  postType: string;
+  crossPostToInstagram: boolean;
+};
+
+type CreateDraftState =
+  | { kind: "loading" }
+  | { kind: "offer"; payload: CreatePostDraftV1 }
+  | { kind: "ready" };
+
+function parseCreateDraft(raw: string): CreatePostDraftV1 | null {
+  try {
+    const p = JSON.parse(raw) as unknown;
+    if (!p || typeof p !== "object") {
+      return null;
+    }
+    const o = p as Record<string, unknown>;
+    if (o.v !== CREATE_DRAFT_VERSION) {
+      return null;
+    }
+    return {
+      v: CREATE_DRAFT_VERSION,
+      content: typeof o.content === "string" ? o.content : "",
+      tagsInput: typeof o.tagsInput === "string" ? o.tagsInput : "",
+      sellThis: Boolean(o.sellThis),
+      selectedProductId: typeof o.selectedProductId === "string" ? o.selectedProductId : "",
+      audienceTarget:
+        o.audienceTarget === "b2b" || o.audienceTarget === "b2c" || o.audienceTarget === "both"
+          ? o.audienceTarget
+          : "both",
+      businessCategory: typeof o.businessCategory === "string" ? o.businessCategory : "",
+      ctaLabel: typeof o.ctaLabel === "string" ? o.ctaLabel : "",
+      ctaUrl: typeof o.ctaUrl === "string" ? o.ctaUrl : "",
+      postType: typeof o.postType === "string" ? o.postType : "post",
+      crossPostToInstagram: Boolean(o.crossPostToInstagram)
+    };
+  } catch {
+    return null;
+  }
+}
+
+function isDraftEmpty(d: CreatePostDraftV1): boolean {
+  return (
+    !d.content.trim() &&
+    !d.tagsInput.trim() &&
+    !d.sellThis &&
+    !d.selectedProductId &&
+    !d.businessCategory &&
+    !d.ctaLabel.trim() &&
+    !d.ctaUrl.trim() &&
+    d.postType === "post" &&
+    !d.crossPostToInstagram
+  );
+}
 
 type CreatePostResponse = {
   id: number;
@@ -61,6 +132,11 @@ export default function CreatePage() {
     queryFn: () => fetchMyProducts(),
     enabled: Boolean(sessionQuery.data?.id)
   });
+  const connectQuery = useQuery({
+    queryKey: ["create-connect-status"],
+    queryFn: () => fetchConnectStatus(),
+    enabled: Boolean(sessionQuery.data?.id)
+  });
 
   const instagramQuery = useQuery({
     queryKey: ["instagram-status"],
@@ -84,6 +160,71 @@ export default function CreatePage() {
   const [ctaLabel, setCtaLabel] = useState("");
   const [ctaUrl, setCtaUrl] = useState("");
   const [instagramBanner, setInstagramBanner] = useState("");
+  const [draftState, setDraftState] = useState<CreateDraftState>({ kind: "loading" });
+
+  const userId = sessionQuery.data?.id;
+  const draftStorageKey = userId ? `deenly-create-draft-${userId}` : null;
+
+  useEffect(() => {
+    if (!draftStorageKey || typeof window === "undefined") {
+      setDraftState({ kind: "ready" });
+      return;
+    }
+    const raw = localStorage.getItem(draftStorageKey);
+    if (!raw) {
+      setDraftState({ kind: "ready" });
+      return;
+    }
+    const parsed = parseCreateDraft(raw);
+    if (parsed && !isDraftEmpty(parsed)) {
+      setDraftState({ kind: "offer", payload: parsed });
+    } else {
+      setDraftState({ kind: "ready" });
+    }
+  }, [draftStorageKey]);
+
+  useEffect(() => {
+    if (draftState.kind !== "ready" || !draftStorageKey || typeof window === "undefined") {
+      return;
+    }
+    const payload: CreatePostDraftV1 = {
+      v: CREATE_DRAFT_VERSION,
+      content,
+      tagsInput,
+      sellThis,
+      selectedProductId,
+      audienceTarget,
+      businessCategory,
+      ctaLabel,
+      ctaUrl,
+      postType,
+      crossPostToInstagram
+    };
+    if (isDraftEmpty(payload)) {
+      return;
+    }
+    const t = window.setTimeout(() => {
+      try {
+        localStorage.setItem(draftStorageKey, JSON.stringify(payload));
+      } catch {
+        /* ignore quota */
+      }
+    }, 500);
+    return () => window.clearTimeout(t);
+  }, [
+    draftState.kind,
+    draftStorageKey,
+    content,
+    tagsInput,
+    sellThis,
+    selectedProductId,
+    audienceTarget,
+    businessCategory,
+    ctaLabel,
+    ctaUrl,
+    postType,
+    crossPostToInstagram
+  ]);
 
   const disconnectInstagramMutation = useMutation({
     mutationFn: () => disconnectInstagram(),
@@ -245,6 +386,14 @@ export default function CreatePage() {
         }
       }
 
+      if (draftStorageKey && typeof window !== "undefined") {
+        try {
+          localStorage.removeItem(draftStorageKey);
+        } catch {
+          /* ignore */
+        }
+      }
+
       router.push(`/posts/${post.id}`);
     } catch (err) {
       setError((err as Error).message || "Unable to create post");
@@ -279,6 +428,52 @@ export default function CreatePage() {
       </header>
 
       <form className="section-stack" onSubmit={onSubmit}>
+        {draftState.kind === "offer" ? (
+          <div
+            className="flex flex-col gap-2 rounded-panel border border-black/15 bg-surface px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+            role="status"
+          >
+            <p className="text-sm text-text">Restore your unsaved draft from this device?</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn-primary px-3 py-1.5 text-xs"
+                onClick={() => {
+                  if (draftState.kind !== "offer") {
+                    return;
+                  }
+                  const p = draftState.payload;
+                  setContent(p.content);
+                  setTagsInput(p.tagsInput);
+                  setSellThis(p.sellThis);
+                  setSelectedProductId(p.selectedProductId);
+                  setAudienceTarget(p.audienceTarget);
+                  setBusinessCategory(p.businessCategory);
+                  setCtaLabel(p.ctaLabel);
+                  setCtaUrl(p.ctaUrl);
+                  setPostType(p.postType);
+                  setCrossPostToInstagram(p.crossPostToInstagram);
+                  setDraftState({ kind: "ready" });
+                }}
+              >
+                Restore
+              </button>
+              <button
+                type="button"
+                className="btn-secondary px-3 py-1.5 text-xs"
+                onClick={() => {
+                  if (draftStorageKey && typeof window !== "undefined") {
+                    localStorage.removeItem(draftStorageKey);
+                  }
+                  setDraftState({ kind: "ready" });
+                }}
+              >
+                Discard
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Media</p>
           <input
@@ -392,11 +587,30 @@ export default function CreatePage() {
 
             {sellThis ? (
               <div className="space-y-3 border-t border-black/10 pt-3">
+                <div className="rounded-control border border-black/10 bg-surface px-3 py-2 text-xs text-muted">
+                  <p className="font-medium text-text">Payouts</p>
+                  {connectQuery.isLoading ? (
+                    <p className="mt-1">Checking Stripe Connect…</p>
+                  ) : connectQuery.error ? (
+                    <p className="mt-1">Could not load Connect status.</p>
+                  ) : (
+                    <p className="mt-1">
+                      {connectQuery.data?.connected ? "Stripe Connect: linked." : "Stripe Connect: not linked yet."}{" "}
+                      {connectQuery.data?.chargesEnabled ? "Charges on." : connectQuery.data?.connected ? "Charges pending onboarding." : null}{" "}
+                      <Link
+                        href="/account/creator?tab=payouts"
+                        className="text-sky-600 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
+                      >
+                        Manage payouts
+                      </Link>
+                    </p>
+                  )}
+                </div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted">Choose product</p>
                 <p className="text-xs text-muted">
                   Products are created in{" "}
                   <Link
-                    href="/account/creator"
+                    href="/account/creator?tab=products"
                     className="text-sky-600 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
                   >
                     Creator hub
@@ -430,7 +644,16 @@ export default function CreatePage() {
                 {myProductsQuery.isFetching ? (
                   <p className="text-xs text-muted">Loading your products…</p>
                 ) : (myProductsQuery.data?.items?.length ?? 0) === 0 ? (
-                  <p className="text-xs text-muted">No products yet. Add one in Creator hub first.</p>
+                  <p className="text-xs text-muted">
+                    No products yet.{" "}
+                    <Link
+                      href="/account/creator?tab=products"
+                      className="font-medium text-sky-600 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
+                    >
+                      Create a product
+                    </Link>{" "}
+                    in Creator hub first.
+                  </p>
                 ) : null}
 
                 <p className="text-xs text-muted">

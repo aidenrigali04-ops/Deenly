@@ -114,6 +114,8 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
     )
     .toBe(true);
 
+  // Load more lives on the home feed (FeedView), not the account profile grid.
+  await page.goto(`${baseURL}/home`);
   await expect(page.getByRole("button", { name: "Load more" })).toBeVisible();
   const postLinks = page.getByRole("link", { name: "Open post" });
   const initialPostCount = await postLinks.count();

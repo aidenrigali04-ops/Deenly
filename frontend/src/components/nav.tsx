@@ -106,23 +106,39 @@ function Icon({
   );
 }
 
+type RailIcon = "home" | "video" | "marketplace" | "send" | "search" | "upload" | "user" | "admin" | "dhikr" | "creator";
+
+type RailLink = {
+  href: string;
+  label: string;
+  icon: RailIcon;
+  /** Extra context for hover tooltip and sighted users */
+  title?: string;
+  /** Shown under the icon from md breakpoint (e.g. Creator hub) */
+  subLabel?: string;
+};
+
 function NavLink({
   href,
   label,
   active,
-  icon
+  icon,
+  title: titleAttr,
+  subLabel
 }: {
   href: string;
   label: string;
   active: boolean;
-  icon: "home" | "video" | "marketplace" | "send" | "search" | "upload" | "user" | "admin" | "dhikr" | "creator";
+  icon: RailIcon;
+  title?: string;
+  subLabel?: string;
 }) {
   return (
     <Link
       href={href}
       aria-label={label}
-      title={label}
-      className="group flex min-h-[44px] min-w-[44px] items-center justify-center rounded-pill p-1 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25 focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+      title={titleAttr ?? label}
+      className="group flex min-h-[44px] min-w-[44px] flex-col items-center justify-center gap-0.5 rounded-pill p-1 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25 focus-visible:ring-offset-2 focus-visible:ring-offset-card"
     >
       <span
         className={`grid h-11 w-11 place-items-center rounded-full border transition ${
@@ -133,21 +149,33 @@ function NavLink({
       >
         <Icon kind={icon} />
       </span>
+      {subLabel ? (
+        <span className="hidden max-w-[76px] text-center text-[9px] leading-tight text-muted md:block">{subLabel}</span>
+      ) : null}
       <span className="sr-only">{label}</span>
     </Link>
   );
 }
 
-const railLinks = [
-  { href: "/home", label: "Home", icon: "home" as const },
-  { href: "/marketplace", label: "Marketplace", icon: "marketplace" as const },
-  { href: "/recitation", label: "Recitation", icon: "video" as const },
-  { href: "/messages", label: "Messages", icon: "send" as const },
-  { href: "/search", label: "Search", icon: "search" as const },
-  { href: "/dhikr", label: "Dhikr", icon: "dhikr" as const },
-  { href: "/create", label: "Upload", icon: "upload" as const },
-  { href: "/account/creator", label: "Creator", icon: "creator" as const },
-  { href: "/account", label: "Account", icon: "user" as const }
+const feedRailLinks: RailLink[] = [
+  { href: "/home", label: "Home", icon: "home" },
+  { href: "/marketplace", label: "Marketplace", icon: "marketplace" },
+  { href: "/recitation", label: "Recitation", icon: "video" },
+  { href: "/messages", label: "Messages", icon: "send" },
+  { href: "/search", label: "Search", icon: "search" },
+  { href: "/dhikr", label: "Dhikr", icon: "dhikr" }
+];
+
+const youRailLinks: RailLink[] = [
+  { href: "/create", label: "Upload", icon: "upload", title: "Create post" },
+  {
+    href: "/account/creator",
+    label: "Creator hub",
+    icon: "creator",
+    title: "Creator hub — products, payouts, and affiliates",
+    subLabel: "Earn"
+  },
+  { href: "/account", label: "Account", icon: "user" }
 ];
 
 export function Nav() {
@@ -178,23 +206,54 @@ export function Nav() {
       </div>
 
       <nav className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-1 md:gap-2.5" aria-label="Primary">
-        {railLinks.map((link) => {
-          const active =
-            link.href === "/account"
-              ? pathname.startsWith("/account") && !pathname.startsWith("/account/creator")
-              : link.href === "/home"
+        <div className="contents md:contents">
+          <p className="col-span-full hidden text-[10px] uppercase tracking-[0.18em] text-muted md:block">Discover</p>
+          {feedRailLinks.map((link) => {
+            const active =
+              link.href === "/home"
                 ? pathname === "/home" || pathname === "/"
                 : pathname.startsWith(link.href);
-          return (
-            <NavLink
-              key={link.href}
-              href={link.href}
-              label={link.label}
-              icon={link.icon}
-              active={active}
-            />
-          );
-        })}
+            return (
+              <NavLink
+                key={link.href}
+                href={link.href}
+                label={link.label}
+                icon={link.icon}
+                active={active}
+                title={link.title}
+                subLabel={link.subLabel}
+              />
+            );
+          })}
+        </div>
+        <div
+          className="col-span-full hidden border-t border-black/10 md:my-1 md:block"
+          aria-hidden
+        />
+        <div className="contents md:contents">
+          <p className="col-span-full hidden text-[10px] uppercase tracking-[0.18em] text-muted md:block">
+            You &amp; create
+          </p>
+          {youRailLinks.map((link) => {
+            const active =
+              link.href === "/account"
+                ? pathname.startsWith("/account") && !pathname.startsWith("/account/creator")
+                : link.href === "/account/creator"
+                  ? pathname.startsWith("/account/creator")
+                  : pathname.startsWith(link.href);
+            return (
+              <NavLink
+                key={link.href}
+                href={link.href}
+                label={link.label}
+                icon={link.icon}
+                active={active}
+                title={link.title}
+                subLabel={link.subLabel}
+              />
+            );
+          })}
+        </div>
         {canAccessAdmin ? (
           <NavLink
             href="/admin"
