@@ -319,10 +319,30 @@ function AccountCreatorPageInner() {
   const productCount = products.length;
   const publishedProductCount = products.filter((p) => p.status === "published").length;
 
-  const payoutsPanel = (c: ConnectStatus | undefined) => (
+  const payoutsPanel = (c: ConnectStatus | undefined) => {
+    const stripeSetupComplete = Boolean(c?.detailsSubmitted) && Boolean(c?.chargesEnabled);
+    return (
     <div className="space-y-6">
       <section>
         <h2 className="section-title text-sm">Stripe Connect</h2>
+        {!connectLoading && c && !stripeSetupComplete ? (
+          <div className="mt-3 rounded-control border border-sky-200/80 bg-sky-50/60 px-3 py-3 text-xs text-muted">
+            <p className="font-semibold text-text">Steps to connect</p>
+            <ol className="mt-2 list-decimal space-y-2 pl-4">
+              <li className={!c.connected ? "font-medium text-text" : ""}>
+                <span className="text-text">Connect Stripe account</span> — Creates your linked Express account for payouts.
+              </li>
+              <li className={c.connected && !c.chargesEnabled ? "font-medium text-text" : ""}>
+                <span className="text-text">Continue setup in Stripe</span> — Add business details and bank info on
+                Stripe&apos;s secure page.
+              </li>
+              <li>
+                <span className="text-text">Return to Deenly</span> — Status below updates when Stripe enables charges and
+                payouts.
+              </li>
+            </ol>
+          </div>
+        ) : null}
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           <div className="rounded-control border border-black/10 bg-surface px-3 py-2">
             <p className="text-xs uppercase tracking-wide text-muted">Account</p>
@@ -343,20 +363,21 @@ function AccountCreatorPageInner() {
             </dl>
             <div className="mt-2 flex flex-wrap gap-2">
               <button
-                className="btn-secondary px-3 py-1.5 text-xs"
+                className="btn-primary px-3 py-1.5 text-xs"
                 type="button"
                 onClick={() => connectAccountMutation.mutate()}
                 disabled={connectAccountMutation.isPending}
               >
-                {connectAccountMutation.isPending ? "Creating..." : "Create account"}
+                {connectAccountMutation.isPending ? "Connecting…" : "Connect Stripe account"}
               </button>
               <button
                 className="btn-secondary px-3 py-1.5 text-xs"
                 type="button"
                 onClick={() => onboardingMutation.mutate()}
-                disabled={onboardingMutation.isPending}
+                disabled={onboardingMutation.isPending || !c?.connected}
+                title={!c?.connected ? "Connect your Stripe account first" : undefined}
               >
-                {onboardingMutation.isPending ? "Opening..." : "Onboarding"}
+                {onboardingMutation.isPending ? "Opening…" : "Continue setup in Stripe"}
               </button>
               {c?.dashboardUrl ? (
                 <a
@@ -383,7 +404,8 @@ function AccountCreatorPageInner() {
         </div>
       </section>
     </div>
-  );
+    );
+  };
 
   const productFormAndCatalog = (
     <>
@@ -808,9 +830,9 @@ function AccountCreatorPageInner() {
                 productCount={productCount}
                 publishedProductCount={publishedProductCount}
                 onNavigateTab={setTab}
-                onCreateAccount={() => connectAccountMutation.mutate()}
+                onConnectStripe={() => connectAccountMutation.mutate()}
                 onOpenOnboarding={() => onboardingMutation.mutate()}
-                createAccountPending={connectAccountMutation.isPending}
+                connectStripePending={connectAccountMutation.isPending}
                 onboardingPending={onboardingMutation.isPending}
               />
             </div>

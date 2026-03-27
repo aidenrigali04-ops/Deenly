@@ -609,17 +609,19 @@ export function CreatePostComposer({
                 <p className="mt-1">Could not load Connect status.</p>
               ) : (
                 <p className="mt-1">
-                  {connectQuery.data?.connected ? "Stripe Connect: linked." : "Stripe Connect: not linked yet."}{" "}
+                  {connectQuery.data?.connected
+                    ? "Stripe Connect: linked."
+                    : "Connect your Stripe account in Creator hub to get paid."}{" "}
                   {connectQuery.data?.chargesEnabled
                     ? "Charges on."
                     : connectQuery.data?.connected
-                      ? "Charges pending onboarding."
+                      ? "Finish setup in Stripe if charges are still pending."
                       : null}{" "}
                   <Link
                     href="/account/creator?tab=payouts"
                     className="text-sky-600 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
                   >
-                    Manage payouts
+                    Stripe Connect
                   </Link>
                 </p>
               )}
