@@ -3,7 +3,7 @@ const jwt = require("jsonwebtoken");
 const { authenticate } = require("../../middleware/auth");
 const { requireAccessSecret } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
-const { optionalString, requireString } = require("../../utils/validators");
+const { optionalString, optionalWebsiteUrl, requireString } = require("../../utils/validators");
 const { httpError } = require("../../utils/http-error");
 const { getPrayerSettings, updatePrayerSettings } = require("../../services/prayer-settings");
 const INTEREST_KEYS = new Set(["post", "recitation", "marketplace"]);
@@ -74,7 +74,7 @@ function createUsersRouter({ db, config }) {
     authMiddleware,
     asyncHandler(async (req, res) => {
       const result = await db.query(
-        `SELECT p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.created_at, p.updated_at
+        `SELECT p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.business_offering, p.website_url, p.is_verified, p.created_at, p.updated_at
          FROM profiles p
          JOIN users u ON u.id = p.user_id
          WHERE p.user_id = $1
@@ -181,15 +181,17 @@ function createUsersRouter({ db, config }) {
       const displayName = requireString(req.body?.displayName, "displayName", 2, 64);
       const bio = optionalString(req.body?.bio, "bio", 240);
       const avatarUrl = optionalString(req.body?.avatarUrl, "avatarUrl", 2048);
+      const businessOffering = optionalString(req.body?.businessOffering, "businessOffering", 2000);
+      const websiteUrl = optionalWebsiteUrl(req.body?.websiteUrl, "websiteUrl", 2048);
 
       const result = await db.query(
         `UPDATE profiles p
-         SET display_name = $1, bio = $2, avatar_url = $3, updated_at = NOW()
+         SET display_name = $1, bio = $2, avatar_url = $3, business_offering = $4, website_url = $5, updated_at = NOW()
          FROM users u
-         WHERE p.user_id = $4
+         WHERE p.user_id = $6
            AND u.id = p.user_id
-         RETURNING p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.created_at, p.updated_at`,
-        [displayName, bio, avatarUrl, req.user.id]
+         RETURNING p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.business_offering, p.website_url, p.is_verified, p.created_at, p.updated_at`,
+        [displayName, bio, avatarUrl, businessOffering, websiteUrl, req.user.id]
       );
 
       if (result.rowCount === 0) {
@@ -226,7 +228,7 @@ function createUsersRouter({ db, config }) {
       }
 
       const result = await db.query(
-        `SELECT p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.created_at, p.updated_at
+        `SELECT p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.business_offering, p.website_url, p.is_verified, p.created_at, p.updated_at
          FROM profiles p
          JOIN users u ON u.id = p.user_id
          WHERE p.user_id = $1
@@ -253,7 +255,7 @@ function createUsersRouter({ db, config }) {
       const search = (req.query.search || "").toString().trim();
 
       const result = await db.query(
-        `SELECT p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.created_at, p.updated_at
+        `SELECT p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.business_offering, p.website_url, p.is_verified, p.created_at, p.updated_at
          FROM profiles p
          JOIN users u ON u.id = p.user_id
          WHERE ($1::text = '' OR p.display_name ILIKE ('%' || $1 || '%') OR u.username ILIKE ('%' || $1 || '%'))

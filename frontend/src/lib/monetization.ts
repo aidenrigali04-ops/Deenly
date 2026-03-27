@@ -33,6 +33,9 @@ export type CreatorProduct = {
   updated_at: string;
 };
 
+/** Published catalog rows from GET /monetization/products/creator/:id (no delivery_media_key). */
+export type PublicCreatorProduct = Omit<CreatorProduct, "delivery_media_key">;
+
 export type SubscriptionTier = {
   id: number;
   creator_user_id: number;
@@ -75,6 +78,10 @@ export async function createOnboardingLink() {
 
 export async function fetchMyProducts() {
   return apiRequest<{ items: CreatorProduct[] }>("/monetization/products/me", { auth: true });
+}
+
+export async function fetchCreatorProducts(creatorUserId: number) {
+  return apiRequest<{ items: PublicCreatorProduct[] }>(`/monetization/products/creator/${creatorUserId}`);
 }
 
 export async function createProduct(input: {

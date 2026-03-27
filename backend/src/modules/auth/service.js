@@ -2,7 +2,7 @@ const argon2 = require("argon2");
 const { randomUUID } = require("node:crypto");
 const jwt = require("jsonwebtoken");
 const { httpError } = require("../../utils/http-error");
-const { requireString } = require("../../utils/validators");
+const { optionalString, optionalWebsiteUrl, requireString } = require("../../utils/validators");
 
 function requireRefreshSecret(config) {
   const secret = config?.jwtRefreshSecret;
@@ -140,6 +140,8 @@ function createAuthService({ db, config, analytics }) {
     const password = requireString(input.password, "password", 8, 128);
     const displayName = requireString(input.displayName, "displayName", 2, 64);
     const username = normalizeUsername(input.username);
+    const businessOffering = optionalString(input.businessOffering, "businessOffering", 2000);
+    const websiteUrl = optionalWebsiteUrl(input.websiteUrl, "websiteUrl", 2048);
 
     const role =
       config.adminOwnerEmail && email === String(config.adminOwnerEmail).toLowerCase()
@@ -173,9 +175,9 @@ function createAuthService({ db, config, analytics }) {
 
     const user = result.rows[0];
     await db.query(
-      `INSERT INTO profiles (user_id, display_name)
-       VALUES ($1, $2)`,
-      [user.id, displayName]
+      `INSERT INTO profiles (user_id, display_name, business_offering, website_url)
+       VALUES ($1, $2, $3, $4)`,
+      [user.id, displayName, businessOffering, websiteUrl]
     );
 
     const session = await issueSessionTokens(user, "signup");
@@ -282,8 +284,8 @@ function createAuthService({ db, config, analytics }) {
     );
     const user = created.rows[0];
     await db.query(
-      `INSERT INTO profiles (user_id, display_name, avatar_url)
-       VALUES ($1, $2, $3)`,
+      `INSERT INTO profiles (user_id, display_name, avatar_url, business_offering, website_url)
+       VALUES ($1, $2, $3, NULL, NULL)`,
       [user.id, displayName.slice(0, 64), profile.picture || null]
     );
     return issueSessionTokens(user, "signup");

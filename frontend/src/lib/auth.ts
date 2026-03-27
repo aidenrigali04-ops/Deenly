@@ -7,6 +7,8 @@ export async function signup(input: {
   username: string;
   password: string;
   displayName: string;
+  businessOffering?: string | null;
+  websiteUrl?: string | null;
 }) {
   const result = await apiRequest<AuthResponse>("/auth/register", {
     method: "POST",

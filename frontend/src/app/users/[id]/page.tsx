@@ -9,13 +9,36 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { resolveMediaUrl } from "@/lib/media-url";
 import { followUser, unfollowUser } from "@/lib/follows";
 import {
+  createProductCheckout,
   createSupportCheckout,
   createTierCheckout,
+  fetchCreatorProducts,
   fetchCreatorSubscriptionAccess,
   fetchCreatorTiers,
-  formatMinorCurrency
+  formatMinorCurrency,
+  type PublicCreatorProduct
 } from "@/lib/monetization";
 import { useSessionStore } from "@/store/session-store";
+
+function ProfileVerifiedBadge() {
+  return (
+    <span
+      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-600 text-white shadow-sm"
+      title="This account is verified by Deenly."
+    >
+      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
+        <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <span className="sr-only">Verified account</span>
+    </span>
+  );
+}
+
+function productTypeLabel(t: PublicCreatorProduct["product_type"]) {
+  if (t === "digital") return "Digital";
+  if (t === "service") return "Service";
+  return "Subscription";
+}
 
 type UserProfile = {
   user_id: number;
@@ -23,6 +46,9 @@ type UserProfile = {
   display_name: string;
   bio: string | null;
   avatar_url: string | null;
+  business_offering: string | null;
+  website_url: string | null;
+  is_verified?: boolean;
   posts_count: number;
   followers_count: number;
   following_count: number;
@@ -47,12 +73,14 @@ type FeedResponse = {
   items: ProfileFeedItem[];
 };
 
+type ProfileSectionTab = "grid" | "reels" | "saved" | "tagged" | "shop" | "listings";
+
 export default function UserProfilePage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const sessionUser = useSessionStore((state) => state.user);
   const userId = Number(params.id);
-  const [profileSectionTab, setProfileSectionTab] = useState<"grid" | "reels" | "saved" | "tagged">("grid");
+  const [profileSectionTab, setProfileSectionTab] = useState<ProfileSectionTab>("grid");
   const queryClient = useQueryClient();
 
   const profileQuery = useQuery({
@@ -130,6 +158,11 @@ export default function UserProfilePage() {
     queryFn: () => fetchCreatorSubscriptionAccess(userId),
     enabled: Number.isFinite(userId)
   });
+  const creatorProductsQuery = useQuery({
+    queryKey: ["creator-products-public", userId],
+    queryFn: () => fetchCreatorProducts(userId),
+    enabled: Number.isFinite(userId) && profileSectionTab === "shop"
+  });
 
   const likeMutation = useMutation({
     mutationFn: (postId: number) =>
@@ -164,6 +197,14 @@ export default function UserProfilePage() {
       }
     }
   });
+  const productCheckoutMutation = useMutation({
+    mutationFn: (productId: number) => createProductCheckout(productId),
+    onSuccess: (result) => {
+      if (result?.checkoutUrl && typeof window !== "undefined") {
+        window.location.assign(result.checkoutUrl);
+      }
+    }
+  });
 
   if (!Number.isFinite(userId)) {
     return <ErrorState message="Invalid user id." />;
@@ -192,11 +233,15 @@ export default function UserProfilePage() {
 
   const profileItems = postsQuery.data?.items || [];
   const visibleItems =
-    profileSectionTab === "saved" || profileSectionTab === "tagged"
+    profileSectionTab === "saved" || profileSectionTab === "tagged" || profileSectionTab === "shop"
       ? []
       : profileSectionTab === "reels"
         ? profileItems.filter((item) => Boolean(item.media_url))
-        : profileItems;
+        : profileSectionTab === "listings"
+          ? profileItems.filter((item) => item.post_type === "marketplace")
+          : profileItems;
+
+  const loginNext = encodeURIComponent(`/users/${userId}`);
 
   return (
     <div className="page-stack">
@@ -219,7 +264,12 @@ export default function UserProfilePage() {
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-xl font-semibold tracking-tight text-text md:text-2xl">@{user.username || "user"}</h1>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-xl font-semibold tracking-tight text-text md:text-2xl">
+                    @{user.username || "user"}
+                  </h1>
+                  {user.is_verified ? <ProfileVerifiedBadge /> : null}
+                </div>
                 <button
                   type="button"
                   className={user.is_following ? "btn-secondary px-5 py-2 text-sm" : "btn-primary px-5 py-2 text-sm"}
@@ -259,14 +309,34 @@ export default function UserProfilePage() {
               </p>
               <p className="mt-3 font-semibold text-text">{user.display_name}</p>
               {user.bio ? <p className="mt-2 whitespace-pre-line text-sm text-text/90">{user.bio}</p> : null}
+              {user.business_offering ? (
+                <div className="mt-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">Business / offering</p>
+                  <p className="mt-1 whitespace-pre-line text-sm text-text/90">{user.business_offering}</p>
+                </div>
+              ) : null}
+              {user.website_url ? (
+                <p className="mt-3 text-sm">
+                  <a
+                    href={user.website_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sky-700 underline decoration-sky-700/40 underline-offset-2 hover:text-sky-800"
+                  >
+                    Website
+                  </a>
+                </p>
+              ) : null}
               {followMutation.isSuccess ? <p className="mt-2 text-xs text-emerald-700">You&apos;re now following {user.display_name}.</p> : null}
               {unfollowMutation.isSuccess ? <p className="mt-2 text-xs text-muted">Unfollowed.</p> : null}
               <div className="mt-6 border-t border-black/10 pt-4">
-                <div className="flex justify-center gap-10 md:gap-14">
+                <div className="flex flex-wrap justify-center gap-6 md:gap-10">
                   {(
                     [
                       { id: "grid" as const, label: "Posts" },
                       { id: "reels" as const, label: "Media" },
+                      { id: "listings" as const, label: "Listings" },
+                      { id: "shop" as const, label: "Shop" },
                       { id: "saved" as const, label: "Saved" },
                       { id: "tagged" as const, label: "Tagged" }
                     ] as const
@@ -288,19 +358,104 @@ export default function UserProfilePage() {
                 </div>
               </div>
               <div className="pt-6">
-                {postsQuery.isLoading ? <LoadingState label="Loading posts..." /> : null}
-                {postsQuery.error ? <ErrorState message={(postsQuery.error as Error).message} /> : null}
-                {!postsQuery.isLoading && !postsQuery.error && (profileSectionTab === "saved" || profileSectionTab === "tagged") ? (
-                  <div className="py-16 text-center text-sm text-muted">Coming soon.</div>
-                ) : null}
-                {!postsQuery.isLoading &&
-                !postsQuery.error &&
-                visibleItems.length === 0 &&
-                profileSectionTab !== "saved" &&
-                profileSectionTab !== "tagged" ? (
-                  <div className="py-16 text-center text-sm text-muted">No posts from this member yet.</div>
-                ) : null}
-                {visibleItems.length > 0 ? (
+                {profileSectionTab === "shop" ? (
+                  <>
+                    {creatorProductsQuery.isLoading ? <LoadingState label="Loading shop..." /> : null}
+                    {creatorProductsQuery.error ? (
+                      <ErrorState message={(creatorProductsQuery.error as Error).message} />
+                    ) : null}
+                    {!creatorProductsQuery.isLoading &&
+                    !creatorProductsQuery.error &&
+                    (creatorProductsQuery.data?.items?.length ?? 0) === 0 ? (
+                      <div className="py-16 text-center text-sm text-muted">
+                        No published products yet. Offers attached to posts may still appear in the feed.
+                      </div>
+                    ) : null}
+                    {!creatorProductsQuery.isLoading && (creatorProductsQuery.data?.items?.length ?? 0) > 0 ? (
+                      <ul className="space-y-3">
+                        {creatorProductsQuery.data!.items.map((product) => {
+                          const isOwner = sessionUser?.id === userId;
+                          return (
+                            <li
+                              key={product.id}
+                              className="rounded-control border border-black/10 bg-surface px-4 py-3 text-sm"
+                            >
+                              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                <div className="min-w-0">
+                                  <p className="font-semibold text-text">{product.title}</p>
+                                  <p className="mt-1 text-xs text-muted">
+                                    {formatMinorCurrency(product.price_minor, product.currency)} ·{" "}
+                                    {productTypeLabel(product.product_type)}
+                                    {product.business_category
+                                      ? ` · ${product.business_category.replace(/_/g, " ")}`
+                                      : ""}
+                                  </p>
+                                  {product.description ? (
+                                    <p className="mt-2 line-clamp-3 text-xs text-text/90">{product.description}</p>
+                                  ) : null}
+                                </div>
+                                <div className="shrink-0">
+                                  {isOwner ? (
+                                    <Link
+                                      href="/account/creator?tab=products"
+                                      className="btn-secondary inline-flex px-3 py-1.5 text-xs"
+                                    >
+                                      Manage in Creator hub
+                                    </Link>
+                                  ) : !sessionUser ? (
+                                    <Link
+                                      href={`/auth/login?next=${loginNext}`}
+                                      className="btn-primary inline-flex px-3 py-1.5 text-xs"
+                                    >
+                                      Log in to buy
+                                    </Link>
+                                  ) : product.product_type !== "digital" && product.website_url ? (
+                                    <button
+                                      type="button"
+                                      className="btn-secondary px-3 py-1.5 text-xs"
+                                      onClick={() =>
+                                        window.open(product.website_url || "", "_blank", "noopener,noreferrer")
+                                      }
+                                    >
+                                      View offer
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      className="btn-primary px-3 py-1.5 text-xs"
+                                      disabled={productCheckoutMutation.isPending}
+                                      onClick={() => productCheckoutMutation.mutate(product.id)}
+                                    >
+                                      {productCheckoutMutation.isPending ? "Opening..." : "Buy"}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    ) : null}
+                  </>
+                ) : (
+                  <>
+                    {postsQuery.isLoading ? <LoadingState label="Loading posts..." /> : null}
+                    {postsQuery.error ? <ErrorState message={(postsQuery.error as Error).message} /> : null}
+                    {!postsQuery.isLoading && !postsQuery.error && (profileSectionTab === "saved" || profileSectionTab === "tagged") ? (
+                      <div className="py-16 text-center text-sm text-muted">Coming soon.</div>
+                    ) : null}
+                    {!postsQuery.isLoading &&
+                    !postsQuery.error &&
+                    visibleItems.length === 0 &&
+                    profileSectionTab !== "saved" &&
+                    profileSectionTab !== "tagged" ? (
+                      <div className="py-16 text-center text-sm text-muted">
+                        {profileSectionTab === "listings"
+                          ? "No marketplace listings from this member yet."
+                          : "No posts from this member yet."}
+                      </div>
+                    ) : null}
+                    {visibleItems.length > 0 ? (
                   <div className="profile-post-grid profile-post-grid-tight">
                     {visibleItems.map((item) => {
                       const mediaUrl = resolveMediaUrl(item.media_url) || undefined;
@@ -326,6 +481,11 @@ export default function UserProfilePage() {
                               <div className="profile-grid-fallback">{fallbackLabel}</div>
                             )}
                             {isVideo ? <span className="profile-grid-badge">Video</span> : null}
+                            {item.post_type === "marketplace" ? (
+                              <span className="absolute bottom-2 right-2 rounded-pill border border-white/20 bg-emerald-700/90 px-2 py-0.5 text-[10px] font-semibold text-white">
+                                Shop
+                              </span>
+                            ) : null}
                           </button>
                           <button
                             className="profile-grid-like"
@@ -341,6 +501,8 @@ export default function UserProfilePage() {
                     })}
                   </div>
                 ) : null}
+                  </>
+                )}
               </div>
             </div>
           </div>

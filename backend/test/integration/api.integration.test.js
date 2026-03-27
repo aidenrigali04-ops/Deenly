@@ -113,6 +113,26 @@ describeIfDatabase("integration api flows", () => {
       .set("Authorization", `Bearer ${login.body.tokens.accessToken}`);
     expect(userMe.statusCode).toBe(200);
     expect(userMe.body.display_name).toBe("Tester");
+    expect(userMe.body.is_verified).toBe(false);
+  });
+
+  it("register stores optional business offering and website on profile", async () => {
+    const register = await request(app).post("/api/v1/auth/register").send({
+      email: "biz@example.com",
+      username: "biz_user",
+      password: "StrongPass123",
+      displayName: "Biz Owner",
+      businessOffering: "Islamic books and courses",
+      websiteUrl: "example.com/shop"
+    });
+    expect(register.statusCode).toBe(201);
+
+    const userMe = await request(app)
+      .get("/api/v1/users/me")
+      .set("Authorization", `Bearer ${register.body.tokens.accessToken}`);
+    expect(userMe.statusCode).toBe(200);
+    expect(userMe.body.business_offering).toBe("Islamic books and courses");
+    expect(userMe.body.website_url).toBe("https://example.com/shop");
   });
 
   it("refreshes access tokens and invalidates refresh token on logout", async () => {
@@ -940,6 +960,46 @@ describeIfDatabase("integration api flows", () => {
       .set("Authorization", `Bearer ${buyerToken}`);
     expect(buyerAccess.statusCode).toBe(200);
     expect(buyerAccess.body.canAccess).toBe(false);
+
+    const catalogPublic = await request(app).get(
+      `/api/v1/monetization/products/creator/${creator.body.user.id}`
+    );
+    expect(catalogPublic.statusCode).toBe(200);
+    expect(catalogPublic.body.items).toHaveLength(1);
+    expect(catalogPublic.body.items[0].id).toBe(product.body.id);
+    expect(catalogPublic.body.items[0].title).toBe("Tajweed Starter Pack");
+    expect(catalogPublic.body.items[0].delivery_media_key).toBeUndefined();
+  });
+
+  it("admin can set profile verification and it appears on public user GET", async () => {
+    const target = await request(app).post("/api/v1/auth/register").send({
+      email: "verify-target@example.com",
+      username: "verify_target",
+      password: "StrongPass123",
+      displayName: "Verify Target"
+    });
+    expect(target.statusCode).toBe(201);
+
+    const adminReg = await request(app).post("/api/v1/auth/register").send({
+      email: "admin-growth@example.com",
+      username: "verify_admin",
+      password: "StrongPass123",
+      displayName: "Verify Admin"
+    });
+    expect(adminReg.statusCode).toBe(201);
+    expect(adminReg.body.user.role).toBe("admin");
+
+    const patch = await request(app)
+      .patch(`/api/v1/admin/profiles/${target.body.user.id}/verification`)
+      .set("Authorization", `Bearer ${adminReg.body.tokens.accessToken}`)
+      .send({ isVerified: true });
+    expect(patch.statusCode).toBe(200);
+    expect(patch.body.userId).toBe(target.body.user.id);
+    expect(patch.body.isVerified).toBe(true);
+
+    const pub = await request(app).get(`/api/v1/users/${target.body.user.id}`);
+    expect(pub.statusCode).toBe(200);
+    expect(pub.body.is_verified).toBe(true);
   });
 
   it("passes Stripe Connect checkout params from product platform_fee_bps", async () => {

@@ -18,7 +18,9 @@ function SignupPageContent() {
     lastName: "",
     email: "",
     username: "",
-    password: ""
+    password: "",
+    businessOffering: "",
+    websiteUrl: ""
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
@@ -42,7 +44,9 @@ function SignupPageContent() {
         email: form.email,
         username: form.username,
         password: form.password,
-        displayName
+        displayName,
+        businessOffering: form.businessOffering.trim() || null,
+        websiteUrl: form.websiteUrl.trim() || null
       });
       await finalizeSession();
     } catch (err) {
@@ -168,6 +172,37 @@ function SignupPageContent() {
             required
           />
           <p className="auth-helper">Must be at least 8 characters.</p>
+        </div>
+
+        <div>
+          <label className="auth-label" htmlFor="signup-business-offering">
+            Your business, product, or service
+          </label>
+          <textarea
+            id="signup-business-offering"
+            className="auth-input min-h-[88px] resize-y py-2"
+            placeholder="What do you offer? (optional)"
+            value={form.businessOffering}
+            onChange={(event) => setForm((prev) => ({ ...prev, businessOffering: event.target.value }))}
+            maxLength={2000}
+            rows={3}
+          />
+        </div>
+
+        <div>
+          <label className="auth-label" htmlFor="signup-website">
+            Website
+          </label>
+          <input
+            id="signup-website"
+            className="auth-input"
+            type="text"
+            inputMode="url"
+            placeholder="https://your-site.com (optional)"
+            value={form.websiteUrl}
+            onChange={(event) => setForm((prev) => ({ ...prev, websiteUrl: event.target.value }))}
+            maxLength={2048}
+          />
         </div>
 
         {error ? <p className="auth-error">{error}</p> : null}

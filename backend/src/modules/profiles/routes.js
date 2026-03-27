@@ -1,7 +1,7 @@
 const express = require("express");
 const { authenticate } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
-const { optionalString, requireString } = require("../../utils/validators");
+const { optionalString, optionalWebsiteUrl, requireString } = require("../../utils/validators");
 const { httpError } = require("../../utils/http-error");
 
 function createProfileRouter({ db, config }) {
@@ -16,7 +16,7 @@ function createProfileRouter({ db, config }) {
     authMiddleware,
     asyncHandler(async (req, res) => {
       const result = await db.query(
-        `SELECT p.user_id, p.display_name, p.bio, p.avatar_url, p.created_at, p.updated_at
+        `SELECT p.user_id, p.display_name, p.bio, p.avatar_url, p.business_offering, p.website_url, p.created_at, p.updated_at
          FROM profiles p
          WHERE p.user_id = $1
          LIMIT 1`,
@@ -38,16 +38,20 @@ function createProfileRouter({ db, config }) {
       const displayName = requireString(req.body?.displayName, "displayName", 2, 64);
       const bio = optionalString(req.body?.bio, "bio", 240);
       const avatarUrl = optionalString(req.body?.avatarUrl, "avatarUrl", 2048);
+      const businessOffering = optionalString(req.body?.businessOffering, "businessOffering", 2000);
+      const websiteUrl = optionalWebsiteUrl(req.body?.websiteUrl, "websiteUrl", 2048);
 
       const result = await db.query(
         `UPDATE profiles
          SET display_name = $1,
              bio = $2,
              avatar_url = $3,
+             business_offering = $4,
+             website_url = $5,
              updated_at = NOW()
-         WHERE user_id = $4
-         RETURNING user_id, display_name, bio, avatar_url, created_at, updated_at`,
-        [displayName, bio, avatarUrl, req.user.id]
+         WHERE user_id = $6
+         RETURNING user_id, display_name, bio, avatar_url, business_offering, website_url, created_at, updated_at`,
+        [displayName, bio, avatarUrl, businessOffering, websiteUrl, req.user.id]
       );
 
       if (result.rowCount === 0) {
@@ -90,7 +94,7 @@ function createProfileRouter({ db, config }) {
       const search = (req.query.search || "").toString().trim();
 
       const result = await db.query(
-        `SELECT p.user_id, p.display_name, p.bio, p.avatar_url, p.created_at, p.updated_at
+        `SELECT p.user_id, p.display_name, p.bio, p.avatar_url, p.business_offering, p.website_url, p.created_at, p.updated_at
          FROM profiles p
          WHERE ($1::text = '' OR p.display_name ILIKE ('%' || $1 || '%'))
          ORDER BY p.display_name ASC

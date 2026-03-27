@@ -12,6 +12,8 @@ export default function AdminOperationsPage() {
   const [priority, setPriority] = useState("normal");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [verifyUserId, setVerifyUserId] = useState("");
+  const [verifyChecked, setVerifyChecked] = useState(true);
 
   const inviteMutation = useMutation({
     mutationFn: () =>
@@ -51,6 +53,25 @@ export default function AdminOperationsPage() {
     queryFn: () => apiRequest("/admin/monetization/summary", { auth: true })
   });
 
+  const verificationMutation = useMutation({
+    mutationFn: () =>
+      apiRequest<{ userId: number; isVerified: boolean }>(
+        `/admin/profiles/${Number.parseInt(verifyUserId, 10)}/verification`,
+        {
+          method: "PATCH",
+          auth: true,
+          body: { isVerified: verifyChecked }
+        }
+      ),
+    onSuccess: (data) =>
+      setMessage(`Profile ${data.userId} verification set to ${data.isVerified ? "verified" : "not verified"}.`),
+    onError: (mutationError) => {
+      const detail =
+        mutationError instanceof ApiError ? mutationError.message : "Unable to update verification";
+      setError(detail);
+    }
+  });
+
   const submitInvite = (event: FormEvent) => {
     event.preventDefault();
     setMessage("");
@@ -62,6 +83,18 @@ export default function AdminOperationsPage() {
     setMessage("");
     setError("");
     supportMutation.mutate();
+  };
+
+  const submitVerification = (event: FormEvent) => {
+    event.preventDefault();
+    setMessage("");
+    setError("");
+    const id = Number.parseInt(verifyUserId, 10);
+    if (!Number.isFinite(id) || id <= 0) {
+      setError("Enter a valid user ID.");
+      return;
+    }
+    verificationMutation.mutate();
   };
 
   return (
@@ -100,6 +133,32 @@ export default function AdminOperationsPage() {
         </button>
       </form>
       </div>
+      <form className="surface-card max-w-xl space-y-2" onSubmit={submitVerification}>
+        <h2 className="text-lg font-semibold">Profile verification</h2>
+        <p className="text-xs text-muted">
+          Sets the platform checkmark on public profiles (Deenly-verified accounts).
+        </p>
+        <input
+          className="input"
+          aria-label="User ID to verify"
+          inputMode="numeric"
+          placeholder="User ID"
+          value={verifyUserId}
+          onChange={(event) => setVerifyUserId(event.target.value)}
+          required
+        />
+        <label className="flex items-center gap-2 text-sm text-text">
+          <input
+            type="checkbox"
+            checked={verifyChecked}
+            onChange={(event) => setVerifyChecked(event.target.checked)}
+          />
+          Verified
+        </label>
+        <button className="btn-primary" type="submit" disabled={verificationMutation.isPending}>
+          {verificationMutation.isPending ? "Saving..." : "Save verification"}
+        </button>
+      </form>
       <section className="surface-card space-y-2">
         <h2 className="text-lg font-semibold">Monetization telemetry</h2>
         {monetizationSummaryQuery.isLoading ? (

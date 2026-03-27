@@ -11,12 +11,16 @@ type AccountProfile = {
   display_name: string;
   bio: string | null;
   avatar_url: string | null;
+  business_offering: string | null;
+  website_url: string | null;
 };
 
 export default function AccountEditProfilePage() {
   const queryClient = useQueryClient();
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
+  const [businessOffering, setBusinessOffering] = useState("");
+  const [websiteUrl, setWebsiteUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -34,6 +38,8 @@ export default function AccountEditProfilePage() {
     if (profileQuery.data) {
       setDisplayName(profileQuery.data.display_name);
       setBio(profileQuery.data.bio || "");
+      setBusinessOffering(profileQuery.data.business_offering || "");
+      setWebsiteUrl(profileQuery.data.website_url || "");
     }
   }, [profileQuery.data]);
 
@@ -61,7 +67,9 @@ export default function AccountEditProfilePage() {
           </Link>
         </p>
         <h1 className="page-header-title mt-4 text-xl sm:text-2xl">Edit profile</h1>
-        <p className="page-header-subtitle text-xs sm:text-sm">How your name and bio appear on Deenly.</p>
+        <p className="page-header-subtitle text-xs sm:text-sm">
+          How your name, bio, and business details appear on Deenly.
+        </p>
       </header>
       <div className="surface-card px-6 py-6">
           <form
@@ -81,7 +89,9 @@ export default function AccountEditProfilePage() {
                   body: {
                     displayName: dn,
                     bio: bio.trim() || null,
-                    avatarUrl: profile.avatar_url ?? null
+                    avatarUrl: profile.avatar_url ?? null,
+                    businessOffering: businessOffering.trim() || null,
+                    websiteUrl: websiteUrl.trim() || null
                   }
                 });
                 await queryClient.invalidateQueries({ queryKey: ["account-profile-me"] });
@@ -106,6 +116,27 @@ export default function AccountEditProfilePage() {
             <label className="space-y-1 text-sm">
               <span className="text-muted">Bio</span>
               <textarea className="input min-h-24" value={bio} onChange={(e) => setBio(e.target.value)} maxLength={240} />
+            </label>
+            <label className="space-y-1 text-sm">
+              <span className="text-muted">Your business, product, or service</span>
+              <textarea
+                className="input min-h-24"
+                value={businessOffering}
+                onChange={(e) => setBusinessOffering(e.target.value)}
+                maxLength={2000}
+              />
+            </label>
+            <label className="space-y-1 text-sm">
+              <span className="text-muted">Website</span>
+              <input
+                className="input"
+                type="text"
+                inputMode="url"
+                value={websiteUrl}
+                onChange={(e) => setWebsiteUrl(e.target.value)}
+                maxLength={2048}
+                placeholder="https://"
+              />
             </label>
             {message ? <p className="text-xs text-muted">{message}</p> : null}
             <button type="submit" className="btn-primary w-fit" disabled={saving}>

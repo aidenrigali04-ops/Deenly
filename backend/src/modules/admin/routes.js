@@ -9,7 +9,7 @@ const TABLE_SQL = {
   users:
     "SELECT id, email, username, role, is_active, created_at, updated_at FROM users ORDER BY id DESC LIMIT $1 OFFSET $2",
   profiles:
-    "SELECT id, user_id, display_name, bio, avatar_url, created_at, updated_at FROM profiles ORDER BY id DESC LIMIT $1 OFFSET $2",
+    "SELECT user_id AS id, user_id, display_name, bio, avatar_url, business_offering, website_url, is_verified, created_at, updated_at FROM profiles ORDER BY user_id DESC LIMIT $1 OFFSET $2",
   posts:
     "SELECT id, author_id, post_type, content, media_url, media_status, visibility_status, created_at FROM posts ORDER BY id DESC LIMIT $1 OFFSET $2",
   interactions:
@@ -363,6 +363,36 @@ function createAdminRouter({ db, config }) {
         );
       }
       res.status(200).json(updated.rows[0]);
+    })
+  );
+
+  router.patch(
+    "/profiles/:userId/verification",
+    authMiddleware,
+    modGuard,
+    asyncHandler(async (req, res) => {
+      const userId = Number(req.params.userId);
+      if (!userId) {
+        throw httpError(400, "userId must be a number");
+      }
+      if (typeof req.body?.isVerified !== "boolean") {
+        throw httpError(400, "isVerified must be a boolean");
+      }
+      const updated = await db.query(
+        `UPDATE profiles
+         SET is_verified = $2, updated_at = NOW()
+         WHERE user_id = $1
+         RETURNING user_id, is_verified`,
+        [userId, req.body.isVerified]
+      );
+      if (updated.rowCount === 0) {
+        throw httpError(404, "Profile not found");
+      }
+      const row = updated.rows[0];
+      res.status(200).json({
+        userId: row.user_id,
+        isVerified: row.is_verified
+      });
     })
   );
 

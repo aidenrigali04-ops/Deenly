@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchSessionMe } from "@/lib/auth";
 import { apiRequest } from "@/lib/api";
 import { resolveMediaUrl } from "@/lib/media-url";
+import { CreatePostComposer } from "@/components/create-post-composer";
 import { ErrorState, LoadingState } from "@/components/states";
 import { DeenStrip } from "@/components/profile/deen-strip";
 
@@ -16,6 +17,8 @@ type AccountProfile = {
   display_name: string;
   bio: string | null;
   avatar_url: string | null;
+  business_offering: string | null;
+  website_url: string | null;
   posts_count: number;
   followers_count: number;
   following_count: number;
@@ -54,6 +57,7 @@ function deriveMediaType(mimeType: string): "image" | "video" | null {
 export default function AccountPage() {
   const router = useRouter();
   const [profileSectionTab, setProfileSectionTab] = useState<"grid" | "reels" | "saved" | "tagged">("grid");
+  const [showProfileComposer, setShowProfileComposer] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState("");
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
@@ -118,6 +122,36 @@ export default function AccountPage() {
         ? profileItems.filter((item) => Boolean(item.media_url))
         : profileItems;
 
+  const onProfilePostPublished = () => {
+    setShowProfileComposer(false);
+    void queryClient.invalidateQueries({ queryKey: ["account-posts", sessionQuery.data?.id] });
+    void queryClient.invalidateQueries({ queryKey: ["account-profile-me"] });
+    void queryClient.invalidateQueries({ queryKey: ["feed"] });
+  };
+
+  const profileInlineComposer = (withBottomMargin: boolean) => (
+    <div
+      className={`rounded-panel border border-black/10 bg-surface p-4 shadow-soft${withBottomMargin ? " mb-6" : ""}`}
+    >
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-text">Create a post</p>
+        <button
+          type="button"
+          className="text-xs text-muted transition hover:text-text"
+          onClick={() => setShowProfileComposer(false)}
+        >
+          Cancel
+        </button>
+      </div>
+      <CreatePostComposer
+        variant="inline"
+        stayOnPage
+        redirectPathAfterInstagram="/account"
+        onPublished={onProfilePostPublished}
+      />
+    </div>
+  );
+
   const uploadAvatar = async (file: File) => {
     if (!profile) {
       return;
@@ -153,7 +187,9 @@ export default function AccountPage() {
         body: {
           displayName: profile.display_name,
           bio: profile.bio,
-          avatarUrl: signature.key
+          avatarUrl: signature.key,
+          businessOffering: profile.business_offering,
+          websiteUrl: profile.website_url
         }
       });
       await Promise.all([
@@ -264,6 +300,24 @@ export default function AccountPage() {
               ) : (
                 <p className="mt-2 text-sm text-muted">Add a short bio so friends know you on Deenly.</p>
               )}
+              {profile?.business_offering ? (
+                <div className="mt-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">Business / offering</p>
+                  <p className="mt-1 whitespace-pre-line text-sm text-text/90">{profile.business_offering}</p>
+                </div>
+              ) : null}
+              {profile?.website_url ? (
+                <p className="mt-3 text-sm">
+                  <a
+                    href={profile.website_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sky-700 underline decoration-sky-700/40 underline-offset-2 hover:text-sky-800"
+                  >
+                    Website
+                  </a>
+                </p>
+              ) : null}
 
               <div className="mt-5 flex flex-wrap gap-2">
                 <Link href="/account/edit" className="btn-primary min-w-[120px] flex-1 text-center sm:flex-none">
@@ -323,22 +377,52 @@ export default function AccountPage() {
                 ) : null}
                 {!postsQuery.isLoading &&
                 !postsQuery.error &&
+                (profileSectionTab === "grid" || profileSectionTab === "reels") &&
+                visibleItems.length > 0 &&
+                !showProfileComposer ? (
+                  <div className="mb-4 flex justify-end">
+                    <button
+                      type="button"
+                      className="btn-secondary px-3 py-1.5 text-sm"
+                      onClick={() => setShowProfileComposer(true)}
+                    >
+                      New post
+                    </button>
+                  </div>
+                ) : null}
+                {!postsQuery.isLoading &&
+                !postsQuery.error &&
+                showProfileComposer &&
+                (profileSectionTab === "grid" || profileSectionTab === "reels") &&
+                visibleItems.length > 0
+                  ? profileInlineComposer(true)
+                  : null}
+                {!postsQuery.isLoading &&
+                !postsQuery.error &&
                 visibleItems.length === 0 &&
                 profileSectionTab !== "saved" &&
                 profileSectionTab !== "tagged" ? (
-                  <div className="py-16 text-center">
-                    <div className="mx-auto mb-4 grid h-24 w-24 place-items-center rounded-full border-2 border-dashed border-black/15 bg-surface">
-                      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="text-muted">
-                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                        <circle cx="12" cy="13" r="4" />
-                      </svg>
+                  showProfileComposer ? (
+                    profileInlineComposer(false)
+                  ) : (
+                    <div className="py-16 text-center">
+                      <div className="mx-auto mb-4 grid h-24 w-24 place-items-center rounded-full border-2 border-dashed border-black/15 bg-surface">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="text-muted">
+                          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                          <circle cx="12" cy="13" r="4" />
+                        </svg>
+                      </div>
+                      <p className="text-xl font-semibold text-text">Your posts live here</p>
+                      <p className="mt-2 text-sm text-muted">Share recitations, reminders, or clips — they show up on your Deenly profile.</p>
+                      <button
+                        type="button"
+                        className="mt-4 inline-block text-sm font-semibold text-sky-600 underline-offset-2 hover:underline"
+                        onClick={() => setShowProfileComposer(true)}
+                      >
+                        Create a post
+                      </button>
                     </div>
-                    <p className="text-xl font-semibold text-text">Your posts live here</p>
-                    <p className="mt-2 text-sm text-muted">Share recitations, reminders, or clips — they show up on your Deenly profile.</p>
-                    <Link href="/create" className="mt-4 inline-block text-sm font-semibold text-sky-600 hover:underline">
-                      Create a post
-                    </Link>
-                  </div>
+                  )
                 ) : null}
                 {visibleItems.length > 0 ? (
                   <div className="profile-post-grid profile-post-grid-tight">

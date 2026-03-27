@@ -448,6 +448,29 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
   );
 
   router.get(
+    "/products/creator/:creatorUserId",
+    asyncHandler(async (req, res) => {
+      const creatorUserId = Number(req.params.creatorUserId);
+      if (!creatorUserId) {
+        throw httpError(400, "creatorUserId must be a number");
+      }
+      const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 50);
+      const rows = await db.query(
+        `SELECT id, creator_user_id, title, description, price_minor, currency, product_type,
+                service_details, delivery_method, website_url, audience_target, business_category,
+                platform_fee_bps, boost_tier, status, created_at, updated_at
+         FROM creator_products
+         WHERE creator_user_id = $1
+           AND status = 'published'
+         ORDER BY updated_at DESC, id DESC
+         LIMIT $2`,
+        [creatorUserId, limit]
+      );
+      res.status(200).json({ items: rows.rows });
+    })
+  );
+
+  router.get(
     "/products/:productId",
     authMiddleware,
     asyncHandler(async (req, res) => {
