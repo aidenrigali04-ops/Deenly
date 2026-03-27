@@ -12,7 +12,7 @@ import {
   View
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
-import { Video, ResizeMode } from "expo-av";
+import { AppVideoView } from "../../components/AppVideoView";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { CompositeScreenProps } from "@react-navigation/native";
@@ -354,15 +354,14 @@ export function CreateScreen({ navigation }: Props) {
               />
             ) : null}
             {selectedFile && previewKind === "video" ? (
-              <Video
+              <AppVideoView
                 key={selectedFile.uri}
-                source={{ uri: selectedFile.uri }}
+                uri={selectedFile.uri}
                 style={styles.mediaPreviewFill}
-                resizeMode={ResizeMode.CONTAIN}
-                isLooping
-                shouldPlay
-                isMuted
-                useNativeControls={false}
+                contentFit="contain"
+                loop
+                play
+                muted
               />
             ) : null}
             {!selectedFile ? (

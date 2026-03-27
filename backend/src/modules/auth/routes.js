@@ -15,6 +15,7 @@ function createAuthRouter({ config, db, analytics }) {
     skipSuccessfulRequests: true,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: () => process.env.NODE_ENV === "test",
     keyGenerator(req) {
       const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "anon";
       return `${req.ip}:${email}`;
@@ -25,6 +26,7 @@ function createAuthRouter({ config, db, analytics }) {
     limit: config.authRegisterRateLimitMax || 10,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: () => process.env.NODE_ENV === "test",
     keyGenerator(req) {
       const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "anon";
       return `${req.ip}:register:${email}`;

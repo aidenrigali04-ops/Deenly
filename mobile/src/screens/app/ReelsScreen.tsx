@@ -11,7 +11,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Video, ResizeMode } from "expo-av";
+import { AppVideoView } from "../../components/AppVideoView";
 import { apiRequest } from "../../lib/api";
 import { followUser, unfollowUser } from "../../lib/follows";
 import { resolveMediaUrl } from "../../lib/media-url";
@@ -57,14 +57,13 @@ function ReelRow({
   return (
     <View style={[styles.slide, { height }]}>
       {uri ? (
-        <Video
+        <AppVideoView
+          uri={uri}
           style={StyleSheet.absoluteFillObject}
-          source={{ uri }}
-          resizeMode={ResizeMode.CONTAIN}
-          isLooping
-          shouldPlay={active}
-          isMuted={muted}
-          useNativeControls={false}
+          contentFit="contain"
+          loop
+          play={active}
+          muted={muted}
         />
       ) : (
         <View style={styles.noVideo}>

@@ -1,6 +1,6 @@
 import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native";
-import { ResizeMode, Video } from "expo-av";
 import { useEffect, useState } from "react";
+import { AppVideoView } from "./AppVideoView";
 import { colors } from "../theme";
 import { resolveMediaUrl } from "../lib/media-url";
 import type { FeedItem } from "../types";
@@ -110,12 +110,12 @@ export function PostCard({
               onError={() => setMediaFailed(true)}
             />
           ) : (
-            <Video
-              source={{ uri: mediaUri }}
+            <AppVideoView
+              uri={mediaUri!}
               style={styles.homeMedia}
-              useNativeControls
-              resizeMode={ResizeMode.CONTAIN}
-              isLooping={false}
+              contentFit="contain"
+              nativeControls
+              loop={false}
               onError={() => setMediaFailed(true)}
             />
           )
@@ -218,12 +218,12 @@ export function PostCard({
             onError={() => setMediaFailed(true)}
           />
         ) : (
-          <Video
-            source={{ uri: mediaUri }}
+          <AppVideoView
+            uri={mediaUri!}
             style={styles.video}
-            useNativeControls
-            resizeMode={ResizeMode.CONTAIN}
-            isLooping={false}
+            contentFit="contain"
+            nativeControls
+            loop={false}
             onError={() => setMediaFailed(true)}
           />
         )

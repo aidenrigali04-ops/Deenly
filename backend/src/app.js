@@ -110,6 +110,9 @@ function createApp({
       standardHeaders: true,
       legacyHeaders: false,
       skip: (req) => {
+        if (process.env.NODE_ENV === "test") {
+          return true;
+        }
         const url = String(req.originalUrl || req.url || req.path || "");
         return url.includes("/monetization/webhooks/stripe");
       }

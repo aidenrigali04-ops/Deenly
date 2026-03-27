@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { ResizeMode, Video } from "expo-av";
+import { AppVideoView } from "../../components/AppVideoView";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ApiError, apiRequest } from "../../lib/api";
@@ -163,12 +163,12 @@ export function PostDetailScreen({ route, navigation }: Props) {
               onError={() => setMediaFailed(true)}
             />
           ) : (
-            <Video
-              source={{ uri: mediaUri }}
+            <AppVideoView
+              uri={mediaUri!}
               style={styles.video}
-              useNativeControls
-              resizeMode={ResizeMode.COVER}
-              isLooping={false}
+              contentFit="cover"
+              nativeControls
+              loop={false}
               onError={() => setMediaFailed(true)}
             />
           )

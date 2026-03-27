@@ -1,4 +1,5 @@
 const request = require("supertest");
+const { parse: parseConnectionString } = require("pg-connection-string");
 const { loadEnv } = require("../../src/config/env");
 const { createLogger } = require("../../src/config/logger");
 const { createDb } = require("../../src/db");
@@ -7,7 +8,40 @@ const { createAnalytics } = require("../../src/services/analytics");
 const { createMediaStorage } = require("../../src/services/media-storage");
 const { createPushNotifications } = require("../../src/services/push-notifications");
 
+/**
+ * Bare database names (e.g. DATABASE_URL=railway) parse with hostname "base" and fail with
+ * getaddrinfo ENOTFOUND base — require a full libpq URI.
+ */
+function assertValidIntegrationDatabaseUrl(url) {
+  const s = String(url || "").trim();
+  if (!s) {
+    return;
+  }
+  if (!s.includes("://")) {
+    throw new Error(
+      "DATABASE_URL must be a full PostgreSQL URI (protocol + credentials + host + database), e.g. postgresql://USER:PASSWORD@localhost:5432/DBNAME — not only the database name."
+    );
+  }
+  let parsed;
+  try {
+    parsed = parseConnectionString(s);
+  } catch {
+    throw new Error("DATABASE_URL is not a valid PostgreSQL connection string.");
+  }
+  if (
+    parsed.host === "base" &&
+    !/@base(?:[:/?#]|$)/i.test(s)
+  ) {
+    throw new Error(
+      'DATABASE_URL resolves to hostname "base", which usually means the value is not a full connection URI. Use the full postgresql://… string from Railway, Neon, or your host (including @hostname:port/).'
+    );
+  }
+}
+
 const hasDatabase = Boolean(process.env.DATABASE_URL);
+if (hasDatabase) {
+  assertValidIntegrationDatabaseUrl(process.env.DATABASE_URL);
+}
 const describeIfDatabase = hasDatabase ? describe : describe.skip;
 
 describeIfDatabase("integration api flows", () => {

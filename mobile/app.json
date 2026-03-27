@@ -19,6 +19,7 @@
       }
     },
     "android": {
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -36,6 +37,9 @@
         "projectId": "9884e57f-f403-4807-8514-4e478e59b3c1"
       }
     },
-    "owner": "deenly"
+    "owner": "deenly",
+    "plugins": [
+      "expo-video"
+    ]
   }
 }

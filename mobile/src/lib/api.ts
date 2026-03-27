@@ -1,8 +1,12 @@
 import NetInfo from "@react-native-community/netinfo";
+import { getApiBaseUrl } from "./api-base-url";
 import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "./storage";
 
-const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000/api/v1";
+let cachedApiBaseUrl: string | null = null;
+function apiBaseUrl(): string {
+  cachedApiBaseUrl ??= getApiBaseUrl();
+  return cachedApiBaseUrl;
+}
 
 type RequestOptions = {
   method?: "GET" | "POST" | "PUT" | "DELETE";
@@ -60,7 +64,7 @@ async function refreshAccessToken(timeoutMs: number) {
     }
 
     const response = await fetchWithTimeout(
-      `${API_BASE_URL}/auth/refresh`,
+      `${apiBaseUrl()}/auth/refresh`,
       {
         method: "POST",
         headers: {
@@ -130,7 +134,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
     for (let attempt = 0; attempt <= retries; attempt += 1) {
       try {
-        const response = await fetchWithTimeout(`${API_BASE_URL}${path}`, requestInit, timeoutMs);
+        const response = await fetchWithTimeout(`${apiBaseUrl()}${path}`, requestInit, timeoutMs);
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
           if (response.status === 401 && options.auth && !didRefresh) {
@@ -162,7 +166,11 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     if (lastError instanceof ApiError) {
       throw lastError;
     }
-    throw new ApiError("Network request failed. Please try again.", 0);
+    const hint =
+      __DEV__ && (lastError?.name === "AbortError" || lastError?.message?.includes("Network"))
+        ? ` Cannot reach API at ${apiBaseUrl()}. Start the backend (port 3000) or set EXPO_PUBLIC_API_BASE_URL in mobile/.env`
+        : "";
+    throw new ApiError(`Network request failed. Please try again.${hint}`, 0);
   };
 
   return execute();
