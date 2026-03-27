@@ -814,6 +814,21 @@ describeIfDatabase("integration api flows", () => {
     expect(updateInterests.statusCode).toBe(200);
     expect(updateInterests.body.items).toContain("recitation");
 
+    const updateOnboardingIntents = await request(app)
+      .patch("/api/v1/users/me/preferences")
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({ onboardingIntents: ["shop", "community"] });
+    expect(updateOnboardingIntents.statusCode).toBe(200);
+
+    const feedWithPersonaIntents = await request(app)
+      .get("/api/v1/feed?feedTab=for_you&limit=5")
+      .set("Authorization", `Bearer ${userToken}`);
+    expect(feedWithPersonaIntents.statusCode).toBe(200);
+    expect(Array.isArray(feedWithPersonaIntents.body.persona.onboardingIntents)).toBe(true);
+    expect(feedWithPersonaIntents.body.persona.onboardingIntents.sort()).toEqual(
+      ["community", "shop"].sort()
+    );
+
     const waitlist = await request(app).post("/api/v1/beta/waitlist").send({
       email: "beta-user@example.com",
       source: "test"

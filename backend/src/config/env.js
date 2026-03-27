@@ -193,6 +193,13 @@ function loadEnv(envSource = process.env) {
       }
       return v;
     })(),
+    feedRankOnboardingIntentWeight: (() => {
+      const v = parseNumber(envSource.FEED_RANK_ONBOARDING_INTENT_WEIGHT, 60);
+      if (!Number.isFinite(v) || v < 0 || v > 500) {
+        throw new Error("FEED_RANK_ONBOARDING_INTENT_WEIGHT must be a number between 0 and 500");
+      }
+      return v;
+    })(),
     stripeSecretKey: String(envSource.STRIPE_SECRET_KEY || "").trim(),
     stripeWebhookSecret: String(envSource.STRIPE_WEBHOOK_SECRET || "").trim(),
     stripeConnectClientId: String(envSource.STRIPE_CONNECT_CLIENT_ID || "").trim(),

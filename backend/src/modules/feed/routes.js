@@ -205,7 +205,8 @@ function createFeedRouter({ db, config, mediaStorage }) {
         };
       }
 
-      const result = await db.query(
+      const [result, profileIntentsResult] = await Promise.all([
+        db.query(
         `WITH viewer_behavior AS (
            SELECT
              COALESCE(
@@ -230,6 +231,16 @@ function createFeedRouter({ db, config, mediaStorage }) {
            LEFT JOIN creator_products cp ON cp.id = o.product_id
            WHERE o.buyer_user_id = $1
              AND o.status = 'completed'
+         ),
+         viewer_intents AS (
+           SELECT
+             CASE
+               WHEN $1::int IS NULL THEN ARRAY[]::text[]
+               ELSE COALESCE(
+                 (SELECT onboarding_intents FROM profiles WHERE user_id = $1 LIMIT 1),
+                 '{}'::text[]
+               )
+             END AS intents
          ),
          post_agg AS (
            SELECT p.id,
@@ -322,6 +333,41 @@ function createFeedRouter({ db, config, mediaStorage }) {
                   ELSE 0
                 END AS audience_tab_boost
                 ,
+                (
+                  (
+                    CASE
+                      WHEN 'community' = ANY((SELECT intents FROM viewer_intents LIMIT 1))
+                        AND p.post_type IN ('post', 'recitation')
+                      THEN 1
+                      ELSE 0
+                    END
+                  )
+                  + (
+                    CASE
+                      WHEN 'shop' = ANY((SELECT intents FROM viewer_intents LIMIT 1))
+                        AND (p.post_type = 'marketplace' OR cpr.id IS NOT NULL)
+                      THEN 1
+                      ELSE 0
+                    END
+                  )
+                  + (
+                    CASE
+                      WHEN 'sell' = ANY((SELECT intents FROM viewer_intents LIMIT 1))
+                        AND p.post_type = 'marketplace'
+                      THEN 1
+                      ELSE 0
+                    END
+                  )
+                  + (
+                    CASE
+                      WHEN 'b2b' = ANY((SELECT intents FROM viewer_intents LIMIT 1))
+                        AND p.audience_target IN ('b2b', 'both')
+                      THEN 1
+                      ELSE 0
+                    END
+                  )
+                )::numeric AS intent_persona_score
+                ,
                 COALESCE((
                   SELECT COUNT(*)::int
                   FROM reports r
@@ -408,6 +454,7 @@ function createFeedRouter({ db, config, mediaStorage }) {
                     + (affinity_score * $11::numeric)
                     + (interest_boost * $12::numeric)
                     + (audience_tab_boost * $19::numeric)
+                    + (intent_persona_score * $22::numeric)
                     - (trust_report_count * $17::numeric)
                     + (
                       CASE
@@ -449,27 +496,44 @@ function createFeedRouter({ db, config, mediaStorage }) {
           feedTab,
           Number(config.feedAudienceTabBoostWeight || 1),
           Number(config.feedRankPlatformFeeCapBps ?? 3500),
-          Number(config.feedRankPlatformFeeWeight ?? 3)
+          Number(config.feedRankPlatformFeeWeight ?? 3),
+          Number(config.feedRankOnboardingIntentWeight ?? 60)
         ]
-      );
+        ),
+        viewerId
+          ? db.query(
+              `SELECT COALESCE(onboarding_intents, '{}'::text[]) AS onboarding_intents
+               FROM profiles WHERE user_id = $1 LIMIT 1`,
+              [viewerId]
+            )
+          : Promise.resolve({ rows: [{ onboarding_intents: [] }] })
+      ]);
+
+      const onboardingIntentsApplied = Array.isArray(profileIntentsResult.rows[0]?.onboarding_intents)
+        ? profileIntentsResult.rows[0].onboarding_intents
+        : [];
 
       const hasMore = result.rows.length > limit;
       const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
-      let items = rows.map((row) => ({
-        ...row,
-        media_url: mediaStorage?.resolveMediaUrl
-          ? mediaStorage.resolveMediaUrl({
-              mediaKey: row.media_upload_key || row.media_url,
-              mediaUrl: row.media_url
-            })
-          : row.media_url,
-        author_avatar_url: mediaStorage?.resolveMediaUrl
-          ? mediaStorage.resolveMediaUrl({
-              mediaKey: row.author_avatar_url,
-              mediaUrl: row.author_avatar_url
-            })
-          : row.author_avatar_url
-      }));
+      let items = rows.map((row) => {
+        const cleaned = { ...row };
+        delete cleaned.intent_persona_score;
+        return {
+          ...cleaned,
+          media_url: mediaStorage?.resolveMediaUrl
+            ? mediaStorage.resolveMediaUrl({
+                mediaKey: row.media_upload_key || row.media_url,
+                mediaUrl: row.media_url
+              })
+            : row.media_url,
+          author_avatar_url: mediaStorage?.resolveMediaUrl
+            ? mediaStorage.resolveMediaUrl({
+                mediaKey: row.author_avatar_url,
+                mediaUrl: row.author_avatar_url
+              })
+            : row.author_avatar_url
+        };
+      });
       const adInsertEvery = Math.max(Number(config.feedSponsoredInsertEvery || 6), 3);
       const canInsertSponsored = !followingOnly && items.length >= adInsertEvery - 1;
       if (canInsertSponsored) {
@@ -530,7 +594,8 @@ function createFeedRouter({ db, config, mediaStorage }) {
                 ? "b2c"
                 : "balanced",
           b2bPurchases: behavior.b2bPurchases,
-          b2cPurchases: behavior.b2cPurchases
+          b2cPurchases: behavior.b2cPurchases,
+          onboardingIntents: onboardingIntentsApplied
         },
         filters: {
           postType: postType || null,
