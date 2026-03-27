@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import Constants from "expo-constants";
+import * as Device from "expo-device";
 
 const DEFAULT_PORT = 3000;
 const API_PREFIX = "/api/v1";
@@ -43,11 +44,13 @@ function rewriteLocalhostUrl(url: string, replacementHost: string): string {
  * Resolves the backend base URL (e.g. http://192.168.1.10:3000/api/v1).
  *
  * - Honors `EXPO_PUBLIC_API_BASE_URL` when set.
- * - In dev, rewrites localhost → Android emulator loopback (10.0.2.2) or Metro host (LAN IP) so sign-in works on real devices.
+ * - In dev, rewrites localhost → Android emulator (10.0.2.2) or, on a physical iOS device only, Metro LAN IP.
+ * - iOS Simulator always uses localhost (LAN IP often fails routing/firewall).
  */
 export function getApiBaseUrl(): string {
   const fromEnv = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
   const fallback = `http://localhost:${DEFAULT_PORT}${API_PREFIX}`;
+  const iosNeedsLanHost = Platform.OS === "ios" && Device.isDevice;
 
   if (!fromEnv) {
     if (!__DEV__) {
@@ -56,9 +59,11 @@ export function getApiBaseUrl(): string {
     if (Platform.OS === "android") {
       return stripTrailingSlashes(`http://10.0.2.2:${DEFAULT_PORT}${API_PREFIX}`);
     }
-    const lan = devMachineHostFromBundler();
-    if (lan && lan !== "localhost" && lan !== "127.0.0.1") {
-      return stripTrailingSlashes(`http://${lan}:${DEFAULT_PORT}${API_PREFIX}`);
+    if (iosNeedsLanHost) {
+      const lan = devMachineHostFromBundler();
+      if (lan && lan !== "localhost" && lan !== "127.0.0.1") {
+        return stripTrailingSlashes(`http://${lan}:${DEFAULT_PORT}${API_PREFIX}`);
+      }
     }
     return stripTrailingSlashes(fallback);
   }
@@ -68,7 +73,7 @@ export function getApiBaseUrl(): string {
   if (__DEV__ && (base.includes("localhost") || base.includes("127.0.0.1"))) {
     if (Platform.OS === "android") {
       base = rewriteLocalhostUrl(base, "10.0.2.2");
-    } else {
+    } else if (iosNeedsLanHost) {
       const lan = devMachineHostFromBundler();
       if (lan && lan !== "localhost" && lan !== "127.0.0.1") {
         base = rewriteLocalhostUrl(base, lan);
