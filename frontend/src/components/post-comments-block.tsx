@@ -2,7 +2,8 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/api";
+import { ApiError, apiRequest } from "@/lib/api";
+import { assistCommentTone } from "@/lib/ai-assist";
 import { resolveMediaUrl } from "@/lib/media-url";
 import { useSessionStore } from "@/store/session-store";
 import type { PostComment, PostCommentsResponse } from "@/types";
@@ -19,6 +20,8 @@ export function PostCommentsBlock({ postId, compact = false, onCommentCountDelta
   const queryClient = useQueryClient();
   const sessionUser = useSessionStore((s) => s.user);
   const [draft, setDraft] = useState("");
+  const [tonePreview, setTonePreview] = useState<string | null>(null);
+  const [toneError, setToneError] = useState("");
 
   const commentsQuery = useQuery({
     queryKey: ["post-comments", postId],
@@ -40,6 +43,21 @@ export function PostCommentsBlock({ postId, compact = false, onCommentCountDelta
       queryClient.invalidateQueries({ queryKey: ["post-comments", postId] });
       queryClient.invalidateQueries({ queryKey: ["feed"] });
       queryClient.invalidateQueries({ queryKey: ["post-detail", postId] });
+    }
+  });
+
+  const toneMutation = useMutation({
+    mutationFn: () => assistCommentTone(draft.trim()),
+    onSuccess: (data) => {
+      setToneError("");
+      setTonePreview(data.suggestion);
+    },
+    onError: (err: unknown) => {
+      const status = err instanceof ApiError ? err.status : 0;
+      setToneError(
+        status === 503 ? "Writing help is not enabled on this server." : err instanceof Error ? err.message : "Could not suggest."
+      );
+      setTonePreview(null);
     }
   });
 
@@ -89,13 +107,49 @@ export function PostCommentsBlock({ postId, compact = false, onCommentCountDelta
           placeholder="Write something respectful…"
           maxLength={2000}
         />
-        <button
-          type="submit"
-          className={compact ? "btn-primary self-start px-3 py-1.5 text-xs" : "btn-primary self-start"}
-          disabled={postMutation.isPending || !draft.trim()}
-        >
-          {postMutation.isPending ? "Posting…" : "Post"}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="submit"
+            className={compact ? "btn-primary px-3 py-1.5 text-xs" : "btn-primary"}
+            disabled={postMutation.isPending || !draft.trim()}
+          >
+            {postMutation.isPending ? "Posting…" : "Post"}
+          </button>
+          <button
+            type="button"
+            className={compact ? "btn-secondary px-3 py-1.5 text-xs" : "btn-secondary"}
+            disabled={toneMutation.isPending || !draft.trim()}
+            onClick={() => toneMutation.mutate()}
+          >
+            {toneMutation.isPending ? "…" : "Softer wording"}
+          </button>
+        </div>
+        {toneError ? <p className="text-xs text-red-600 dark:text-red-400">{toneError}</p> : null}
+        {tonePreview ? (
+          <div className={`rounded-control border border-black/10 bg-surface/80 ${compact ? "p-2" : "p-3"}`}>
+            <p className={`font-medium text-text ${compact ? "text-xs" : "text-sm"}`}>Alternative (AI)</p>
+            <p className={`mt-1 whitespace-pre-wrap text-muted ${compact ? "text-xs" : "text-sm"}`}>{tonePreview}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className={compact ? "btn-primary px-2 py-1 text-xs" : "btn-primary px-3 py-1.5 text-xs"}
+                onClick={() => {
+                  setDraft(tonePreview);
+                  setTonePreview(null);
+                }}
+              >
+                Use this
+              </button>
+              <button
+                type="button"
+                className={compact ? "btn-secondary px-2 py-1 text-xs" : "btn-secondary px-3 py-1.5 text-xs"}
+                onClick={() => setTonePreview(null)}
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        ) : null}
         {postMutation.isError ? (
           <p className="text-xs text-red-600 dark:text-red-400">Could not post. Try again.</p>
         ) : null}

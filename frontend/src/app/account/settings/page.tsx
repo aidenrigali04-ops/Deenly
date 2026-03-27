@@ -87,7 +87,7 @@ export default function AccountSettingsPage() {
               Creator hub
             </Link>
             <Link href="/onboarding" className="btn-secondary inline-flex">
-              Interests
+              Setup and feed
             </Link>
             <Link href="/sessions" className="btn-secondary inline-flex">
               Sessions

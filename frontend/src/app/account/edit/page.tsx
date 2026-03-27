@@ -13,6 +13,7 @@ type AccountProfile = {
   avatar_url: string | null;
   business_offering: string | null;
   website_url: string | null;
+  show_business_on_profile?: boolean;
 };
 
 export default function AccountEditProfilePage() {
@@ -21,6 +22,7 @@ export default function AccountEditProfilePage() {
   const [bio, setBio] = useState("");
   const [businessOffering, setBusinessOffering] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
+  const [showBusinessOnProfile, setShowBusinessOnProfile] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -40,6 +42,7 @@ export default function AccountEditProfilePage() {
       setBio(profileQuery.data.bio || "");
       setBusinessOffering(profileQuery.data.business_offering || "");
       setWebsiteUrl(profileQuery.data.website_url || "");
+      setShowBusinessOnProfile(Boolean(profileQuery.data.show_business_on_profile));
     }
   }, [profileQuery.data]);
 
@@ -94,6 +97,11 @@ export default function AccountEditProfilePage() {
                     websiteUrl: websiteUrl.trim() || null
                   }
                 });
+                await apiRequest("/users/me/preferences", {
+                  method: "PATCH",
+                  auth: true,
+                  body: { showBusinessOnProfile }
+                });
                 await queryClient.invalidateQueries({ queryKey: ["account-profile-me"] });
                 setMessage("Saved.");
               } catch (err) {
@@ -137,6 +145,20 @@ export default function AccountEditProfilePage() {
                 maxLength={2048}
                 placeholder="https://"
               />
+            </label>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={showBusinessOnProfile}
+                onChange={(e) => setShowBusinessOnProfile(e.target.checked)}
+                className="mt-1"
+              />
+              <span>
+                <span className="font-medium text-text">Show business details on my public profile</span>
+                <span className="mt-0.5 block text-xs text-muted">
+                  When off, visitors only see your name and bio; offering and website stay private.
+                </span>
+              </span>
             </label>
             {message ? <p className="text-xs text-muted">{message}</p> : null}
             <button type="submit" className="btn-primary w-fit" disabled={saving}>

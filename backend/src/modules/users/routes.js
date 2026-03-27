@@ -7,6 +7,9 @@ const { optionalString, optionalWebsiteUrl, requireString } = require("../../uti
 const { httpError } = require("../../utils/http-error");
 const { getPrayerSettings, updatePrayerSettings } = require("../../services/prayer-settings");
 const INTEREST_KEYS = new Set(["post", "recitation", "marketplace"]);
+const FEED_TAB_PREFS = new Set(["for_you", "opportunities", "marketplace"]);
+const APP_LANDING_PREFS = new Set(["home", "marketplace"]);
+const ONBOARDING_INTENT_KEYS = new Set(["community", "shop", "sell", "b2b"]);
 
 function createUsersRouter({ db, config }) {
   const router = express.Router();
@@ -74,7 +77,9 @@ function createUsersRouter({ db, config }) {
     authMiddleware,
     asyncHandler(async (req, res) => {
       const result = await db.query(
-        `SELECT p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.business_offering, p.website_url, p.is_verified, p.created_at, p.updated_at
+        `SELECT p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.business_offering, p.website_url, p.is_verified,
+                p.show_business_on_profile, p.default_feed_tab, p.app_landing, p.onboarding_intents, p.seller_checklist_completed_at,
+                p.created_at, p.updated_at
          FROM profiles p
          JOIN users u ON u.id = p.user_id
          WHERE p.user_id = $1
@@ -84,6 +89,103 @@ function createUsersRouter({ db, config }) {
       if (result.rowCount === 0) {
         throw httpError(404, "User profile not found");
       }
+      const stats = await getProfileStats({ userId: req.user.id, viewerId: req.user.id });
+      res.status(200).json({
+        ...result.rows[0],
+        ...stats
+      });
+    })
+  );
+
+  router.patch(
+    "/me/preferences",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const body = req.body || {};
+      const sets = [];
+      const vals = [];
+      let i = 1;
+
+      if (Object.prototype.hasOwnProperty.call(body, "defaultFeedTab")) {
+        const v = body.defaultFeedTab;
+        if (v === null || v === "") {
+          sets.push("default_feed_tab = NULL");
+        } else {
+          const t = String(v).trim();
+          if (!FEED_TAB_PREFS.has(t)) {
+            throw httpError(400, "defaultFeedTab must be for_you, opportunities, or marketplace");
+          }
+          sets.push(`default_feed_tab = $${i}`);
+          vals.push(t);
+          i += 1;
+        }
+      }
+
+      if (Object.prototype.hasOwnProperty.call(body, "appLanding")) {
+        const v = body.appLanding;
+        if (v === null || v === "") {
+          sets.push("app_landing = NULL");
+        } else {
+          const t = String(v).trim();
+          if (!APP_LANDING_PREFS.has(t)) {
+            throw httpError(400, "appLanding must be home or marketplace");
+          }
+          sets.push(`app_landing = $${i}`);
+          vals.push(t);
+          i += 1;
+        }
+      }
+
+      if (Object.prototype.hasOwnProperty.call(body, "showBusinessOnProfile")) {
+        sets.push(`show_business_on_profile = $${i}`);
+        vals.push(Boolean(body.showBusinessOnProfile));
+        i += 1;
+      }
+
+      if (Object.prototype.hasOwnProperty.call(body, "onboardingIntents")) {
+        const raw = Array.isArray(body.onboardingIntents) ? body.onboardingIntents : [];
+        const normalized = [
+          ...new Set(
+            raw
+              .map((entry) => String(entry || "").trim())
+              .filter(Boolean)
+              .filter((key) => ONBOARDING_INTENT_KEYS.has(key))
+          )
+        ].slice(0, 6);
+        sets.push(`onboarding_intents = $${i}::text[]`);
+        vals.push(normalized);
+        i += 1;
+      }
+
+      if (body.sellerChecklistCompleted === true) {
+        sets.push("seller_checklist_completed_at = COALESCE(seller_checklist_completed_at, NOW())");
+      }
+
+      if (sets.length === 0) {
+        throw httpError(400, "No valid preference fields to update");
+      }
+
+      sets.push("updated_at = NOW()");
+      vals.push(req.user.id);
+
+      const updateResult = await db.query(
+        `UPDATE profiles SET ${sets.join(", ")} WHERE user_id = $${i} RETURNING user_id`,
+        vals
+      );
+      if (updateResult.rowCount === 0) {
+        throw httpError(404, "User profile not found");
+      }
+
+      const result = await db.query(
+        `SELECT p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.business_offering, p.website_url, p.is_verified,
+                p.show_business_on_profile, p.default_feed_tab, p.app_landing, p.onboarding_intents, p.seller_checklist_completed_at,
+                p.created_at, p.updated_at
+         FROM profiles p
+         JOIN users u ON u.id = p.user_id
+         WHERE p.user_id = $1
+         LIMIT 1`,
+        [req.user.id]
+      );
       const stats = await getProfileStats({ userId: req.user.id, viewerId: req.user.id });
       res.status(200).json({
         ...result.rows[0],
@@ -184,20 +286,35 @@ function createUsersRouter({ db, config }) {
       const businessOffering = optionalString(req.body?.businessOffering, "businessOffering", 2000);
       const websiteUrl = optionalWebsiteUrl(req.body?.websiteUrl, "websiteUrl", 2048);
 
-      const result = await db.query(
+      const updateResult = await db.query(
         `UPDATE profiles p
          SET display_name = $1, bio = $2, avatar_url = $3, business_offering = $4, website_url = $5, updated_at = NOW()
          FROM users u
          WHERE p.user_id = $6
            AND u.id = p.user_id
-         RETURNING p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.business_offering, p.website_url, p.is_verified, p.created_at, p.updated_at`,
+         RETURNING p.user_id`,
         [displayName, bio, avatarUrl, businessOffering, websiteUrl, req.user.id]
       );
 
-      if (result.rowCount === 0) {
+      if (updateResult.rowCount === 0) {
         throw httpError(404, "User profile not found");
       }
-      res.status(200).json(result.rows[0]);
+
+      const result = await db.query(
+        `SELECT p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.business_offering, p.website_url, p.is_verified,
+                p.show_business_on_profile, p.default_feed_tab, p.app_landing, p.onboarding_intents, p.seller_checklist_completed_at,
+                p.created_at, p.updated_at
+         FROM profiles p
+         JOIN users u ON u.id = p.user_id
+         WHERE p.user_id = $1
+         LIMIT 1`,
+        [req.user.id]
+      );
+      const stats = await getProfileStats({ userId: req.user.id, viewerId: req.user.id });
+      res.status(200).json({
+        ...result.rows[0],
+        ...stats
+      });
     })
   );
 
@@ -228,7 +345,8 @@ function createUsersRouter({ db, config }) {
       }
 
       const result = await db.query(
-        `SELECT p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.business_offering, p.website_url, p.is_verified, p.created_at, p.updated_at
+        `SELECT p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.business_offering, p.website_url, p.is_verified,
+                p.show_business_on_profile, p.created_at, p.updated_at
          FROM profiles p
          JOIN users u ON u.id = p.user_id
          WHERE p.user_id = $1
@@ -240,8 +358,15 @@ function createUsersRouter({ db, config }) {
       }
       const viewerId = await getViewerIdFromAuthHeader(req.headers.authorization);
       const stats = await getProfileStats({ userId, viewerId });
+      const row = result.rows[0];
+      const payload = { ...row };
+      delete payload.show_business_on_profile;
+      if (viewerId !== userId && !row.show_business_on_profile) {
+        payload.business_offering = null;
+        payload.website_url = null;
+      }
       res.status(200).json({
-        ...result.rows[0],
+        ...payload,
         ...stats
       });
     })
@@ -255,7 +380,10 @@ function createUsersRouter({ db, config }) {
       const search = (req.query.search || "").toString().trim();
 
       const result = await db.query(
-        `SELECT p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.business_offering, p.website_url, p.is_verified, p.created_at, p.updated_at
+        `SELECT p.user_id, u.username, p.display_name, p.bio, p.avatar_url,
+                CASE WHEN p.show_business_on_profile THEN p.business_offering ELSE NULL END AS business_offering,
+                CASE WHEN p.show_business_on_profile THEN p.website_url ELSE NULL END AS website_url,
+                p.is_verified, p.created_at, p.updated_at
          FROM profiles p
          JOIN users u ON u.id = p.user_id
          WHERE ($1::text = '' OR p.display_name ILIKE ('%' || $1 || '%') OR u.username ILIKE ('%' || $1 || '%'))

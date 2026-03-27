@@ -16,14 +16,19 @@ function createSearchRouter({ db, config }) {
       const offset = Math.max(Number(req.query.offset) || 0, 0);
 
       const result = await db.query(
-        `SELECT p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.business_offering, p.is_verified
+        `SELECT p.user_id, u.username, p.display_name, p.bio, p.avatar_url,
+                CASE WHEN p.show_business_on_profile THEN p.business_offering ELSE NULL END AS business_offering,
+                p.is_verified
          FROM profiles p
          JOIN users u ON u.id = p.user_id
          WHERE (
            $1::text = ''
            OR p.display_name ILIKE ('%' || $1 || '%')
            OR u.username ILIKE ('%' || $1 || '%')
-           OR COALESCE(p.business_offering, '') ILIKE ('%' || $1 || '%')
+           OR (
+             p.show_business_on_profile
+             AND COALESCE(p.business_offering, '') ILIKE ('%' || $1 || '%')
+           )
          )
          ORDER BY p.display_name ASC, p.user_id ASC
          LIMIT $2 OFFSET $3`,

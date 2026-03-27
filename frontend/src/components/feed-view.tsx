@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "framer-motion";
@@ -53,6 +53,8 @@ type FeedViewProps = {
   feedSubtitle?: string;
   showStories?: boolean;
   homeStyle?: boolean;
+  /** Applied once when the home feed loads (from saved profile preference). */
+  initialFeedTab?: FeedTabId;
 };
 
 function FeedSkeletonList({ homeStyle = false }: { homeStyle?: boolean }) {
@@ -112,10 +114,12 @@ export function FeedView({
   fixedFeedTab,
   feedSubtitle,
   showStories = false,
-  homeStyle = false
+  homeStyle = false,
+  initialFeedTab
 }: FeedViewProps) {
   const [postType, setPostType] = useState(fixedPostType);
   const [feedTab, setFeedTab] = useState<FeedTabId>(fixedFeedTab ?? "for_you");
+  const appliedProfileDefaultTab = useRef(false);
   const [followingOnly, setFollowingOnly] = useState(false);
   const [busyAuthorId, setBusyAuthorId] = useState<number | null>(null);
   const user = useSessionStore((state) => state.user);
@@ -257,6 +261,14 @@ export function FeedView({
       setFeedTab(fixedFeedTab);
     }
   }, [fixedFeedTab]);
+
+  useEffect(() => {
+    if (fixedFeedTab || appliedProfileDefaultTab.current || !initialFeedTab) {
+      return;
+    }
+    setFeedTab(initialFeedTab);
+    appliedProfileDefaultTab.current = true;
+  }, [fixedFeedTab, initialFeedTab]);
 
   const emptySubtitle =
     feedTab === "marketplace"

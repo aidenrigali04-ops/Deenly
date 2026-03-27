@@ -20,6 +20,8 @@ import {
   fetchMyProducts,
   formatMinorCurrency
 } from "@/lib/monetization";
+import { assistPostText, type PostAssistIntent } from "@/lib/ai-assist";
+import { ApiError } from "@/lib/api";
 
 const CREATE_DRAFT_VERSION = 1 as const;
 
@@ -98,6 +100,7 @@ type MeProfile = {
   display_name: string;
   username: string;
   avatar_url: string | null;
+  seller_checklist_completed_at?: string | null;
 };
 
 function deriveMediaType(mimeType: string): "image" | "video" | null {
@@ -153,6 +156,36 @@ export function CreatePostComposer({
     enabled: Boolean(sessionQuery.data?.id)
   });
 
+  const assistMutation = useMutation({
+    mutationFn: ({ intent }: { intent: PostAssistIntent }) => assistPostText(content.trim(), intent),
+    onSuccess: (data) => {
+      setAssistError("");
+      setAssistPreview(data.suggestion);
+    },
+    onError: (err: unknown) => {
+      const status = err instanceof ApiError ? err.status : 0;
+      if (status === 503) {
+        setAssistError("Writing help is not enabled on this server.");
+      } else {
+        setAssistError(err instanceof Error ? err.message : "Could not get a suggestion.");
+      }
+      setAssistPreview(null);
+    }
+  });
+
+  const checklistMutation = useMutation({
+    mutationFn: () =>
+      apiRequest("/users/me/preferences", {
+        method: "PATCH",
+        auth: true,
+        body: { sellerChecklistCompleted: true }
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["create-post-composer-profile", variant] });
+      queryClient.invalidateQueries({ queryKey: ["account-profile-me"] });
+    }
+  });
+
   const instagramQuery = useQuery({
     queryKey: ["instagram-status", variant],
     queryFn: () => fetchInstagramStatus(),
@@ -176,6 +209,8 @@ export function CreatePostComposer({
   const [ctaUrl, setCtaUrl] = useState("");
   const [instagramBanner, setInstagramBanner] = useState("");
   const [draftState, setDraftState] = useState<CreateDraftState>({ kind: "loading" });
+  const [assistPreview, setAssistPreview] = useState<string | null>(null);
+  const [assistError, setAssistError] = useState("");
 
   const userId = sessionQuery.data?.id;
   const draftStorageKey = userId ? `deenly-create-draft-${userId}` : null;
@@ -538,6 +573,31 @@ export function CreatePostComposer({
       </div>
 
       <div className="surface-card space-y-4">
+        {sellThis || postType === "marketplace" ? (
+          <div className="rounded-control border border-black/15 bg-surface px-3 py-2 text-xs leading-relaxed text-text">
+            <span className="font-semibold">Marketplace context</span>
+            <span className="mt-1 block text-muted">
+              This post is for offers and commerce. It appears in the Marketplace tab and should describe what someone gets.
+              Community-only reflections work best as a regular post.
+            </span>
+          </div>
+        ) : postType === "recitation" ? (
+          <div className="rounded-control border border-black/15 bg-surface px-3 py-2 text-xs leading-relaxed text-text">
+            <span className="font-semibold">Recitation share</span>
+            <span className="mt-1 block text-muted">
+              Share a short, humble caption. Avoid scholarly claims; keep tone warm and respectful.
+            </span>
+          </div>
+        ) : (
+          <div className="rounded-control border border-black/10 bg-surface/80 px-3 py-2 text-xs text-muted">
+            Community post — shown in Home. Use{" "}
+            <Link href="/marketplace" className="text-sky-600 underline-offset-2 hover:underline">
+              Marketplace
+            </Link>{" "}
+            or Promote below when you are selling.
+          </div>
+        )}
+
         <div className="flex items-center gap-3">
           {avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -561,6 +621,76 @@ export function CreatePostComposer({
           required
           aria-label="Post caption"
         />
+
+        <div className="rounded-control border border-black/10 bg-surface/60 px-3 py-2">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted">Writing help (optional)</p>
+          <p className="mt-1 text-xs text-muted">AI-generated text — always review before you publish.</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="btn-secondary px-2 py-1 text-xs"
+              disabled={assistMutation.isPending || !content.trim()}
+              onClick={() => assistMutation.mutate({ intent: "polish" })}
+            >
+              {assistMutation.isPending ? "…" : "Polish for clarity"}
+            </button>
+            {postType === "marketplace" || sellThis ? (
+              <button
+                type="button"
+                className="btn-secondary px-2 py-1 text-xs"
+                disabled={assistMutation.isPending || !content.trim()}
+                onClick={() => assistMutation.mutate({ intent: "marketplace_listing" })}
+              >
+                Listing style
+              </button>
+            ) : null}
+            {postType === "recitation" ? (
+              <button
+                type="button"
+                className="btn-secondary px-2 py-1 text-xs"
+                disabled={assistMutation.isPending || !content.trim()}
+                onClick={() => assistMutation.mutate({ intent: "recitation_caption" })}
+              >
+                Caption assist
+              </button>
+            ) : null}
+          </div>
+          {assistError ? <p className="mt-2 text-xs text-red-600 dark:text-red-400">{assistError}</p> : null}
+          {assistPreview ? (
+            <div className="mt-3 space-y-2 border-t border-black/10 pt-3">
+              <p className="text-xs font-medium text-text">Suggestion</p>
+              <p className="whitespace-pre-wrap rounded-md border border-black/10 bg-white px-2 py-2 text-sm text-text">
+                {assistPreview}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="btn-primary px-2 py-1 text-xs"
+                  onClick={() => {
+                    setContent(assistPreview);
+                    setAssistPreview(null);
+                  }}
+                >
+                  Replace caption
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary px-2 py-1 text-xs"
+                  onClick={() => {
+                    setContent((c) => (c.trim() ? `${c.trim()}\n\n${assistPreview}` : assistPreview));
+                    setAssistPreview(null);
+                  }}
+                >
+                  Append
+                </button>
+                <button type="button" className="btn-secondary px-2 py-1 text-xs" onClick={() => setAssistPreview(null)}>
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+
         <input
           className="input bg-white"
           placeholder="Tags (comma separated)"
@@ -601,6 +731,31 @@ export function CreatePostComposer({
 
         {sellThis ? (
           <div className="space-y-3 border-t border-black/10 pt-3">
+            {!profileQuery.data?.seller_checklist_completed_at && !connectQuery.data?.chargesEnabled ? (
+              <div className="rounded-control border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-text">
+                <p className="font-medium">Seller checklist</p>
+                <p className="mt-1 text-muted">
+                  Review payouts in Creator hub and publish your product before expecting checkout. When you are ready, confirm
+                  below.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Link
+                    href="/account/creator?tab=payouts"
+                    className="btn-secondary px-2 py-1 text-xs"
+                  >
+                    Creator hub
+                  </Link>
+                  <button
+                    type="button"
+                    className="btn-primary px-2 py-1 text-xs"
+                    disabled={checklistMutation.isPending}
+                    onClick={() => checklistMutation.mutate()}
+                  >
+                    {checklistMutation.isPending ? "…" : "I have reviewed seller setup"}
+                  </button>
+                </div>
+              </div>
+            ) : null}
             <div className="rounded-control border border-black/10 bg-surface px-3 py-2 text-xs text-muted">
               <p className="font-medium text-text">Payouts</p>
               {connectQuery.isLoading ? (
