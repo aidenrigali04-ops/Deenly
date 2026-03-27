@@ -4,8 +4,10 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { motion, useReducedMotion } from "framer-motion";
 import { apiRequest } from "@/lib/api";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { PostCommentsBlock } from "@/components/post-comments-block";
 import { resolveMediaUrl } from "@/lib/media-url";
 import type { FeedItem } from "@/types";
 import {
@@ -38,7 +40,7 @@ export default function PostDetailPage() {
   const router = useRouter();
   const postId = Number(params.id);
   const sessionUser = useSessionStore((state) => state.user);
-  const [comment, setComment] = useState("");
+  const reducedMotion = useReducedMotion();
   const [reportReason, setReportReason] = useState("");
   const [mediaFailed, setMediaFailed] = useState(false);
   const [liked, setLiked] = useState(false);
@@ -88,7 +90,7 @@ export default function PostDetailPage() {
   }, [postQuery.data?.liked_by_viewer, postQuery.data?.benefited_count]);
 
   const interact = useMutation({
-    mutationFn: (payload: { interactionType: string; commentText?: string }) =>
+    mutationFn: (payload: { interactionType: string }) =>
       apiRequest("/interactions", {
         method: "POST",
         auth: true,
@@ -244,13 +246,17 @@ export default function PostDetailPage() {
           </div>
         ) : null}
         <div className="flex flex-wrap gap-2">
-          <button
+          <motion.button
+            type="button"
             className="btn-secondary"
             onClick={() => likeToggleMutation.mutate(!liked)}
             disabled={likeToggleMutation.isPending}
+            {...(reducedMotion
+              ? {}
+              : { whileTap: { scale: 0.97 }, transition: { type: "spring" as const, stiffness: 480, damping: 26 } })}
           >
             {liked ? "Unlike" : "Like"}
-          </button>
+          </motion.button>
           <button
             className="btn-secondary"
             onClick={() => interact.mutate({ interactionType: "reflect_later" })}
@@ -327,28 +333,10 @@ export default function PostDetailPage() {
         ) : null}
       </article>
 
-      <form
-        className="surface-card space-y-3"
-        onSubmit={(event: FormEvent) => {
-          event.preventDefault();
-          if (!comment.trim()) {
-            return;
-          }
-          interact.mutate({ interactionType: "comment", commentText: comment });
-          setComment("");
-        }}
-      >
-        <label className="text-sm font-medium">Add comment</label>
-        <textarea
-          className="input min-h-24"
-          value={comment}
-          onChange={(event) => setComment(event.target.value)}
-          placeholder="Write a respectful comment..."
-        />
-        <button className="btn-primary" type="submit" disabled={interact.isPending}>
-          {interact.isPending ? "Posting..." : "Post comment"}
-        </button>
-      </form>
+      <div className="surface-card space-y-3 p-4">
+        <h2 className="text-sm font-semibold text-text">Discussion</h2>
+        <PostCommentsBlock postId={postId} />
+      </div>
 
       <form
         className="surface-card space-y-3"

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { motion, useReducedMotion } from "framer-motion";
 import { apiRequest } from "@/lib/api";
 import { FeedCard } from "@/components/feed-card";
 import { HomeStoriesRow } from "@/components/home-stories-row";
@@ -18,6 +19,29 @@ type FeedResponse = {
 };
 
 type FeedTabId = "for_you" | "opportunities" | "marketplace";
+
+const FEED_STAGGER_FIRST = 14;
+
+const feedListContainerVariants = {
+  hidden: {},
+  show: {
+    transition: { staggerChildren: 0.055, delayChildren: 0.02 }
+  }
+};
+
+const feedListItemVariants = {
+  hidden: { opacity: 0, y: 10 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }
+  }
+};
+
+const feedListItemInstant = {
+  hidden: { opacity: 1, y: 0 },
+  show: { opacity: 1, y: 0 }
+};
 
 type FeedViewProps = {
   heading: string;
@@ -197,7 +221,12 @@ export function FeedView({
     }
   });
 
-  const items = feedQuery.data?.pages.flatMap((page) => page.items) || [];
+  const items = useMemo(
+    () => feedQuery.data?.pages.flatMap((page) => page.items) || [],
+    [feedQuery.data?.pages]
+  );
+  const reducedMotion = useReducedMotion();
+
   useEffect(() => {
     const sponsoredIds = items
       .filter((item) => item.sponsored && item.ad_campaign_id)
@@ -330,17 +359,40 @@ export function FeedView({
             <EmptyState title="No posts yet" subtitle={emptySubtitle} />
           ) : null}
 
-          <div className={homeStyle ? "space-y-3" : "space-y-5"}>
-            {items.map((item) => (
-              <FeedCard
-                key={item.id}
-                item={item}
-                layout={homeStyle ? "home" : "default"}
-                onToggleFollow={toggleFollow}
-                followBusy={busyAuthorId === item.author_id}
-              />
-            ))}
-          </div>
+          {reducedMotion ? (
+            <div className={homeStyle ? "space-y-3" : "space-y-5"}>
+              {items.map((item) => (
+                <FeedCard
+                  key={item.id}
+                  item={item}
+                  layout={homeStyle ? "home" : "default"}
+                  onToggleFollow={toggleFollow}
+                  followBusy={busyAuthorId === item.author_id}
+                />
+              ))}
+            </div>
+          ) : (
+            <motion.div
+              className={homeStyle ? "flex flex-col gap-3" : "flex flex-col gap-5"}
+              variants={feedListContainerVariants}
+              initial="hidden"
+              animate="show"
+            >
+              {items.map((item, index) => (
+                <motion.div
+                  key={item.id}
+                  variants={index < FEED_STAGGER_FIRST ? feedListItemVariants : feedListItemInstant}
+                >
+                  <FeedCard
+                    item={item}
+                    layout={homeStyle ? "home" : "default"}
+                    onToggleFollow={toggleFollow}
+                    followBusy={busyAuthorId === item.author_id}
+                  />
+                </motion.div>
+              ))}
+            </motion.div>
+          )}
 
           {feedQuery.hasNextPage ? (
             <button

@@ -21,10 +21,17 @@ function createNotificationsRouter({ db, config, pushNotifications }) {
       const offset = Math.max(Number(req.query.offset) || 0, 0);
 
       const result = await db.query(
-        `SELECT id, type, payload, is_read, created_at
-         FROM notifications
-         WHERE user_id = $1
-         ORDER BY created_at DESC
+        `SELECT n.id,
+                n.type,
+                n.payload,
+                n.is_read,
+                n.created_at,
+                ap.display_name AS actor_display_name
+         FROM notifications n
+         LEFT JOIN profiles ap
+           ON ap.user_id = (NULLIF(n.payload->>'actorUserId', ''))::int
+         WHERE n.user_id = $1
+         ORDER BY n.created_at DESC
          LIMIT $2 OFFSET $3`,
         [req.user.id, limit, offset]
       );

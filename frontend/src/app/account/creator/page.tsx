@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { apiRequest } from "@/lib/api";
+import { ApiError, apiRequest } from "@/lib/api";
 import { fetchSessionMe } from "@/lib/auth";
 import { CreatorHubTabBar } from "@/components/creator-hub/creator-hub-tab-bar";
 import {
@@ -155,18 +155,53 @@ function AccountCreatorPageInner() {
   const connectLoading = connectStatusQuery.isLoading || connectStatusQuery.isFetching;
   const connect = connectStatusQuery.data;
 
+  const [stripeNotice, setStripeNotice] = useState<{
+    variant: "success" | "error";
+    message: string;
+  } | null>(null);
+
   const connectAccountMutation = useMutation({
     mutationFn: () => createConnectAccount(),
+    onMutate: () => {
+      setStripeNotice(null);
+    },
     onSuccess: async () => {
       await connectStatusQuery.refetch();
+      setStripeNotice({
+        variant: "success",
+        message:
+          "Stripe account linked. Next, click “Continue setup in Stripe” (Payouts tab or checklist) to add bank and business details—you will leave Deenly briefly and return when done."
+      });
+    },
+    onError: (err: unknown) => {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Could not connect Stripe.";
+      setStripeNotice({ variant: "error", message });
     }
   });
   const onboardingMutation = useMutation({
     mutationFn: () => createOnboardingLink(),
+    onMutate: () => {
+      setStripeNotice(null);
+    },
     onSuccess: (result) => {
       if (typeof window !== "undefined" && result?.url) {
-        window.open(result.url, "_blank", "noopener,noreferrer");
+        // Use full navigation so the browser does not block a new tab (async onSuccess is not a user gesture).
+        window.location.assign(result.url);
       }
+    },
+    onError: (err: unknown) => {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Could not open Stripe setup.";
+      setStripeNotice({ variant: "error", message });
     }
   });
   const [newProductTitle, setNewProductTitle] = useState("");
@@ -799,6 +834,41 @@ function AccountCreatorPageInner() {
 
       <article className="surface-card section-stack px-6 py-6">
         <CreatorHubTabBar activeTab={tab} onTabChange={setTab} />
+
+        {stripeNotice ? (
+          <div
+            className={`mt-4 rounded-control border px-3 py-2 text-sm ${
+              stripeNotice.variant === "error"
+                ? "border-rose-200 bg-rose-50 text-rose-900"
+                : "border-emerald-200 bg-emerald-50 text-emerald-950"
+            }`}
+            role="alert"
+          >
+            {stripeNotice.message}
+            {stripeNotice.variant === "success" ? (
+              <button
+                type="button"
+                className="ml-2 text-xs underline underline-offset-2"
+                onClick={() => setStripeNotice(null)}
+              >
+                Dismiss
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {process.env.NODE_ENV === "development" ? (
+          <p className="mt-3 text-xs text-muted">
+            API base:{" "}
+            <code className="rounded bg-black/[0.06] px-1 py-0.5 text-[11px]">
+              {process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api/v1 (Next default)"}
+            </code>
+            . Must point at your Node backend (set{" "}
+            <code className="rounded bg-black/[0.06] px-1 py-0.5 text-[11px]">NEXT_PUBLIC_API_BASE_URL</code> in{" "}
+            <code className="rounded bg-black/[0.06] px-1 py-0.5 text-[11px]">.env.local</code>, e.g.{" "}
+            <code className="text-[11px]">http://localhost:8080/api/v1</code>).
+          </p>
+        ) : null}
 
         <div role="tabpanel" id={`creator-hub-panel-${tab}`} aria-labelledby={`creator-hub-tab-${tab}`}>
           {tab === "overview" ? (

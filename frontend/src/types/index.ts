@@ -57,3 +57,22 @@ export type FeedItem = {
   avg_watch_time_ms?: number;
   avg_completion_rate?: number;
 };
+
+export type PostComment = {
+  id: number;
+  user_id: number;
+  post_id: number;
+  comment_text: string;
+  created_at: string;
+  commenter_display_name: string;
+  commenter_username: string;
+  commenter_avatar_url?: string | null;
+};
+
+export type PostCommentsResponse = {
+  postId: number;
+  items: PostComment[];
+  hasMore: boolean;
+  nextCursor: string | null;
+  limit: number;
+};

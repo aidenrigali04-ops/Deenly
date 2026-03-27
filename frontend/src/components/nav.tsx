@@ -141,7 +141,7 @@ function NavLink({
       className="group flex min-h-[44px] min-w-[44px] flex-col items-center justify-center gap-0.5 rounded-pill p-1 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25 focus-visible:ring-offset-2 focus-visible:ring-offset-card"
     >
       <span
-        className={`grid h-11 w-11 place-items-center rounded-full border transition ${
+        className={`nav-rail-hit grid h-11 w-11 place-items-center rounded-full border ${
           active
             ? "border-black bg-black text-white"
             : "border-black/15 bg-surface text-muted group-hover:bg-black/[0.04] group-hover:text-text"
@@ -198,7 +198,7 @@ export function Nav() {
         <Link
           href="/home"
           aria-label="Deenly Home"
-          className="grid h-11 w-11 place-items-center rounded-full border border-black/10 bg-surface text-base transition hover:bg-black/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25 focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+          className="nav-rail-hit grid h-11 w-11 place-items-center rounded-full border border-black/10 bg-surface text-base hover:bg-black/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25 focus-visible:ring-offset-2 focus-visible:ring-offset-card"
         >
           ✦
         </Link>

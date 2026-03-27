@@ -10,11 +10,66 @@ type NotificationItem = {
   payload: Record<string, unknown>;
   is_read: boolean;
   created_at: string;
+  actor_display_name?: string | null;
 };
 
 type NotificationsResponse = {
   items: NotificationItem[];
 };
+
+function payloadNum(payload: Record<string, unknown>, key: string): number | null {
+  const v = payload[key];
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+function payloadStr(payload: Record<string, unknown>, key: string): string | null {
+  const v = payload[key];
+  return typeof v === "string" ? v : null;
+}
+
+function notificationTitle(item: NotificationItem): string {
+  const p = item.payload;
+  const who =
+    typeof item.actor_display_name === "string" && item.actor_display_name.trim()
+      ? item.actor_display_name.trim()
+      : "Someone";
+  const postId = payloadNum(p, "postId");
+
+  if (item.type === "direct_message") {
+    const sender =
+      typeof p.senderDisplayName === "string" && p.senderDisplayName.trim()
+        ? p.senderDisplayName.trim()
+        : who;
+    return `Message from ${sender}`;
+  }
+  if (item.type === "post_benefited" && postId != null) {
+    return `${who} appreciated your post`;
+  }
+  if (item.type === "post_comment" && postId != null) {
+    return `${who} commented on your post`;
+  }
+  if (item.type === "post_reflect_later" && postId != null) {
+    return `${who} saved your post to reflect later`;
+  }
+  if (item.type === "new_follower") {
+    return `${who} started following you`;
+  }
+  return item.type.replace(/_/g, " ");
+}
+
+function notificationDetail(item: NotificationItem): string | null {
+  const p = item.payload;
+  if (item.type === "direct_message") {
+    return typeof p.bodyPreview === "string" ? p.bodyPreview : "New message";
+  }
+  if (item.type === "post_benefited") {
+    return "They marked it as benefited.";
+  }
+  if (item.type === "post_comment") {
+    return payloadStr(p, "commentPreview");
+  }
+  return null;
+}
 
 export function NotificationsScreen() {
   const queryClient = useQueryClient();
@@ -42,21 +97,27 @@ export function NotificationsScreen() {
         <EmptyState title="No notifications yet." />
       ) : null}
       <View style={styles.stack}>
-        {query.data?.items.map((item) => (
-          <View key={item.id} style={styles.card}>
-            <Text style={styles.title}>{item.type}</Text>
-            <Text style={styles.muted}>{new Date(item.created_at).toLocaleString()}</Text>
-            <Text style={styles.payload}>{JSON.stringify(item.payload)}</Text>
-            {!item.is_read ? (
-              <Pressable
-                style={styles.buttonSecondary}
-                onPress={() => markReadMutation.mutate(item.id)}
-              >
-                <Text style={styles.buttonText}>Mark read</Text>
-              </Pressable>
-            ) : null}
-          </View>
-        ))}
+        {query.data?.items.map((item) => {
+          const detail = notificationDetail(item);
+          return (
+            <View key={item.id} style={styles.card}>
+              <Text style={styles.title}>
+                {notificationTitle(item)}
+                {!item.is_read ? <Text style={styles.newBadge}> · New</Text> : null}
+              </Text>
+              <Text style={styles.muted}>{new Date(item.created_at).toLocaleString()}</Text>
+              {detail ? <Text style={styles.detail}>{detail}</Text> : null}
+              {!item.is_read ? (
+                <Pressable
+                  style={styles.buttonSecondary}
+                  onPress={() => markReadMutation.mutate(item.id)}
+                >
+                  <Text style={styles.buttonText}>Mark read</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          );
+        })}
       </View>
     </ScrollView>
   );
@@ -83,19 +144,27 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderColor: colors.border,
     borderWidth: 1,
-    borderRadius: 10,
-    padding: 12,
+    borderRadius: 14,
+    padding: 14,
     gap: 6
   },
   title: {
     color: colors.text,
-    fontWeight: "700"
+    fontWeight: "700",
+    fontSize: 15
   },
-  muted: {
-    color: colors.muted,
+  newBadge: {
+    color: colors.accent,
+    fontWeight: "600",
     fontSize: 12
   },
-  payload: {
+  detail: {
+    color: colors.text,
+    fontSize: 13,
+    lineHeight: 18,
+    opacity: 0.9
+  },
+  muted: {
     color: colors.muted,
     fontSize: 12
   },
@@ -105,7 +174,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    alignSelf: "flex-start"
+    alignSelf: "flex-start",
+    marginTop: 4
   },
   buttonText: {
     color: colors.text,

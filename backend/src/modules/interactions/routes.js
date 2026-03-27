@@ -123,16 +123,18 @@ function createInteractionsRouter({ db, config, analytics, pushNotifications }) 
       );
       const postOwnerId = postOwnerResult.rows[0]?.author_id || null;
       if (postOwnerId && postOwnerId !== req.user.id) {
-        await createNotification(
-          db,
-          postOwnerId,
-          `post_${interactionType}`,
-          {
-            actorUserId: req.user.id,
-            postId
-          },
-          { pushNotifications }
-        );
+        const payload = {
+          actorUserId: req.user.id,
+          postId
+        };
+        if (interactionType === "comment" && commentText) {
+          const preview =
+            commentText.length > 180 ? `${commentText.slice(0, 177).trimEnd()}…` : commentText;
+          payload.commentPreview = preview;
+        }
+        await createNotification(db, postOwnerId, `post_${interactionType}`, payload, {
+          pushNotifications
+        });
       }
       if (analytics) {
         await analytics.trackEvent(

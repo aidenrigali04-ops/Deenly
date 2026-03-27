@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { motion, useReducedMotion } from "framer-motion";
 import type { FeedItem } from "@/types";
 import { apiRequest } from "@/lib/api";
 import { resolveMediaUrl } from "@/lib/media-url";
 import { createProductCheckout, formatMinorCurrency } from "@/lib/monetization";
+import { PostCommentsBlock } from "@/components/post-comments-block";
 
 function feedPostTypeLabel(postType: string) {
   if (postType === "recitation") {
@@ -47,14 +49,27 @@ export function FeedCard({
   followBusy?: boolean;
   layout?: "default" | "home";
 }) {
+  const reducedMotion = useReducedMotion();
   const [mediaFailed, setMediaFailed] = useState(false);
   const [liked, setLiked] = useState(Boolean(item.liked_by_viewer));
   const [benefitedCount, setBenefitedCount] = useState(Number(item.benefited_count || 0));
+  const [commentCount, setCommentCount] = useState(Number(item.comment_count || 0));
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [likeBounceKey, setLikeBounceKey] = useState(0);
   useEffect(() => {
     setMediaFailed(false);
     setLiked(Boolean(item.liked_by_viewer));
     setBenefitedCount(Number(item.benefited_count || 0));
-  }, [item.id, item.media_url]);
+    setCommentCount(Number(item.comment_count || 0));
+  }, [item.id, item.media_url, item.comment_count, item.benefited_count, item.liked_by_viewer]);
+
+  useEffect(() => {
+    setLikeBounceKey(0);
+  }, [item.id]);
+
+  useEffect(() => {
+    setCommentsOpen(false);
+  }, [item.id]);
 
   const mediaUrl = resolveMediaUrl(item.media_url) || undefined;
   const canRenderMedia = Boolean(mediaUrl) && !mediaFailed;
@@ -104,12 +119,47 @@ export function FeedCard({
     onError: (_error, nextLiked) => {
       setLiked(!nextLiked);
       setBenefitedCount((value) => Math.max(0, value + (nextLiked ? -1 : 1)));
+    },
+    onSuccess: (_data, nextLiked) => {
+      if (nextLiked) {
+        setLikeBounceKey((k) => k + 1);
+      }
     }
   });
 
+  const likeHeart = (
+    <span aria-hidden="true" className="inline-flex min-w-[1em] items-center justify-center">
+      {liked ? (
+        reducedMotion ? (
+          <span key={likeBounceKey} className="like-pop-once inline-block">
+            ♥
+          </span>
+        ) : (
+          <motion.span
+            key={likeBounceKey}
+            className="inline-block"
+            initial={false}
+            animate={
+              likeBounceKey > 0 ? { scale: [1, 1.14, 1] } : { scale: 1 }
+            }
+            transition={{ duration: 0.34, ease: [0.34, 1.45, 0.64, 1] }}
+          >
+            ♥
+          </motion.span>
+        )
+      ) : (
+        "♡"
+      )}
+    </span>
+  );
+
+  const likeTapProps = reducedMotion
+    ? {}
+    : { whileTap: { scale: 0.92 }, transition: { type: "spring" as const, stiffness: 520, damping: 28 } };
+
   if (layout === "home") {
     return (
-      <article className="surface-card overflow-hidden rounded-[1.45rem] p-0">
+      <article className="feed-card-root group surface-card overflow-hidden rounded-[1.45rem] p-0">
         <header className="flex items-center justify-between px-4 py-3">
           <div className="flex min-w-0 items-center gap-2.5">
             <span
@@ -142,19 +192,25 @@ export function FeedCard({
         </header>
 
         {canRenderMedia ? (
-          isImageMedia(item) ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={mediaUrl}
-              alt={`${item.author_display_name} post media`}
-              className="feed-media-frame-home w-full"
-              onError={() => setMediaFailed(true)}
-            />
-          ) : (
-            <video controls className="feed-media-frame-home w-full" onError={() => setMediaFailed(true)}>
-              <source src={mediaUrl} />
-            </video>
-          )
+          <div className="overflow-hidden">
+            {isImageMedia(item) ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={mediaUrl}
+                alt={`${item.author_display_name} post media`}
+                className="feed-card-media-inner feed-media-frame-home w-full"
+                onError={() => setMediaFailed(true)}
+              />
+            ) : (
+              <video
+                controls
+                className="feed-card-media-inner feed-media-frame-home w-full"
+                onError={() => setMediaFailed(true)}
+              >
+                <source src={mediaUrl} />
+              </video>
+            )}
+          </div>
         ) : (
           <div className="feed-media-frame-home flex items-center justify-center px-5 text-center text-sm text-muted">
             {item.media_url
@@ -165,22 +221,31 @@ export function FeedCard({
 
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2 text-muted">
-            <button
+            <motion.button
+              type="button"
               className="feed-action h-8 w-8 border-none"
               onClick={() => likeMutation.mutate(!liked)}
               disabled={likeMutation.isPending}
               aria-label="Like post"
+              {...likeTapProps}
             >
-              <span aria-hidden="true">{liked ? "♥" : "♡"}</span>
-            </button>
-            <button className="feed-action h-8 w-8 border-none">
+              {likeHeart}
+            </motion.button>
+            <motion.button
+              type="button"
+              className="feed-action h-8 w-8 border-none"
+              aria-label={commentsOpen ? "Hide comments" : "Comment"}
+              aria-expanded={commentsOpen}
+              onClick={() => setCommentsOpen((open) => !open)}
+              {...likeTapProps}
+            >
               <span aria-hidden="true">◌</span>
-            </button>
-            <button className="feed-action h-8 w-8 border-none">
+            </motion.button>
+            <button type="button" className="feed-action h-8 w-8 border-none" aria-label="Share">
               <span aria-hidden="true">➤</span>
             </button>
           </div>
-          <button className="feed-action h-8 w-8 border-none">
+          <button type="button" className="feed-action h-8 w-8 border-none" aria-label="Save">
             <span aria-hidden="true">⌑</span>
           </button>
         </div>
@@ -244,8 +309,17 @@ export function FeedCard({
             </button>
           ) : null}
           <p className="text-xs text-muted">
-            {benefitedCount} benefited - {item.comment_count || 0} comments
+            {benefitedCount} benefited - {commentCount} comments
           </p>
+          {commentsOpen ? (
+            <div className="rounded-control border border-black/10 bg-surface/60 p-3">
+              <PostCommentsBlock
+                postId={item.id}
+                compact
+                onCommentCountDelta={(delta) => setCommentCount((c) => Math.max(0, c + delta))}
+              />
+            </div>
+          ) : null}
           {item.audience_target ? (
             <p className="text-[11px] text-muted">
               {item.audience_target === "b2b"
@@ -274,7 +348,7 @@ export function FeedCard({
   }
 
   return (
-    <article className="surface-card overflow-hidden rounded-[1.5rem] p-0">
+    <article className="feed-card-root group surface-card overflow-hidden rounded-[1.5rem] p-0">
       <header className="flex items-center justify-between gap-3 px-6 py-4">
         <div className="flex min-w-0 items-center gap-3">
           <span
@@ -316,11 +390,15 @@ export function FeedCard({
             <img
               src={mediaUrl}
               alt={`${item.author_display_name} post media`}
-              className="feed-media-frame w-full"
+              className="feed-card-media-inner feed-media-frame w-full"
               onError={() => setMediaFailed(true)}
             />
           ) : (
-            <video controls className="feed-media-frame w-full" onError={() => setMediaFailed(true)}>
+            <video
+              controls
+              className="feed-card-media-inner feed-media-frame w-full"
+              onError={() => setMediaFailed(true)}
+            >
               <source src={mediaUrl} />
             </video>
           )
@@ -334,18 +412,27 @@ export function FeedCard({
       </div>
 
       <div className="flex items-center gap-2 px-6 pb-3 text-muted">
-        <button
+        <motion.button
+          type="button"
           className="feed-action"
           aria-label="Benefited"
           onClick={() => likeMutation.mutate(!liked)}
           disabled={likeMutation.isPending}
+          {...likeTapProps}
         >
-          <span aria-hidden="true">{liked ? "♥" : "♡"}</span>
-        </button>
-        <button className="feed-action" aria-label="Comment">
+          {likeHeart}
+        </motion.button>
+        <motion.button
+          type="button"
+          className="feed-action"
+          aria-label={commentsOpen ? "Hide comments" : "Comment"}
+          aria-expanded={commentsOpen}
+          onClick={() => setCommentsOpen((open) => !open)}
+          {...likeTapProps}
+        >
           <span aria-hidden="true">◌</span>
-        </button>
-        <button className="feed-action" aria-label="Share">
+        </motion.button>
+        <button type="button" className="feed-action" aria-label="Share">
           <span aria-hidden="true">➤</span>
         </button>
         <button className="rounded-pill border border-black/10 px-3 py-1 text-xs font-medium text-muted transition hover:bg-black/[0.04] hover:text-text">
@@ -420,7 +507,7 @@ export function FeedCard({
           Benefited: {benefitedCount}
         </span>
         <span className="rounded-pill border border-black/10 px-2 py-1">
-          Comments: {item.comment_count || 0}
+          Comments: {commentCount}
         </span>
         <span className="rounded-pill border border-black/10 px-2 py-1">
           Reflect later: {item.reflect_later_count || 0}
@@ -431,6 +518,15 @@ export function FeedCard({
           </span>
         ) : null}
       </div>
+
+      {commentsOpen ? (
+        <div className="mx-6 mb-4 rounded-control border border-black/10 bg-surface/60 px-3 py-3">
+          <PostCommentsBlock
+            postId={item.id}
+            onCommentCountDelta={(delta) => setCommentCount((c) => Math.max(0, c + delta))}
+          />
+        </div>
+      ) : null}
 
       <footer className="flex items-center justify-between border-t border-black/10 px-6 py-3">
         <Link href={`/posts/${item.id}`} className="btn-secondary px-3 py-1.5 text-xs">
