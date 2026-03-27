@@ -156,11 +156,11 @@ function createFeedRouter({ db, config, mediaStorage }) {
         authorization: req.headers.authorization
       });
 
-      if (postType && !["post", "recitation", "marketplace"].includes(postType)) {
-        throw httpError(400, "postType must be post, recitation, or marketplace");
+      if (postType && !["post", "recitation", "marketplace", "reel"].includes(postType)) {
+        throw httpError(400, "postType must be post, recitation, marketplace, or reel");
       }
-      if (!["for_you", "opportunities", "marketplace"].includes(feedTab)) {
-        throw httpError(400, "feedTab must be for_you, opportunities, or marketplace");
+      if (!["for_you", "opportunities", "marketplace", "reels"].includes(feedTab)) {
+        throw httpError(400, "feedTab must be for_you, opportunities, marketplace, or reels");
       }
       if (req.query.authorId && !authorId) {
         throw httpError(400, "authorId must be a number");
@@ -205,8 +205,23 @@ function createFeedRouter({ db, config, mediaStorage }) {
         };
       }
 
-      const [result, profileIntentsResult] = await Promise.all([
-        db.query(
+      let onboardingIntentsForFeed = [];
+      if (viewerId) {
+        try {
+          const intentsResult = await db.query(
+            `SELECT COALESCE(onboarding_intents, '{}'::text[]) AS onboarding_intents
+             FROM profiles WHERE user_id = $1 LIMIT 1`,
+            [viewerId]
+          );
+          if (Array.isArray(intentsResult.rows[0]?.onboarding_intents)) {
+            onboardingIntentsForFeed = intentsResult.rows[0].onboarding_intents;
+          }
+        } catch {
+          /* e.g. column missing before migration — skip intent boosts, still return feed */
+        }
+      }
+
+      const result = await db.query(
         `WITH viewer_behavior AS (
            SELECT
              COALESCE(
@@ -231,16 +246,6 @@ function createFeedRouter({ db, config, mediaStorage }) {
            LEFT JOIN creator_products cp ON cp.id = o.product_id
            WHERE o.buyer_user_id = $1
              AND o.status = 'completed'
-         ),
-         viewer_intents AS (
-           SELECT
-             CASE
-               WHEN $1::int IS NULL THEN ARRAY[]::text[]
-               ELSE COALESCE(
-                 (SELECT onboarding_intents FROM profiles WHERE user_id = $1 LIMIT 1),
-                 '{}'::text[]
-               )
-             END AS intents
          ),
          post_agg AS (
            SELECT p.id,
@@ -336,15 +341,15 @@ function createFeedRouter({ db, config, mediaStorage }) {
                 (
                   (
                     CASE
-                      WHEN 'community' = ANY((SELECT intents FROM viewer_intents LIMIT 1))
-                        AND p.post_type IN ('post', 'recitation')
+                      WHEN 'community' = ANY($23::text[])
+                        AND p.post_type IN ('post', 'recitation', 'reel')
                       THEN 1
                       ELSE 0
                     END
                   )
                   + (
                     CASE
-                      WHEN 'shop' = ANY((SELECT intents FROM viewer_intents LIMIT 1))
+                      WHEN 'shop' = ANY($23::text[])
                         AND (p.post_type = 'marketplace' OR cpr.id IS NOT NULL)
                       THEN 1
                       ELSE 0
@@ -352,7 +357,7 @@ function createFeedRouter({ db, config, mediaStorage }) {
                   )
                   + (
                     CASE
-                      WHEN 'sell' = ANY((SELECT intents FROM viewer_intents LIMIT 1))
+                      WHEN 'sell' = ANY($23::text[])
                         AND p.post_type = 'marketplace'
                       THEN 1
                       ELSE 0
@@ -360,7 +365,7 @@ function createFeedRouter({ db, config, mediaStorage }) {
                   )
                   + (
                     CASE
-                      WHEN 'b2b' = ANY((SELECT intents FROM viewer_intents LIMIT 1))
+                      WHEN 'b2b' = ANY($23::text[])
                         AND p.audience_target IN ('b2b', 'both')
                       THEN 1
                       ELSE 0
@@ -412,6 +417,11 @@ function createFeedRouter({ db, config, mediaStorage }) {
                  AND p.audience_target IN ('b2b', 'both')
                )
                OR ($18::text = 'marketplace' AND p.post_type = 'marketplace')
+               OR (
+                 $18::text = 'reels'
+                 AND p.post_type = 'reel'
+                 AND p.media_mime_type LIKE 'video/%'
+               )
              )
            )
            AND (
@@ -497,21 +507,12 @@ function createFeedRouter({ db, config, mediaStorage }) {
           Number(config.feedAudienceTabBoostWeight || 1),
           Number(config.feedRankPlatformFeeCapBps ?? 3500),
           Number(config.feedRankPlatformFeeWeight ?? 3),
-          Number(config.feedRankOnboardingIntentWeight ?? 60)
+          Number(config.feedRankOnboardingIntentWeight ?? 60),
+          onboardingIntentsForFeed
         ]
-        ),
-        viewerId
-          ? db.query(
-              `SELECT COALESCE(onboarding_intents, '{}'::text[]) AS onboarding_intents
-               FROM profiles WHERE user_id = $1 LIMIT 1`,
-              [viewerId]
-            )
-          : Promise.resolve({ rows: [{ onboarding_intents: [] }] })
-      ]);
+      );
 
-      const onboardingIntentsApplied = Array.isArray(profileIntentsResult.rows[0]?.onboarding_intents)
-        ? profileIntentsResult.rows[0].onboarding_intents
-        : [];
+      const onboardingIntentsApplied = onboardingIntentsForFeed;
 
       const hasMore = result.rows.length > limit;
       const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
@@ -535,7 +536,8 @@ function createFeedRouter({ db, config, mediaStorage }) {
         };
       });
       const adInsertEvery = Math.max(Number(config.feedSponsoredInsertEvery || 6), 3);
-      const canInsertSponsored = !followingOnly && items.length >= adInsertEvery - 1;
+      const canInsertSponsored =
+        feedTab !== "reels" && !followingOnly && items.length >= adInsertEvery - 1;
       if (canInsertSponsored) {
         const sponsored = await getSponsoredCampaign({ db, viewerId, feedTab });
         if (sponsored && !items.some((item) => Number(item.id) === Number(sponsored.post_id))) {

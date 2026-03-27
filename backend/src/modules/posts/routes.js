@@ -6,7 +6,7 @@ const { asyncHandler } = require("../../utils/async-handler");
 const { optionalString, requireString } = require("../../utils/validators");
 const { httpError } = require("../../utils/http-error");
 
-const POST_TYPES = new Set(["post", "recitation", "marketplace"]);
+const POST_TYPES = new Set(["post", "recitation", "marketplace", "reel"]);
 const PRODUCT_TYPES = new Set(["digital", "service", "subscription"]);
 const AUDIENCE_TARGETS = new Set(["b2b", "b2c", "both"]);
 
@@ -139,7 +139,7 @@ function createPostsRouter({ db, config, analytics, mediaStorage, enqueueInstagr
 
       const postType = requireString(req.body?.postType, "postType", 3, 32);
       if (!POST_TYPES.has(postType)) {
-        throw httpError(400, "postType must be post, recitation, or marketplace");
+        throw httpError(400, "postType must be post, recitation, marketplace, or reel");
       }
 
       const content = requireString(req.body?.content, "content", 1, 2000);
@@ -160,6 +160,16 @@ function createPostsRouter({ db, config, analytics, mediaStorage, enqueueInstagr
       const businessCategory = parseBusinessCategory(req.body?.businessCategory);
       const mediaMimeType = optionalString(req.body?.mediaMimeType, "mediaMimeType", 128);
       const crossPostToInstagram = Boolean(req.body?.crossPostToInstagram);
+
+      if (postType === "reel") {
+        if (sellThis.sellThis) {
+          throw httpError(400, "Reel posts cannot be combined with sell-this product creation");
+        }
+        const mime = String(mediaMimeType || "").trim().toLowerCase();
+        if (!mime.startsWith("video/")) {
+          throw httpError(400, "Reel posts require mediaMimeType with a video/* mime type");
+        }
+      }
 
       await db.query("BEGIN");
       let result;
@@ -283,7 +293,7 @@ function createPostsRouter({ db, config, analytics, mediaStorage, enqueueInstagr
       const videoOnly = String(req.query.videoOnly || "false") === "true";
 
       if (postType && !POST_TYPES.has(postType)) {
-        throw httpError(400, "postType must be post, recitation, or marketplace");
+        throw httpError(400, "postType must be post, recitation, marketplace, or reel");
       }
       if (req.query.authorId && !authorId) {
         throw httpError(400, "authorId must be a number");

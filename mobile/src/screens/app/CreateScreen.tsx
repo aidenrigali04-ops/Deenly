@@ -53,7 +53,7 @@ function SectionTitle({ children }: { children: string }) {
 
 export function CreateScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const [postType, setPostType] = useState<"post" | "recitation" | "marketplace">("post");
+  const [postType, setPostType] = useState<"post" | "recitation" | "marketplace" | "reel">("post");
   const [content, setContent] = useState("");
   const [tagsInput, setTagsInput] = useState("");
   const [selectedFile, setSelectedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
@@ -134,9 +134,15 @@ export function CreateScreen({ navigation }: Props) {
     }
   }, [sellThis]);
 
+  useEffect(() => {
+    if (postType === "reel") {
+      setSellThis(false);
+    }
+  }, [postType]);
+
   const pickMedia = async () => {
     const result = await DocumentPicker.getDocumentAsync({
-      type: ["image/*", "video/*"],
+      type: postType === "reel" ? "video/*" : ["image/*", "video/*"],
       copyToCacheDirectory: true
     });
     if (!result.canceled && result.assets.length > 0) {
@@ -158,6 +164,16 @@ export function CreateScreen({ navigation }: Props) {
     setIsSubmitting(true);
     setError("");
     try {
+      if (postType === "reel") {
+        if (!selectedFile) {
+          throw new Error("Select a video for your reel.");
+        }
+        const m = selectedFile.mimeType || "";
+        if (!m.startsWith("video/")) {
+          throw new Error("Reels require a video file.");
+        }
+      }
+
       if (crossPostToInstagram && !selectedFile) {
         throw new Error("Attach image or video to cross-post to Instagram.");
       }
@@ -217,7 +233,10 @@ export function CreateScreen({ navigation }: Props) {
           serviceDetails: sellThis && serviceDetails.trim() ? serviceDetails.trim() : undefined,
           deliveryMethod: sellThis && deliveryMethod.trim() ? deliveryMethod.trim() : undefined,
           websiteUrl: sellThis && websiteUrl.trim() ? websiteUrl.trim() : undefined,
-          deliveryMediaKey
+          deliveryMediaKey,
+          ...(postType === "reel" && selectedFile
+            ? { mediaMimeType: selectedFile.mimeType || "video/mp4" }
+            : {})
         }
       });
 
@@ -347,7 +366,9 @@ export function CreateScreen({ navigation }: Props) {
               />
             ) : null}
             {!selectedFile ? (
-              <Text style={styles.mediaPlaceholder}>Tap to add photo or video</Text>
+              <Text style={styles.mediaPlaceholder}>
+                {postType === "reel" ? "Tap to add video (vertical works best)" : "Tap to add photo or video"}
+              </Text>
             ) : null}
           </Pressable>
 
@@ -382,20 +403,22 @@ export function CreateScreen({ navigation }: Props) {
               onChangeText={setTagsInput}
             />
             <View style={styles.divider} />
-            <View style={styles.promoteRow}>
-              <View style={styles.promoteTextBlock}>
-                <Text style={styles.promoteLabel}>Promote</Text>
-                <Text style={styles.promoteHint}>Add pricing and offer details</Text>
-              </View>
-              <Switch
-                value={sellThis}
-                onValueChange={setSellThis}
-                trackColor={{ false: colors.composerBorder, true: colors.accent }}
-                thumbColor={Platform.OS === "android" ? colors.composerInputBg : undefined}
-                accessibilityLabel="Promote this post"
-              />
-            </View>
-            {sellThis ? (
+            {postType !== "reel" ? (
+              <>
+                <View style={styles.promoteRow}>
+                  <View style={styles.promoteTextBlock}>
+                    <Text style={styles.promoteLabel}>Promote</Text>
+                    <Text style={styles.promoteHint}>Add pricing and offer details</Text>
+                  </View>
+                  <Switch
+                    value={sellThis}
+                    onValueChange={setSellThis}
+                    trackColor={{ false: colors.composerBorder, true: colors.accent }}
+                    thumbColor={Platform.OS === "android" ? colors.composerInputBg : undefined}
+                    accessibilityLabel="Promote this post"
+                  />
+                </View>
+                {sellThis ? (
               <View style={styles.promoteFields}>
                 <SectionTitle>Pricing and type</SectionTitle>
                 <TextInput
@@ -553,6 +576,12 @@ export function CreateScreen({ navigation }: Props) {
                 <Text style={styles.helperLight}>Add both CTA fields or leave both empty.</Text>
               </View>
             ) : null}
+              </>
+            ) : (
+              <Text style={styles.muted}>
+                Reels use one video only. Open the Reels tab to watch full-screen reels.
+              </Text>
+            )}
           </View>
 
           <View style={styles.moreSection}>
@@ -562,7 +591,8 @@ export function CreateScreen({ navigation }: Props) {
                 [
                   ["post", "Post"],
                   ["recitation", "Recitation"],
-                  ["marketplace", "Marketplace"]
+                  ["marketplace", "Marketplace"],
+                  ["reel", "Reel"]
                 ] as const
               ).map(([type, label]) => (
                 <Pressable

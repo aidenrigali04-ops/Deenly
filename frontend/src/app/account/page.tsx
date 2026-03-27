@@ -33,7 +33,7 @@ type ProfileFeedItem = {
   content: string;
   media_url: string | null;
   media_mime_type: string | null;
-  post_type: "post" | "recitation" | "marketplace";
+  post_type: "post" | "recitation" | "marketplace" | "reel";
   created_at: string;
   benefited_count: number;
 };

@@ -72,7 +72,7 @@ function parseCreateDraft(raw: string): CreatePostDraftV1 | null {
   }
 }
 
-function isDraftEmpty(d: CreatePostDraftV1): boolean {
+function isDraftEmpty(d: CreatePostDraftV1, defaultPostType: "post" | "reel" = "post"): boolean {
   return (
     !d.content.trim() &&
     !d.tagsInput.trim() &&
@@ -81,7 +81,7 @@ function isDraftEmpty(d: CreatePostDraftV1): boolean {
     !d.businessCategory &&
     !d.ctaLabel.trim() &&
     !d.ctaUrl.trim() &&
-    d.postType === "post" &&
+    d.postType === defaultPostType &&
     !d.crossPostToInstagram
   );
 }
@@ -121,6 +121,8 @@ export type CreatePostComposerProps = {
   /** Path to replace URL with after Instagram OAuth return */
   redirectPathAfterInstagram?: string;
   className?: string;
+  /** Lock composer to vertical video reels (postType reel, video-only media). */
+  reelMode?: boolean;
 };
 
 export function CreatePostComposer({
@@ -128,12 +130,15 @@ export function CreatePostComposer({
   onPublished,
   variant = "page",
   redirectPathAfterInstagram,
-  className = ""
+  className = "",
+  reelMode = false
 }: CreatePostComposerProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const mediaInputRef = useRef<HTMLInputElement>(null);
-  const igRedirectPath = redirectPathAfterInstagram ?? (variant === "inline" ? "/account" : "/create");
+  const igRedirectPath =
+    redirectPathAfterInstagram ??
+    (reelMode ? "/create/reel" : variant === "inline" ? "/account" : "/create");
   const fieldId = variant === "inline" ? "profile-create" : "create";
 
   const sessionQuery = useQuery({
@@ -194,7 +199,7 @@ export function CreatePostComposer({
   const igConnected = Boolean(instagramQuery.data?.connected);
 
   const [crossPostToInstagram, setCrossPostToInstagram] = useState(false);
-  const [postType, setPostType] = useState("post");
+  const [postType, setPostType] = useState(reelMode ? "reel" : "post");
   const [content, setContent] = useState("");
   const [tagsInput, setTagsInput] = useState("");
   const [mediaFile, setMediaFile] = useState<File | null>(null);
@@ -213,7 +218,12 @@ export function CreatePostComposer({
   const [assistError, setAssistError] = useState("");
 
   const userId = sessionQuery.data?.id;
-  const draftStorageKey = userId ? `deenly-create-draft-${userId}` : null;
+  const draftStorageKey = userId
+    ? reelMode
+      ? `deenly-create-draft-${userId}-reel`
+      : `deenly-create-draft-${userId}`
+    : null;
+  const draftDefaultPostType = reelMode ? "reel" : "post";
 
   useEffect(() => {
     if (!draftStorageKey || typeof window === "undefined") {
@@ -226,12 +236,12 @@ export function CreatePostComposer({
       return;
     }
     const parsed = parseCreateDraft(raw);
-    if (parsed && !isDraftEmpty(parsed)) {
+    if (parsed && !isDraftEmpty(parsed, draftDefaultPostType)) {
       setDraftState({ kind: "offer", payload: parsed });
     } else {
       setDraftState({ kind: "ready" });
     }
-  }, [draftStorageKey]);
+  }, [draftStorageKey, draftDefaultPostType]);
 
   useEffect(() => {
     if (draftState.kind !== "ready" || !draftStorageKey || typeof window === "undefined") {
@@ -250,7 +260,7 @@ export function CreatePostComposer({
       postType,
       crossPostToInstagram
     };
-    if (isDraftEmpty(payload)) {
+    if (isDraftEmpty(payload, draftDefaultPostType)) {
       return;
     }
     const t = window.setTimeout(() => {
@@ -273,7 +283,8 @@ export function CreatePostComposer({
     ctaLabel,
     ctaUrl,
     postType,
-    crossPostToInstagram
+    crossPostToInstagram,
+    draftDefaultPostType
   ]);
 
   const disconnectInstagramMutation = useMutation({
@@ -318,10 +329,17 @@ export function CreatePostComposer({
   }, [sellThis]);
 
   useEffect(() => {
-    if (sellThis) {
+    if (reelMode) {
+      setPostType("reel");
+      setSellThis(false);
+    }
+  }, [reelMode]);
+
+  useEffect(() => {
+    if (sellThis && !reelMode) {
       setPostType("marketplace");
     }
-  }, [sellThis]);
+  }, [sellThis, reelMode]);
 
   useEffect(() => {
     if (!sellThis || !selectedProductId) {
@@ -357,7 +375,7 @@ export function CreatePostComposer({
     setBusinessCategory("");
     setCtaLabel("");
     setCtaUrl("");
-    setPostType("post");
+    setPostType(reelMode ? "reel" : "post");
     setCrossPostToInstagram(false);
     setError("");
   }
@@ -370,6 +388,16 @@ export function CreatePostComposer({
     const file = mediaFile;
 
     try {
+      if (postType === "reel") {
+        if (!file || file.size <= 0) {
+          throw new Error("Add a video for your reel.");
+        }
+        const mime = file.type || "";
+        if (!mime.startsWith("video/")) {
+          throw new Error("Reels require a video file (not an image).");
+        }
+      }
+
       if (crossPostToInstagram && (!file || file.size <= 0)) {
         throw new Error("Add image or video media to cross-post to Instagram.");
       }
@@ -396,7 +424,10 @@ export function CreatePostComposer({
           ctaUrl: sellThis && ctaUrl.trim() ? ctaUrl.trim() : undefined,
           sellThis: false,
           audienceTarget: sellThis ? audienceTarget : "both",
-          businessCategory: sellThis && businessCategory ? businessCategory : undefined
+          businessCategory: sellThis && businessCategory ? businessCategory : undefined,
+          ...(postType === "reel" && file
+            ? { mediaMimeType: file.type || "video/mp4" }
+            : {})
         }
       });
 
@@ -463,7 +494,7 @@ export function CreatePostComposer({
         onPublished?.(post.id);
         resetForm();
       } else {
-        router.push(`/posts/${post.id}`);
+        router.push(reelMode ? "/reels" : `/posts/${post.id}`);
       }
     } catch (err) {
       setError((err as Error).message || "Unable to create post");
@@ -538,7 +569,8 @@ export function CreatePostComposer({
           id={`${fieldId}-media-file`}
           name="mediaFile"
           type="file"
-          accept="image/*,video/*"
+          accept={reelMode ? "video/*" : "image/*,video/*"}
+          capture={reelMode ? "environment" : undefined}
           className="sr-only"
           onChange={(e) => {
             const f = e.target.files?.[0];
@@ -548,7 +580,7 @@ export function CreatePostComposer({
         <button
           type="button"
           className={mediaZoneClass}
-          aria-label="Add photo or video for this post"
+          aria-label={reelMode ? "Add video for this reel" : "Add photo or video for this post"}
           onClick={openMediaPicker}
           onKeyDown={onMediaZoneKeyDown}
         >
@@ -566,10 +598,16 @@ export function CreatePostComposer({
             />
           ) : null}
           {!mediaPreviewUrl ? (
-            <span className="px-6 text-sm font-medium text-text">Tap to add photo or video</span>
+            <span className="px-6 text-sm font-medium text-text">
+              {reelMode ? "Tap to add vertical video" : "Tap to add photo or video"}
+            </span>
           ) : null}
         </button>
-        <p className="mt-2 text-center text-xs text-muted">Optional for text-only posts. JPEG, PNG, GIF, or MP4.</p>
+        <p className="mt-2 text-center text-xs text-muted">
+          {reelMode
+            ? "Video required. Vertical 9:16 looks best in Reels."
+            : "Optional for text-only posts. JPEG, PNG, GIF, or MP4."}
+        </p>
       </div>
 
       <div className="surface-card space-y-4">
@@ -579,6 +617,13 @@ export function CreatePostComposer({
             <span className="mt-1 block text-muted">
               This post is for offers and commerce. It appears in the Marketplace tab and should describe what someone gets.
               Community-only reflections work best as a regular post.
+            </span>
+          </div>
+        ) : postType === "reel" ? (
+          <div className="rounded-control border border-black/15 bg-surface px-3 py-2 text-xs leading-relaxed text-text">
+            <span className="font-semibold">Reel</span>
+            <span className="mt-1 block text-muted">
+              Short vertical video for the Reels feed. Keep captions respectful; one video per reel.
             </span>
           </div>
         ) : postType === "recitation" ? (
@@ -699,37 +744,39 @@ export function CreatePostComposer({
           aria-label="Tags"
         />
 
-        <div className="border-t border-black/10 pt-3">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="font-semibold text-text">Promote</p>
-              <p className="text-xs text-muted">Attach a catalog product and tune how it shows in feed</p>
-            </div>
-            <input
-              type="checkbox"
-              role="switch"
-              aria-label="Promote this post"
-              checked={sellThis}
-              onChange={(event) => setSellThis(event.target.checked)}
-              className="sr-only"
-              id={`${fieldId}-promote-switch`}
-            />
-            <label
-              htmlFor={`${fieldId}-promote-switch`}
-              className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border p-0.5 transition focus-within:ring-2 focus-within:ring-accent ${
-                sellThis ? "border-accent bg-accent" : "border-black/15 bg-black/10"
-              }`}
-            >
-              <span
-                className={`block size-6 rounded-full bg-white shadow transition-transform ${
-                  sellThis ? "translate-x-5" : "translate-x-0"
-                }`}
+        {!reelMode ? (
+          <div className="border-t border-black/10 pt-3">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="font-semibold text-text">Promote</p>
+                <p className="text-xs text-muted">Attach a catalog product and tune how it shows in feed</p>
+              </div>
+              <input
+                type="checkbox"
+                role="switch"
+                aria-label="Promote this post"
+                checked={sellThis}
+                onChange={(event) => setSellThis(event.target.checked)}
+                className="sr-only"
+                id={`${fieldId}-promote-switch`}
               />
-            </label>
+              <label
+                htmlFor={`${fieldId}-promote-switch`}
+                className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border p-0.5 transition focus-within:ring-2 focus-within:ring-accent ${
+                  sellThis ? "border-accent bg-accent" : "border-black/15 bg-black/10"
+                }`}
+              >
+                <span
+                  className={`block size-6 rounded-full bg-white shadow transition-transform ${
+                    sellThis ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </label>
+            </div>
           </div>
-        </div>
+        ) : null}
 
-        {sellThis ? (
+        {!reelMode && sellThis ? (
           <div className="space-y-3 border-t border-black/10 pt-3">
             {!profileQuery.data?.seller_checklist_completed_at && !connectQuery.data?.chargesEnabled ? (
               <div className="rounded-control border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-text">
@@ -928,21 +975,26 @@ export function CreatePostComposer({
           </button>
         )}
 
-        <div className="border-t border-black/10 pt-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Post type</p>
-          <select
-            className="input mt-2"
-            value={postType}
-            onChange={(event) => setPostType(event.target.value)}
-            aria-label="Post type"
-            disabled={sellThis}
-          >
-            <option value="post">Post</option>
-            <option value="recitation">Recitation</option>
-            <option value="marketplace">Marketplace</option>
-          </select>
-          {sellThis ? <p className="mt-1 text-xs text-muted">Promoted posts use the Marketplace type.</p> : null}
-        </div>
+        {!reelMode ? (
+          <div className="border-t border-black/10 pt-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">Post type</p>
+            <select
+              className="input mt-2"
+              value={postType}
+              onChange={(event) => setPostType(event.target.value)}
+              aria-label="Post type"
+              disabled={sellThis}
+            >
+              <option value="post">Post</option>
+              <option value="recitation">Recitation</option>
+              <option value="marketplace">Marketplace</option>
+              <option value="reel">Reel</option>
+            </select>
+            {sellThis ? <p className="mt-1 text-xs text-muted">Promoted posts use the Marketplace type.</p> : null}
+          </div>
+        ) : (
+          <p className="border-t border-black/10 pt-3 text-xs text-muted">Publishing as a Reel (vertical video).</p>
+        )}
 
         <label className="flex items-center gap-2 text-sm text-text">
           <input

@@ -679,6 +679,64 @@ describeIfDatabase("integration api flows", () => {
     expect(detail.body.media_mime_type).toBe("video/mp4");
   });
 
+  it("creates reel posts with video mime, attaches video, and lists them on feedTab=reels", async () => {
+    const ts = Date.now();
+    const reg = await request(app).post("/api/v1/auth/register").send({
+      email: `reel-feed-${ts}@example.com`,
+      username: `reel_feed_${ts}`,
+      password: "StrongPass123",
+      displayName: "Reel Feed"
+    });
+    expect(reg.statusCode).toBe(201);
+    const token = reg.body.tokens.accessToken;
+
+    const noMime = await request(app)
+      .post("/api/v1/posts")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ postType: "reel", content: "missing mime" });
+    expect(noMime.statusCode).toBe(400);
+
+    const reelPost = await request(app)
+      .post("/api/v1/posts")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        postType: "reel",
+        content: "Integration reel caption",
+        mediaMimeType: "video/mp4"
+      });
+    expect(reelPost.statusCode).toBe(201);
+
+    const badAttach = await request(app)
+      .post(`/api/v1/media/posts/${reelPost.body.id}/attach`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        mediaKey: "uploads/reels/bad.jpg",
+        mediaUrl: "uploads/reels/bad.jpg",
+        mimeType: "image/jpeg",
+        fileSizeBytes: 1024
+      });
+    expect(badAttach.statusCode).toBe(400);
+
+    const attach = await request(app)
+      .post(`/api/v1/media/posts/${reelPost.body.id}/attach`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        mediaKey: "uploads/reels/test.mp4",
+        mediaUrl: "uploads/reels/test.mp4",
+        mimeType: "video/mp4",
+        fileSizeBytes: 8192
+      });
+    expect(attach.statusCode).toBe(200);
+
+    const reelsFeed = await request(app)
+      .get("/api/v1/feed?feedTab=reels&limit=20")
+      .set("Authorization", `Bearer ${token}`);
+    expect(reelsFeed.statusCode).toBe(200);
+    const found = reelsFeed.body.items.find((item) => item.id === reelPost.body.id);
+    expect(found).toBeDefined();
+    expect(found.post_type).toBe("reel");
+  });
+
   it("supports prayer settings and suppresses in-app notifications in always quiet mode", async () => {
     const owner = await request(app).post("/api/v1/auth/register").send({
       email: "quiet-owner@example.com",

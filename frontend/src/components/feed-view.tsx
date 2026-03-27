@@ -46,7 +46,7 @@ const feedListItemInstant = {
 type FeedViewProps = {
   heading: string;
   /** When set, feed only loads this post type (e.g. recitation page). */
-  fixedPostType?: "" | "recitation" | "post" | "marketplace";
+  fixedPostType?: "" | "recitation" | "post" | "marketplace" | "reel";
   /** When set, feed is locked to this tab and tab pills are hidden (e.g. /marketplace). */
   fixedFeedTab?: FeedTabId;
   /** Shown under the heading when provided. */
@@ -301,6 +301,9 @@ export function FeedView({
             <Link href="/dhikr" className="btn-secondary px-3 py-2 text-xs" aria-label="Open Dhikr mode">
               Dhikr
             </Link>
+            <Link href="/reels" className="btn-secondary px-3 py-2 text-xs" aria-label="Open reels">
+              Reels
+            </Link>
           </div>
         </div>
         {fixedFeedTab ? null : (
@@ -332,13 +335,16 @@ export function FeedView({
                 className="input max-w-44 py-2 text-xs"
                 value={postType}
                 onChange={(event) =>
-                  setPostType(event.target.value as "" | "recitation" | "post" | "marketplace")
+                  setPostType(
+                    event.target.value as "" | "recitation" | "post" | "marketplace" | "reel"
+                  )
                 }
               >
                 <option value="">All types</option>
                 <option value="post">Post</option>
                 <option value="recitation">Recitation</option>
                 <option value="marketplace">Marketplace</option>
+                <option value="reel">Reel</option>
               </select>
             ) : null}
             <label className="flex items-center gap-2 text-xs sm:text-sm text-muted">

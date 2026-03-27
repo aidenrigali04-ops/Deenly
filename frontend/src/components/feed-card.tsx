@@ -15,6 +15,9 @@ function feedPostTypeLabel(postType: string) {
   if (postType === "marketplace") {
     return "Marketplace";
   }
+  if (postType === "reel") {
+    return "Reel";
+  }
   return "Post";
 }
 
@@ -24,6 +27,9 @@ function feedReflectionLabel(postType: string) {
   }
   if (postType === "marketplace") {
     return "Marketplace listing";
+  }
+  if (postType === "reel") {
+    return "Reel reflection";
   }
   return "Post reflection";
 }

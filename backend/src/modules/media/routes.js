@@ -88,6 +88,21 @@ function createMediaRouter({ db, config, mediaStorage, analytics }) {
       ) {
         throw httpError(400, "durationSeconds must be a positive number");
       }
+
+      const postTypeResult = await db.query(
+        `SELECT post_type FROM posts WHERE id = $1 AND author_id = $2 LIMIT 1`,
+        [postId, req.user.id]
+      );
+      if (postTypeResult.rowCount === 0) {
+        throw httpError(404, "Post not found");
+      }
+      if (
+        postTypeResult.rows[0].post_type === "reel" &&
+        !String(mimeType).toLowerCase().startsWith("video/")
+      ) {
+        throw httpError(400, "Reel posts require video media");
+      }
+
       const mediaStatus =
         mimeType.startsWith("image/") || !config.mediaAsyncVideoProcessing
           ? "ready"

@@ -90,7 +90,9 @@ export function PostCard({
                   ? "Original audio"
                   : item.post_type === "marketplace"
                     ? "Marketplace"
-                    : "Post"}{" "}
+                    : item.post_type === "reel"
+                      ? "Reel"
+                      : "Post"}{" "}
                 -{" "}
                 {new Date(item.created_at).toLocaleDateString()}
               </Text>

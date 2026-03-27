@@ -33,6 +33,7 @@ import { DhikrScreen } from "../screens/app/DhikrScreen";
 import { QuranReaderScreen } from "../screens/app/QuranReaderScreen";
 import { SalahSettingsScreen } from "../screens/app/SalahSettingsScreen";
 import { CreatorEconomyScreen } from "../screens/app/CreatorEconomyScreen";
+import { ReelsScreen } from "../screens/app/ReelsScreen";
 
 export type AppTabParamList = {
   HomeTab: undefined;
@@ -68,6 +69,7 @@ export type RootStackParamList = {
   QuranReader: undefined;
   SalahSettings: undefined;
   CreatorEconomy: undefined;
+  Reels: undefined;
 };
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
@@ -233,6 +235,7 @@ export function AppNavigator() {
               options={{ title: "Guidelines" }}
             />
             <RootStack.Screen name="Dhikr" component={DhikrScreen} options={{ title: "Dhikr Mode" }} />
+            <RootStack.Screen name="Reels" component={ReelsScreen} options={{ title: "Reels", headerShown: false }} />
             <RootStack.Screen
               name="QuranReader"
               component={QuranReaderScreen}

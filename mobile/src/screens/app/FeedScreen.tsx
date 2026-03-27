@@ -108,9 +108,14 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.headerRow}>
         <Text style={styles.heading}>{feedVariant === "marketplace" ? "Marketplace" : "Home"}</Text>
-        <Pressable style={styles.topPill} onPress={() => navigation.navigate("Dhikr")}>
-          <Text style={styles.topPillText}>Dhikr</Text>
-        </Pressable>
+        <View style={styles.topPills}>
+          <Pressable style={styles.topPill} onPress={() => navigation.navigate("Dhikr")}>
+            <Text style={styles.topPillText}>Dhikr</Text>
+          </Pressable>
+          <Pressable style={styles.topPill} onPress={() => navigation.navigate("Reels")}>
+            <Text style={styles.topPillText}>Reels</Text>
+          </Pressable>
+        </View>
       </View>
       {visibleReminder ? (
         <View style={styles.reminderBanner}>
@@ -221,6 +226,11 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 22,
     fontWeight: "700"
+  },
+  topPills: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8
   },
   topPill: {
     borderColor: colors.border,

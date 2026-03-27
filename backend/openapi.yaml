@@ -128,7 +128,7 @@ paths:
           name: postType
           schema:
             type: string
-            enum: [post, recitation, marketplace]
+            enum: [post, recitation, marketplace, reel]
         - in: query
           name: limit
           schema: { type: integer, minimum: 1, maximum: 50 }
@@ -438,7 +438,7 @@ paths:
           name: postType
           schema:
             type: string
-            enum: [post, recitation, marketplace]
+            enum: [post, recitation, marketplace, reel]
         - in: query
           name: limit
           schema: { type: integer, minimum: 1, maximum: 50 }
