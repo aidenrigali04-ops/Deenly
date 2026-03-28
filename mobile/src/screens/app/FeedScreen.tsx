@@ -1,13 +1,24 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  FlatList,
+  ListRenderItem,
+  Pressable,
+  StyleSheet,
+  Text,
+  View
+} from "react-native";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { CompositeScreenProps } from "@react-navigation/native";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { NativeStackNavigationProp, NativeStackScreenProps } from "@react-navigation/native-stack";
 import { apiRequest } from "../../lib/api";
 import { ackPrayerReminder, fetchPrayerStatus } from "../../lib/prayer";
+import { followUser, unfollowUser } from "../../lib/follows";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { PostCard } from "../../components/PostCard";
+import { HomeTopBar } from "../../components/HomeTopBar";
+import { HomeStoriesRow } from "../../components/HomeStoriesRow";
 import { colors } from "../../theme";
 import type { FeedItem } from "../../types";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
@@ -29,11 +40,33 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
   const [feedTab, setFeedTab] = useState<"for_you" | "opportunities" | "marketplace">(
     feedVariant === "marketplace" ? "marketplace" : "for_you"
   );
+  const appliedProfileDefaultTab = useRef(false);
   const feedQueryKey = useMemo(
     () => ["mobile-feed", followingOnly, feedTab] as const,
     [followingOnly, feedTab]
   );
   const queryClient = useQueryClient();
+
+  const profileQuery = useQuery({
+    queryKey: ["mobile-feed-profile-me"],
+    queryFn: () =>
+      apiRequest<{ default_feed_tab?: "for_you" | "opportunities" | "marketplace" | null }>(
+        "/users/me",
+        { auth: true }
+      ),
+    enabled: feedVariant === "home"
+  });
+
+  useEffect(() => {
+    if (appliedProfileDefaultTab.current || feedVariant !== "home") {
+      return;
+    }
+    const t = profileQuery.data?.default_feed_tab;
+    if (t === "for_you" || t === "opportunities" || t === "marketplace") {
+      setFeedTab(t);
+      appliedProfileDefaultTab.current = true;
+    }
+  }, [feedVariant, profileQuery.data?.default_feed_tab]);
 
   const feedQuery = useInfiniteQuery({
     queryKey: feedQueryKey,
@@ -52,6 +85,7 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
     initialPageParam: "",
     getNextPageParam: (lastPage) => lastPage.nextCursor || undefined
   });
+
   const prayerStatusQuery = useQuery({
     queryKey: ["mobile-prayer-status"],
     queryFn: () => fetchPrayerStatus(),
@@ -65,14 +99,15 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
   const [ackedReminderKey, setAckedReminderKey] = useState<string | null>(null);
   const visibleReminder = hasReminder && ackedReminderKey !== prayerStatusQuery.data?.reminderKey;
 
-  const acknowledgeReminder = async () => {
+  const acknowledgeReminder = useCallback(async () => {
     const reminderKey = prayerStatusQuery.data?.reminderKey;
     if (!reminderKey) return;
     await ackPrayerReminder(reminderKey);
     setAckedReminderKey(reminderKey);
-  };
+  }, [prayerStatusQuery.data?.reminderKey]);
 
   const items = feedQuery.data?.pages.flatMap((page) => page.items) || [];
+
   useEffect(() => {
     const sponsoredCampaignIds = items
       .filter((item) => item.sponsored && item.ad_campaign_id)
@@ -86,6 +121,7 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
       }).catch(() => null);
     });
   }, [items]);
+
   const likeMutation = useMutation({
     mutationFn: ({ postId, nextLiked }: { postId: number; nextLiked: boolean }) =>
       nextLiked
@@ -104,132 +140,249 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
     }
   });
 
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.headerRow}>
-        <Text style={styles.heading}>{feedVariant === "marketplace" ? "Marketplace" : "Home"}</Text>
-        <View style={styles.topPills}>
-          <Pressable style={styles.topPill} onPress={() => navigation.navigate("Dhikr")}>
-            <Text style={styles.topPillText}>Dhikr</Text>
-          </Pressable>
-          <Pressable style={styles.topPill} onPress={() => navigation.navigate("Reels")}>
-            <Text style={styles.topPillText}>Reels</Text>
-          </Pressable>
-        </View>
-      </View>
-      {visibleReminder ? (
-        <View style={styles.reminderBanner}>
-          <View style={styles.reminderRow}>
-            <Text style={styles.reminderText}>Time for Salah</Text>
-            <Pressable onPress={acknowledgeReminder}>
-              <Text style={styles.reminderDismiss}>Dismiss</Text>
+  const followMutation = useMutation({
+    mutationFn: ({
+      authorId,
+      currentlyFollowing
+    }: {
+      authorId: number;
+      currentlyFollowing: boolean;
+    }) => (currentlyFollowing ? unfollowUser(authorId) : followUser(authorId)),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: feedQueryKey });
+    }
+  });
+
+  const openNotifications = useCallback(() => {
+    const parent = navigation.getParent<NativeStackNavigationProp<RootStackParamList>>();
+    parent?.navigate("Notifications");
+  }, [navigation]);
+
+  const listHeader = useMemo(() => {
+    return (
+      <View style={styles.headerBlock}>
+        {visibleReminder ? (
+          <View style={styles.reminderBanner}>
+            <View style={styles.reminderRow}>
+              <Text style={styles.reminderText}>Time for Salah</Text>
+              <Pressable onPress={acknowledgeReminder}>
+                <Text style={styles.reminderDismiss}>Dismiss</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+
+        <View style={styles.headerCard}>
+          <View style={styles.titleRow}>
+            <Text style={styles.heading}>{feedVariant === "marketplace" ? "Marketplace" : "Home"}</Text>
+          </View>
+          {feedVariant === "home" ? (
+            <View style={styles.actionRow}>
+              <Pressable style={styles.topPill} onPress={() => navigation.navigate("SearchTab")}>
+                <Text style={styles.topPillText}>Search</Text>
+              </Pressable>
+              <Pressable style={styles.topPill} onPress={() => navigation.navigate("Dhikr")}>
+                <Text style={styles.topPillText}>Dhikr</Text>
+              </Pressable>
+              <Pressable style={styles.topPill} onPress={() => navigation.navigate("Reels")}>
+                <Text style={styles.topPillText}>Reels</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          <View style={styles.filters}>
+            {feedVariant === "marketplace" ? (
+              <Text style={styles.marketplaceHint}>Creator offers and promotions.</Text>
+            ) : (
+              <>
+                <Pressable
+                  style={[styles.chip, feedTab === "for_you" ? styles.chipActive : null]}
+                  onPress={() => setFeedTab("for_you")}
+                >
+                  <Text style={[styles.chipText, feedTab === "for_you" ? styles.chipTextActive : null]}>
+                    For You
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.chip, feedTab === "opportunities" ? styles.chipActive : null]}
+                  onPress={() => setFeedTab("opportunities")}
+                >
+                  <Text
+                    style={[styles.chipText, feedTab === "opportunities" ? styles.chipTextActive : null]}
+                  >
+                    Opportunities
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.chip, feedTab === "marketplace" ? styles.chipActive : null]}
+                  onPress={() => setFeedTab("marketplace")}
+                >
+                  <Text
+                    style={[styles.chipText, feedTab === "marketplace" ? styles.chipTextActive : null]}
+                  >
+                    Marketplace
+                  </Text>
+                </Pressable>
+              </>
+            )}
+            <Pressable
+              style={[styles.chip, followingOnly ? styles.chipActive : null]}
+              onPress={() => setFollowingOnly((value) => !value)}
+            >
+              <Text style={[styles.chipText, followingOnly ? styles.chipTextActive : null]}>
+                {followingOnly ? "Following only" : "All posts"}
+              </Text>
             </Pressable>
           </View>
         </View>
-      ) : null}
-      <View style={styles.filters}>
-        {feedVariant === "marketplace" ? (
-          <Text style={styles.marketplaceHint}>Creator offers and promotions.</Text>
-        ) : (
-          <>
-            <Pressable
-              style={[styles.chip, feedTab === "for_you" ? styles.chipActive : null]}
-              onPress={() => setFeedTab("for_you")}
-            >
-              <Text style={styles.chipText}>For You</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.chip, feedTab === "opportunities" ? styles.chipActive : null]}
-              onPress={() => setFeedTab("opportunities")}
-            >
-              <Text style={styles.chipText}>Opportunities</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.chip, feedTab === "marketplace" ? styles.chipActive : null]}
-              onPress={() => setFeedTab("marketplace")}
-            >
-              <Text style={styles.chipText}>Marketplace</Text>
-            </Pressable>
-          </>
-        )}
-        <Pressable
-          style={[styles.chip, followingOnly ? styles.chipActive : null]}
-          onPress={() => setFollowingOnly((value) => !value)}
-        >
-          <Text style={styles.chipText}>{followingOnly ? "Following only" : "All posts"}</Text>
-        </Pressable>
-      </View>
 
-      {feedQuery.isLoading ? <LoadingState label="Loading feed..." /> : null}
-      {feedQuery.error ? (
-        <ErrorState
-          message={(feedQuery.error as Error).message}
-          onRetry={() => feedQuery.refetch()}
-        />
-      ) : null}
-      {!feedQuery.isLoading && !feedQuery.error && items.length === 0 ? (
-        <EmptyState
-          title="No posts yet"
-          subtitle={
-            feedVariant === "marketplace"
-              ? "Add a marketplace post with a product from Creator hub."
-              : "Create the first beneficial post."
+        {feedVariant === "home" ? (
+          <View style={styles.storiesWrap}>
+            <HomeStoriesRow />
+          </View>
+        ) : null}
+
+        {feedQuery.isLoading ? <LoadingState label="Loading feed..." /> : null}
+        {feedQuery.error ? (
+          <ErrorState
+            message={(feedQuery.error as Error).message}
+            onRetry={() => feedQuery.refetch()}
+          />
+        ) : null}
+        {!feedQuery.isLoading && !feedQuery.error && items.length === 0 ? (
+          <EmptyState
+            title="No posts yet"
+            subtitle={
+              feedVariant === "marketplace"
+                ? "Add a marketplace post with a product from Creator hub."
+                : "Create the first beneficial post."
+            }
+          />
+        ) : null}
+      </View>
+    );
+  }, [
+    acknowledgeReminder,
+    feedQuery.error,
+    feedQuery.isLoading,
+    feedQuery.refetch,
+    feedTab,
+    feedVariant,
+    followingOnly,
+    items.length,
+    navigation,
+    visibleReminder
+  ]);
+
+  const renderItem: ListRenderItem<FeedItem> = useCallback(
+    ({ item }) => (
+      <View style={styles.cardWrap}>
+        <PostCard
+          item={item}
+          layout="home"
+          onOpen={() => navigation.navigate("PostDetail", { id: item.id })}
+          onAuthor={() => navigation.navigate("UserProfile", { id: item.author_id })}
+          onLike={() => likeMutation.mutate({ postId: item.id, nextLiked: !item.liked_by_viewer })}
+          liking={likeMutation.isPending}
+          onToggleFollow={(authorId, currentlyFollowing) =>
+            followMutation.mutate({ authorId, currentlyFollowing })
+          }
+          followBusy={
+            followMutation.isPending &&
+            followMutation.variables?.authorId === item.author_id
           }
         />
-      ) : null}
-
-      <View style={styles.stack}>
-        {items.map((item) => (
-          <PostCard
-            key={item.id}
-            item={item}
-            layout="home"
-            onOpen={() => navigation.navigate("PostDetail", { id: item.id })}
-            onAuthor={() => navigation.navigate("UserProfile", { id: item.author_id })}
-            onLike={() => likeMutation.mutate({ postId: item.id, nextLiked: !item.liked_by_viewer })}
-            liking={likeMutation.isPending}
-          />
-        ))}
       </View>
+    ),
+    [followMutation, likeMutation, navigation]
+  );
 
-      {feedQuery.hasNextPage ? (
-        <Pressable
-          style={styles.buttonSecondary}
-          disabled={feedQuery.isFetchingNextPage}
-          onPress={() => feedQuery.fetchNextPage()}
-        >
-          <Text style={styles.buttonText}>
-            {feedQuery.isFetchingNextPage ? "Loading..." : "Load more"}
-          </Text>
-        </Pressable>
+  const onEndReached = useCallback(() => {
+    if (feedQuery.hasNextPage && !feedQuery.isFetchingNextPage) {
+      void feedQuery.fetchNextPage();
+    }
+  }, [feedQuery]);
+
+  const listFooter = useMemo(() => {
+    if (!feedQuery.hasNextPage) {
+      return null;
+    }
+    return (
+      <View style={styles.footer}>
+        {feedQuery.isFetchingNextPage ? (
+          <ActivityIndicator color={colors.accent} />
+        ) : (
+          <Pressable style={styles.buttonSecondary} onPress={() => feedQuery.fetchNextPage()}>
+            <Text style={styles.buttonText}>Load more</Text>
+          </Pressable>
+        )}
+      </View>
+    );
+  }, [feedQuery]);
+
+  return (
+    <View style={styles.root}>
+      {feedVariant === "home" ? (
+        <HomeTopBar
+          onPressCreate={() => navigation.navigate("CreateTab")}
+          onPressAlerts={openNotifications}
+        />
       ) : null}
-    </ScrollView>
+      <FlatList
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
+        data={items}
+        keyExtractor={(item) => String(item.id)}
+        renderItem={renderItem}
+        ListHeaderComponent={listHeader}
+        ListFooterComponent={listFooter}
+        onEndReached={onEndReached}
+        onEndReachedThreshold={0.35}
+        keyboardShouldPersistTaps="handled"
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
     backgroundColor: colors.background
   },
-  content: {
+  list: {
+    flex: 1
+  },
+  listContent: {
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingBottom: 24,
+    gap: 12
+  },
+  headerBlock: {
+    gap: 10,
+    marginBottom: 4
+  },
+  headerCard: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     gap: 10
   },
-  headerRow: {
+  titleRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between"
   },
   heading: {
     color: colors.text,
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: "700"
   },
-  topPills: {
+  actionRow: {
     flexDirection: "row",
-    alignItems: "center",
+    flexWrap: "wrap",
     gap: 8
   },
   topPill: {
@@ -237,7 +390,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: 10,
-    paddingVertical: 5
+    paddingVertical: 6
   },
   topPillText: {
     color: colors.text,
@@ -246,6 +399,7 @@ const styles = StyleSheet.create({
   },
   filters: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8
   },
   reminderBanner: {
@@ -279,12 +433,16 @@ const styles = StyleSheet.create({
     paddingVertical: 6
   },
   chipActive: {
-    backgroundColor: colors.accent
+    backgroundColor: colors.accent,
+    borderColor: colors.accent
   },
   chipText: {
     color: colors.text,
     fontSize: 12,
     fontWeight: "700"
+  },
+  chipTextActive: {
+    color: colors.background
   },
   marketplaceHint: {
     flex: 1,
@@ -293,8 +451,15 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     paddingVertical: 4
   },
-  stack: {
-    gap: 12
+  storiesWrap: {
+    marginTop: 2
+  },
+  cardWrap: {
+    marginBottom: 4
+  },
+  footer: {
+    paddingVertical: 16,
+    alignItems: "center"
   },
   buttonSecondary: {
     borderColor: colors.border,
@@ -302,7 +467,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    alignItems: "center"
+    alignItems: "center",
+    alignSelf: "stretch"
   },
   buttonText: {
     color: colors.text,

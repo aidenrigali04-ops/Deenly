@@ -23,7 +23,9 @@ export function PostCard({
   onAuthor,
   onLike,
   liking = false,
-  layout = "default"
+  layout = "default",
+  onToggleFollow,
+  followBusy = false
 }: {
   item: FeedItem;
   onOpen: () => void;
@@ -31,6 +33,8 @@ export function PostCard({
   onLike?: () => void;
   liking?: boolean;
   layout?: "default" | "home";
+  onToggleFollow?: (authorId: number, currentlyFollowing: boolean) => void;
+  followBusy?: boolean;
 }) {
   const [mediaFailed, setMediaFailed] = useState(false);
   useEffect(() => {
@@ -65,6 +69,7 @@ export function PostCard({
   };
   const [liked, setLiked] = useState(Boolean(item.liked_by_viewer));
   const [benefitedCount, setBenefitedCount] = useState(Number(item.benefited_count || 0));
+  const isFollowing = Boolean(item.is_following_author);
   useEffect(() => {
     setLiked(Boolean(item.liked_by_viewer));
     setBenefitedCount(Number(item.benefited_count || 0));
@@ -94,11 +99,21 @@ export function PostCard({
                       ? "Reel"
                       : "Post"}{" "}
                 -{" "}
-                {new Date(item.created_at).toLocaleDateString()}
+                {new Date(item.created_at).toLocaleString()}
               </Text>
             </View>
           </View>
-          <Text style={styles.homeSubtle}>...</Text>
+          {onToggleFollow ? (
+            <Pressable
+              style={styles.followPill}
+              onPress={() => onToggleFollow(item.author_id, isFollowing)}
+              disabled={followBusy}
+            >
+              <Text style={styles.followPillText}>{followBusy ? "..." : isFollowing ? "Unfollow" : "Follow"}</Text>
+            </Pressable>
+          ) : (
+            <Text style={styles.homeSubtle}>...</Text>
+          )}
         </View>
 
         {canRenderMedia ? (
@@ -275,15 +290,27 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderColor: colors.border,
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: 23,
     overflow: "hidden"
   },
   homeHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 12,
-    paddingVertical: 10
+    paddingHorizontal: 16,
+    paddingVertical: 12
+  },
+  followPill: {
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5
+  },
+  followPillText: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: "600"
   },
   homeAuthorRow: {
     flexDirection: "row",
@@ -313,7 +340,7 @@ const styles = StyleSheet.create({
   },
   homeAuthor: {
     color: colors.text,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "700"
   },
   homeSubtle: {
@@ -336,8 +363,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 12,
-    paddingVertical: 10
+    paddingHorizontal: 16,
+    paddingVertical: 12
   },
   homeActionIcons: {
     flexDirection: "row",
@@ -350,8 +377,8 @@ const styles = StyleSheet.create({
     lineHeight: 20
   },
   homeCaptionWrap: {
-    paddingHorizontal: 12,
-    paddingBottom: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
     gap: 6
   },
   homeMetaText: {

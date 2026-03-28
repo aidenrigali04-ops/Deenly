@@ -34,6 +34,8 @@ import { QuranReaderScreen } from "../screens/app/QuranReaderScreen";
 import { SalahSettingsScreen } from "../screens/app/SalahSettingsScreen";
 import { CreatorEconomyScreen } from "../screens/app/CreatorEconomyScreen";
 import { ReelsScreen } from "../screens/app/ReelsScreen";
+import { NotificationsScreen } from "../screens/app/NotificationsScreen";
+import { NavTabIcon } from "../components/icons/NavTabIcon";
 
 export type AppTabParamList = {
   HomeTab: undefined;
@@ -70,6 +72,7 @@ export type RootStackParamList = {
   SalahSettings: undefined;
   CreatorEconomy: undefined;
   Reels: undefined;
+  Notifications: undefined;
 };
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
@@ -82,27 +85,78 @@ function AppTabs() {
         headerShown: false,
         tabBarStyle: {
           backgroundColor: colors.surface,
-          borderTopColor: colors.border
+          borderTopColor: colors.border,
+          paddingTop: 6,
+          minHeight: 58
         },
         tabBarActiveTintColor: colors.accent,
-        tabBarInactiveTintColor: colors.muted
+        tabBarInactiveTintColor: colors.muted,
+        tabBarShowLabel: true,
+        tabBarLabelStyle: {
+          fontSize: 10,
+          fontWeight: "600",
+          marginBottom: 4
+        },
+        tabBarIconStyle: { marginTop: 2 },
+        tabBarItemStyle: { paddingVertical: 4 }
       }}
     >
-      <Tab.Screen name="HomeTab" component={FeedScreen} options={{ title: "Home" }} />
+      <Tab.Screen
+        name="HomeTab"
+        component={FeedScreen}
+        options={{
+          title: "Home",
+          tabBarIcon: ({ color, size }) => <NavTabIcon kind="home" color={color} size={size ?? 22} />
+        }}
+      />
       <Tab.Screen
         name="MarketplaceTab"
         component={MarketplaceFeedScreen}
-        options={{ title: "Marketplace" }}
+        options={{
+          title: "Market",
+          tabBarIcon: ({ color, size }) => <NavTabIcon kind="marketplace" color={color} size={size ?? 22} />
+        }}
       />
       <Tab.Screen
         name="RecitationTab"
         component={RecitationScreen}
-        options={{ title: "Recitation" }}
+        options={{
+          title: "Recite",
+          tabBarIcon: ({ color, size }) => <NavTabIcon kind="video" color={color} size={size ?? 22} />
+        }}
       />
-      <Tab.Screen name="MessagesTab" component={MessagesScreen} options={{ title: "Messages" }} />
-      <Tab.Screen name="SearchTab" component={SearchScreen} options={{ title: "Search" }} />
-      <Tab.Screen name="CreateTab" component={CreateScreen} options={{ title: "Upload +" }} />
-      <Tab.Screen name="AccountTab" component={ProfileScreen} options={{ title: "Account" }} />
+      <Tab.Screen
+        name="MessagesTab"
+        component={MessagesScreen}
+        options={{
+          title: "Messages",
+          tabBarIcon: ({ color, size }) => <NavTabIcon kind="send" color={color} size={size ?? 22} />
+        }}
+      />
+      <Tab.Screen
+        name="SearchTab"
+        component={SearchScreen}
+        options={{
+          title: "Search",
+          tabBarIcon: ({ color, size }) => <NavTabIcon kind="search" color={color} size={size ?? 22} />
+        }}
+      />
+      <Tab.Screen
+        name="CreateTab"
+        component={CreateScreen}
+        options={{
+          title: "Create",
+          tabBarIcon: ({ color, size }) => <NavTabIcon kind="upload" color={color} size={size ?? 22} />
+        }}
+      />
+      <Tab.Screen
+        name="AccountTab"
+        component={ProfileScreen}
+        options={{
+          title: "Account",
+          tabBarIcon: ({ color, size }) => <NavTabIcon kind="user" color={color} size={size ?? 22} />
+        }}
+      />
     </Tab.Navigator>
   );
 }
@@ -236,6 +290,11 @@ export function AppNavigator() {
             />
             <RootStack.Screen name="Dhikr" component={DhikrScreen} options={{ title: "Dhikr Mode" }} />
             <RootStack.Screen name="Reels" component={ReelsScreen} options={{ title: "Reels", headerShown: false }} />
+            <RootStack.Screen
+              name="Notifications"
+              component={NotificationsScreen}
+              options={{ title: "Notifications" }}
+            />
             <RootStack.Screen
               name="QuranReader"
               component={QuranReaderScreen}
