@@ -28,8 +28,8 @@ export function HomeStoriesRow() {
             <LinearGradient
               colors={
                 story.isOwn
-                  ? [colors.accent, "#A78BFA", "#F472B6"]
-                  : [colors.accent, "#38BDF8", "#4ADE80"]
+                  ? ["#111827", "#A78BFA", "#F472B6"]
+                  : ["#0ea5e9", "#38BDF8", "#4ADE80"]
               }
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderColor: colors.border,
     borderWidth: 1,
-    borderRadius: 14,
+    borderRadius: 20,
     paddingVertical: 10,
     paddingHorizontal: 8
   },

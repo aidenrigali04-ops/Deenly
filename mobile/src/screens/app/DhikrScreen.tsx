@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10
   },
   primaryText: {
-    color: "#fff",
+    color: colors.onAccent,
     fontWeight: "700"
   },
   secondaryButton: {

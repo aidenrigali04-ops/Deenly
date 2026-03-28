@@ -4,11 +4,13 @@ import {
   ActivityIndicator,
   FlatList,
   ListRenderItem,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   View
 } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { CompositeScreenProps } from "@react-navigation/native";
 import { NativeStackNavigationProp, NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -19,7 +21,7 @@ import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { PostCard } from "../../components/PostCard";
 import { HomeTopBar } from "../../components/HomeTopBar";
 import { HomeStoriesRow } from "../../components/HomeStoriesRow";
-import { colors } from "../../theme";
+import { colors, radii } from "../../theme";
 import type { FeedItem } from "../../types";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 
@@ -165,7 +167,7 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
           <View style={styles.reminderBanner}>
             <View style={styles.reminderRow}>
               <Text style={styles.reminderText}>Time for Salah</Text>
-              <Pressable onPress={acknowledgeReminder}>
+              <Pressable onPress={acknowledgeReminder} hitSlop={8}>
                 <Text style={styles.reminderDismiss}>Dismiss</Text>
               </Pressable>
             </View>
@@ -181,6 +183,9 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
               <Pressable style={styles.topPill} onPress={() => navigation.navigate("SearchTab")}>
                 <Text style={styles.topPillText}>Search</Text>
               </Pressable>
+              <Pressable style={styles.topPill} onPress={openNotifications}>
+                <Text style={styles.topPillText}>Alerts</Text>
+              </Pressable>
               <Pressable style={styles.topPill} onPress={() => navigation.navigate("Dhikr")}>
                 <Text style={styles.topPillText}>Dhikr</Text>
               </Pressable>
@@ -190,11 +195,21 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
             </View>
           ) : null}
 
-          <View style={styles.filters}>
-            {feedVariant === "marketplace" ? (
+          {feedVariant === "marketplace" ? (
+            <View style={styles.filters}>
               <Text style={styles.marketplaceHint}>Creator offers and promotions.</Text>
-            ) : (
-              <>
+              <Pressable
+                style={[styles.chip, followingOnly ? styles.chipActive : null]}
+                onPress={() => setFollowingOnly((value) => !value)}
+              >
+                <Text style={[styles.chipText, followingOnly ? styles.chipTextActive : null]}>
+                  {followingOnly ? "Following only" : "All posts"}
+                </Text>
+              </Pressable>
+            </View>
+          ) : (
+            <>
+              <View style={styles.tabRow}>
                 <Pressable
                   style={[styles.chip, feedTab === "for_you" ? styles.chipActive : null]}
                   onPress={() => setFeedTab("for_you")}
@@ -223,17 +238,20 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
                     Marketplace
                   </Text>
                 </Pressable>
-              </>
-            )}
-            <Pressable
-              style={[styles.chip, followingOnly ? styles.chipActive : null]}
-              onPress={() => setFollowingOnly((value) => !value)}
-            >
-              <Text style={[styles.chipText, followingOnly ? styles.chipTextActive : null]}>
-                {followingOnly ? "Following only" : "All posts"}
-              </Text>
-            </Pressable>
-          </View>
+              </View>
+              <View style={styles.headerDivider} />
+              <View style={styles.followingRow}>
+                <Pressable
+                  style={[styles.chip, followingOnly ? styles.chipActive : null]}
+                  onPress={() => setFollowingOnly((value) => !value)}
+                >
+                  <Text style={[styles.chipText, followingOnly ? styles.chipTextActive : null]}>
+                    {followingOnly ? "Following only" : "All posts"}
+                  </Text>
+                </Pressable>
+              </View>
+            </>
+          )}
         </View>
 
         {feedVariant === "home" ? (
@@ -271,6 +289,7 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
     followingOnly,
     items.length,
     navigation,
+    openNotifications,
     visibleReminder
   ]);
 
@@ -322,6 +341,7 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
 
   return (
     <View style={styles.root}>
+      {feedVariant === "home" ? <StatusBar style="dark" /> : null}
       {feedVariant === "home" ? (
         <HomeTopBar
           onPressCreate={() => navigation.navigate("CreateTab")}
@@ -364,11 +384,20 @@ const styles = StyleSheet.create({
   headerCard: {
     backgroundColor: colors.card,
     borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 10
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.panel,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.shadow,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 1,
+        shadowRadius: 24
+      },
+      android: { elevation: 3 }
+    })
   },
   titleRow: {
     flexDirection: "row",
@@ -377,7 +406,7 @@ const styles = StyleSheet.create({
   },
   heading: {
     color: colors.text,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "700"
   },
   actionRow: {
@@ -387,10 +416,11 @@ const styles = StyleSheet.create({
   },
   topPill: {
     borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: colors.surface
   },
   topPillText: {
     color: colors.text,
@@ -400,15 +430,40 @@ const styles = StyleSheet.create({
   filters: {
     flexDirection: "row",
     flexWrap: "wrap",
+    gap: 8,
+    alignItems: "center"
+  },
+  tabRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8
   },
+  followingRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
+  },
+  headerDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginVertical: 2
+  },
   reminderBanner: {
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: colors.card
+    borderRadius: radii.control,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: colors.surface,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.shadow,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 1,
+        shadowRadius: 12
+      },
+      android: { elevation: 2 }
+    })
   },
   reminderText: {
     color: colors.text,
@@ -427,10 +482,11 @@ const styles = StyleSheet.create({
   },
   chip: {
     borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    backgroundColor: colors.surface
   },
   chipActive: {
     backgroundColor: colors.accent,
@@ -442,7 +498,7 @@ const styles = StyleSheet.create({
     fontWeight: "700"
   },
   chipTextActive: {
-    color: colors.background
+    color: colors.onAccent
   },
   marketplaceHint: {
     flex: 1,

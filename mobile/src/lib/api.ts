@@ -184,7 +184,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
         onDevice && (base.includes("localhost") || base.includes("127.0.0.1"));
       if (stillLocal) {
         hint +=
-          " On a physical device, localhost is the phone itself — set EXPO_PUBLIC_DEV_MACHINE_HOST to your computer's LAN IP in mobile/.env (or set EXPO_PUBLIC_API_BASE_URL to http://<LAN-IP>:3000/api/v1), then restart Metro with npx expo start -c.";
+          " On a physical device, set EXPO_PUBLIC_API_BASE_URL to http://<your-computer-LAN-IP>:3000/api/v1 in mobile/.env, then npx expo start -c.";
       } else if (onDevice && Platform.OS === "ios") {
         hint +=
           " Use the same Wi‑Fi as your computer, bind the backend to 0.0.0.0 (not 127.0.0.1), and prefer Expo LAN mode over Tunnel for local APIs.";

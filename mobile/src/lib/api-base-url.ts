@@ -9,6 +9,15 @@ function stripTrailingSlashes(url: string) {
   return url.replace(/\/+$/, "");
 }
 
+/** Fixes common .env typos (e.g. https;// or localhost.3000). */
+function normalizeEnvApiBaseUrl(raw: string): string {
+  let s = raw.trim();
+  s = s.replace(/^https;\/\//i, "http://");
+  s = s.replace(/^http;\/\//i, "http://");
+  s = s.replace(/\blocalhost\.(\d{2,5})\b/g, "localhost:$1");
+  return s;
+}
+
 function parseDevHost(raw: string | undefined | null): string | null {
   if (!raw || typeof raw !== "string") {
     return null;
@@ -60,12 +69,8 @@ function isLikelyReachableDevApiHost(host: string): boolean {
  * Host where Metro / dev server runs (Mac LAN IP on a physical device).
  * Expo SDK 50+ often puts this on `expoConfig.hostUri`, not `debuggerHost`.
  */
+/** Used only when `EXPO_PUBLIC_API_BASE_URL` is unset (dev): derive LAN from Expo. */
 function devMachineHostFromBundler(): string | null {
-  const manual = parseDevHost(process.env.EXPO_PUBLIC_DEV_MACHINE_HOST?.trim());
-  if (manual && manual !== "localhost" && manual !== "127.0.0.1") {
-    return manual;
-  }
-
   const expoGo = Constants.expoGoConfig as { debuggerHost?: string } | null;
   const classicManifest = Constants.manifest as { debuggerHost?: string } | null;
   const expoConfig = Constants.expoConfig as { hostUri?: string } | null;
@@ -112,17 +117,20 @@ function rewriteLocalhostUrl(url: string, replacementHost: string): string {
 /**
  * Resolves the backend base URL (e.g. http://192.168.1.10:3000/api/v1).
  *
- * - Honors `EXPO_PUBLIC_API_BASE_URL` when set.
- * - In dev, rewrites localhost → Android emulator (10.0.2.2) or Metro LAN IP on physical devices.
- * - iOS Simulator keeps localhost (LAN often fails routing/firewall).
- * - If auto-detection fails, set EXPO_PUBLIC_DEV_MACHINE_HOST (e.g. 192.168.1.10) and restart Metro.
- * - Tunnel mode (exp.direct, etc.) is ignored for API host — it only reaches Metro, not :3000.
+ * When `EXPO_PUBLIC_API_BASE_URL` is set, that string (after normalization) is the API base for
+ * all requests — no separate LAN env. On a **physical device** use a URL the phone can reach
+ * (e.g. `http://192.168.x.x:3000/api/v1`); `localhost` only works on simulator / desktop.
+ *
+ * When unset, dev fallbacks: Android emulator → 10.0.2.2; physical device → Expo LAN host if valid.
+ *
+ * Android emulator + `EXPO_PUBLIC_API_BASE_URL` with localhost: still mapped to 10.0.2.2.
  */
 export function getApiBaseUrl(): string {
-  const fromEnv = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
+  const fromEnvRaw = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
+  const fromEnv = fromEnvRaw ? normalizeEnvApiBaseUrl(fromEnvRaw) : "";
   const fallback = `http://localhost:${DEFAULT_PORT}${API_PREFIX}`;
-  const iosNeedsLanHost = Platform.OS === "ios" && Device.isDevice;
   const androidEmulator = Platform.OS === "android" && !Device.isDevice;
+  const iosNeedsLanHost = Platform.OS === "ios" && Device.isDevice;
   const androidNeedsLanHost = Platform.OS === "android" && Device.isDevice;
 
   if (!fromEnv) {
@@ -143,16 +151,22 @@ export function getApiBaseUrl(): string {
 
   let base = stripTrailingSlashes(fromEnv);
 
-  if (__DEV__ && (base.includes("localhost") || base.includes("127.0.0.1"))) {
-    if (androidEmulator) {
-      base = rewriteLocalhostUrl(base, "10.0.2.2");
-    } else if (iosNeedsLanHost || androidNeedsLanHost) {
-      const lan = devMachineHostFromBundler();
-      if (lan) {
-        base = rewriteLocalhostUrl(base, lan);
-      }
-    }
+  if (__DEV__ && androidEmulator && (base.includes("localhost") || base.includes("127.0.0.1"))) {
+    base = rewriteLocalhostUrl(base, "10.0.2.2");
   }
 
-  return stripTrailingSlashes(base);
+  const resolved = stripTrailingSlashes(base);
+  if (
+    __DEV__ &&
+    (iosNeedsLanHost || androidNeedsLanHost) &&
+    (resolved.includes("localhost") || resolved.includes("127.0.0.1"))
+  ) {
+    console.warn(
+      "[Deenly] API base is still localhost on a physical device — the phone cannot reach your Mac. " +
+        "Set EXPO_PUBLIC_API_BASE_URL=http://<LAN-IP>:3000/api/v1 (ipconfig getifaddr en0), then npx expo start -c. " +
+        "iOS dev builds: NSAllowsLocalNetworking in app.json. Backend listens on 0.0.0.0 by default."
+    );
+  }
+
+  return resolved;
 }

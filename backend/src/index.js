@@ -27,8 +27,9 @@ const app = createApp({
   monetizationGateway
 });
 
-const server = app.listen(config.port, () => {
-  logger.info({ port: config.port }, "server_started");
+const listenHost = process.env.BIND_HOST || "0.0.0.0";
+const server = app.listen(config.port, listenHost, () => {
+  logger.info({ port: config.port, host: listenHost }, "server_started");
 });
 
 let shuttingDown = false;

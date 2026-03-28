@@ -15,7 +15,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.deenly.deenly",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
       }
     },
     "android": {

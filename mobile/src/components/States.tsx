@@ -1,9 +1,10 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { colors } from "../theme";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { colors, radii } from "../theme";
 
 export function LoadingState({ label = "Loading..." }: { label?: string }) {
   return (
     <View style={styles.card}>
+      <ActivityIndicator color={colors.accent} />
       <Text style={styles.muted}>{label}</Text>
     </View>
   );
@@ -35,10 +36,11 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.card,
     borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.panel,
     padding: 14,
-    gap: 8
+    gap: 10,
+    alignItems: "flex-start"
   },
   title: {
     color: colors.text,
@@ -55,11 +57,12 @@ const styles = StyleSheet.create({
   },
   buttonSecondary: {
     borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.control,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    alignSelf: "flex-start"
+    alignSelf: "flex-start",
+    backgroundColor: colors.surface
   },
   buttonText: {
     color: colors.text,

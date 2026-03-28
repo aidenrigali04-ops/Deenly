@@ -13,7 +13,7 @@ export function ReliabilityBanner({ isOffline, queuedMutations }: ReliabilityBan
 
   return (
     <View style={[styles.banner, isOffline ? styles.offline : styles.queueing]}>
-      <Text style={styles.text}>
+      <Text style={[styles.text, isOffline ? styles.textOffline : styles.textQueueing]}>
         {isOffline
           ? "Offline mode: actions will sync when connected."
           : `Synced pending actions. Remaining queue: ${queuedMutations}`}
@@ -28,15 +28,24 @@ const styles = StyleSheet.create({
     paddingVertical: 8
   },
   offline: {
-    backgroundColor: "#422326"
+    backgroundColor: "#fef2f2",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(220, 38, 38, 0.25)"
   },
   queueing: {
-    backgroundColor: "#113322"
+    backgroundColor: "#ecfdf5",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(22, 163, 74, 0.2)"
   },
   text: {
-    color: colors.text,
     fontSize: 12,
     fontWeight: "600",
     textAlign: "center"
+  },
+  textOffline: {
+    color: colors.danger
+  },
+  textQueueing: {
+    color: colors.success
   }
 });

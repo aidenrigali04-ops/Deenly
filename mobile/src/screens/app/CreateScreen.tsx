@@ -878,7 +878,7 @@ const styles = StyleSheet.create({
     alignItems: "center"
   },
   buttonPrimaryText: {
-    color: colors.background,
+    color: colors.onAccent,
     fontWeight: "700",
     fontSize: 16
   },

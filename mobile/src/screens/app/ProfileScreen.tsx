@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Image,
   Linking,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,7 +19,7 @@ import { fetchSessionMe, logout } from "../../lib/auth";
 import { apiRequest } from "../../lib/api";
 import { useSessionStore } from "../../store/session-store";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
-import { colors } from "../../theme";
+import { colors, radii } from "../../theme";
 import type { FeedItem } from "../../types";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 import { resolveMediaUrl } from "../../lib/media-url";
@@ -126,7 +127,7 @@ export function ProfileScreen({ navigation }: Props) {
   const items = postsQuery.data?.items || [];
   const visibleItems = activeTab === "media" ? items.filter((item) => Boolean(item.media_url)) : items;
   const avatarUri = resolveMediaUrl(profileQuery.data?.avatar_url);
-  const tileSize = Math.floor((width - 28 - 4) / 3);
+  const tileSize = Math.floor((width - 32 - 8) / 3);
 
   const uploadAvatar = async () => {
     if (!profileQuery.data) return;
@@ -263,13 +264,17 @@ export function ProfileScreen({ navigation }: Props) {
           style={[styles.buttonSecondary, activeTab === "posts" ? styles.buttonActive : null]}
           onPress={() => setActiveTab("posts")}
         >
-          <Text style={styles.buttonText}>Posts</Text>
+          <Text style={[styles.buttonText, activeTab === "posts" ? styles.buttonTextActive : null]}>
+            Posts
+          </Text>
         </Pressable>
         <Pressable
           style={[styles.buttonSecondary, activeTab === "media" ? styles.buttonActive : null]}
           onPress={() => setActiveTab("media")}
         >
-          <Text style={styles.buttonText}>Media</Text>
+          <Text style={[styles.buttonText, activeTab === "media" ? styles.buttonTextActive : null]}>
+            Media
+          </Text>
         </Pressable>
       </View>
       {postsQuery.isLoading ? <LoadingState label="Loading posts..." /> : null}
@@ -403,21 +408,30 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background
   },
   content: {
-    padding: 14,
-    gap: 12
+    padding: 16,
+    gap: 14
   },
   heading: {
     color: colors.text,
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "700"
   },
   card: {
     backgroundColor: colors.card,
     borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 12,
-    gap: 6
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.panel,
+    padding: 16,
+    gap: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.shadow,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 1,
+        shadowRadius: 16
+      },
+      android: { elevation: 2 }
+    })
   },
   title: {
     color: colors.text,
@@ -441,13 +455,15 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 2
+    gap: 4
   },
   tile: {
     position: "relative",
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    backgroundColor: colors.card
+    backgroundColor: colors.card,
+    overflow: "hidden",
+    borderRadius: radii.control
   },
   tileOpen: {
     flex: 1
@@ -465,7 +481,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6
   },
   tileFallbackVideo: {
-    backgroundColor: "#101827"
+    backgroundColor: "#1f2937"
   },
   tileFallbackText: {
     color: colors.muted,
@@ -477,12 +493,12 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: 6,
     top: 6,
-    borderRadius: 999,
+    borderRadius: radii.pill,
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: "rgba(11,18,32,0.75)"
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(0,0,0,0.12)",
+    backgroundColor: "rgba(255,255,255,0.88)"
   },
   tileBadgeText: {
     color: colors.text,
@@ -493,12 +509,12 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 6,
     top: 6,
-    borderRadius: 999,
+    borderRadius: radii.pill,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: "rgba(11,18,32,0.75)"
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(0,0,0,0.12)",
+    backgroundColor: "rgba(255,255,255,0.88)"
   },
   tileLikeText: {
     color: colors.text,
@@ -507,16 +523,21 @@ const styles = StyleSheet.create({
   },
   buttonSecondary: {
     borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.control,
     paddingHorizontal: 12,
-    paddingVertical: 8
+    paddingVertical: 8,
+    backgroundColor: colors.surface
   },
   buttonActive: {
-    backgroundColor: colors.surface
+    backgroundColor: colors.accent,
+    borderColor: colors.accent
   },
   buttonText: {
     color: colors.text,
     fontWeight: "600"
+  },
+  buttonTextActive: {
+    color: colors.onAccent
   }
 });

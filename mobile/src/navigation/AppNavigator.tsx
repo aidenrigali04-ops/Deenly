@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { NavigationContainer, DefaultTheme, NavigatorScreenParams } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -86,6 +86,7 @@ function AppTabs() {
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
+          borderTopWidth: StyleSheet.hairlineWidth,
           paddingTop: 6,
           minHeight: 58
         },
@@ -229,7 +230,8 @@ export function AppNavigator() {
       <RootStack.Navigator
         screenOptions={{
           headerStyle: { backgroundColor: colors.surface },
-          headerTintColor: colors.text
+          headerTintColor: colors.text,
+          contentStyle: { backgroundColor: colors.background }
         }}
       >
         {!user ? (

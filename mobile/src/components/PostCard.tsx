@@ -1,7 +1,7 @@
-import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useEffect, useState } from "react";
 import { AppVideoView } from "./AppVideoView";
-import { colors } from "../theme";
+import { colors, radii } from "../theme";
 import { resolveMediaUrl } from "../lib/media-url";
 import type { FeedItem } from "../types";
 import { formatMinorCurrency } from "../lib/monetization";
@@ -289,9 +289,18 @@ const styles = StyleSheet.create({
   homeCard: {
     backgroundColor: colors.card,
     borderColor: colors.border,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 23,
-    overflow: "hidden"
+    overflow: "hidden",
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.shadow,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 1,
+        shadowRadius: 16
+      },
+      android: { elevation: 2 }
+    })
   },
   homeHeader: {
     flexDirection: "row",
@@ -302,13 +311,14 @@ const styles = StyleSheet.create({
   },
   followPill: {
     borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: colors.surface
   },
   followPillText: {
-    color: colors.muted,
+    color: colors.text,
     fontSize: 12,
     fontWeight: "600"
   },
@@ -350,14 +360,14 @@ const styles = StyleSheet.create({
   homeMedia: {
     width: "100%",
     aspectRatio: 4 / 5,
-    backgroundColor: colors.surface
+    backgroundColor: "#f3f4f6"
   },
   homeMediaPlaceholder: {
     width: "100%",
     aspectRatio: 4 / 5,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.surface
+    backgroundColor: "#f3f4f6"
   },
   homeActionRow: {
     flexDirection: "row",
@@ -402,10 +412,19 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.card,
     borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 14,
-    gap: 8
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.panel,
+    padding: 16,
+    gap: 10,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.shadow,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 1,
+        shadowRadius: 16
+      },
+      android: { elevation: 2 }
+    })
   },
   rowBetween: {
     flexDirection: "row",
@@ -417,10 +436,11 @@ const styles = StyleSheet.create({
     fontWeight: "700"
   },
   type: {
-    color: colors.accent,
-    fontSize: 12,
+    color: colors.muted,
+    fontSize: 11,
     fontWeight: "700",
-    textTransform: "uppercase"
+    textTransform: "uppercase",
+    letterSpacing: 0.5
   },
   content: {
     color: colors.text,
@@ -430,8 +450,8 @@ const styles = StyleSheet.create({
   video: {
     width: "100%",
     height: 200,
-    borderRadius: 10,
-    backgroundColor: colors.surface
+    borderRadius: radii.control,
+    backgroundColor: "#f3f4f6"
   },
   metricsRow: {
     flexDirection: "row",
@@ -447,10 +467,11 @@ const styles = StyleSheet.create({
   },
   buttonSecondary: {
     borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.control,
     paddingHorizontal: 12,
-    paddingVertical: 8
+    paddingVertical: 8,
+    backgroundColor: colors.surface
   },
   buttonText: {
     color: colors.text,

@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../theme";
 
@@ -39,11 +39,20 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingBottom: 10,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border
+    borderBottomColor: colors.border,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.shadow,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 1,
+        shadowRadius: 8
+      },
+      android: { elevation: 2 }
+    })
   },
   sideHit: {
     minWidth: 44,
@@ -59,9 +68,9 @@ const styles = StyleSheet.create({
   },
   wordmark: {
     color: colors.text,
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "800",
-    letterSpacing: -0.5
+    letterSpacing: -0.4
   },
   heart: {
     color: colors.text,
