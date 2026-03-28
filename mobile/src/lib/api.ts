@@ -1,9 +1,14 @@
 import NetInfo from "@react-native-community/netinfo";
+import * as Device from "expo-device";
+import { Platform } from "react-native";
 import { getApiBaseUrl } from "./api-base-url";
 import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "./storage";
 
 let cachedApiBaseUrl: string | null = null;
 function apiBaseUrl(): string {
+  if (__DEV__) {
+    return getApiBaseUrl();
+  }
   cachedApiBaseUrl ??= getApiBaseUrl();
   return cachedApiBaseUrl;
 }
@@ -166,10 +171,28 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     if (lastError instanceof ApiError) {
       throw lastError;
     }
-    const hint =
-      __DEV__ && (lastError?.name === "AbortError" || lastError?.message?.includes("Network"))
-        ? ` Cannot reach API at ${apiBaseUrl()}. Start the backend (port 3000) or set EXPO_PUBLIC_API_BASE_URL in mobile/.env`
-        : "";
+    const base = apiBaseUrl();
+    const networkish =
+      lastError?.name === "AbortError" ||
+      lastError?.name === "TypeError" ||
+      /network|failed to fetch|aborted/i.test(String(lastError?.message || ""));
+    let hint = "";
+    if (__DEV__ && networkish) {
+      hint = ` Cannot reach API at ${base}.`;
+      const onDevice = Device.isDevice;
+      const stillLocal =
+        onDevice && (base.includes("localhost") || base.includes("127.0.0.1"));
+      if (stillLocal) {
+        hint +=
+          " On a physical device, localhost is the phone itself — set EXPO_PUBLIC_DEV_MACHINE_HOST to your computer's LAN IP in mobile/.env (or set EXPO_PUBLIC_API_BASE_URL to http://<LAN-IP>:3000/api/v1), then restart Metro with npx expo start -c.";
+      } else if (onDevice && Platform.OS === "ios") {
+        hint +=
+          " Use the same Wi‑Fi as your computer, bind the backend to 0.0.0.0 (not 127.0.0.1), and prefer Expo LAN mode over Tunnel for local APIs.";
+      } else {
+        hint +=
+          " Start the backend on port 3000, check EXPO_PUBLIC_API_BASE_URL in mobile/.env, and restart Metro after env changes.";
+      }
+    }
     throw new ApiError(`Network request failed. Please try again.${hint}`, 0);
   };
 

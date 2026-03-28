@@ -17,3 +17,21 @@ export const colors = {
   mediaPreviewBg: "#FFFFFF",
   mediaPreviewBorder: "#CBD5E1"
 };
+
+/** Light auth screens — matches `frontend` tailwind tokens (`globals.css` / `tailwind.config`). */
+export const authTheme = {
+  pageBg: "#f4f5f7",
+  card: "#ffffff",
+  border: "rgba(0, 0, 0, 0.1)",
+  text: "#111111",
+  muted: "#6b7280",
+  submitBg: "#000000",
+  submitText: "#ffffff",
+  submitDisabled: "rgba(0, 0, 0, 0.45)",
+  errorBg: "#fff1f2",
+  errorBorder: "rgba(244, 63, 94, 0.35)",
+  errorText: "#be123c",
+  radiusPanel: 20,
+  radiusControl: 14,
+  shadow: "rgba(15, 23, 42, 0.08)"
+};

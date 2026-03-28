@@ -30,10 +30,42 @@ function parseDevHost(raw: string | undefined | null): string | null {
 }
 
 /**
+ * Tunnel / edge hosts from Expo CLI reach Metro, not your local :3000 API.
+ * Using them for API base causes "network failed" on device.
+ */
+function isLikelyReachableDevApiHost(host: string): boolean {
+  const h = host.toLowerCase();
+  if (!h || h === "localhost" || h === "127.0.0.1") {
+    return false;
+  }
+  if (h.includes("exp.direct") || h.endsWith(".exp.direct")) {
+    return false;
+  }
+  if (h.includes("ngrok") || h.includes("trycloudflare") || h.includes("loca.lt")) {
+    return false;
+  }
+  if (/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(h)) {
+    return true;
+  }
+  if (h.endsWith(".local")) {
+    return true;
+  }
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h)) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Host where Metro / dev server runs (Mac LAN IP on a physical device).
  * Expo SDK 50+ often puts this on `expoConfig.hostUri`, not `debuggerHost`.
  */
 function devMachineHostFromBundler(): string | null {
+  const manual = parseDevHost(process.env.EXPO_PUBLIC_DEV_MACHINE_HOST?.trim());
+  if (manual && manual !== "localhost" && manual !== "127.0.0.1") {
+    return manual;
+  }
+
   const expoGo = Constants.expoGoConfig as { debuggerHost?: string } | null;
   const classicManifest = Constants.manifest as { debuggerHost?: string } | null;
   const expoConfig = Constants.expoConfig as { hostUri?: string } | null;
@@ -56,14 +88,9 @@ function devMachineHostFromBundler(): string | null {
 
   for (const raw of candidates) {
     const host = parseDevHost(raw);
-    if (host && host !== "localhost" && host !== "127.0.0.1") {
+    if (host && isLikelyReachableDevApiHost(host)) {
       return host;
     }
-  }
-
-  const manual = parseDevHost(process.env.EXPO_PUBLIC_DEV_MACHINE_HOST?.trim());
-  if (manual && manual !== "localhost" && manual !== "127.0.0.1") {
-    return manual;
   }
 
   return null;
@@ -89,6 +116,7 @@ function rewriteLocalhostUrl(url: string, replacementHost: string): string {
  * - In dev, rewrites localhost → Android emulator (10.0.2.2) or Metro LAN IP on physical devices.
  * - iOS Simulator keeps localhost (LAN often fails routing/firewall).
  * - If auto-detection fails, set EXPO_PUBLIC_DEV_MACHINE_HOST (e.g. 192.168.1.10) and restart Metro.
+ * - Tunnel mode (exp.direct, etc.) is ignored for API host — it only reaches Metro, not :3000.
  */
 export function getApiBaseUrl(): string {
   const fromEnv = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
