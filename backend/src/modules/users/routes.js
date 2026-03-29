@@ -3,8 +3,8 @@ const jwt = require("jsonwebtoken");
 const { authenticate } = require("../../middleware/auth");
 const { requireAccessSecret } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
-const { optionalString, optionalWebsiteUrl, requireString } = require("../../utils/validators");
 const { httpError } = require("../../utils/http-error");
+const { resolveProfilePutFields } = require("../../utils/profile-put");
 const { getPrayerSettings, updatePrayerSettings } = require("../../services/prayer-settings");
 const INTEREST_KEYS = new Set(["post", "marketplace", "reel"]);
 const FEED_TAB_PREFS = new Set(["for_you", "opportunities", "marketplace"]);
@@ -307,11 +307,18 @@ function createUsersRouter({ db, config }) {
     "/me",
     authMiddleware,
     asyncHandler(async (req, res) => {
-      const displayName = requireString(req.body?.displayName, "displayName", 2, 64);
-      const bio = optionalString(req.body?.bio, "bio", 240);
-      const avatarUrl = optionalString(req.body?.avatarUrl, "avatarUrl", 2048);
-      const businessOffering = optionalString(req.body?.businessOffering, "businessOffering", 2000);
-      const websiteUrl = optionalWebsiteUrl(req.body?.websiteUrl, "websiteUrl", 2048);
+      const existing = await db.query(
+        `SELECT display_name, bio, avatar_url, business_offering, website_url
+         FROM profiles WHERE user_id = $1 LIMIT 1`,
+        [req.user.id]
+      );
+      if (existing.rowCount === 0) {
+        throw httpError(404, "User profile not found");
+      }
+      const { displayName, bio, avatarUrl, businessOffering, websiteUrl } = resolveProfilePutFields(
+        req.body,
+        existing.rows[0]
+      );
 
       const updateResult = await db.query(
         `UPDATE profiles p

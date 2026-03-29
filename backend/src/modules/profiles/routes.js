@@ -1,8 +1,8 @@
 const express = require("express");
 const { authenticate } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
-const { optionalString, optionalWebsiteUrl, requireString } = require("../../utils/validators");
 const { httpError } = require("../../utils/http-error");
+const { resolveProfilePutFields } = require("../../utils/profile-put");
 
 function createProfileRouter({ db, config }) {
   const router = express.Router();
@@ -35,11 +35,18 @@ function createProfileRouter({ db, config }) {
     "/me",
     authMiddleware,
     asyncHandler(async (req, res) => {
-      const displayName = requireString(req.body?.displayName, "displayName", 2, 64);
-      const bio = optionalString(req.body?.bio, "bio", 240);
-      const avatarUrl = optionalString(req.body?.avatarUrl, "avatarUrl", 2048);
-      const businessOffering = optionalString(req.body?.businessOffering, "businessOffering", 2000);
-      const websiteUrl = optionalWebsiteUrl(req.body?.websiteUrl, "websiteUrl", 2048);
+      const existing = await db.query(
+        `SELECT display_name, bio, avatar_url, business_offering, website_url
+         FROM profiles WHERE user_id = $1 LIMIT 1`,
+        [req.user.id]
+      );
+      if (existing.rowCount === 0) {
+        throw httpError(404, "Profile not found");
+      }
+      const { displayName, bio, avatarUrl, businessOffering, websiteUrl } = resolveProfilePutFields(
+        req.body,
+        existing.rows[0]
+      );
 
       const result = await db.query(
         `UPDATE profiles
