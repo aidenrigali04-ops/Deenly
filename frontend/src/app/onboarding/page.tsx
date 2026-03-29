@@ -6,9 +6,9 @@ import { apiRequest } from "@/lib/api";
 import { ErrorState, LoadingState } from "@/components/states";
 
 const interestOptions = [
-  { key: "recitation", label: "Recitation" },
   { key: "post", label: "Posts & reminders" },
-  { key: "marketplace", label: "Marketplace & offers" }
+  { key: "marketplace", label: "Marketplace & offers" },
+  { key: "reel", label: "Reels" }
 ];
 
 const intentOptions = [

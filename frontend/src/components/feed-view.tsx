@@ -45,8 +45,8 @@ const feedListItemInstant = {
 
 type FeedViewProps = {
   heading: string;
-  /** When set, feed only loads this post type (e.g. recitation page). */
-  fixedPostType?: "" | "recitation" | "post" | "marketplace" | "reel";
+  /** When set, feed only loads this post type. */
+  fixedPostType?: "" | "post" | "marketplace" | "reel";
   /** When set, feed is locked to this tab and tab pills are hidden (e.g. /marketplace). */
   fixedFeedTab?: FeedTabId;
   /** Shown under the heading when provided. */
@@ -335,14 +335,11 @@ export function FeedView({
                 className="input max-w-44 py-2 text-xs"
                 value={postType}
                 onChange={(event) =>
-                  setPostType(
-                    event.target.value as "" | "recitation" | "post" | "marketplace" | "reel"
-                  )
+                  setPostType(event.target.value as "" | "post" | "marketplace" | "reel")
                 }
               >
                 <option value="">All types</option>
                 <option value="post">Post</option>
-                <option value="recitation">Recitation</option>
                 <option value="marketplace">Marketplace</option>
                 <option value="reel">Reel</option>
               </select>

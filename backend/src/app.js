@@ -28,6 +28,7 @@ const { createAdsRouter } = require("./modules/ads/routes");
 const { createCreatorRouter } = require("./modules/creator/routes");
 const { createInstagramRouter } = require("./modules/instagram/routes");
 const { createAiRouter } = require("./modules/ai/routes");
+const { createBusinessesRouter } = require("./modules/businesses/routes");
 const { createInstagramCrossPostOrchestrator } = require("./services/instagram-graph");
 const { createMetrics } = require("./observability/metrics");
 const { createMonetizationGateway } = require("./services/monetization-gateway");
@@ -267,6 +268,7 @@ function createApp({
   );
   apiRouter.use("/ads", createAdsRouter({ db, config, analytics: app.locals.analytics }));
   apiRouter.use("/creator", createCreatorRouter({ db, config, mediaStorage: app.locals.mediaStorage }));
+  apiRouter.use("/businesses", createBusinessesRouter({ db, config }));
   apiRouter.use("/ai", createAiRouter({ config, db, logger }));
 
   app.use("/api", apiRouter);

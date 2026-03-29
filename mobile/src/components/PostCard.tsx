@@ -91,13 +91,11 @@ export function PostCard({
               <Text style={styles.homeAuthor}>{item.author_display_name}</Text>
               <Text style={styles.homeSubtle}>
                 {item.sponsored ? `${item.sponsored_label || "Sponsored"} - ` : ""}
-                {item.post_type === "recitation"
-                  ? "Original audio"
-                  : item.post_type === "marketplace"
-                    ? "Marketplace"
-                    : item.post_type === "reel"
-                      ? "Reel"
-                      : "Post"}{" "}
+                {item.post_type === "marketplace"
+                  ? "Marketplace"
+                  : item.post_type === "reel"
+                    ? "Reel"
+                    : "Post"}{" "}
                 -{" "}
                 {new Date(item.created_at).toLocaleString()}
               </Text>

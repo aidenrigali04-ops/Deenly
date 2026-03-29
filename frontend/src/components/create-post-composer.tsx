@@ -626,13 +626,6 @@ export function CreatePostComposer({
               Short vertical video for the Reels feed. Keep captions respectful; one video per reel.
             </span>
           </div>
-        ) : postType === "recitation" ? (
-          <div className="rounded-control border border-black/15 bg-surface px-3 py-2 text-xs leading-relaxed text-text">
-            <span className="font-semibold">Recitation share</span>
-            <span className="mt-1 block text-muted">
-              Share a short, humble caption. Avoid scholarly claims; keep tone warm and respectful.
-            </span>
-          </div>
         ) : (
           <div className="rounded-control border border-black/10 bg-surface/80 px-3 py-2 text-xs text-muted">
             Community post — shown in Home. Use{" "}
@@ -687,16 +680,6 @@ export function CreatePostComposer({
                 onClick={() => assistMutation.mutate({ intent: "marketplace_listing" })}
               >
                 Listing style
-              </button>
-            ) : null}
-            {postType === "recitation" ? (
-              <button
-                type="button"
-                className="btn-secondary px-2 py-1 text-xs"
-                disabled={assistMutation.isPending || !content.trim()}
-                onClick={() => assistMutation.mutate({ intent: "recitation_caption" })}
-              >
-                Caption assist
               </button>
             ) : null}
           </div>
@@ -986,7 +969,6 @@ export function CreatePostComposer({
               disabled={sellThis}
             >
               <option value="post">Post</option>
-              <option value="recitation">Recitation</option>
               <option value="marketplace">Marketplace</option>
               <option value="reel">Reel</option>
             </select>

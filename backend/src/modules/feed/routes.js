@@ -100,7 +100,7 @@ function createFeedRouter({ db, config, mediaStorage }) {
          AND p.media_status = 'ready'
          AND p.removed_at IS NULL
          AND (
-           ($2::text = 'for_you' AND p.post_type IN ('post', 'recitation', 'marketplace'))
+           ($2::text = 'for_you' AND p.post_type IN ('post', 'marketplace'))
            OR (
              $2::text = 'opportunities'
              AND p.post_type = 'marketplace'
@@ -156,8 +156,8 @@ function createFeedRouter({ db, config, mediaStorage }) {
         authorization: req.headers.authorization
       });
 
-      if (postType && !["post", "recitation", "marketplace", "reel"].includes(postType)) {
-        throw httpError(400, "postType must be post, recitation, marketplace, or reel");
+      if (postType && !["post", "marketplace", "reel"].includes(postType)) {
+        throw httpError(400, "postType must be post, marketplace, or reel");
       }
       if (!["for_you", "opportunities", "marketplace", "reels"].includes(feedTab)) {
         throw httpError(400, "feedTab must be for_you, opportunities, marketplace, or reels");
@@ -342,7 +342,7 @@ function createFeedRouter({ db, config, mediaStorage }) {
                   (
                     CASE
                       WHEN 'community' = ANY($23::text[])
-                        AND p.post_type IN ('post', 'recitation', 'reel')
+                        AND p.post_type IN ('post', 'reel')
                       THEN 1
                       ELSE 0
                     END
@@ -410,7 +410,7 @@ function createFeedRouter({ db, config, mediaStorage }) {
            AND (
              $3::int IS NOT NULL
              OR (
-               ($18::text = 'for_you' AND p.post_type IN ('post', 'recitation', 'marketplace'))
+               ($18::text = 'for_you' AND p.post_type IN ('post', 'marketplace'))
                OR (
                  $18::text = 'opportunities'
                  AND p.post_type = 'marketplace'

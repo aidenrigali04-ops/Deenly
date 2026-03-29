@@ -6,10 +6,11 @@ const { asyncHandler } = require("../../utils/async-handler");
 const { optionalString, optionalWebsiteUrl, requireString } = require("../../utils/validators");
 const { httpError } = require("../../utils/http-error");
 const { getPrayerSettings, updatePrayerSettings } = require("../../services/prayer-settings");
-const INTEREST_KEYS = new Set(["post", "recitation", "marketplace", "reel"]);
+const INTEREST_KEYS = new Set(["post", "marketplace", "reel"]);
 const FEED_TAB_PREFS = new Set(["for_you", "opportunities", "marketplace"]);
 const APP_LANDING_PREFS = new Set(["home", "marketplace"]);
 const ONBOARDING_INTENT_KEYS = new Set(["community", "shop", "sell", "b2b"]);
+const PROFILE_KINDS = new Set(["consumer", "business_interest"]);
 
 function createUsersRouter({ db, config }) {
   const router = express.Router();
@@ -79,6 +80,7 @@ function createUsersRouter({ db, config }) {
       const result = await db.query(
         `SELECT p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.business_offering, p.website_url, p.is_verified,
                 p.show_business_on_profile, p.default_feed_tab, p.app_landing, p.onboarding_intents, p.seller_checklist_completed_at,
+                p.profile_kind, p.business_onboarding_step, p.business_onboarding_dismissed_at,
                 p.created_at, p.updated_at
          FROM profiles p
          JOIN users u ON u.id = p.user_id
@@ -161,6 +163,30 @@ function createUsersRouter({ db, config }) {
         sets.push("seller_checklist_completed_at = COALESCE(seller_checklist_completed_at, NOW())");
       }
 
+      if (Object.prototype.hasOwnProperty.call(body, "profileKind")) {
+        const t = String(body.profileKind || "").trim();
+        if (!PROFILE_KINDS.has(t)) {
+          throw httpError(400, "profileKind must be consumer or business_interest");
+        }
+        sets.push(`profile_kind = $${i}`);
+        vals.push(t);
+        i += 1;
+      }
+
+      if (Object.prototype.hasOwnProperty.call(body, "businessOnboardingStep")) {
+        const step = Number(body.businessOnboardingStep);
+        if (!Number.isInteger(step) || step < 0 || step > 5) {
+          throw httpError(400, "businessOnboardingStep must be an integer 0–5");
+        }
+        sets.push(`business_onboarding_step = $${i}`);
+        vals.push(step);
+        i += 1;
+      }
+
+      if (body.businessOnboardingDismissed === true) {
+        sets.push("business_onboarding_dismissed_at = COALESCE(business_onboarding_dismissed_at, NOW())");
+      }
+
       if (sets.length === 0) {
         throw httpError(400, "No valid preference fields to update");
       }
@@ -179,6 +205,7 @@ function createUsersRouter({ db, config }) {
       const result = await db.query(
         `SELECT p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.business_offering, p.website_url, p.is_verified,
                 p.show_business_on_profile, p.default_feed_tab, p.app_landing, p.onboarding_intents, p.seller_checklist_completed_at,
+                p.profile_kind, p.business_onboarding_step, p.business_onboarding_dismissed_at,
                 p.created_at, p.updated_at
          FROM profiles p
          JOIN users u ON u.id = p.user_id
@@ -303,6 +330,7 @@ function createUsersRouter({ db, config }) {
       const result = await db.query(
         `SELECT p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.business_offering, p.website_url, p.is_verified,
                 p.show_business_on_profile, p.default_feed_tab, p.app_landing, p.onboarding_intents, p.seller_checklist_completed_at,
+                p.profile_kind, p.business_onboarding_step, p.business_onboarding_dismissed_at,
                 p.created_at, p.updated_at
          FROM profiles p
          JOIN users u ON u.id = p.user_id

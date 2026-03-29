@@ -53,7 +53,7 @@ function SectionTitle({ children }: { children: string }) {
 
 export function CreateScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const [postType, setPostType] = useState<"post" | "recitation" | "marketplace" | "reel">("post");
+  const [postType, setPostType] = useState<"post" | "marketplace" | "reel">("post");
   const [content, setContent] = useState("");
   const [tagsInput, setTagsInput] = useState("");
   const [selectedFile, setSelectedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
@@ -589,7 +589,6 @@ export function CreateScreen({ navigation }: Props) {
               {(
                 [
                   ["post", "Post"],
-                  ["recitation", "Recitation"],
                   ["marketplace", "Marketplace"],
                   ["reel", "Reel"]
                 ] as const

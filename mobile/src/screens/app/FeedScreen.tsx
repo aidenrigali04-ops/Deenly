@@ -197,7 +197,15 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
 
           {feedVariant === "marketplace" ? (
             <View style={styles.filters}>
-              <Text style={styles.marketplaceHint}>Creator offers and promotions.</Text>
+              <View style={styles.marketplaceTopRow}>
+                <Text style={styles.marketplaceHint}>Creator offers and local businesses.</Text>
+                <Pressable
+                  style={styles.nearMePill}
+                  onPress={() => navigation.navigate("BusinessesNearMe")}
+                >
+                  <Text style={styles.nearMePillText}>Near me</Text>
+                </Pressable>
+              </View>
               <Pressable
                 style={[styles.chip, followingOnly ? styles.chipActive : null]}
                 onPress={() => setFollowingOnly((value) => !value)}
@@ -500,12 +508,33 @@ const styles = StyleSheet.create({
   chipTextActive: {
     color: colors.onAccent
   },
+  marketplaceTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+    width: "100%"
+  },
   marketplaceHint: {
     flex: 1,
+    minWidth: 120,
     color: colors.muted,
     fontSize: 12,
     fontWeight: "600",
     paddingVertical: 4
+  },
+  nearMePill: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: radii.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    backgroundColor: colors.surface
+  },
+  nearMePillText: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: "700"
   },
   storiesWrap: {
     marginTop: 2

@@ -2,10 +2,12 @@
 
 # dependencies
 node_modules/
+.npm-cache/
 
 # Expo
 .expo/
 dist/
+dist-web/
 dist-ios/
 web-build/
 expo-env.d.ts
@@ -32,6 +34,7 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
 
 # typescript

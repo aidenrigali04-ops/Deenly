@@ -102,6 +102,7 @@ describeIfDatabase("integration api flows", () => {
     await db.query("TRUNCATE TABLE interactions RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE instagram_cross_posts RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE posts RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE business_listings RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE follows RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE refresh_tokens RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE profiles RESTART IDENTITY CASCADE");
@@ -356,8 +357,8 @@ describeIfDatabase("integration api flows", () => {
       .post("/api/v1/posts")
       .set("Authorization", `Bearer ${creatorToken}`)
       .send({
-        postType: "recitation",
-        content: "Short recitation sample",
+        postType: "post",
+        content: "Short post sample",
         mediaUrl: null
       });
     expect(createdPost.statusCode).toBe(201);
@@ -902,9 +903,9 @@ describeIfDatabase("integration api flows", () => {
     const updateInterests = await request(app)
       .put("/api/v1/users/me/interests")
       .set("Authorization", `Bearer ${userToken}`)
-      .send({ interests: ["recitation", "post"] });
+      .send({ interests: ["marketplace", "post"] });
     expect(updateInterests.statusCode).toBe(200);
-    expect(updateInterests.body.items).toContain("recitation");
+    expect(updateInterests.body.items).toContain("marketplace");
 
     const updateOnboardingIntents = await request(app)
       .patch("/api/v1/users/me/preferences")
@@ -1326,5 +1327,33 @@ describeIfDatabase("integration api flows", () => {
     } finally {
       await asyncDb.close();
     }
+  });
+
+  it("creates a published business and lists it in near query", async () => {
+    const ts = Date.now();
+    const reg = await request(app).post("/api/v1/auth/register").send({
+      email: `biz-owner-${ts}@example.com`,
+      username: `biz_owner_${ts}`,
+      password: "StrongPass123",
+      displayName: "Biz Owner"
+    });
+    expect(reg.statusCode).toBe(201);
+    const token = reg.body.tokens.accessToken;
+    const create = await request(app)
+      .post("/api/v1/businesses")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        name: "Integration Cafe",
+        description: "Coffee and tests",
+        latitude: 40.73,
+        longitude: -73.99,
+        visibility: "published"
+      });
+    expect(create.statusCode).toBe(201);
+    const bizId = create.body.id;
+    const near = await request(app).get("/api/v1/businesses/near?lat=40.73&lng=-73.99&radiusM=100000&limit=20");
+    expect(near.statusCode).toBe(200);
+    expect(Array.isArray(near.body.items)).toBe(true);
+    expect(near.body.items.some((b) => b.id === bizId)).toBe(true);
   });
 });

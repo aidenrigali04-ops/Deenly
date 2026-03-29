@@ -184,6 +184,9 @@ export function ProfileScreen({ navigation }: Props) {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.heading}>Profile</Text>
+      <Pressable style={styles.addBusinessCta} onPress={() => navigation.navigate("AddBusiness")}>
+        <Text style={styles.addBusinessCtaText}>Add my business to the map</Text>
+      </Pressable>
       {sessionQuery.isLoading ? <LoadingState label="Loading profile..." /> : null}
       {sessionQuery.error ? <ErrorState message={(sessionQuery.error as Error).message} /> : null}
       {!sessionQuery.isLoading && !sessionQuery.error && !sessionQuery.data ? (
@@ -415,6 +418,20 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 22,
     fontWeight: "700"
+  },
+  addBusinessCta: {
+    alignSelf: "flex-start",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: radii.control,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.surface
+  },
+  addBusinessCtaText: {
+    color: colors.accent,
+    fontWeight: "700",
+    fontSize: 14
   },
   card: {
     backgroundColor: colors.card,

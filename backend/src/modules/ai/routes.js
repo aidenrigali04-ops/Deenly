@@ -6,7 +6,7 @@ const { httpError } = require("../../utils/http-error");
 const { requireString, optionalString } = require("../../utils/validators");
 const { completeOpenAiChat } = require("../../services/openai-chat");
 
-const INTENTS = new Set(["polish", "marketplace_listing", "recitation_caption"]);
+const INTENTS = new Set(["polish", "marketplace_listing"]);
 
 function systemPromptForIntent(intent) {
   const base =
@@ -22,13 +22,6 @@ function systemPromptForIntent(intent) {
       "Keep the same language as the user (e.g. English if they wrote English). Max about 1800 characters."
     );
   }
-  if (intent === "recitation_caption") {
-    return (
-      base +
-      " Improve the user's short caption for sharing Quran recitation: warm, humble, no scholarly claims. " +
-      "Same language as the user. Max about 800 characters."
-    );
-  }
   return (
     base +
     " Polish the user's post for clarity and respectful tone. Keep their meaning and voice. " +
@@ -40,6 +33,48 @@ const commentSystem =
   "You help users comment respectfully on Deenly. " +
   "Offer ONE alternative comment that is calmer and kinder, same language as the user, similar length. " +
   "No religious rulings. Output only the comment text, nothing else. Max 1900 characters.";
+
+function buildBusinessChatSystem(row, surface) {
+  const lines = [
+    "You answer questions about a small business listed on Deenly.",
+    "Use ONLY the facts in BUSINESS CONTEXT below. If something is not listed, say you do not have that information and suggest checking the business profile or messaging through the app.",
+    "Do not invent phone numbers, emails, hours, or prices. No religious rulings or legal/medical advice. Plain text, concise.",
+    "",
+    "BUSINESS CONTEXT:",
+    `Name: ${row.name}`,
+    row.category ? `Category: ${row.category}` : null,
+    row.description ? `Description: ${row.description}` : null,
+    row.address_display ? `Address: ${row.address_display}` : null,
+    row.website_url ? `Website: ${row.website_url}` : null,
+    surface ? `Surface: ${surface}` : null
+  ].filter(Boolean);
+  return lines.join("\n");
+}
+
+function normalizeChatMessages(raw) {
+  if (!Array.isArray(raw)) {
+    throw httpError(400, "messages must be an array");
+  }
+  if (raw.length < 1 || raw.length > 12) {
+    throw httpError(400, "messages must have 1–12 entries");
+  }
+  const out = [];
+  for (const m of raw) {
+    if (!m || typeof m !== "object") {
+      throw httpError(400, "each message must be an object");
+    }
+    const role = String(m.role || "").trim();
+    if (role !== "user" && role !== "assistant") {
+      throw httpError(400, "message role must be user or assistant");
+    }
+    const content = requireString(m.content, "content", 1, 2000);
+    out.push({ role, content });
+  }
+  if (out[out.length - 1].role !== "user") {
+    throw httpError(400, "last message must be from user");
+  }
+  return out;
+}
 
 function createAiRouter({ config, db, logger }) {
   const router = express.Router();
@@ -113,6 +148,47 @@ function createAiRouter({ config, db, logger }) {
 
       const clipped = suggestion.length > 2000 ? `${suggestion.slice(0, 1997).trimEnd()}…` : suggestion;
       res.status(200).json({ suggestion: clipped, disclaimer: "ai_generated" });
+    })
+  );
+
+  router.post(
+    "/business-chat",
+    authMiddleware,
+    assistLimiter,
+    asyncHandler(async (req, res) => {
+      const apiKey = ensureAiEnabled();
+      const businessId = Number(req.body?.businessId);
+      if (!businessId) {
+        throw httpError(400, "businessId must be a number");
+      }
+      const surface = optionalString(req.body?.surface, "surface", 32);
+      const messages = normalizeChatMessages(req.body?.messages);
+
+      const bizResult = await db.query(
+        `SELECT id, owner_user_id, name, description, website_url, address_display, category, visibility
+         FROM business_listings
+         WHERE id = $1
+         LIMIT 1`,
+        [businessId]
+      );
+      if (bizResult.rowCount === 0) {
+        throw httpError(404, "Business not found");
+      }
+      const row = bizResult.rows[0];
+      if (row.visibility !== "published" && row.owner_user_id !== req.user.id) {
+        throw httpError(404, "Business not found");
+      }
+
+      const system = buildBusinessChatSystem(row, surface);
+      const reply = await completeOpenAiChat({
+        apiKey,
+        model: config.openaiModel,
+        messages: [{ role: "system", content: system }, ...messages],
+        maxTokens: 500,
+        logger
+      });
+      const clipped = reply.length > 2500 ? `${reply.slice(0, 2497).trimEnd()}…` : reply;
+      res.status(200).json({ reply: clipped, disclaimer: "ai_generated" });
     })
   );
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { NavigationContainer, DefaultTheme, NavigatorScreenParams } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -8,12 +8,12 @@ import { fetchSessionMe } from "../lib/auth";
 import { getAccessToken } from "../lib/storage";
 import { useSessionStore } from "../store/session-store";
 import { colors } from "../theme";
+import { apiRequest } from "../lib/api";
 import { LoginScreen } from "../screens/auth/LoginScreen";
 import { SignupScreen } from "../screens/auth/SignupScreen";
 import { WelcomeScreen } from "../screens/auth/WelcomeScreen";
 import { FeedScreen } from "../screens/app/FeedScreen";
 import { MarketplaceFeedScreen } from "../screens/app/MarketplaceFeedScreen";
-import { RecitationScreen } from "../screens/app/RecitationScreen";
 import { MessagesScreen } from "../screens/app/MessagesScreen";
 import { SearchScreen } from "../screens/app/SearchScreen";
 import { ProfileScreen } from "../screens/app/ProfileScreen";
@@ -35,12 +35,15 @@ import { SalahSettingsScreen } from "../screens/app/SalahSettingsScreen";
 import { CreatorEconomyScreen } from "../screens/app/CreatorEconomyScreen";
 import { ReelsScreen } from "../screens/app/ReelsScreen";
 import { NotificationsScreen } from "../screens/app/NotificationsScreen";
+import { AddBusinessScreen } from "../screens/app/AddBusinessScreen";
+import { BusinessDetailScreen } from "../screens/app/BusinessDetailScreen";
+import { BusinessesNearMeScreen } from "../screens/app/BusinessesNearMeScreen";
 import { NavTabIcon } from "../components/icons/NavTabIcon";
+import { BusinessPersonalizerOverlay } from "../components/BusinessPersonalizerOverlay";
 
 export type AppTabParamList = {
   HomeTab: undefined;
   MarketplaceTab: undefined;
-  RecitationTab: undefined;
   MessagesTab: { openUserId?: number };
   SearchTab: undefined;
   AccountTab: undefined;
@@ -73,6 +76,9 @@ export type RootStackParamList = {
   CreatorEconomy: undefined;
   Reels: undefined;
   Notifications: undefined;
+  AddBusiness: undefined;
+  BusinessDetail: { id: number };
+  BusinessesNearMe: undefined;
 };
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
@@ -119,11 +125,11 @@ function AppTabs() {
         }}
       />
       <Tab.Screen
-        name="RecitationTab"
-        component={RecitationScreen}
+        name="SearchTab"
+        component={SearchScreen}
         options={{
-          title: "Recite",
-          tabBarIcon: ({ color, size }) => <NavTabIcon kind="video" color={color} size={size ?? 22} />
+          title: "Search",
+          tabBarIcon: ({ color, size }) => <NavTabIcon kind="search" color={color} size={size ?? 22} />
         }}
       />
       <Tab.Screen
@@ -135,18 +141,10 @@ function AppTabs() {
         }}
       />
       <Tab.Screen
-        name="SearchTab"
-        component={SearchScreen}
-        options={{
-          title: "Search",
-          tabBarIcon: ({ color, size }) => <NavTabIcon kind="search" color={color} size={size ?? 22} />
-        }}
-      />
-      <Tab.Screen
         name="CreateTab"
         component={CreateScreen}
         options={{
-          title: "Create",
+          title: "Post",
           tabBarIcon: ({ color, size }) => <NavTabIcon kind="upload" color={color} size={size ?? 22} />
         }}
       />
@@ -154,12 +152,27 @@ function AppTabs() {
         name="AccountTab"
         component={ProfileScreen}
         options={{
-          title: "Account",
+          title: "Profile",
           tabBarIcon: ({ color, size }) => <NavTabIcon kind="user" color={color} size={size ?? 22} />
         }}
       />
     </Tab.Navigator>
   );
+}
+
+type MeOnboarding = {
+  business_onboarding_dismissed_at?: string | null;
+};
+
+function SessionPersonalizer() {
+  const user = useSessionStore((s) => s.user);
+  const { data, isSuccess } = useQuery({
+    queryKey: ["mobile-user-me-onboarding"],
+    queryFn: () => apiRequest<MeOnboarding>("/users/me", { auth: true }),
+    enabled: Boolean(user)
+  });
+  const visible = Boolean(user && isSuccess && !data?.business_onboarding_dismissed_at);
+  return <BusinessPersonalizerOverlay visible={visible} onDismiss={() => undefined} />;
 }
 
 export function AppNavigator() {
@@ -227,118 +240,56 @@ export function AppNavigator() {
         }
       }}
     >
-      <RootStack.Navigator
-        screenOptions={{
-          headerStyle: { backgroundColor: colors.surface },
-          headerTintColor: colors.text,
-          contentStyle: { backgroundColor: colors.background }
-        }}
-      >
-        {!user ? (
-          <>
-            <RootStack.Screen
-              name="Welcome"
-              component={WelcomeScreen}
-              options={{ headerShown: false }}
-            />
-            <RootStack.Screen
-              name="Login"
-              component={LoginScreen}
-              options={{ headerShown: false }}
-            />
-            <RootStack.Screen
-              name="Signup"
-              component={SignupScreen}
-              options={{ headerShown: false }}
-            />
-          </>
-        ) : (
-          <>
-            <RootStack.Screen
-              name="AppTabs"
-              component={AppTabs}
-              options={{ headerShown: false }}
-            />
-            <RootStack.Screen
-              name="PostDetail"
-              component={PostDetailScreen}
-              options={{ title: "Post" }}
-            />
-            <RootStack.Screen
-              name="UserProfile"
-              component={UserProfileScreen}
-              options={{ title: "User" }}
-            />
-            <RootStack.Screen
-              name="Onboarding"
-              component={OnboardingScreen}
-              options={{ title: "Interests" }}
-            />
-            <RootStack.Screen
-              name="Sessions"
-              component={SessionsScreen}
-              options={{ title: "Sessions" }}
-            />
-            <RootStack.Screen name="Beta" component={BetaScreen} options={{ title: "Beta" }} />
-            <RootStack.Screen
-              name="Support"
-              component={SupportScreen}
-              options={{ title: "Support" }}
-            />
-            <RootStack.Screen
-              name="Guidelines"
-              component={GuidelinesScreen}
-              options={{ title: "Guidelines" }}
-            />
-            <RootStack.Screen name="Dhikr" component={DhikrScreen} options={{ title: "Dhikr Mode" }} />
-            <RootStack.Screen name="Reels" component={ReelsScreen} options={{ title: "Reels", headerShown: false }} />
-            <RootStack.Screen
-              name="Notifications"
-              component={NotificationsScreen}
-              options={{ title: "Notifications" }}
-            />
-            <RootStack.Screen
-              name="QuranReader"
-              component={QuranReaderScreen}
-              options={{ title: "Quran Reader" }}
-            />
-            <RootStack.Screen
-              name="SalahSettings"
-              component={SalahSettingsScreen}
-              options={{ title: "Salah Settings" }}
-            />
-            <RootStack.Screen
-              name="CreatorEconomy"
-              component={CreatorEconomyScreen}
-              options={{ title: "Creator Economy" }}
-            />
-            {canAccessAdmin ? (
-              <>
-                <RootStack.Screen
-                  name="AdminModeration"
-                  component={AdminModerationScreen}
-                  options={{ title: "Admin Moderation" }}
-                />
-                <RootStack.Screen
-                  name="AdminOperations"
-                  component={AdminOperationsScreen}
-                  options={{ title: "Admin Operations" }}
-                />
-                <RootStack.Screen
-                  name="AdminAnalytics"
-                  component={AdminAnalyticsScreen}
-                  options={{ title: "Admin Analytics" }}
-                />
-                <RootStack.Screen
-                  name="AdminTables"
-                  component={AdminTablesScreen}
-                  options={{ title: "Admin Tables" }}
-                />
-              </>
-            ) : null}
-          </>
-        )}
-      </RootStack.Navigator>
+      <Fragment>
+        <RootStack.Navigator
+          screenOptions={{
+            headerStyle: { backgroundColor: colors.surface },
+            headerTintColor: colors.text,
+            contentStyle: { backgroundColor: colors.background }
+          }}
+        >
+          {!user ? (
+            <>
+              <RootStack.Screen name="Welcome" component={WelcomeScreen} options={{ headerShown: false }} />
+              <RootStack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+              <RootStack.Screen name="Signup" component={SignupScreen} options={{ headerShown: false }} />
+            </>
+          ) : (
+            <>
+              <RootStack.Screen name="AppTabs" component={AppTabs} options={{ headerShown: false }} />
+              <RootStack.Screen name="PostDetail" component={PostDetailScreen} options={{ title: "Post" }} />
+              <RootStack.Screen name="UserProfile" component={UserProfileScreen} options={{ title: "User" }} />
+              <RootStack.Screen name="Onboarding" component={OnboardingScreen} options={{ title: "Interests" }} />
+              <RootStack.Screen name="Sessions" component={SessionsScreen} options={{ title: "Sessions" }} />
+              <RootStack.Screen name="Beta" component={BetaScreen} options={{ title: "Beta" }} />
+              <RootStack.Screen name="Support" component={SupportScreen} options={{ title: "Support" }} />
+              <RootStack.Screen name="Guidelines" component={GuidelinesScreen} options={{ title: "Guidelines" }} />
+              <RootStack.Screen name="Dhikr" component={DhikrScreen} options={{ title: "Dhikr Mode" }} />
+              <RootStack.Screen name="Reels" component={ReelsScreen} options={{ title: "Reels", headerShown: false }} />
+              <RootStack.Screen name="Notifications" component={NotificationsScreen} options={{ title: "Notifications" }} />
+              <RootStack.Screen name="QuranReader" component={QuranReaderScreen} options={{ title: "Quran Reader" }} />
+              <RootStack.Screen name="SalahSettings" component={SalahSettingsScreen} options={{ title: "Salah Settings" }} />
+              <RootStack.Screen name="CreatorEconomy" component={CreatorEconomyScreen} options={{ title: "Creator Economy" }} />
+              <RootStack.Screen name="AddBusiness" component={AddBusinessScreen} options={{ title: "Add business" }} />
+              <RootStack.Screen name="BusinessDetail" component={BusinessDetailScreen} options={{ title: "Business" }} />
+              <RootStack.Screen
+                name="BusinessesNearMe"
+                component={BusinessesNearMeScreen}
+                options={{ title: "Near me" }}
+              />
+              {canAccessAdmin ? (
+                <>
+                  <RootStack.Screen name="AdminModeration" component={AdminModerationScreen} options={{ title: "Admin Moderation" }} />
+                  <RootStack.Screen name="AdminOperations" component={AdminOperationsScreen} options={{ title: "Admin Operations" }} />
+                  <RootStack.Screen name="AdminAnalytics" component={AdminAnalyticsScreen} options={{ title: "Admin Analytics" }} />
+                  <RootStack.Screen name="AdminTables" component={AdminTablesScreen} options={{ title: "Admin Tables" }} />
+                </>
+              ) : null}
+            </>
+          )}
+        </RootStack.Navigator>
+        {user ? <SessionPersonalizer /> : null}
+      </Fragment>
     </NavigationContainer>
   );
 }

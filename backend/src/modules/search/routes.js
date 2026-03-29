@@ -47,8 +47,8 @@ function createSearchRouter({ db, config }) {
       const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 50);
       const offset = Math.max(Number(req.query.offset) || 0, 0);
       const postType = req.query.postType ? String(req.query.postType) : null;
-      if (postType && !["post", "recitation", "marketplace"].includes(postType)) {
-        throw httpError(400, "postType must be post, recitation, or marketplace");
+      if (postType && !["post", "marketplace", "reel"].includes(postType)) {
+        throw httpError(400, "postType must be post, marketplace, or reel");
       }
 
       const result = await db.query(

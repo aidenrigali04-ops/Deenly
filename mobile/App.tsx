@@ -46,7 +46,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <ReliabilityBanner isOffline={isOffline} queuedMutations={queuedMutations} />
       <AppNavigator />
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
     </QueryClientProvider>
   );
 }

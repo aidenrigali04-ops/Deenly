@@ -9,9 +9,6 @@ import { createProductCheckout, formatMinorCurrency } from "@/lib/monetization";
 import { PostCommentsBlock } from "@/components/post-comments-block";
 
 function feedPostTypeLabel(postType: string) {
-  if (postType === "recitation") {
-    return "Original audio";
-  }
   if (postType === "marketplace") {
     return "Marketplace";
   }
@@ -22,9 +19,6 @@ function feedPostTypeLabel(postType: string) {
 }
 
 function feedReflectionLabel(postType: string) {
-  if (postType === "recitation") {
-    return "Recitation reflection";
-  }
   if (postType === "marketplace") {
     return "Marketplace listing";
   }

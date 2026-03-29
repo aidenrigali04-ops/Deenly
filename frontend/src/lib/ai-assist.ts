@@ -1,6 +1,6 @@
 import { apiRequest } from "@/lib/api";
 
-export type PostAssistIntent = "polish" | "marketplace_listing" | "recitation_caption";
+export type PostAssistIntent = "polish" | "marketplace_listing";
 
 export type PostAssistResponse = {
   suggestion: string;

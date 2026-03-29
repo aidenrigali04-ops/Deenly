@@ -6,6 +6,7 @@ import { fetchSessionMe } from "@/lib/auth";
 import { clearTokens, getAccessToken } from "@/lib/storage";
 import { useSessionStore } from "@/store/session-store";
 import { Nav } from "@/components/nav";
+import { BusinessPersonalizerDialog } from "@/components/business-personalizer-dialog";
 import { ackPrayerReminder, fetchPrayerStatus, type PrayerStatus } from "@/lib/prayer";
 
 const PUBLIC_PATHS = new Set(["/", "/auth/login", "/auth/signup"]);
@@ -151,6 +152,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       ) : null}
+      <BusinessPersonalizerDialog />
       <Nav />
       <main className="min-w-0 flex-1 px-1 pb-12 pt-2 sm:px-3 md:px-4 md:pb-14 md:pt-1">{children}</main>
     </div>

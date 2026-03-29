@@ -160,9 +160,8 @@ function NavLink({
 const feedRailLinks: RailLink[] = [
   { href: "/home", label: "Home", icon: "home" },
   { href: "/marketplace", label: "Marketplace", icon: "marketplace" },
-  { href: "/recitation", label: "Recitation", icon: "video" },
-  { href: "/messages", label: "Messages", icon: "send" },
   { href: "/search", label: "Search", icon: "search" },
+  { href: "/messages", label: "Messages", icon: "send" },
   { href: "/dhikr", label: "Dhikr", icon: "dhikr" }
 ];
 
@@ -212,7 +211,9 @@ export function Nav() {
             const active =
               link.href === "/home"
                 ? pathname === "/home" || pathname === "/"
-                : pathname.startsWith(link.href);
+                : link.href === "/search"
+                  ? pathname.startsWith("/search") || pathname.startsWith("/businesses")
+                  : pathname.startsWith(link.href);
             return (
               <NavLink
                 key={link.href}

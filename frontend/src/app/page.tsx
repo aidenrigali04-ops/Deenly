@@ -6,12 +6,12 @@ export default function HomePage() {
       <div className="space-y-2">
         <h1 className="text-4xl font-bold tracking-tight">Deenly</h1>
         <p className="text-muted">
-          A Muslim-first platform for beneficial reminders, recitation, and sincere community.
+          A Muslim-first platform for beneficial reminders, local businesses, and sincere community.
         </p>
       </div>
       <div className="surface-card space-y-4">
         <p className="text-sm text-muted">
-          Sign in to access your personalized Home, Recitation reels, Messages, Search, and Account.
+          Sign in to access Home, Marketplace, Messages, Search, Create, and your Account.
         </p>
         <div className="flex flex-wrap gap-3">
           <Link href="/auth/login" className="btn-primary">

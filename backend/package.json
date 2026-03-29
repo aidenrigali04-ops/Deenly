@@ -13,6 +13,7 @@
     "verify:deploy-env-parity": "node scripts/verify-deploy-env-parity.js",
     "verify:release-gates": "node scripts/verify-release-gates.js",
     "ops:check-metrics": "node scripts/check-ops-metrics.js",
+    "migrate": "node-pg-migrate up --config-file ./node-pg-migrate.config.js",
     "migrate:create": "node-pg-migrate create --config-file ./node-pg-migrate.config.js",
     "migrate:up": "node-pg-migrate up --config-file ./node-pg-migrate.config.js",
     "migrate:down": "node-pg-migrate down --config-file ./node-pg-migrate.config.js"

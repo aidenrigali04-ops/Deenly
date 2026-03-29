@@ -33,7 +33,7 @@ type ProfileFeedItem = {
   content: string;
   media_url: string | null;
   media_mime_type: string | null;
-  post_type: "post" | "recitation" | "marketplace" | "reel";
+  post_type: "post" | "marketplace" | "reel";
   created_at: string;
   benefited_count: number;
 };
@@ -275,6 +275,12 @@ export default function AccountPage() {
               </div>
               {avatarError ? <p className="mt-2 text-xs text-rose-600">{avatarError}</p> : null}
 
+              <div className="mt-4">
+                <Link href="/businesses/new" className="text-sm font-semibold text-sky-700 underline-offset-2 hover:underline">
+                  Add my business to the map
+                </Link>
+              </div>
+
               <div className="mt-6 flex flex-wrap gap-8 text-sm">
                 <div>
                   <p className="text-base font-semibold tabular-nums text-text">{(profile?.posts_count ?? 0).toLocaleString()}</p>
@@ -416,7 +422,7 @@ export default function AccountPage() {
                         </svg>
                       </div>
                       <p className="text-xl font-semibold text-text">Your posts live here</p>
-                      <p className="mt-2 text-sm text-muted">Share recitations, reminders, or clips — they show up on your Deenly profile.</p>
+                      <p className="mt-2 text-sm text-muted">Share reminders, marketplace listings, or clips — they show up on your Deenly profile.</p>
                       <button
                         type="button"
                         className="mt-4 inline-block text-sm font-semibold text-sky-600 underline-offset-2 hover:underline"
