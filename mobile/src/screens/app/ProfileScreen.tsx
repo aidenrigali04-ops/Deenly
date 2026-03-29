@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Image,
-  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -15,20 +14,13 @@ import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { CompositeScreenProps } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import * as DocumentPicker from "expo-document-picker";
-import { fetchSessionMe, logout } from "../../lib/auth";
+import { fetchSessionMe } from "../../lib/auth";
 import { apiRequest } from "../../lib/api";
-import { useSessionStore } from "../../store/session-store";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { colors, radii } from "../../theme";
 import type { FeedItem } from "../../types";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 import { resolveMediaUrl } from "../../lib/media-url";
-import { fetchMyEarnings, fetchConnectStatus, formatMinorCurrency } from "../../lib/monetization";
-import {
-  disconnectInstagram,
-  fetchInstagramOAuthUrl,
-  fetchInstagramStatus
-} from "../../lib/instagram";
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<AppTabParamList, "AccountTab">,
@@ -39,16 +31,10 @@ export function ProfileScreen({ navigation }: Props) {
   const { width } = useWindowDimensions();
   const [activeTab, setActiveTab] = useState<"posts" | "media">("posts");
   const [avatarUploading, setAvatarUploading] = useState(false);
-  const setUser = useSessionStore((state) => state.setUser);
   const queryClient = useQueryClient();
-  const adminOwnerEmail = String(process.env.EXPO_PUBLIC_ADMIN_OWNER_EMAIL || "").toLowerCase();
   const sessionQuery = useQuery({
     queryKey: ["mobile-session-me"],
     queryFn: () => fetchSessionMe()
-  });
-  const interestsQuery = useQuery({
-    queryKey: ["mobile-my-interests"],
-    queryFn: () => apiRequest<{ items: string[] }>("/users/me/interests", { auth: true })
   });
   const profileQuery = useQuery({
     queryKey: ["mobile-account-profile"],
@@ -58,6 +44,8 @@ export function ProfileScreen({ navigation }: Props) {
         display_name: string;
         bio: string | null;
         avatar_url?: string | null;
+        business_offering?: string | null;
+        website_url?: string | null;
         posts_count: number;
         followers_count: number;
         following_count: number;
@@ -73,28 +61,6 @@ export function ProfileScreen({ navigation }: Props) {
         auth: true
       }),
     enabled: Boolean(sessionQuery.data?.id)
-  });
-  const creatorConnectQuery = useQuery({
-    queryKey: ["mobile-creator-connect-status"],
-    queryFn: () => fetchConnectStatus(),
-    enabled: Boolean(sessionQuery.data?.id)
-  });
-  const creatorEarningsQuery = useQuery({
-    queryKey: ["mobile-creator-earnings"],
-    queryFn: () => fetchMyEarnings(),
-    enabled: Boolean(sessionQuery.data?.id)
-  });
-  const instagramQuery = useQuery({
-    queryKey: ["mobile-instagram-status"],
-    queryFn: () => fetchInstagramStatus(),
-    enabled: Boolean(sessionQuery.data?.id),
-    retry: false
-  });
-  const disconnectInstagramMutation = useMutation({
-    mutationFn: () => disconnectInstagram(),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["mobile-instagram-status"] });
-    }
   });
   const likeMutation = useMutation({
     mutationFn: (postId: number) =>
@@ -114,20 +80,11 @@ export function ProfileScreen({ navigation }: Props) {
     }
   });
 
-  const handleLogout = async () => {
-    await logout();
-    setUser(null);
-  };
-
-  const isOwnerAdmin =
-    !!sessionQuery.data &&
-    ["admin", "moderator"].includes(sessionQuery.data.role) &&
-    String(sessionQuery.data.email || "").toLowerCase() === adminOwnerEmail;
-
   const items = postsQuery.data?.items || [];
   const visibleItems = activeTab === "media" ? items.filter((item) => Boolean(item.media_url)) : items;
   const avatarUri = resolveMediaUrl(profileQuery.data?.avatar_url);
   const tileSize = Math.floor((width - 32 - 8) / 3);
+  const p = profileQuery.data;
 
   const uploadAvatar = async () => {
     if (!profileQuery.data) return;
@@ -171,7 +128,9 @@ export function ProfileScreen({ navigation }: Props) {
         body: {
           displayName: profileQuery.data.display_name,
           bio: profileQuery.data.bio,
-          avatarUrl: signature.key
+          avatarUrl: signature.key,
+          businessOffering: profileQuery.data.business_offering ?? null,
+          websiteUrl: profileQuery.data.website_url ?? null
         }
       });
       await queryClient.invalidateQueries({ queryKey: ["mobile-account-profile"] });
@@ -183,108 +142,65 @@ export function ProfileScreen({ navigation }: Props) {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.heading}>Profile</Text>
+      <View style={styles.titleRow}>
+        <Text style={styles.heading}>Profile</Text>
+        <Pressable
+          onPress={() => navigation.navigate("Settings")}
+          style={({ pressed }) => [styles.settingsBtn, pressed && styles.settingsBtnPressed]}
+          accessibilityRole="button"
+          accessibilityLabel="Open settings"
+        >
+          <Text style={styles.settingsBtnText}>Settings</Text>
+        </Pressable>
+      </View>
+
       <Pressable style={styles.addBusinessCta} onPress={() => navigation.navigate("AddBusiness")}>
-        <Text style={styles.addBusinessCtaText}>Add my business to the map</Text>
+        <Text style={styles.addBusinessCtaText}>Add your business</Text>
       </Pressable>
+
       {sessionQuery.isLoading ? <LoadingState label="Loading profile..." /> : null}
       {sessionQuery.error ? <ErrorState message={(sessionQuery.error as Error).message} /> : null}
       {!sessionQuery.isLoading && !sessionQuery.error && !sessionQuery.data ? (
         <EmptyState title="Profile unavailable" />
       ) : null}
+
       {sessionQuery.data ? (
         <View style={styles.card}>
           {avatarUri ? <Image source={{ uri: avatarUri }} style={styles.avatar} resizeMode="cover" /> : null}
           <Text style={styles.title}>{sessionQuery.data.email}</Text>
           <Text style={styles.muted}>@{sessionQuery.data.username || "unknown"}</Text>
-          <Text style={styles.muted}>Role: {sessionQuery.data.role}</Text>
+          {p ? (
+            <Text style={styles.statsLine}>
+              {p.posts_count} posts · {p.followers_count} followers · {p.following_count} following
+            </Text>
+          ) : null}
           <Pressable style={styles.buttonSecondary} onPress={uploadAvatar} disabled={avatarUploading}>
-            <Text style={styles.buttonText}>{avatarUploading ? "Uploading..." : "Upload photo"}</Text>
+            <Text style={styles.buttonText}>{avatarUploading ? "Uploading..." : "Change photo"}</Text>
           </Pressable>
         </View>
       ) : null}
-      <View style={styles.card}>
-        <Text style={styles.title}>Instagram</Text>
-        <Text style={styles.muted}>
-          Business/Creator account via Facebook Page. OAuth opens in the browser; return to the app when done.
-        </Text>
-        {instagramQuery.isError ? (
-          <Text style={styles.muted}>Instagram is not configured on this server.</Text>
-        ) : instagramQuery.data?.connected ? (
-          <View style={styles.row}>
-            <Text style={styles.muted}>
-              Connected
-              {instagramQuery.data.igUsername ? ` @${instagramQuery.data.igUsername}` : ""}
-            </Text>
-            <Pressable
-              style={styles.buttonSecondary}
-              onPress={() => disconnectInstagramMutation.mutate()}
-              disabled={disconnectInstagramMutation.isPending}
-            >
-              <Text style={styles.buttonText}>
-                {disconnectInstagramMutation.isPending ? "..." : "Disconnect"}
-              </Text>
-            </Pressable>
-          </View>
-        ) : (
-          <Pressable
-            style={styles.buttonSecondary}
-            onPress={async () => {
-              try {
-                const { url } = await fetchInstagramOAuthUrl();
-                await Linking.openURL(url);
-              } catch {
-                /* ignore */
-              }
-            }}
-          >
-            <Text style={styles.buttonText}>Connect Instagram</Text>
-          </Pressable>
-        )}
-      </View>
-      <View style={styles.card}>
-        <Text style={styles.title}>Stats</Text>
-        <View style={styles.row}>
-          <Text style={styles.muted}>Posts: {profileQuery.data?.posts_count || 0}</Text>
-          <Text style={styles.muted}>Followers: {profileQuery.data?.followers_count || 0}</Text>
-          <Text style={styles.muted}>Following: {profileQuery.data?.following_count || 0}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.muted}>Likes received: {profileQuery.data?.likes_received_count || 0}</Text>
-          <Text style={styles.muted}>Likes by you: {profileQuery.data?.likes_given_count || 0}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.muted}>
-            Connect: {creatorConnectQuery.data?.connected ? "Connected" : "Not connected"}
-          </Text>
-          <Text style={styles.muted}>
-            Earnings: {formatMinorCurrency(creatorEarningsQuery.data?.totals?.balance_minor || 0, "usd")}
-          </Text>
-        </View>
-      </View>
+
       <View style={styles.row}>
         <Pressable
           style={[styles.buttonSecondary, activeTab === "posts" ? styles.buttonActive : null]}
           onPress={() => setActiveTab("posts")}
         >
-          <Text style={[styles.buttonText, activeTab === "posts" ? styles.buttonTextActive : null]}>
-            Posts
-          </Text>
+          <Text style={[styles.buttonText, activeTab === "posts" ? styles.buttonTextActive : null]}>Posts</Text>
         </Pressable>
         <Pressable
           style={[styles.buttonSecondary, activeTab === "media" ? styles.buttonActive : null]}
           onPress={() => setActiveTab("media")}
         >
-          <Text style={[styles.buttonText, activeTab === "media" ? styles.buttonTextActive : null]}>
-            Media
-          </Text>
+          <Text style={[styles.buttonText, activeTab === "media" ? styles.buttonTextActive : null]}>Media</Text>
         </Pressable>
       </View>
+
       {postsQuery.isLoading ? <LoadingState label="Loading posts..." /> : null}
       {postsQuery.error ? <ErrorState message={(postsQuery.error as Error).message} /> : null}
       {!postsQuery.isLoading && !postsQuery.error && visibleItems.length === 0 ? (
         <EmptyState title={activeTab === "posts" ? "No posts yet" : "No media yet"} />
       ) : null}
+
       <View style={styles.grid}>
         {visibleItems.map((item) => {
           const mediaUrl = resolveMediaUrl(item.media_url);
@@ -321,86 +237,14 @@ export function ProfileScreen({ navigation }: Props) {
           );
         })}
       </View>
+
       <View style={styles.card}>
-        <Text style={styles.title}>Interests</Text>
-        <Text style={styles.muted}>
-          {(interestsQuery.data?.items || []).join(", ") || "No interests selected"}
-        </Text>
-        <Pressable
-          style={styles.buttonSecondary}
-          onPress={() => navigation.navigate("Onboarding")}
-        >
-          <Text style={styles.buttonText}>Edit interests</Text>
+        <Text style={styles.title}>Feed & app</Text>
+        <Text style={styles.muted}>Interests, default tabs, and how Deenly opens for you.</Text>
+        <Pressable style={styles.buttonSecondary} onPress={() => navigation.navigate("Onboarding")}>
+          <Text style={styles.buttonText}>Setup & feed</Text>
         </Pressable>
       </View>
-      <View style={styles.row}>
-        <Pressable
-          style={styles.buttonSecondary}
-          onPress={() => navigation.navigate("Sessions")}
-        >
-          <Text style={styles.buttonText}>Sessions</Text>
-        </Pressable>
-        <Pressable style={styles.buttonSecondary} onPress={handleLogout}>
-          <Text style={styles.buttonText}>Logout</Text>
-        </Pressable>
-      </View>
-      <View style={styles.row}>
-        <Pressable style={styles.buttonSecondary} onPress={() => navigation.navigate("CreatorEconomy")}>
-          <Text style={styles.buttonText}>Creator economy</Text>
-        </Pressable>
-        <Pressable style={styles.buttonSecondary} onPress={() => navigation.navigate("Dhikr")}>
-          <Text style={styles.buttonText}>Dhikr</Text>
-        </Pressable>
-        <Pressable style={styles.buttonSecondary} onPress={() => navigation.navigate("QuranReader")}>
-          <Text style={styles.buttonText}>Quran</Text>
-        </Pressable>
-        <Pressable style={styles.buttonSecondary} onPress={() => navigation.navigate("SalahSettings")}>
-          <Text style={styles.buttonText}>Salah</Text>
-        </Pressable>
-      </View>
-      <View style={styles.row}>
-        <Pressable style={styles.buttonSecondary} onPress={() => navigation.navigate("Beta")}>
-          <Text style={styles.buttonText}>Beta</Text>
-        </Pressable>
-        <Pressable style={styles.buttonSecondary} onPress={() => navigation.navigate("Support")}>
-          <Text style={styles.buttonText}>Support</Text>
-        </Pressable>
-        <Pressable style={styles.buttonSecondary} onPress={() => navigation.navigate("Guidelines")}>
-          <Text style={styles.buttonText}>Guidelines</Text>
-        </Pressable>
-      </View>
-      {isOwnerAdmin ? (
-        <>
-          <View style={styles.row}>
-            <Pressable
-              style={styles.buttonSecondary}
-              onPress={() => navigation.navigate("AdminModeration")}
-            >
-              <Text style={styles.buttonText}>Admin moderation</Text>
-            </Pressable>
-            <Pressable
-              style={styles.buttonSecondary}
-              onPress={() => navigation.navigate("AdminOperations")}
-            >
-              <Text style={styles.buttonText}>Admin operations</Text>
-            </Pressable>
-          </View>
-          <View style={styles.row}>
-            <Pressable
-              style={styles.buttonSecondary}
-              onPress={() => navigation.navigate("AdminAnalytics")}
-            >
-              <Text style={styles.buttonText}>Admin analytics</Text>
-            </Pressable>
-            <Pressable
-              style={styles.buttonSecondary}
-              onPress={() => navigation.navigate("AdminTables")}
-            >
-              <Text style={styles.buttonText}>Admin tables</Text>
-            </Pressable>
-          </View>
-        </>
-      ) : null}
     </ScrollView>
   );
 }
@@ -414,10 +258,32 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 14
   },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12
+  },
   heading: {
     color: colors.text,
     fontSize: 22,
     fontWeight: "700"
+  },
+  settingsBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: radii.control,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.surface
+  },
+  settingsBtnPressed: {
+    opacity: 0.85
+  },
+  settingsBtnText: {
+    fontWeight: "700",
+    fontSize: 14,
+    color: colors.accent
   },
   addBusinessCta: {
     alignSelf: "flex-start",
@@ -463,6 +329,11 @@ const styles = StyleSheet.create({
   },
   muted: {
     color: colors.muted
+  },
+  statsLine: {
+    fontSize: 13,
+    color: colors.muted,
+    fontWeight: "600"
   },
   row: {
     flexDirection: "row",
@@ -544,7 +415,18 @@ const styles = StyleSheet.create({
     borderRadius: radii.control,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: colors.surface
+    backgroundColor: colors.surface,
+    alignSelf: "flex-start"
+  },
+  buttonGhost: {
+    alignSelf: "flex-start",
+    paddingVertical: 6,
+    paddingHorizontal: 4
+  },
+  buttonGhostText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.muted
   },
   buttonActive: {
     backgroundColor: colors.accent,

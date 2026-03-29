@@ -276,8 +276,12 @@ export default function AccountPage() {
               {avatarError ? <p className="mt-2 text-xs text-rose-600">{avatarError}</p> : null}
 
               <div className="mt-4">
-                <Link href="/businesses/new" className="text-sm font-semibold text-sky-700 underline-offset-2 hover:underline">
-                  Add my business to the map
+                <Link
+                  href="/businesses/new"
+                  className="text-sm font-semibold text-sky-700 underline-offset-2 hover:underline"
+                  title="List your business for Near me and Search"
+                >
+                  Add your business
                 </Link>
               </div>
 
@@ -325,22 +329,17 @@ export default function AccountPage() {
                 </p>
               ) : null}
 
-              <div className="mt-5 flex flex-wrap gap-2">
+              <div className="mt-5 flex flex-wrap items-center gap-2">
                 <Link href="/account/edit" className="btn-primary min-w-[120px] flex-1 text-center sm:flex-none">
                   Edit profile
                 </Link>
-                <Link href="/account/purchases" className="btn-secondary min-w-[120px] flex-1 text-center sm:flex-none">
-                  Purchases
+                <Link href="/account/settings" className="btn-secondary min-w-[120px] flex-1 text-center sm:flex-none">
+                  Settings
                 </Link>
-                <button
-                  type="button"
-                  disabled
-                  className="btn cursor-not-allowed min-w-[120px] flex-1 border border-black/10 bg-surface/60 text-muted opacity-60 sm:flex-none"
-                  title="Coming soon"
-                >
-                  Highlights
-                </button>
               </div>
+              <p className="mt-2 max-w-md text-xs text-muted">
+                Purchases, Creator hub, sessions, and inbox live under Settings.
+              </p>
 
               <div className="mt-6 flex gap-6 overflow-x-auto pb-1">
                 <button type="button" className="story-chip min-w-[68px] text-muted">

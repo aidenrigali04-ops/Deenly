@@ -63,8 +63,7 @@ export function BusinessPersonalizerDialog() {
           Personalize your experience
         </h2>
         <p className="text-sm text-muted">
-          Add your small business to the map or connect payments when you&apos;re ready. You can skip and keep a personal
-          profile.
+          List on the map or connect payments when you&apos;re ready — or skip and stay personal.
         </p>
         <div className="flex flex-col gap-2">
           <button
@@ -75,7 +74,7 @@ export function BusinessPersonalizerDialog() {
               completeMutation.mutate({ step: 1, profileKind: "business_interest", navigate: "businesses/new" })
             }
           >
-            Add my business
+            Add business to map
           </button>
           <button
             type="button"
@@ -85,7 +84,7 @@ export function BusinessPersonalizerDialog() {
               completeMutation.mutate({ step: 2, profileKind: "business_interest", navigate: "creator" })
             }
           >
-            Connect Stripe / sell
+            Stripe &amp; selling
           </button>
           <button
             type="button"
@@ -97,7 +96,7 @@ export function BusinessPersonalizerDialog() {
           </button>
         </div>
         <p className="text-xs text-muted">
-          You can always add a listing later from <Link href="/search">Search</Link> or your account.
+          Also from <Link href="/search">Search</Link> → Near me or <Link href="/account">Account</Link>.
         </p>
       </div>
     </div>

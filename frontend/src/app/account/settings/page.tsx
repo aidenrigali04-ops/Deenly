@@ -73,29 +73,32 @@ export default function AccountSettingsPage() {
           </div>
         </div>
 
-        <div className="surface-card px-6 py-6">
-          <h2 className="text-sm font-semibold text-text">Navigate</h2>
-          <p className="mt-1 text-xs text-muted">Jump to other areas of the app.</p>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <Link href="/account/edit" className="btn-secondary inline-flex">
-              Edit profile
-            </Link>
-            <Link href="/account/purchases" className="btn-secondary inline-flex">
-              Purchases
-            </Link>
-            <Link href="/account/creator" className="btn-secondary inline-flex">
-              Creator hub
-            </Link>
-            <Link href="/onboarding" className="btn-secondary inline-flex">
-              Setup and feed
-            </Link>
-            <Link href="/sessions" className="btn-secondary inline-flex">
-              Sessions
-            </Link>
-            <Link href="/notifications" className="btn-secondary inline-flex">
-              Inbox
-            </Link>
+        <div className="surface-card overflow-hidden px-0 py-0">
+          <div className="border-b border-black/10 px-6 py-4">
+            <h2 className="text-sm font-semibold text-text">Navigate</h2>
+            <p className="mt-1 text-xs text-muted">One tap per destination — same actions as before.</p>
           </div>
+          <nav className="divide-y divide-black/10" aria-label="Account navigation">
+            {(
+              [
+                { href: "/account/edit", label: "Edit profile", hint: "Name, bio, business details" },
+                { href: "/account/purchases", label: "Purchases", hint: "Orders & access" },
+                { href: "/account/creator", label: "Creator hub", hint: "Stripe & products" },
+                { href: "/onboarding", label: "Setup & feed", hint: "Interests & defaults" },
+                { href: "/sessions", label: "Sessions", hint: "Signed-in devices" },
+                { href: "/notifications", label: "Inbox", hint: "Notifications" }
+              ] as const
+            ).map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="flex flex-col gap-0.5 px-6 py-3.5 transition hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-black/20"
+              >
+                <span className="text-sm font-semibold text-text">{item.label}</span>
+                <span className="text-xs text-muted">{item.hint}</span>
+              </Link>
+            ))}
+          </nav>
         </div>
       </div>
     </div>

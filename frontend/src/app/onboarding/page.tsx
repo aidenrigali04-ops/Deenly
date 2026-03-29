@@ -4,19 +4,12 @@ import { FormEvent, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
 import { ErrorState, LoadingState } from "@/components/states";
-
-const interestOptions = [
-  { key: "post", label: "Posts & reminders" },
-  { key: "marketplace", label: "Marketplace & offers" },
-  { key: "reel", label: "Reels" }
-];
-
-const intentOptions = [
-  { key: "community", label: "Community & reflection" },
-  { key: "shop", label: "Shop marketplace offers" },
-  { key: "sell", label: "Sell or promote as a creator" },
-  { key: "b2b", label: "Discover B2B-style opportunities" }
-];
+import {
+  APP_LANDING_OPTIONS,
+  FEED_TAB_OPTIONS,
+  INTEREST_OPTIONS,
+  INTENT_OPTIONS
+} from "../../../../shared/onboarding-options";
 
 type InterestsResponse = { items: string[] };
 
@@ -133,7 +126,7 @@ export default function OnboardingPage() {
         <div className="space-y-3">
           <h2 className="text-sm font-semibold text-text">Feed interests</h2>
           <p className="text-xs text-muted">Used to personalize ranking in For You.</p>
-          {interestOptions.map((option) => (
+          {INTEREST_OPTIONS.map((option) => (
             <label key={option.key} className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -155,7 +148,7 @@ export default function OnboardingPage() {
           <h2 className="text-sm font-semibold text-text">What brings you here? (optional, up to 3)</h2>
           <p className="text-xs text-muted">Helps us keep the experience focused—not a permanent account type.</p>
           <div className="flex flex-col gap-2">
-            {intentOptions.map((option) => (
+            {INTENT_OPTIONS.map((option) => (
               <label key={option.key} className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
@@ -185,8 +178,11 @@ export default function OnboardingPage() {
           <label className="space-y-1 text-sm">
             <span className="text-muted">Open app to</span>
             <select className="input" value={appLanding} onChange={(e) => setAppLanding(e.target.value)}>
-              <option value="home">Home</option>
-              <option value="marketplace">Marketplace feed</option>
+              {APP_LANDING_OPTIONS.map((opt) => (
+                <option key={opt.key} value={opt.key}>
+                  {opt.label}
+                </option>
+              ))}
             </select>
           </label>
         </div>

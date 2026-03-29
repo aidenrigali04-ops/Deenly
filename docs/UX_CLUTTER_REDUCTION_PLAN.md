@@ -65,3 +65,7 @@ This plan aligns web and mobile around clearer hierarchy, fewer equal-weight con
 ---
 
 _Last updated: 2026-03-29_
+
+## Implementation status
+
+Phases 1–3 are implemented in the repo (mobile Settings + Admin hub, slimmer Profile, shared `shared/onboarding-options.ts`, web account/settings/personalizer cleanup, `metro.config.js` + `next.config` `externalDir` for shared imports). Phase 4 remains optional (analytics, deeper empty-state unification, full a11y audit).

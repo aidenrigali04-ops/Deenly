@@ -53,8 +53,7 @@ export function BusinessPersonalizerOverlay({ visible, onDismiss }: Props) {
         <View style={styles.card}>
           <Text style={styles.title}>Personalize your experience</Text>
           <Text style={styles.sub}>
-            Add your small business to the map or connect payments when you&apos;re ready. You can skip and keep a personal
-            profile.
+            List on the map or connect payments when you&apos;re ready — or skip and stay personal.
           </Text>
           <Pressable
             style={styles.primary}
@@ -63,7 +62,7 @@ export function BusinessPersonalizerOverlay({ visible, onDismiss }: Props) {
               completeMutation.mutate({ step: 1, profileKind: "business_interest", navigate: "AddBusiness" })
             }
           >
-            <Text style={styles.primaryText}>Add my business</Text>
+            <Text style={styles.primaryText}>Add business to map</Text>
           </Pressable>
           <Pressable
             style={styles.secondary}
@@ -72,7 +71,7 @@ export function BusinessPersonalizerOverlay({ visible, onDismiss }: Props) {
               completeMutation.mutate({ step: 2, profileKind: "business_interest", navigate: "CreatorEconomy" })
             }
           >
-            <Text style={styles.secondaryText}>Connect Stripe / sell</Text>
+            <Text style={styles.secondaryText}>Stripe & selling</Text>
           </Pressable>
           <Pressable
             style={styles.ghost}
