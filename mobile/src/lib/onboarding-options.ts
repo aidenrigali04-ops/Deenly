@@ -1,6 +1,6 @@
 /**
- * Shared labels/keys for feed setup (Next.js). Mobile uses a mirror:
- * `mobile/src/lib/onboarding-options.ts` — update both when changing copy.
+ * Mirror of repo `shared/onboarding-options.ts` — Metro cannot resolve parent-folder imports
+ * reliably on all setups; update both files together when labels change.
  */
 
 export type InterestKey = "post" | "marketplace" | "reel";

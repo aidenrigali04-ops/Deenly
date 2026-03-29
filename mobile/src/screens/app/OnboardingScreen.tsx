@@ -5,12 +5,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "../../lib/api";
 import { colors, radii } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
+// Metro cannot bundle `../shared/` from this app — use `lib/onboarding-options` (mirror of repo `shared/`).
 import {
   APP_LANDING_OPTIONS,
   FEED_TAB_OPTIONS,
   INTEREST_OPTIONS,
   INTENT_OPTIONS
-} from "../../../../shared/onboarding-options";
+} from "../../lib/onboarding-options";
 
 type InterestsResponse = { items: string[] };
 type MeProfile = {
