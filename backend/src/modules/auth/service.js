@@ -129,7 +129,7 @@ function createAuthService({ db, config, analytics }) {
         email: user.email,
         username: user.username,
         role: user.role,
-        created_at: user.created_at
+        createdAt: user.created_at
       },
       tokens
     };
@@ -300,6 +300,10 @@ function createAuthService({ db, config, analytics }) {
       throw httpError(401, "Invalid refresh token");
     }
 
+    if (payload.tokenType !== "refresh") {
+      throw httpError(401, "Invalid refresh token");
+    }
+
     const userId = Number(payload.sub);
     if (!userId) {
       throw httpError(401, "Invalid refresh token");
@@ -364,6 +368,10 @@ function createAuthService({ db, config, analytics }) {
     try {
       payload = jwt.verify(refreshToken, requireRefreshSecret(config));
     } catch {
+      return { success: true };
+    }
+
+    if (payload.tokenType !== "refresh") {
       return { success: true };
     }
 

@@ -17,7 +17,7 @@ export type AuthResponse = {
     email: string;
     username?: string;
     role: string;
-    created_at: string;
+    createdAt: string;
   };
   tokens: AuthTokens;
 };

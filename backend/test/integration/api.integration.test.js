@@ -219,6 +219,20 @@ describeIfDatabase("integration api flows", () => {
     expect(refreshAfterLogout.statusCode).toBe(401);
   });
 
+  it("rejects access tokens sent to the refresh endpoint", async () => {
+    const register = await request(app).post("/api/v1/auth/register").send({
+      email: "refresh-guard@example.com",
+      username: "refresh_guard_user",
+      password: "StrongPass123",
+      displayName: "Refresh Guard"
+    });
+    expect(register.statusCode).toBe(201);
+    const accessOnly = await request(app).post("/api/v1/auth/refresh").send({
+      refreshToken: register.body.tokens.accessToken
+    });
+    expect(accessOnly.statusCode).toBe(401);
+  });
+
   it("tracks auth failure analytics events on invalid login attempts", async () => {
     const register = await request(app).post("/api/v1/auth/register").send({
       email: "auth-fail@example.com",
