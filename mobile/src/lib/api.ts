@@ -41,6 +41,11 @@ async function isOffline() {
   if (state.isConnected === false) {
     return true;
   }
+  // `isInternetReachable === false` is common on LAN-only dev (API on Mac, no “public internet” probe)
+  // and breaks login/register/posts. Only use it outside dev, and never when it would block local APIs.
+  if (__DEV__) {
+    return false;
+  }
   if (state.isInternetReachable === false) {
     return true;
   }
