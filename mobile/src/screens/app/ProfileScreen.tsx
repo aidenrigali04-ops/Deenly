@@ -1,19 +1,21 @@
-import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import * as DocumentPicker from "expo-document-picker";
 import {
   Image,
-  Platform,
+  Linking,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   View,
   useWindowDimensions
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { CompositeScreenProps } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import * as DocumentPicker from "expo-document-picker";
 import { fetchSessionMe } from "../../lib/auth";
 import { apiRequest } from "../../lib/api";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
@@ -21,14 +23,34 @@ import { colors, radii } from "../../theme";
 import type { FeedItem } from "../../types";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 import { resolveMediaUrl } from "../../lib/media-url";
+import {
+  IconCamera,
+  IconChevronDown,
+  IconFilm,
+  IconGrid,
+  IconImages,
+  IconLink,
+  IconMenu,
+  IconPlaySmall,
+  IconPlus
+} from "../../components/profile-ui-icons";
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<AppTabParamList, "AccountTab">,
   NativeStackScreenProps<RootStackParamList>
 >;
 
+const AVATAR_SIZE = 86;
+
+function normalizeWebsiteUrl(raw: string) {
+  const t = raw.trim();
+  if (!t) return null;
+  return /^https?:\/\//i.test(t) ? t : `https://${t}`;
+}
+
 export function ProfileScreen({ navigation }: Props) {
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<"posts" | "media">("posts");
   const [avatarUploading, setAvatarUploading] = useState(false);
   const queryClient = useQueryClient();
@@ -62,29 +84,24 @@ export function ProfileScreen({ navigation }: Props) {
       }),
     enabled: Boolean(sessionQuery.data?.id)
   });
-  const likeMutation = useMutation({
-    mutationFn: (postId: number) =>
-      apiRequest("/interactions", {
-        method: "POST",
-        auth: true,
-        body: {
-          postId,
-          interactionType: "benefited"
-        }
-      }),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["mobile-account-posts", sessionQuery.data?.id] }),
-        queryClient.invalidateQueries({ queryKey: ["mobile-account-profile"] })
-      ]);
-    }
-  });
 
   const items = postsQuery.data?.items || [];
   const visibleItems = activeTab === "media" ? items.filter((item) => Boolean(item.media_url)) : items;
   const avatarUri = resolveMediaUrl(profileQuery.data?.avatar_url);
-  const tileSize = Math.floor((width - 32 - 8) / 3);
+  const tileSize = Math.floor((width - 2) / 3);
   const p = profileQuery.data;
+  const username = sessionQuery.data?.username || "user";
+
+  const shareProfile = useCallback(async () => {
+    try {
+      await Share.share({
+        message: `Connect with @${username} on Deenly — a Muslim social and marketplace community.`,
+        title: "Deenly profile"
+      });
+    } catch {
+      /* user dismissed */
+    }
+  }, [username]);
 
   const uploadAvatar = async () => {
     if (!profileQuery.data) return;
@@ -140,77 +157,171 @@ export function ProfileScreen({ navigation }: Props) {
     }
   };
 
+  const websiteHref = p?.website_url ? normalizeWebsiteUrl(p.website_url) : null;
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.titleRow}>
-        <Text style={styles.heading}>Profile</Text>
+    <View style={styles.root}>
+      <View style={[styles.topBar, { paddingTop: insets.top + 4 }]}>
         <Pressable
-          onPress={() => navigation.navigate("Settings")}
-          style={({ pressed }) => [styles.settingsBtn, pressed && styles.settingsBtnPressed]}
+          style={styles.topBarHit}
+          onPress={() => navigation.navigate("CreateTab")}
           accessibilityRole="button"
-          accessibilityLabel="Open settings"
+          accessibilityLabel="Create post"
         >
-          <Text style={styles.settingsBtnText}>Settings</Text>
+          <IconPlus color={colors.text} size={32} />
+        </Pressable>
+        <View style={styles.topBarTitleWrap}>
+          <Text style={styles.topBarUsername} numberOfLines={1}>
+            @{username}
+          </Text>
+          <View style={styles.topBarChevron}>
+            <IconChevronDown color={colors.muted} size={14} />
+          </View>
+        </View>
+        <Pressable
+          style={styles.topBarHit}
+          onPress={() => navigation.navigate("Settings")}
+          accessibilityRole="button"
+          accessibilityLabel="Settings"
+        >
+          <IconMenu color={colors.text} size={26} />
         </Pressable>
       </View>
 
-      <Pressable style={styles.addBusinessCta} onPress={() => navigation.navigate("AddBusiness")}>
-        <Text style={styles.addBusinessCtaText}>Add your business</Text>
-      </Pressable>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {sessionQuery.isLoading ? <LoadingState label="Loading profile..." /> : null}
+        {sessionQuery.error ? <ErrorState message={(sessionQuery.error as Error).message} /> : null}
+        {!sessionQuery.isLoading && !sessionQuery.error && !sessionQuery.data ? (
+          <EmptyState title="Profile unavailable" />
+        ) : null}
 
-      {sessionQuery.isLoading ? <LoadingState label="Loading profile..." /> : null}
-      {sessionQuery.error ? <ErrorState message={(sessionQuery.error as Error).message} /> : null}
-      {!sessionQuery.isLoading && !sessionQuery.error && !sessionQuery.data ? (
-        <EmptyState title="Profile unavailable" />
-      ) : null}
+        {sessionQuery.data && p ? (
+          <>
+            <View style={styles.heroRow}>
+              <Pressable onPress={uploadAvatar} disabled={avatarUploading} style={styles.avatarWrap}>
+                {avatarUri ? (
+                  <Image source={{ uri: avatarUri }} style={styles.avatar} resizeMode="cover" />
+                ) : (
+                  <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                    <Text style={styles.avatarLetter}>
+                      {(p.display_name || username).slice(0, 1).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+                <View style={styles.avatarBadge}>
+                  <IconCamera color={colors.onAccent} size={14} />
+                </View>
+                {avatarUploading ? (
+                  <View style={styles.avatarUploading}>
+                    <Text style={styles.avatarUploadingText}>…</Text>
+                  </View>
+                ) : null}
+              </Pressable>
+              <View style={styles.statsRow}>
+                <View style={styles.statCell}>
+                  <Text style={styles.statNumber}>{p.posts_count}</Text>
+                  <Text style={styles.statLabel}>posts</Text>
+                </View>
+                <View style={styles.statCell}>
+                  <Text style={styles.statNumber}>{p.followers_count}</Text>
+                  <Text style={styles.statLabel}>followers</Text>
+                </View>
+                <View style={styles.statCell}>
+                  <Text style={styles.statNumber}>{p.following_count}</Text>
+                  <Text style={styles.statLabel}>following</Text>
+                </View>
+              </View>
+            </View>
 
-      {sessionQuery.data ? (
-        <View style={styles.card}>
-          {avatarUri ? <Image source={{ uri: avatarUri }} style={styles.avatar} resizeMode="cover" /> : null}
-          <Text style={styles.title}>{sessionQuery.data.email}</Text>
-          <Text style={styles.muted}>@{sessionQuery.data.username || "unknown"}</Text>
-          {p ? (
-            <Text style={styles.statsLine}>
-              {p.posts_count} posts · {p.followers_count} followers · {p.following_count} following
-            </Text>
-          ) : null}
-          <Pressable style={styles.buttonSecondary} onPress={uploadAvatar} disabled={avatarUploading}>
-            <Text style={styles.buttonText}>{avatarUploading ? "Uploading..." : "Change photo"}</Text>
+            <View style={styles.bioBlock}>
+              <Text style={styles.displayName}>{p.display_name}</Text>
+              {p.business_offering ? (
+                <Text style={styles.categoryLine}>{p.business_offering}</Text>
+              ) : null}
+              {p.bio ? <Text style={styles.bioText}>{p.bio}</Text> : null}
+              {websiteHref ? (
+                <Pressable
+                  style={styles.websiteRow}
+                  onPress={() => Linking.openURL(websiteHref).catch(() => null)}
+                >
+                  <IconLink color={colors.accent} size={16} />
+                  <Text style={styles.websiteText} numberOfLines={1}>
+                    {p.website_url?.replace(/^https?:\/\//i, "")}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+
+            <View style={styles.insightsCard}>
+              <Text style={styles.insightsTitle}>On Deenly</Text>
+              <Text style={styles.insightsSub}>
+                {p.likes_received_count} hearts from the community · {p.likes_given_count} you have given
+              </Text>
+            </View>
+
+            <View style={styles.ctaRow}>
+              <Pressable
+                style={[styles.ctaButton, styles.ctaButtonFlex]}
+                onPress={() => navigation.navigate("Settings")}
+              >
+                <Text style={styles.ctaButtonText}>Edit profile</Text>
+              </Pressable>
+              <Pressable style={[styles.ctaButton, styles.ctaButtonFlex]} onPress={shareProfile}>
+                <Text style={styles.ctaButtonText}>Share profile</Text>
+              </Pressable>
+            </View>
+
+            <Pressable style={styles.addBusinessBtn} onPress={() => navigation.navigate("AddBusiness")}>
+              <Text style={styles.addBusinessText}>Add your business</Text>
+            </Pressable>
+
+            <Pressable style={styles.feedPrefsLink} onPress={() => navigation.navigate("Onboarding")}>
+              <Text style={styles.feedPrefsText}>Feed & discovery preferences</Text>
+            </Pressable>
+          </>
+        ) : null}
+
+        <View style={styles.tabBar}>
+          <Pressable
+            style={[styles.tabItem, activeTab === "posts" ? styles.tabItemActive : null]}
+            onPress={() => setActiveTab("posts")}
+          >
+            <IconGrid color={activeTab === "posts" ? colors.text : colors.muted} size={22} />
+          </Pressable>
+          <Pressable
+            style={[styles.tabItem, activeTab === "media" ? styles.tabItemActive : null]}
+            onPress={() => setActiveTab("media")}
+          >
+            <IconFilm color={activeTab === "media" ? colors.text : colors.muted} size={22} />
           </Pressable>
         </View>
-      ) : null}
 
-      <View style={styles.row}>
-        <Pressable
-          style={[styles.buttonSecondary, activeTab === "posts" ? styles.buttonActive : null]}
-          onPress={() => setActiveTab("posts")}
-        >
-          <Text style={[styles.buttonText, activeTab === "posts" ? styles.buttonTextActive : null]}>Posts</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.buttonSecondary, activeTab === "media" ? styles.buttonActive : null]}
-          onPress={() => setActiveTab("media")}
-        >
-          <Text style={[styles.buttonText, activeTab === "media" ? styles.buttonTextActive : null]}>Media</Text>
-        </Pressable>
-      </View>
+        {postsQuery.isLoading ? <LoadingState label="Loading posts..." /> : null}
+        {postsQuery.error ? <ErrorState message={(postsQuery.error as Error).message} /> : null}
+        {!postsQuery.isLoading && !postsQuery.error && visibleItems.length === 0 ? (
+          <View style={styles.emptyGrid}>
+            <IconImages color={colors.muted} size={48} />
+            <Text style={styles.emptyGridTitle}>
+              {activeTab === "posts" ? "No posts yet" : "No media yet"}
+            </Text>
+            <Text style={styles.emptyGridSub}>Share something beneficial from the Create tab.</Text>
+          </View>
+        ) : null}
 
-      {postsQuery.isLoading ? <LoadingState label="Loading posts..." /> : null}
-      {postsQuery.error ? <ErrorState message={(postsQuery.error as Error).message} /> : null}
-      {!postsQuery.isLoading && !postsQuery.error && visibleItems.length === 0 ? (
-        <EmptyState title={activeTab === "posts" ? "No posts yet" : "No media yet"} />
-      ) : null}
-
-      <View style={styles.grid}>
-        {visibleItems.map((item) => {
-          const mediaUrl = resolveMediaUrl(item.media_url);
-          const isImage = Boolean(item.media_mime_type?.startsWith("image/"));
-          const isVideo = Boolean(item.media_mime_type?.startsWith("video/"));
-          const fallbackLabel = item.content?.trim().slice(0, 20) || "Post";
-          return (
-            <View key={item.id} style={[styles.tile, { width: tileSize, height: tileSize }]}>
+        <View style={styles.grid}>
+          {visibleItems.map((item) => {
+            const mediaUrl = resolveMediaUrl(item.media_url);
+            const isImage = Boolean(item.media_mime_type?.startsWith("image/"));
+            const isVideo = Boolean(item.media_mime_type?.startsWith("video/"));
+            const fallbackLabel = item.content?.trim().slice(0, 20) || "Post";
+            return (
               <Pressable
-                style={styles.tileOpen}
+                key={item.id}
+                style={[styles.tile, { width: tileSize, height: tileSize }]}
                 onPress={() => navigation.navigate("PostDetail", { id: item.id })}
               >
                 {mediaUrl && isImage ? (
@@ -222,147 +333,264 @@ export function ProfileScreen({ navigation }: Props) {
                 )}
                 {isVideo ? (
                   <View style={styles.tileBadge}>
-                    <Text style={styles.tileBadgeText}>Video</Text>
+                    <IconPlaySmall color={colors.text} size={10} />
                   </View>
                 ) : null}
               </Pressable>
-              <Pressable
-                style={styles.tileLike}
-                onPress={() => likeMutation.mutate(item.id)}
-                disabled={likeMutation.isPending}
-              >
-                <Text style={styles.tileLikeText}>{likeMutation.isPending ? "..." : "Like"}</Text>
-              </Pressable>
-            </View>
-          );
-        })}
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.title}>Feed & app</Text>
-        <Text style={styles.muted}>Interests, default tabs, and how Deenly opens for you.</Text>
-        <Pressable style={styles.buttonSecondary} onPress={() => navigation.navigate("Onboarding")}>
-          <Text style={styles.buttonText}>Setup & feed</Text>
-        </Pressable>
-      </View>
-    </ScrollView>
+            );
+          })}
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: colors.background
+    backgroundColor: colors.surface
   },
-  content: {
-    padding: 16,
-    gap: 14
-  },
-  titleRow: {
+  topBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 12
-  },
-  heading: {
-    color: colors.text,
-    fontSize: 22,
-    fontWeight: "700"
-  },
-  settingsBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: radii.control,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    paddingHorizontal: 8,
+    paddingBottom: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
     backgroundColor: colors.surface
   },
-  settingsBtnPressed: {
-    opacity: 0.85
+  topBarHit: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center"
   },
-  settingsBtnText: {
+  topBarTitleWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    maxWidth: "50%"
+  },
+  topBarUsername: {
+    fontSize: 16,
     fontWeight: "700",
-    fontSize: 14,
-    color: colors.accent
+    color: colors.text
   },
-  addBusinessCta: {
-    alignSelf: "flex-start",
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: radii.control,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+  topBarChevron: {
+    marginTop: 2
+  },
+  scroll: {
+    flex: 1,
     backgroundColor: colors.surface
   },
-  addBusinessCtaText: {
-    color: colors.accent,
-    fontWeight: "700",
-    fontSize: 14
+  scrollContent: {
+    paddingBottom: 32
   },
-  card: {
-    backgroundColor: colors.card,
-    borderColor: colors.border,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radii.panel,
-    padding: 16,
-    gap: 8,
-    ...Platform.select({
-      ios: {
-        shadowColor: colors.shadow,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 1,
-        shadowRadius: 16
-      },
-      android: { elevation: 2 }
-    })
+  heroRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    gap: 20
   },
-  title: {
-    color: colors.text,
-    fontWeight: "700"
+  avatarWrap: {
+    position: "relative"
   },
   avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.border
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.subtleFill
   },
-  muted: {
+  avatarPlaceholder: {
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  avatarLetter: {
+    fontSize: 32,
+    fontWeight: "700",
     color: colors.muted
   },
-  statsLine: {
+  avatarBadge: {
+    position: "absolute",
+    right: -2,
+    bottom: -2,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: colors.surface
+  },
+  avatarUploading: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: AVATAR_SIZE / 2,
+    backgroundColor: "rgba(255,255,255,0.7)",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  avatarUploadingText: {
+    fontWeight: "700",
+    color: colors.text
+  },
+  statsRow: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center"
+  },
+  statCell: {
+    alignItems: "center",
+    minWidth: 72
+  },
+  statNumber: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: colors.text
+  },
+  statLabel: {
+    fontSize: 12,
+    color: colors.muted,
+    marginTop: 2
+  },
+  bioBlock: {
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    gap: 4
+  },
+  displayName: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.text
+  },
+  categoryLine: {
     fontSize: 13,
     color: colors.muted,
-    fontWeight: "600"
+    fontWeight: "500"
   },
-  row: {
+  bioText: {
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 20,
+    marginTop: 4
+  },
+  websiteRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 6,
+    alignSelf: "flex-start"
+  },
+  websiteText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.accent,
+    flexShrink: 1
+  },
+  insightsCard: {
+    marginHorizontal: 16,
+    marginTop: 14,
+    padding: 14,
+    borderRadius: radii.control,
+    backgroundColor: colors.subtleFill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border
+  },
+  insightsTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.text
+  },
+  insightsSub: {
+    fontSize: 12,
+    color: colors.muted,
+    marginTop: 4,
+    lineHeight: 17
+  },
+  ctaRow: {
     flexDirection: "row",
     gap: 8,
-    flexWrap: "wrap"
+    paddingHorizontal: 16,
+    marginTop: 14
+  },
+  ctaButton: {
+    borderRadius: radii.control,
+    backgroundColor: colors.subtleFill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  ctaButtonFlex: {
+    flex: 1
+  },
+  ctaButtonText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.text
+  },
+  addBusinessBtn: {
+    marginHorizontal: 16,
+    marginTop: 10,
+    paddingVertical: 10,
+    alignItems: "center"
+  },
+  addBusinessText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.accent
+  },
+  feedPrefsLink: {
+    marginHorizontal: 16,
+    marginTop: 4,
+    paddingVertical: 8,
+    alignItems: "center"
+  },
+  feedPrefsText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.muted
+  },
+  tabBar: {
+    flexDirection: "row",
+    marginTop: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent"
+  },
+  tabItemActive: {
+    borderBottomColor: colors.accent
   },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 4
+    gap: 1,
+    backgroundColor: colors.border
   },
   tile: {
-    position: "relative",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
     overflow: "hidden",
-    borderRadius: radii.control
-  },
-  tileOpen: {
-    flex: 1
+    backgroundColor: colors.card
   },
   tileImage: {
-    height: "100%",
-    width: "100%"
+    width: "100%",
+    height: "100%"
   },
   tileFallback: {
-    height: "100%",
-    width: "100%",
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.surface,
@@ -381,62 +609,27 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: 6,
     top: 6,
-    borderRadius: radii.pill,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(0,0,0,0.12)",
-    backgroundColor: "rgba(255,255,255,0.88)"
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.9)"
   },
-  tileBadgeText: {
-    color: colors.text,
-    fontSize: 9,
-    fontWeight: "700"
+  emptyGrid: {
+    alignItems: "center",
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+    gap: 8
   },
-  tileLike: {
-    position: "absolute",
-    left: 6,
-    top: 6,
-    borderRadius: radii.pill,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(0,0,0,0.12)",
-    backgroundColor: "rgba(255,255,255,0.88)"
+  emptyGridTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: colors.text
   },
-  tileLikeText: {
-    color: colors.text,
-    fontSize: 10,
-    fontWeight: "700"
-  },
-  buttonSecondary: {
-    borderColor: colors.border,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radii.control,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: colors.surface,
-    alignSelf: "flex-start"
-  },
-  buttonGhost: {
-    alignSelf: "flex-start",
-    paddingVertical: 6,
-    paddingHorizontal: 4
-  },
-  buttonGhostText: {
+  emptyGridSub: {
     fontSize: 14,
-    fontWeight: "600",
-    color: colors.muted
-  },
-  buttonActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent
-  },
-  buttonText: {
-    color: colors.text,
-    fontWeight: "600"
-  },
-  buttonTextActive: {
-    color: colors.onAccent
+    color: colors.muted,
+    textAlign: "center"
   }
 });

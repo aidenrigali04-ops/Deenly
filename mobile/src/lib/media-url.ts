@@ -1,6 +1,4 @@
-import { Platform } from "react-native";
-import * as Device from "expo-device";
-import { getApiBaseUrl } from "./api-base-url";
+import { getApiBaseUrl, getDevLoopbackRewriteHost } from "./api-base-url";
 
 const MEDIA_PUBLIC_BASE_URL = String(process.env.EXPO_PUBLIC_MEDIA_PUBLIC_BASE_URL || "")
   .trim()
@@ -9,7 +7,7 @@ const MEDIA_PUBLIC_BASE_URL = String(process.env.EXPO_PUBLIC_MEDIA_PUBLIC_BASE_U
 /**
  * Feed/API may return `http://localhost:8080/...` (or :3000). On a real phone, localhost is the device,
  * so AVPlayer cannot load. Rewrite loopback host to the same machine as the API (LAN IP from
- * EXPO_PUBLIC_API_BASE_URL) or 10.0.2.2 on Android emulator. Preserves port (e.g. 8080 vs 3000).
+ * EXPO_PUBLIC_API_BASE_URL) or Expo’s LAN host when the API env is still localhost. Preserves port.
  */
 function rewriteLoopbackAbsoluteUrl(url: string): string {
   if (!__DEV__) {
@@ -20,33 +18,20 @@ function rewriteLoopbackAbsoluteUrl(url: string): string {
     if (parsed.hostname !== "localhost" && parsed.hostname !== "127.0.0.1") {
       return url;
     }
-
-    const androidEmulator = Platform.OS === "android" && !Device.isDevice;
-    const physical = Device.isDevice;
-
-    if (!androidEmulator && !physical) {
-      return url;
-    }
-
-    let targetHost: string | null = null;
-    if (androidEmulator) {
-      targetHost = "10.0.2.2";
-    } else {
-      try {
-        const apiUrl = new URL(getApiBaseUrl());
-        if (apiUrl.hostname !== "localhost" && apiUrl.hostname !== "127.0.0.1") {
-          targetHost = apiUrl.hostname;
-        }
-      } catch {
-        /* ignore */
-      }
-    }
-
+    const targetHost = getDevLoopbackRewriteHost();
     if (!targetHost) {
       return url;
     }
-
     parsed.hostname = targetHost;
+    // Backend .env.example used :8080 while the API listens on PORT (3000); DB rows may still have :8080.
+    try {
+      const apiUrl = new URL(getApiBaseUrl());
+      if (parsed.port === "8080" && apiUrl.port === "3000") {
+        parsed.port = "3000";
+      }
+    } catch {
+      /* ignore */
+    }
     return parsed.toString();
   } catch {
     return url;

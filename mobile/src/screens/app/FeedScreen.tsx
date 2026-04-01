@@ -174,28 +174,8 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
           </View>
         ) : null}
 
-        <View style={styles.headerCard}>
-          <View style={styles.titleRow}>
-            <Text style={styles.heading}>{feedVariant === "marketplace" ? "Marketplace" : "Home"}</Text>
-          </View>
-          {feedVariant === "home" ? (
-            <View style={styles.actionRow}>
-              <Pressable style={styles.topPill} onPress={() => navigation.navigate("SearchTab")}>
-                <Text style={styles.topPillText}>Search</Text>
-              </Pressable>
-              <Pressable style={styles.topPill} onPress={openNotifications}>
-                <Text style={styles.topPillText}>Alerts</Text>
-              </Pressable>
-              <Pressable style={styles.topPill} onPress={() => navigation.navigate("Dhikr")}>
-                <Text style={styles.topPillText}>Dhikr</Text>
-              </Pressable>
-              <Pressable style={styles.topPill} onPress={() => navigation.navigate("Reels")}>
-                <Text style={styles.topPillText}>Reels</Text>
-              </Pressable>
-            </View>
-          ) : null}
-
-          {feedVariant === "marketplace" ? (
+        {feedVariant === "marketplace" ? (
+          <View style={styles.headerCard}>
             <View style={styles.filters}>
               <View style={styles.marketplaceTopRow}>
                 <Text style={styles.marketplaceHint}>Creator offers and local businesses.</Text>
@@ -215,52 +195,8 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
                 </Text>
               </Pressable>
             </View>
-          ) : (
-            <>
-              <View style={styles.tabRow}>
-                <Pressable
-                  style={[styles.chip, feedTab === "for_you" ? styles.chipActive : null]}
-                  onPress={() => setFeedTab("for_you")}
-                >
-                  <Text style={[styles.chipText, feedTab === "for_you" ? styles.chipTextActive : null]}>
-                    For You
-                  </Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.chip, feedTab === "opportunities" ? styles.chipActive : null]}
-                  onPress={() => setFeedTab("opportunities")}
-                >
-                  <Text
-                    style={[styles.chipText, feedTab === "opportunities" ? styles.chipTextActive : null]}
-                  >
-                    Opportunities
-                  </Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.chip, feedTab === "marketplace" ? styles.chipActive : null]}
-                  onPress={() => setFeedTab("marketplace")}
-                >
-                  <Text
-                    style={[styles.chipText, feedTab === "marketplace" ? styles.chipTextActive : null]}
-                  >
-                    Marketplace
-                  </Text>
-                </Pressable>
-              </View>
-              <View style={styles.headerDivider} />
-              <View style={styles.followingRow}>
-                <Pressable
-                  style={[styles.chip, followingOnly ? styles.chipActive : null]}
-                  onPress={() => setFollowingOnly((value) => !value)}
-                >
-                  <Text style={[styles.chipText, followingOnly ? styles.chipTextActive : null]}>
-                    {followingOnly ? "Following only" : "All posts"}
-                  </Text>
-                </Pressable>
-              </View>
-            </>
-          )}
-        </View>
+          </View>
+        ) : null}
 
         {feedVariant === "home" ? (
           <View style={styles.storiesWrap}>
@@ -292,12 +228,10 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
     feedQuery.error,
     feedQuery.isLoading,
     feedQuery.refetch,
-    feedTab,
     feedVariant,
     followingOnly,
     items.length,
     navigation,
-    openNotifications,
     visibleReminder
   ]);
 
@@ -407,54 +341,11 @@ const styles = StyleSheet.create({
       android: { elevation: 3 }
     })
   },
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between"
-  },
-  heading: {
-    color: colors.text,
-    fontSize: 17,
-    fontWeight: "700"
-  },
-  actionRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8
-  },
-  topPill: {
-    borderColor: colors.border,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radii.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: colors.surface
-  },
-  topPillText: {
-    color: colors.text,
-    fontSize: 12,
-    fontWeight: "600"
-  },
   filters: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
     alignItems: "center"
-  },
-  tabRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8
-  },
-  followingRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8
-  },
-  headerDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.border,
-    marginVertical: 2
   },
   reminderBanner: {
     borderWidth: StyleSheet.hairlineWidth,

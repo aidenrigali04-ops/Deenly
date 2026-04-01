@@ -155,18 +155,60 @@ export function getApiBaseUrl(): string {
     base = rewriteLocalhostUrl(base, "10.0.2.2");
   }
 
-  const resolved = stripTrailingSlashes(base);
+  let resolved = stripTrailingSlashes(base);
   if (
     __DEV__ &&
     (iosNeedsLanHost || androidNeedsLanHost) &&
     (resolved.includes("localhost") || resolved.includes("127.0.0.1"))
   ) {
-    console.warn(
-      "[Deenly] API base is still localhost on a physical device — the phone cannot reach your Mac. " +
-        "Set EXPO_PUBLIC_API_BASE_URL=http://<LAN-IP>:3000/api/v1 (ipconfig getifaddr en0), then npx expo start -c. " +
-        "iOS dev builds: NSAllowsLocalNetworking in app.json. Backend listens on 0.0.0.0 by default."
-    );
+    const lan = devMachineHostFromBundler();
+    if (lan) {
+      resolved = stripTrailingSlashes(rewriteLocalhostUrl(resolved, lan));
+      if (__DEV__) {
+        console.warn(
+          `[Deenly] EXPO_PUBLIC_API_BASE_URL used localhost on a physical device — rewrote host to ${lan} ` +
+            "(from Expo). Set EXPO_PUBLIC_API_BASE_URL explicitly if this is wrong, then npx expo start -c."
+        );
+      }
+    } else {
+      console.warn(
+        "[Deenly] API base is still localhost on a physical device — the phone cannot reach your Mac. " +
+          "Set EXPO_PUBLIC_API_BASE_URL=http://<LAN-IP>:3000/api/v1 (e.g. ipconfig getifaddr en0), then npx expo start -c. " +
+          "Avoid Expo tunnel-only mode for local API; iOS: NSAllowsLocalNetworking in app.json."
+      );
+    }
   }
 
   return resolved;
+}
+
+/**
+ * Host to substitute for `localhost` in absolute media URLs (e.g. `http://localhost:8080/uploads/...`)
+ * on a physical device or Android emulator. Uses the API base hostname when it is already a LAN IP;
+ * otherwise the same Expo-derived LAN host used when `EXPO_PUBLIC_API_BASE_URL` is unset.
+ * iOS simulator: returns null (localhost on the simulator reaches the Mac).
+ */
+export function getDevLoopbackRewriteHost(): string | null {
+  if (!__DEV__) {
+    return null;
+  }
+  const androidEmulator = Platform.OS === "android" && !Device.isDevice;
+  if (androidEmulator) {
+    return "10.0.2.2";
+  }
+  if (Platform.OS === "ios" && !Device.isDevice) {
+    return null;
+  }
+  if (!Device.isDevice) {
+    return null;
+  }
+  try {
+    const apiUrl = new URL(getApiBaseUrl());
+    if (apiUrl.hostname !== "localhost" && apiUrl.hostname !== "127.0.0.1") {
+      return apiUrl.hostname;
+    }
+  } catch {
+    /* ignore */
+  }
+  return devMachineHostFromBundler();
 }
