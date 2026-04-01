@@ -274,7 +274,7 @@ export function AppNavigator() {
               <RootStack.Screen name="Notifications" component={NotificationsScreen} options={{ title: "Notifications" }} />
               <RootStack.Screen name="QuranReader" component={QuranReaderScreen} options={{ title: "Quran Reader" }} />
               <RootStack.Screen name="SalahSettings" component={SalahSettingsScreen} options={{ title: "Salah Settings" }} />
-              <RootStack.Screen name="CreatorEconomy" component={CreatorEconomyScreen} options={{ title: "Creator Economy" }} />
+              <RootStack.Screen name="CreatorEconomy" component={CreatorEconomyScreen} options={{ title: "Creator hub" }} />
               <RootStack.Screen name="AddBusiness" component={AddBusinessScreen} options={{ title: "Add business" }} />
               <RootStack.Screen name="BusinessDetail" component={BusinessDetailScreen} options={{ title: "Business" }} />
               <RootStack.Screen

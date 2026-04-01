@@ -87,9 +87,8 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Log In" }).click();
   await expect(page).toHaveURL(/\/home$/);
-  await page.getByRole("link", { name: "Dhikr" }).first().click();
-  await expect(page).toHaveURL(/\/dhikr$/);
-  await expect(page.getByText("Dhikr Mode")).toBeVisible();
+  await page.getByRole("link", { name: "Search" }).first().click();
+  await expect(page).toHaveURL(/\/search/);
   await page.goto(`${baseURL}/home`);
 
   await page.goto(`${baseURL}/account`);

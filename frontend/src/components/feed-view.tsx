@@ -298,9 +298,6 @@ export function FeedView({
             >
               Alerts
             </Link>
-            <Link href="/dhikr" className="btn-secondary px-3 py-2 text-xs" aria-label="Open Dhikr mode">
-              Dhikr
-            </Link>
             <Link href="/reels" className="btn-secondary px-3 py-2 text-xs" aria-label="Open reels">
               Reels
             </Link>

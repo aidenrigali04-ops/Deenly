@@ -305,7 +305,7 @@ export default function UserProfilePage() {
                 </div>
               </div>
               <p className="mt-4 text-xs text-muted">
-                Dhikr and Salah stay on your own account — not shown on someone else&apos;s profile.
+                Salah tracking stays on your own account — not shown on someone else&apos;s profile.
               </p>
               <p className="mt-3 font-semibold text-text">{user.display_name}</p>
               {user.bio ? <p className="mt-2 whitespace-pre-line text-sm text-text/90">{user.bio}</p> : null}

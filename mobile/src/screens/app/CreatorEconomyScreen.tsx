@@ -12,7 +12,7 @@ import {
   fetchMyTiers,
   formatMinorCurrency
 } from "../../lib/monetization";
-import { colors } from "../../theme";
+import { colors, radii } from "../../theme";
 
 export function CreatorEconomyScreen() {
   const connectStatusQuery = useQuery({
@@ -54,95 +54,111 @@ export function CreatorEconomyScreen() {
   });
 
   if (connectStatusQuery.isLoading) {
-    return <LoadingState label="Loading creator economy..." />;
+    return <LoadingState label="Loading creator hub..." />;
   }
   if (connectStatusQuery.error) {
     return <ErrorState message={(connectStatusQuery.error as Error).message} />;
   }
 
+  const connected = Boolean(connectStatusQuery.data?.connected);
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.heading}>Creator Economy</Text>
+      <Text style={styles.lede}>
+        Payouts and a quick read on your catalog. Create or edit products and tiers on the web Creator hub when you need
+        full tools.
+      </Text>
+
       <View style={styles.card}>
-        <Text style={styles.title}>Stripe Connect</Text>
+        <Text style={styles.sectionTitle}>Payouts</Text>
         <Text style={styles.muted}>
-          {connectStatusQuery.data?.connected ? "Connected" : "Not connected"}
+          Stripe {connected ? "connected" : "not connected yet"} — link your account to receive earnings.
         </Text>
         <View style={styles.row}>
-          <Pressable
-            style={styles.buttonSecondary}
-            onPress={() => connectAccountMutation.mutate()}
-            disabled={connectAccountMutation.isPending}
-          >
-            <Text style={styles.buttonText}>
-              {connectAccountMutation.isPending ? "Creating..." : "Create account"}
-            </Text>
-          </Pressable>
+          {!connected ? (
+            <Pressable
+              style={styles.buttonSecondary}
+              onPress={() => connectAccountMutation.mutate()}
+              disabled={connectAccountMutation.isPending}
+            >
+              <Text style={styles.buttonText}>
+                {connectAccountMutation.isPending ? "Working…" : "Connect Stripe"}
+              </Text>
+            </Pressable>
+          ) : null}
           <Pressable
             style={styles.buttonSecondary}
             onPress={() => onboardingMutation.mutate()}
-            disabled={onboardingMutation.isPending}
+            disabled={onboardingMutation.isPending || !connected}
           >
             <Text style={styles.buttonText}>
-              {onboardingMutation.isPending ? "Opening..." : "Open onboarding"}
+              {onboardingMutation.isPending ? "Opening…" : "Continue in Stripe"}
             </Text>
           </Pressable>
         </View>
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.title}>Earnings</Text>
-        <Text style={styles.muted}>
-          Balance: {formatMinorCurrency(earningsQuery.data?.totals?.balance_minor || 0, "usd")}
+        <Text style={styles.sectionTitle}>Balance</Text>
+        <Text style={styles.balance}>
+          {formatMinorCurrency(earningsQuery.data?.totals?.balance_minor || 0, "usd")}
         </Text>
+        <Text style={styles.muted}>Available in your connected Stripe account context.</Text>
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.title}>Products</Text>
+        <Text style={styles.sectionTitle}>Products</Text>
         {(productsQuery.data?.items || []).length ? (
-          (productsQuery.data?.items || []).slice(0, 5).map((item) => (
-            <Text key={item.id} style={styles.muted}>
-              {item.title} · {(item.platform_fee_bps / 100).toFixed(1)}% platform fee
+          (productsQuery.data?.items || []).slice(0, 8).map((item) => (
+            <Text key={item.id} style={styles.listLine}>
+              {item.title}
+              <Text style={styles.muted}> · {(item.platform_fee_bps / 100).toFixed(1)}% fee</Text>
             </Text>
           ))
         ) : (
-          <EmptyState title="No products yet" subtitle="Create and publish products from web account tools." />
+          <EmptyState title="No products yet" subtitle="Add them from the web Creator hub → Products." />
         )}
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.title}>Tiers</Text>
+        <Text style={styles.sectionTitle}>Subscription tiers</Text>
         {(tiersQuery.data?.items || []).length ? (
-          tiersQuery.data?.items.slice(0, 5).map((tier) => (
-            <Text key={tier.id} style={styles.muted}>
-              {tier.title} - {formatMinorCurrency(tier.monthly_price_minor, tier.currency)}/mo
+          tiersQuery.data?.items.slice(0, 8).map((tier) => (
+            <Text key={tier.id} style={styles.listLine}>
+              {tier.title}
+              <Text style={styles.muted}>
+                {" "}
+                · {formatMinorCurrency(tier.monthly_price_minor, tier.currency)}/mo
+              </Text>
             </Text>
           ))
         ) : (
-          <EmptyState title="No tiers yet" subtitle="Create and publish monthly tiers from web account tools." />
+          <EmptyState title="No tiers yet" subtitle="Create tiers from the web Creator hub → Grow." />
         )}
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.title}>Affiliate Codes</Text>
+        <Text style={styles.sectionTitle}>Affiliate codes</Text>
         <Pressable
           style={styles.buttonSecondary}
           onPress={() => affiliateCodeMutation.mutate()}
           disabled={affiliateCodeMutation.isPending}
         >
-          <Text style={styles.buttonText}>
-            {affiliateCodeMutation.isPending ? "Creating..." : "Create affiliate code"}
-          </Text>
+          <Text style={styles.buttonText}>{affiliateCodeMutation.isPending ? "Creating…" : "New code"}</Text>
         </Pressable>
-        <View style={styles.row}>
-          {(affiliateCodesQuery.data?.items || []).map((code) => (
-            <View key={code.id} style={styles.badge}>
-              <Text style={styles.badgeText}>
-                {code.code} ({code.uses_count})
-              </Text>
-            </View>
-          ))}
-        </View>
+        {(affiliateCodesQuery.data?.items || []).length ? (
+          <View style={styles.badgeWrap}>
+            {(affiliateCodesQuery.data?.items || []).map((code) => (
+              <View key={code.id} style={styles.badge}>
+                <Text style={styles.badgeText}>
+                  {code.code} ({code.uses_count})
+                </Text>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <Text style={styles.muted}>No codes yet.</Text>
+        )}
       </View>
     </ScrollView>
   );
@@ -154,51 +170,72 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background
   },
   content: {
-    padding: 14,
-    gap: 12
+    padding: 16,
+    paddingBottom: 28,
+    gap: 14
   },
-  heading: {
-    color: colors.text,
-    fontSize: 24,
-    fontWeight: "700"
+  lede: {
+    color: colors.muted,
+    fontSize: 14,
+    lineHeight: 20
   },
   card: {
     backgroundColor: colors.card,
     borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 12,
-    gap: 8
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.control,
+    padding: 14,
+    gap: 10
   },
-  title: {
+  sectionTitle: {
     color: colors.text,
+    fontSize: 15,
+    fontWeight: "700"
+  },
+  balance: {
+    color: colors.text,
+    fontSize: 22,
     fontWeight: "700"
   },
   muted: {
-    color: colors.muted
+    color: colors.muted,
+    fontSize: 13,
+    lineHeight: 18
+  },
+  listLine: {
+    color: colors.text,
+    fontSize: 13,
+    lineHeight: 20
   },
   row: {
     flexDirection: "row",
     gap: 8,
-    flexWrap: "wrap"
+    flexWrap: "wrap",
+    marginTop: 2
   },
   buttonSecondary: {
     borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.control,
+    paddingHorizontal: 14,
+    paddingVertical: 10
   },
   buttonText: {
     color: colors.text,
-    fontWeight: "600"
+    fontWeight: "600",
+    fontSize: 14
+  },
+  badgeWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
   },
   badge: {
     borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 4
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6
   },
   badgeText: {
     color: colors.text,

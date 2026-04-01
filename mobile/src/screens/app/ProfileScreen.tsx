@@ -279,6 +279,10 @@ export function ProfileScreen({ navigation }: Props) {
               <Text style={styles.addBusinessText}>Add your business</Text>
             </Pressable>
 
+            <Pressable style={styles.addBusinessBtn} onPress={() => navigation.navigate("CreatorEconomy")}>
+              <Text style={styles.addBusinessText}>Creator hub</Text>
+            </Pressable>
+
             <Pressable style={styles.feedPrefsLink} onPress={() => navigation.navigate("Onboarding")}>
               <Text style={styles.feedPrefsText}>Feed & discovery preferences</Text>
             </Pressable>

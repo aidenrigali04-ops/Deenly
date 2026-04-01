@@ -93,7 +93,7 @@ export function SettingsScreen({ navigation }: Props) {
 
       <SettingsSection title="Creator">
         <SettingsRow
-          title="Creator economy"
+          title="Creator hub"
           subtitle={
             creatorConnectQuery.data?.connected
               ? `Stripe · ${formatMinorCurrency(creatorEarningsQuery.data?.totals?.balance_minor || 0, "usd")} balance`

@@ -8,7 +8,7 @@ import { useSessionStore } from "@/store/session-store";
 function Icon({
   kind
 }: {
-  kind: "home" | "video" | "marketplace" | "send" | "search" | "upload" | "user" | "admin" | "dhikr" | "creator";
+  kind: "home" | "video" | "marketplace" | "send" | "search" | "upload" | "user" | "admin" | "creator";
 }) {
   const common = "h-5 w-5";
   if (kind === "home") {
@@ -79,15 +79,6 @@ function Icon({
       </svg>
     );
   }
-  if (kind === "dhikr") {
-    return (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common} aria-hidden="true">
-        <circle cx="12" cy="7" r="2.5" />
-        <path d="M12 9.5v8.5" />
-        <circle cx="12" cy="20" r="1.5" />
-      </svg>
-    );
-  }
   if (kind === "creator") {
     return (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common} aria-hidden="true">
@@ -106,7 +97,7 @@ function Icon({
   );
 }
 
-type RailIcon = "home" | "video" | "marketplace" | "send" | "search" | "upload" | "user" | "admin" | "dhikr" | "creator";
+type RailIcon = "home" | "video" | "marketplace" | "send" | "search" | "upload" | "user" | "admin" | "creator";
 
 type RailLink = {
   href: string;
@@ -161,8 +152,7 @@ const feedRailLinks: RailLink[] = [
   { href: "/home", label: "Home", icon: "home" },
   { href: "/marketplace", label: "Marketplace", icon: "marketplace" },
   { href: "/search", label: "Search", icon: "search" },
-  { href: "/messages", label: "Messages", icon: "send" },
-  { href: "/dhikr", label: "Dhikr", icon: "dhikr" }
+  { href: "/messages", label: "Messages", icon: "send" }
 ];
 
 const youRailLinks: RailLink[] = [

@@ -8,7 +8,10 @@ const nextConfig: NextConfig = {
     externalDir: true
   },
   // Avoid picking a parent-folder lockfile (e.g. ~/pnpm-lock.yaml) for output file tracing.
-  outputFileTracingRoot: path.resolve(process.cwd())
+  outputFileTracingRoot: path.resolve(process.cwd()),
+  async redirects() {
+    return [{ source: "/dhikr", destination: "/home", permanent: false }];
+  }
 };
 
 export default nextConfig;

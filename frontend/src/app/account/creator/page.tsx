@@ -96,6 +96,16 @@ function AccountCreatorPageInner() {
     [pathname, router, searchParams]
   );
 
+  useEffect(() => {
+    if (searchParams.get("tab") !== "insights") {
+      return;
+    }
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("tab");
+    const qs = params.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
+  }, [pathname, router, searchParams]);
+
   const sessionQuery = useQuery({
     queryKey: ["creator-hub-session-me"],
     queryFn: () => fetchSessionMe()
@@ -772,32 +782,6 @@ function AccountCreatorPageInner() {
     </div>
   );
 
-  const insightsPanel = (
-    <section>
-      <h2 className="section-title text-sm">Creator rankings</h2>
-      <p className="mt-1 text-xs text-muted">Public leaderboard by gross earnings on the platform.</p>
-      <div className="mt-3 rounded-control border border-black/10 bg-surface px-3 py-2">
-        <div className="mt-2 space-y-1">
-          {(rankingsQuery.data?.items || []).slice(0, 10).map((row, index) => {
-            const r = row as {
-              creator_user_id: number;
-              creator_display_name: string;
-              gross_earnings_minor?: number;
-            };
-            return (
-              <p key={`${r.creator_user_id}-${index}`} className="text-xs text-muted">
-                {index + 1}. {r.creator_display_name} - {formatMinorCurrency(r.gross_earnings_minor || 0, "usd")}
-              </p>
-            );
-          })}
-          {rankingsQuery.data?.items?.length ? null : (
-            <p className="text-xs text-muted">No ranking data yet.</p>
-          )}
-        </div>
-      </div>
-    </section>
-  );
-
   if (sessionQuery.isLoading) {
     return <LoadingState label="Loading..." />;
   }
@@ -827,8 +811,11 @@ function AccountCreatorPageInner() {
         </p>
         <h1 className="page-header-title mt-4">Creator hub</h1>
         <p className="page-header-subtitle">
-          Stripe Connect, products, subscription tiers, and affiliate tools. Separate from your public profile so you can
-          focus when you are ready to earn on Deenly.
+          Payouts, catalog, and growth tools — separate from your public profile. Attach published products from{" "}
+          <Link href="/create" className="text-sky-600 underline-offset-2 hover:underline">
+            Create post
+          </Link>
+          .
         </p>
       </header>
 
@@ -857,44 +844,9 @@ function AccountCreatorPageInner() {
           </div>
         ) : null}
 
-        {process.env.NODE_ENV === "development" ? (
-          <p className="mt-3 text-xs text-muted">
-            API base:{" "}
-            <code className="rounded bg-black/[0.06] px-1 py-0.5 text-[11px]">
-              {process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api/v1 (Next default)"}
-            </code>
-            . Must point at your Node backend (set{" "}
-            <code className="rounded bg-black/[0.06] px-1 py-0.5 text-[11px]">NEXT_PUBLIC_API_BASE_URL</code> in{" "}
-            <code className="rounded bg-black/[0.06] px-1 py-0.5 text-[11px]">.env.local</code>, e.g.{" "}
-            <code className="text-[11px]">http://localhost:8080/api/v1</code>).
-          </p>
-        ) : null}
-
         <div role="tabpanel" id={`creator-hub-panel-${tab}`} aria-labelledby={`creator-hub-tab-${tab}`}>
           {tab === "overview" ? (
             <div className="space-y-8">
-              <section>
-                <h2 className="section-title text-sm">Welcome</h2>
-                <p className="mt-2 text-sm text-muted">
-                  Use the tabs above to manage payouts, build your catalog, grow subscribers and affiliates, and see how you
-                  rank. When you are ready to sell in the feed, open{" "}
-                  <Link href="/create" className="text-sky-600 underline-offset-2 hover:underline">
-                    Create post
-                  </Link>{" "}
-                  and attach a published product.
-                </p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button type="button" className="btn-secondary px-3 py-1.5 text-xs" onClick={() => setTab("payouts")}>
-                    Payouts
-                  </button>
-                  <button type="button" className="btn-secondary px-3 py-1.5 text-xs" onClick={() => setTab("products")}>
-                    Products
-                  </button>
-                  <button type="button" className="btn-secondary px-3 py-1.5 text-xs" onClick={() => setTab("grow")}>
-                    Grow
-                  </button>
-                </div>
-              </section>
               <OnboardingChecklist
                 connect={connect}
                 productCount={productCount}
@@ -905,13 +857,35 @@ function AccountCreatorPageInner() {
                 connectStripePending={connectAccountMutation.isPending}
                 onboardingPending={onboardingMutation.isPending}
               />
+              <section>
+                <h2 className="section-title text-sm">Creator rankings</h2>
+                <p className="mt-1 text-xs text-muted">Public leaderboard by gross earnings on the platform.</p>
+                <div className="mt-3 rounded-control border border-black/10 bg-surface px-3 py-2">
+                  <div className="mt-2 space-y-1">
+                    {(rankingsQuery.data?.items || []).slice(0, 10).map((row, index) => {
+                      const r = row as {
+                        creator_user_id: number;
+                        creator_display_name: string;
+                        gross_earnings_minor?: number;
+                      };
+                      return (
+                        <p key={`${r.creator_user_id}-${index}`} className="text-xs text-muted">
+                          {index + 1}. {r.creator_display_name} - {formatMinorCurrency(r.gross_earnings_minor || 0, "usd")}
+                        </p>
+                      );
+                    })}
+                    {rankingsQuery.data?.items?.length ? null : (
+                      <p className="text-xs text-muted">No ranking data yet.</p>
+                    )}
+                  </div>
+                </div>
+              </section>
             </div>
           ) : null}
 
           {tab === "payouts" ? payoutsPanel(connect) : null}
           {tab === "products" ? productFormAndCatalog : null}
           {tab === "grow" ? growPanel : null}
-          {tab === "insights" ? insightsPanel : null}
         </div>
       </article>
     </div>
