@@ -1,6 +1,6 @@
 import { apiRequest } from "@/lib/api";
 
-export type PostAssistIntent = "polish" | "marketplace_listing";
+export type PostAssistIntent = "polish" | "marketplace_listing" | "product_listing";
 
 export type PostAssistResponse = {
   suggestion: string;
@@ -28,6 +28,21 @@ export async function assistCommentTone(draft: string) {
     method: "POST",
     auth: true,
     body: { draft },
+    timeoutMs: 35000,
+    retries: 0
+  });
+}
+
+export type ProductOverviewResponse = {
+  summary: string;
+  disclaimer: string;
+};
+
+export async function fetchProductOverview(productId: number) {
+  return apiRequest<ProductOverviewResponse>("/ai/product-overview", {
+    method: "POST",
+    auth: true,
+    body: { productId },
     timeoutMs: 35000,
     retries: 0
   });

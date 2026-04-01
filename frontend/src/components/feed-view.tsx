@@ -426,7 +426,7 @@ export function FeedView({
           <div className="surface-card space-y-2">
             <h2 className="text-sm font-semibold">Reflective prompt</h2>
             <p className="text-sm text-muted">
-              Pause before you scroll: what is one thing you want to benefit from today?
+              Pause before you scroll: what do you want to focus on today?
             </p>
           </div>
         </aside>

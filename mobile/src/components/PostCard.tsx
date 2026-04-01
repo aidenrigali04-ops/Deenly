@@ -172,7 +172,7 @@ export function PostCard({
             </View>
           ) : null}
           <Text style={styles.homeMetaText}>
-            {benefitedCount} benefited - {item.comment_count || 0} comments
+            {benefitedCount} likes · {item.comment_count || 0} comments
           </Text>
           {item.audience_target ? (
             <Text style={styles.homeMetaText}>
@@ -244,7 +244,7 @@ export function PostCard({
         <Text style={styles.muted}>Media unavailable right now.</Text>
       ) : null}
       <View style={styles.metricsRow}>
-        <Text style={styles.muted}>Benefited: {benefitedCount}</Text>
+        <Text style={styles.muted}>Likes: {benefitedCount}</Text>
         <Text style={styles.muted}>Comments: {item.comment_count || 0}</Text>
       </View>
       {item.tags?.length ? (

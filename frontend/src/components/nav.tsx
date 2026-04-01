@@ -158,6 +158,13 @@ const feedRailLinks: RailLink[] = [
 const youRailLinks: RailLink[] = [
   { href: "/create", label: "Upload", icon: "upload", title: "Create post" },
   {
+    href: "/create/product",
+    label: "Product",
+    icon: "marketplace",
+    title: "Create a product listing",
+    subLabel: "Sell"
+  },
+  {
     href: "/account/creator",
     label: "Creator hub",
     icon: "creator",
@@ -231,7 +238,11 @@ export function Nav() {
                 ? pathname.startsWith("/account") && !pathname.startsWith("/account/creator")
                 : link.href === "/account/creator"
                   ? pathname.startsWith("/account/creator")
-                  : pathname.startsWith(link.href);
+                  : link.href === "/create"
+                    ? pathname === "/create"
+                    : link.href === "/create/product"
+                      ? pathname.startsWith("/create/product")
+                      : pathname.startsWith(link.href);
             return (
               <NavLink
                 key={link.href}

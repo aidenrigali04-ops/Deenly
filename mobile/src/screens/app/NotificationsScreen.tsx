@@ -63,7 +63,7 @@ function notificationDetail(item: NotificationItem): string | null {
     return typeof p.bodyPreview === "string" ? p.bodyPreview : "New message";
   }
   if (item.type === "post_benefited") {
-    return "They marked it as benefited.";
+    return "They liked your post.";
   }
   if (item.type === "post_comment") {
     return payloadStr(p, "commentPreview");

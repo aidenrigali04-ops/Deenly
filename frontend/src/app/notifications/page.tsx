@@ -60,7 +60,7 @@ function notificationPresentation(item: NotificationItem): {
   if (item.type === "post_benefited" && postId != null) {
     return {
       title: `${who} appreciated your post`,
-      detail: "They marked it as benefited.",
+      detail: "They liked your post.",
       href: `/posts/${postId}`,
       cta: "View post"
     };

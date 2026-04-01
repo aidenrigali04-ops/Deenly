@@ -6,7 +6,7 @@ const { httpError } = require("../../utils/http-error");
 const { requireString, optionalString } = require("../../utils/validators");
 const { completeOpenAiChat } = require("../../services/openai-chat");
 
-const INTENTS = new Set(["polish", "marketplace_listing"]);
+const INTENTS = new Set(["polish", "marketplace_listing", "product_listing"]);
 
 function systemPromptForIntent(intent) {
   const base =
@@ -22,12 +22,24 @@ function systemPromptForIntent(intent) {
       "Keep the same language as the user (e.g. English if they wrote English). Max about 1800 characters."
     );
   }
+  if (intent === "product_listing") {
+    return (
+      base +
+      " Rewrite the user's draft as a clear product description: what the buyer gets, who it is for, and what to do next. " +
+      "Keep the same language as the user. Max about 1800 characters."
+    );
+  }
   return (
     base +
     " Polish the user's post for clarity and respectful tone. Keep their meaning and voice. " +
     "Same language as the user. Max about 1800 characters."
   );
 }
+
+const productOverviewSystem =
+  "You summarize a creator product for shoppers on Deenly. " +
+  "Use ONLY the facts given in PRODUCT FACTS. Do not invent price, delivery, refunds, guarantees, or features not stated. " +
+  "No religious rulings or legal/medical advice. Plain text, 2–4 short paragraphs, warm and clear. Max about 900 characters.";
 
 const commentSystem =
   "You help users comment respectfully on Deenly. " +
@@ -124,6 +136,60 @@ function createAiRouter({ config, db, logger }) {
 
       const clipped = suggestion.length > 2000 ? `${suggestion.slice(0, 1997).trimEnd()}…` : suggestion;
       res.status(200).json({ suggestion: clipped, intent, disclaimer: "ai_generated" });
+    })
+  );
+
+  router.post(
+    "/product-overview",
+    authMiddleware,
+    assistLimiter,
+    asyncHandler(async (req, res) => {
+      const apiKey = ensureAiEnabled();
+      const productId = Number(req.body?.productId);
+      if (!productId) {
+        throw httpError(400, "productId must be a number");
+      }
+      const result = await db.query(
+        `SELECT id, creator_user_id, title, description, price_minor, currency, product_type,
+                service_details, delivery_method, website_url, audience_target, business_category, status
+         FROM creator_products
+         WHERE id = $1
+         LIMIT 1`,
+        [productId]
+      );
+      if (result.rowCount === 0) {
+        throw httpError(404, "Product not found");
+      }
+      const row = result.rows[0];
+      if (row.creator_user_id !== req.user.id && row.status !== "published") {
+        throw httpError(404, "Product not found");
+      }
+      const priceUsd = (Number(row.price_minor) / 100).toFixed(2);
+      const facts = [
+        `Title: ${row.title}`,
+        `Type: ${row.product_type}`,
+        `Price: ${priceUsd} ${String(row.currency || "usd").toUpperCase()}`,
+        row.description ? `Description: ${row.description}` : null,
+        row.service_details ? `Service details: ${row.service_details}` : null,
+        row.delivery_method ? `Delivery: ${row.delivery_method}` : null,
+        row.website_url ? `Website: ${row.website_url}` : null,
+        row.business_category ? `Category: ${row.business_category}` : null
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      const summary = await completeOpenAiChat({
+        apiKey,
+        model: config.openaiModel,
+        messages: [
+          { role: "system", content: productOverviewSystem },
+          { role: "user", content: `PRODUCT FACTS:\n${facts}` }
+        ],
+        maxTokens: 500,
+        logger
+      });
+      const clipped = summary.length > 1200 ? `${summary.slice(0, 1197).trimEnd()}…` : summary;
+      res.status(200).json({ summary: clipped, disclaimer: "ai_generated" });
     })
   );
 

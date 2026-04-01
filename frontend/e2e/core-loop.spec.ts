@@ -71,6 +71,27 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
     expect(response.ok()).toBeTruthy();
   }
 
+  const productRes = await request.post(`${backendBaseUrl}/monetization/products`, {
+    headers: { Authorization: `Bearer ${creatorToken}` },
+    data: {
+      title: `E2E Product ${timestamp}`,
+      description: "E2E catalog product for public page and profile tab.",
+      priceMinor: 499,
+      currency: "usd",
+      deliveryMediaKey: "uploads/e2e-delivery.bin"
+    }
+  });
+  expect(productRes.ok()).toBeTruthy();
+  const productJson = (await productRes.json()) as { id: number };
+  const publishProductRes = await request.post(
+    `${backendBaseUrl}/monetization/products/${productJson.id}/publish`,
+    {
+      headers: { Authorization: `Bearer ${creatorToken}` }
+    }
+  );
+  expect(publishProductRes.ok()).toBeTruthy();
+  const e2eProductId = productJson.id;
+
   await page.goto(`${baseURL}/auth/signup`);
   await page.getByLabel("First Name").fill("Viewer");
   await page.getByLabel("Last Name").fill("User");
@@ -128,6 +149,15 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
   await page.getByRole("button", { name: "Follow", exact: true }).click();
   await expect(page.getByText(/now following/i)).toBeVisible();
 
+  await page.goto(`${baseURL}/products/${e2eProductId}`);
+  await expect(page.getByRole("heading", { name: `E2E Product ${timestamp}` })).toBeVisible();
+
+  await page.goto(`${baseURL}/users/${creator.user.id}`);
+  await page.getByRole("button", { name: "Products" }).click();
+  await expect(page.getByText(`E2E Product ${timestamp}`)).toBeVisible();
+  await page.getByRole("link", { name: "See more" }).first().click();
+  await expect(page).toHaveURL(new RegExp(`/products/${e2eProductId}`));
+
   await page.goto(`${baseURL}/create`);
   await page.getByLabel("Post caption").fill(`Uploaded post ${timestamp}`);
   await page.locator('input[name="mediaFile"]').setInputFiles({
@@ -152,9 +182,7 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
       response.url().includes("/interactions") &&
       !response.url().includes("/interactions/view")
   );
-  const likeButton = page
-    .getByRole("button", { name: /Benefited|Like post|Like|Unlike/i })
-    .first();
+  const likeButton = page.getByRole("button", { name: /Like|Unlike/i }).first();
   await expect(likeButton).toBeVisible();
   await likeButton.click();
   const benefitedResponse = await benefitedRequest;

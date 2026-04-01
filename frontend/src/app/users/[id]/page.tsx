@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { fetchProductOverview } from "@/lib/ai-assist";
 import { apiRequest } from "@/lib/api";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { resolveMediaUrl } from "@/lib/media-url";
@@ -40,6 +41,60 @@ function productTypeLabel(t: PublicCreatorProduct["product_type"]) {
   return "Subscription";
 }
 
+function ProfileProductAiOverview({
+  productId,
+  loginNextEncoded
+}: {
+  productId: number;
+  loginNextEncoded: string;
+}) {
+  const sessionUser = useSessionStore((s) => s.user);
+  const [open, setOpen] = useState(false);
+  const overviewMutation = useMutation({
+    mutationFn: () => fetchProductOverview(productId)
+  });
+
+  if (!sessionUser) {
+    return (
+      <p className="mt-2 text-[11px] text-muted">
+        <Link href={`/auth/login?next=${loginNextEncoded}`} className="text-sky-600 hover:underline">
+          Log in for AI overview
+        </Link>
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-2 border-t border-black/5 pt-2">
+      <button
+        type="button"
+        className="text-xs font-medium text-sky-600 hover:underline"
+        onClick={() => {
+          const next = !open;
+          setOpen(next);
+          if (next && !overviewMutation.data && !overviewMutation.isPending && !overviewMutation.isError) {
+            overviewMutation.mutate();
+          }
+        }}
+      >
+        {open ? "Hide AI overview" : "AI overview"}
+      </button>
+      {open ? (
+        <div className="mt-2 text-xs leading-relaxed text-text/90">
+          {overviewMutation.isPending ? (
+            <p className="text-muted">Generating summary…</p>
+          ) : overviewMutation.isError ? (
+            <p className="text-red-600">{(overviewMutation.error as Error).message}</p>
+          ) : overviewMutation.data ? (
+            <p className="whitespace-pre-line">{overviewMutation.data.summary}</p>
+          ) : null}
+          <p className="mt-2 text-[10px] text-muted">AI-generated from listing facts only.</p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 type UserProfile = {
   user_id: number;
   username?: string;
@@ -73,11 +128,12 @@ type FeedResponse = {
   items: ProfileFeedItem[];
 };
 
-type ProfileSectionTab = "grid" | "reels" | "saved" | "tagged" | "shop" | "listings";
+type ProfileSectionTab = "grid" | "reels" | "saved" | "tagged" | "products" | "listings";
 
 export default function UserProfilePage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const pathname = usePathname();
   const sessionUser = useSessionStore((state) => state.user);
   const userId = Number(params.id);
   const [profileSectionTab, setProfileSectionTab] = useState<ProfileSectionTab>("grid");
@@ -161,7 +217,7 @@ export default function UserProfilePage() {
   const creatorProductsQuery = useQuery({
     queryKey: ["creator-products-public", userId],
     queryFn: () => fetchCreatorProducts(userId),
-    enabled: Number.isFinite(userId) && profileSectionTab === "shop"
+    enabled: Number.isFinite(userId) && profileSectionTab === "products"
   });
 
   const likeMutation = useMutation({
@@ -233,7 +289,7 @@ export default function UserProfilePage() {
 
   const profileItems = postsQuery.data?.items || [];
   const visibleItems =
-    profileSectionTab === "saved" || profileSectionTab === "tagged" || profileSectionTab === "shop"
+    profileSectionTab === "saved" || profileSectionTab === "tagged" || profileSectionTab === "products"
       ? []
       : profileSectionTab === "reels"
         ? profileItems.filter((item) => Boolean(item.media_url))
@@ -334,9 +390,9 @@ export default function UserProfilePage() {
                   {(
                     [
                       { id: "grid" as const, label: "Posts" },
+                      { id: "products" as const, label: "Products" },
                       { id: "reels" as const, label: "Media" },
                       { id: "listings" as const, label: "Listings" },
-                      { id: "shop" as const, label: "Shop" },
                       { id: "saved" as const, label: "Saved" },
                       { id: "tagged" as const, label: "Tagged" }
                     ] as const
@@ -358,9 +414,9 @@ export default function UserProfilePage() {
                 </div>
               </div>
               <div className="pt-6">
-                {profileSectionTab === "shop" ? (
+                {profileSectionTab === "products" ? (
                   <>
-                    {creatorProductsQuery.isLoading ? <LoadingState label="Loading shop..." /> : null}
+                    {creatorProductsQuery.isLoading ? <LoadingState label="Loading products…" /> : null}
                     {creatorProductsQuery.error ? (
                       <ErrorState message={(creatorProductsQuery.error as Error).message} />
                     ) : null}
@@ -393,6 +449,16 @@ export default function UserProfilePage() {
                                   {product.description ? (
                                     <p className="mt-2 line-clamp-3 text-xs text-text/90">{product.description}</p>
                                   ) : null}
+                                  <Link
+                                    href={`/products/${product.id}`}
+                                    className="mt-2 inline-block text-xs font-medium text-sky-600 hover:underline"
+                                  >
+                                    See more
+                                  </Link>
+                                  <ProfileProductAiOverview
+                                    productId={product.id}
+                                    loginNextEncoded={loginNext}
+                                  />
                                 </div>
                                 <div className="shrink-0">
                                   {isOwner ? (

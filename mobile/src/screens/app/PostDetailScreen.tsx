@@ -117,7 +117,7 @@ export function PostDetailScreen({ route, navigation }: Props) {
       return null;
     }
     return [
-      `Benefited: ${benefitedCount}`,
+      `Likes: ${benefitedCount}`,
       `Comments: ${post.comment_count || 0}`,
       `Views: ${post.view_count || 0}`,
       `Avg watch: ${post.avg_watch_time_ms || 0}ms`,
@@ -200,7 +200,7 @@ export function PostDetailScreen({ route, navigation }: Props) {
                 }
                 setLiked(nextLiked);
                 setBenefitedCount((value) => Math.max(0, value + (nextLiked ? 1 : -1)));
-                setMessage(nextLiked ? "Marked as benefited." : "Like removed.");
+                setMessage(nextLiked ? "Liked." : "Like removed.");
               } catch (error) {
                 if (error instanceof ApiError && error.status === 0) {
                   await enqueueMutation({
@@ -209,7 +209,7 @@ export function PostDetailScreen({ route, navigation }: Props) {
                     auth: true,
                     body: { postId, interactionType: "benefited" }
                   });
-                  setMessage("Offline: benefited action queued.");
+                  setMessage("Offline: like queued.");
                   return;
                 }
                 setMessage((error as Error).message || "Unable to apply interaction.");

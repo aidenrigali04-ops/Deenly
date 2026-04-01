@@ -309,7 +309,7 @@ export function FeedCard({
             </button>
           ) : null}
           <p className="text-xs text-muted">
-            {benefitedCount} benefited - {commentCount} comments
+            {benefitedCount} likes · {commentCount} comments
           </p>
           {commentsOpen ? (
             <div className="rounded-control border border-black/10 bg-surface/60 p-3">
@@ -415,7 +415,7 @@ export function FeedCard({
         <motion.button
           type="button"
           className="feed-action"
-          aria-label="Benefited"
+          aria-label={liked ? "Unlike" : "Like"}
           onClick={() => likeMutation.mutate(!liked)}
           disabled={likeMutation.isPending}
           {...likeTapProps}
@@ -504,7 +504,7 @@ export function FeedCard({
 
       <div className="flex flex-wrap gap-2 px-6 pb-4 text-xs text-muted">
         <span className="rounded-pill border border-black/10 px-2 py-1">
-          Benefited: {benefitedCount}
+          Likes: {benefitedCount}
         </span>
         <span className="rounded-pill border border-black/10 px-2 py-1">
           Comments: {commentCount}

@@ -19,6 +19,16 @@ export default function CreatePage() {
         <p className="page-header-subtitle">
           Add a photo or video, write a caption, and optionally promote your offer or cross-post to Instagram.
         </p>
+        <p className="mt-2 text-sm text-muted">
+          Selling a standalone offer?{" "}
+          <Link
+            href="/create/product"
+            className="text-sky-600 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
+          >
+            Create a product
+          </Link>{" "}
+          instead.
+        </p>
       </header>
 
       <CreatePostComposer variant="page" redirectPathAfterInstagram="/create" />

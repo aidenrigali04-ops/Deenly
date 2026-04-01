@@ -151,7 +151,7 @@ export default function PostDetailPage() {
       return null;
     }
     return [
-      `Benefited: ${benefitedCount}`,
+      `Likes: ${benefitedCount}`,
       `Comments: ${post.comment_count || 0}`,
       `Views: ${post.view_count || 0}`,
       `Avg watch: ${post.avg_watch_time_ms || 0}ms`,

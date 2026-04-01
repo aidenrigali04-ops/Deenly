@@ -217,7 +217,7 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
             subtitle={
               feedVariant === "marketplace"
                 ? "Add a marketplace post with a product from Creator hub."
-                : "Create the first beneficial post."
+                : "Create the first post."
             }
           />
         ) : null}

@@ -36,6 +36,13 @@ export type CreatorProduct = {
 /** Published catalog rows from GET /monetization/products/creator/:id (no delivery_media_key). */
 export type PublicCreatorProduct = Omit<CreatorProduct, "delivery_media_key">;
 
+/** GET /monetization/catalog/products/:id — published only; includes creator display fields. */
+export type PublicCatalogProduct = PublicCreatorProduct & {
+  creator_username?: string;
+  creator_display_name?: string | null;
+  creator_avatar_url?: string | null;
+};
+
 export type SubscriptionTier = {
   id: number;
   creator_user_id: number;
@@ -82,6 +89,10 @@ export async function fetchMyProducts() {
 
 export async function fetchCreatorProducts(creatorUserId: number) {
   return apiRequest<{ items: PublicCreatorProduct[] }>(`/monetization/products/creator/${creatorUserId}`);
+}
+
+export async function fetchPublicProduct(productId: number) {
+  return apiRequest<PublicCatalogProduct>(`/monetization/catalog/products/${productId}`);
 }
 
 export async function createProduct(input: {

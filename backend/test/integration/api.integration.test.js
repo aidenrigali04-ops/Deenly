@@ -1109,6 +1109,19 @@ describeIfDatabase("integration api flows", () => {
     expect(catalogPublic.body.items[0].id).toBe(product.body.id);
     expect(catalogPublic.body.items[0].title).toBe("Tajweed Starter Pack");
     expect(catalogPublic.body.items[0].delivery_media_key).toBeUndefined();
+
+    const catalogProductById = await request(app).get(
+      `/api/v1/monetization/catalog/products/${product.body.id}`
+    );
+    expect(catalogProductById.statusCode).toBe(200);
+    expect(catalogProductById.body.title).toBe("Tajweed Starter Pack");
+    expect(catalogProductById.body.status).toBe("published");
+    expect(catalogProductById.body.delivery_media_key).toBeUndefined();
+    expect(catalogProductById.body.creator_user_id).toBe(creator.body.user.id);
+    expect(catalogProductById.body.creator_username).toBe("product_creator");
+
+    const catalogMissing = await request(app).get("/api/v1/monetization/catalog/products/999999999");
+    expect(catalogMissing.statusCode).toBe(404);
   });
 
   it("admin can set profile verification and it appears on public user GET", async () => {

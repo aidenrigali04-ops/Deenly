@@ -152,7 +152,7 @@ export default function SearchPage() {
           </form>
 
           {!submittedQuery ? (
-            <EmptyState title="Search the platform" subtitle="Find users and beneficial posts." />
+            <EmptyState title="Search the platform" subtitle="Find people and posts." />
           ) : null}
           {usersQuery.isLoading || postsQuery.isLoading ? <LoadingState label="Searching..." /> : null}
           {usersQuery.error ? <ErrorState message={(usersQuery.error as Error).message} /> : null}

@@ -514,6 +514,35 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
   );
 
   router.get(
+    "/catalog/products/:productId",
+    asyncHandler(async (req, res) => {
+      const productId = Number(req.params.productId);
+      if (!productId) {
+        throw httpError(400, "productId must be a number");
+      }
+      const result = await db.query(
+        `SELECT cp.id, cp.creator_user_id, cp.title, cp.description, cp.price_minor, cp.currency,
+                cp.product_type, cp.service_details, cp.delivery_method, cp.website_url,
+                cp.audience_target, cp.business_category, cp.platform_fee_bps, cp.boost_tier,
+                cp.status, cp.created_at, cp.updated_at,
+                u.username AS creator_username,
+                p.display_name AS creator_display_name,
+                p.avatar_url AS creator_avatar_url
+         FROM creator_products cp
+         INNER JOIN users u ON u.id = cp.creator_user_id
+         LEFT JOIN profiles p ON p.user_id = cp.creator_user_id
+         WHERE cp.id = $1 AND cp.status = 'published'
+         LIMIT 1`,
+        [productId]
+      );
+      if (result.rowCount === 0) {
+        throw httpError(404, "Product not found");
+      }
+      res.status(200).json(result.rows[0]);
+    })
+  );
+
+  router.get(
     "/products/:productId",
     authMiddleware,
     asyncHandler(async (req, res) => {

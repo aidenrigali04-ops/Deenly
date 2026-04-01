@@ -312,7 +312,7 @@ export function ProfileScreen({ navigation }: Props) {
             <Text style={styles.emptyGridTitle}>
               {activeTab === "posts" ? "No posts yet" : "No media yet"}
             </Text>
-            <Text style={styles.emptyGridSub}>Share something beneficial from the Create tab.</Text>
+            <Text style={styles.emptyGridSub}>Add a post from the Create tab.</Text>
           </View>
         ) : null}
 

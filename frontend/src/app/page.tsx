@@ -6,7 +6,7 @@ export default function HomePage() {
       <div className="space-y-2">
         <h1 className="text-4xl font-bold tracking-tight">Deenly</h1>
         <p className="text-muted">
-          A Muslim-first platform for beneficial reminders, local businesses, and sincere community.
+          A Muslim-first platform for community, local businesses, and everyday connection.
         </p>
       </div>
       <div className="surface-card space-y-4">
