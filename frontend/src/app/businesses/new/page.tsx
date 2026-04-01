@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createBusiness } from "@/lib/businesses";
@@ -9,6 +9,7 @@ import { ErrorState } from "@/components/states";
 
 export default function NewBusinessPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
@@ -30,7 +31,9 @@ export default function NewBusinessPage() {
         longitude: longitude!,
         visibility: "published"
       }),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
+      await queryClient.invalidateQueries({ queryKey: ["account-session-me"] });
+      await queryClient.invalidateQueries({ queryKey: ["account-profile-me"] });
       router.push(`/businesses/${data.id}`);
     }
   });
@@ -65,7 +68,10 @@ export default function NewBusinessPage() {
           Back to Search
         </Link>
         <h1 className="mt-2 text-2xl font-semibold">Add your business</h1>
-        <p className="mt-1 text-sm text-muted">Name and location are required. We show published listings on Near me.</p>
+        <p className="mt-1 text-sm text-muted">
+          Name and location are required. Description and website are also saved to your profile for search. Published
+          listings appear on Near me.
+        </p>
       </div>
       <form onSubmit={onSubmit} className="surface-card space-y-3 rounded-panel border border-black/10 p-4">
         <label className="block text-xs font-semibold uppercase tracking-wide text-muted">

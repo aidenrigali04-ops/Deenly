@@ -4,6 +4,7 @@ const { authenticate } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
 const { httpError } = require("../../utils/http-error");
 const { optionalString, optionalWebsiteUrl, requireString } = require("../../utils/validators");
+const { syncProfileFromBusiness } = require("../../utils/sync-profile-from-business");
 
 function baseSlugFromName(name) {
   return name
@@ -201,6 +202,11 @@ function createBusinessesRouter({ db, config }) {
               visibilityRaw
             ]
           );
+          await syncProfileFromBusiness(db, req.user.id, {
+            name,
+            description,
+            websiteUrl
+          });
           res.status(201).json(rowToPublic(insert.rows[0]));
           return;
         } catch (err) {
@@ -314,7 +320,13 @@ function createBusinessesRouter({ db, config }) {
                    address_display, latitude, longitude, category, visibility, created_at, updated_at`,
         vals
       );
-      res.status(200).json(rowToPublic(result.rows[0]));
+      const updated = result.rows[0];
+      await syncProfileFromBusiness(db, req.user.id, {
+        name: updated.name,
+        description: updated.description,
+        websiteUrl: updated.website_url
+      });
+      res.status(200).json(rowToPublic(updated));
     })
   );
 

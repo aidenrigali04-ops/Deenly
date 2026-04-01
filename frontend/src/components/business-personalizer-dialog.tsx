@@ -63,7 +63,8 @@ export function BusinessPersonalizerDialog() {
           Personalize your experience
         </h2>
         <p className="text-sm text-muted">
-          List on the map or connect payments when you&apos;re ready — or skip and stay personal.
+          Add your business to your profile (and the map) when you&apos;re ready — or connect payments, or skip and
+          stay personal.
         </p>
         <div className="flex flex-col gap-2">
           <button
@@ -74,7 +75,7 @@ export function BusinessPersonalizerDialog() {
               completeMutation.mutate({ step: 1, profileKind: "business_interest", navigate: "businesses/new" })
             }
           >
-            Add business to map
+            Add business to profile
           </button>
           <button
             type="button"

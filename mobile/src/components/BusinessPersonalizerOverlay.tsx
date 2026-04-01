@@ -53,7 +53,8 @@ export function BusinessPersonalizerOverlay({ visible, onDismiss }: Props) {
         <View style={styles.card}>
           <Text style={styles.title}>Personalize your experience</Text>
           <Text style={styles.sub}>
-            List on the map or connect payments when you&apos;re ready — or skip and stay personal.
+            Add your business to your profile (and the map) when you&apos;re ready — or connect payments, or skip
+            and stay personal.
           </Text>
           <Pressable
             style={styles.primary}
@@ -62,7 +63,7 @@ export function BusinessPersonalizerOverlay({ visible, onDismiss }: Props) {
               completeMutation.mutate({ step: 1, profileKind: "business_interest", navigate: "AddBusiness" })
             }
           >
-            <Text style={styles.primaryText}>Add business to map</Text>
+            <Text style={styles.primaryText}>Add business to profile</Text>
           </Pressable>
           <Pressable
             style={styles.secondary}

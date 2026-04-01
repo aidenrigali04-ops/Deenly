@@ -47,7 +47,9 @@ export function AddBusinessScreen({ navigation }: Props) {
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ["mobile-businesses-near"] });
       await queryClient.invalidateQueries({ queryKey: ["mobile-businesses-mine"] });
-      Alert.alert("Saved", "Your business is on the map.", [
+      await queryClient.invalidateQueries({ queryKey: ["mobile-account-profile"] });
+      await queryClient.invalidateQueries({ queryKey: ["mobile-feed-profile-me"] });
+      Alert.alert("Saved", "Your business is saved to your profile and on the map.", [
         { text: "OK", onPress: () => navigation.navigate("BusinessDetail", { id: data.id }) }
       ]);
     },
@@ -78,7 +80,10 @@ export function AddBusinessScreen({ navigation }: Props) {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Add your business</Text>
-      <Text style={styles.hint}>Name and map location are required. Other fields help neighbors find you.</Text>
+      <Text style={styles.hint}>
+        Name and map location are required. Description and website are also saved to your profile for search and
+        discovery.
+      </Text>
       <Text style={styles.label}>Name</Text>
       <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Business name" />
       <Text style={styles.label}>Description</Text>
@@ -110,7 +115,7 @@ export function AddBusinessScreen({ navigation }: Props) {
         disabled={!canSubmit}
         onPress={() => createMutation.mutate()}
       >
-        <Text style={styles.primaryText}>{createMutation.isPending ? "Saving…" : "Publish on map"}</Text>
+        <Text style={styles.primaryText}>{createMutation.isPending ? "Saving…" : "Save to profile & map"}</Text>
       </Pressable>
     </ScrollView>
   );
