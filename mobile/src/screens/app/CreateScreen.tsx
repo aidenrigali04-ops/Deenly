@@ -327,6 +327,14 @@ export function CreateScreen({ navigation }: Props) {
     <View style={styles.root}>
       <View style={[styles.headerBar, { paddingTop: insets.top + 10 }]}>
         <Text style={styles.headerTitle}>Create New Post</Text>
+        <Pressable
+          onPress={() => navigation.navigate("CreateProduct")}
+          style={styles.headerProductLink}
+          accessibilityRole="button"
+          accessibilityLabel="Add product without a post"
+        >
+          <Text style={styles.headerProductLinkText}>Add product</Text>
+        </Pressable>
       </View>
       <KeyboardAvoidingView
         style={styles.flex}
@@ -672,12 +680,25 @@ const styles = StyleSheet.create({
   headerBar: {
     backgroundColor: colors.createHeaderBar,
     paddingBottom: 14,
+    paddingHorizontal: 16,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "space-between",
+    gap: 12
   },
   headerTitle: {
     color: colors.text,
     fontSize: 17,
+    fontWeight: "700",
+    flexShrink: 1
+  },
+  headerProductLink: {
+    paddingVertical: 6,
+    paddingHorizontal: 4
+  },
+  headerProductLinkText: {
+    color: "#E8EAEF",
+    fontSize: 15,
     fontWeight: "700"
   },
   scrollContent: {

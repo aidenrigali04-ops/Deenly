@@ -1,5 +1,8 @@
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import {
   createAffiliateCode,
@@ -15,6 +18,7 @@ import {
 import { colors, radii } from "../../theme";
 
 export function CreatorEconomyScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const connectStatusQuery = useQuery({
     queryKey: ["mobile-creator-connect-status"],
     queryFn: () => fetchConnectStatus()
@@ -65,9 +69,12 @@ export function CreatorEconomyScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.lede}>
-        Payouts and a quick read on your catalog. Create or edit products and tiers on the web Creator hub when you need
-        full tools.
+        Payouts and a quick read on your catalog. Add products below; use the web Creator hub for bulk edits and tiers.
       </Text>
+
+      <Pressable style={styles.addProductBtn} onPress={() => navigation.navigate("CreateProduct")}>
+        <Text style={styles.addProductBtnText}>Add product</Text>
+      </Pressable>
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Payouts</Text>
@@ -178,6 +185,17 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 14,
     lineHeight: 20
+  },
+  addProductBtn: {
+    backgroundColor: colors.accent,
+    borderRadius: radii.control,
+    paddingVertical: 12,
+    alignItems: "center"
+  },
+  addProductBtnText: {
+    color: colors.onAccent,
+    fontSize: 16,
+    fontWeight: "700"
   },
   card: {
     backgroundColor: colors.card,

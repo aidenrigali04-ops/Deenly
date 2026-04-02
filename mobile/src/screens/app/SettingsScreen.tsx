@@ -101,6 +101,11 @@ export function SettingsScreen({ navigation }: Props) {
           }
           onPress={() => navigation.navigate("CreatorEconomy")}
         />
+        <SettingsRow
+          title="Add product"
+          subtitle="Create a listing without attaching a post"
+          onPress={() => navigation.navigate("CreateProduct")}
+        />
       </SettingsSection>
 
       <View style={styles.igCard}>

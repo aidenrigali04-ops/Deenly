@@ -33,6 +33,7 @@ import { DhikrScreen } from "../screens/app/DhikrScreen";
 import { QuranReaderScreen } from "../screens/app/QuranReaderScreen";
 import { SalahSettingsScreen } from "../screens/app/SalahSettingsScreen";
 import { CreatorEconomyScreen } from "../screens/app/CreatorEconomyScreen";
+import { CreateProductScreen } from "../screens/app/CreateProductScreen";
 import { ReelsScreen } from "../screens/app/ReelsScreen";
 import { NotificationsScreen } from "../screens/app/NotificationsScreen";
 import { AddBusinessScreen } from "../screens/app/AddBusinessScreen";
@@ -76,6 +77,7 @@ export type RootStackParamList = {
   QuranReader: undefined;
   SalahSettings: undefined;
   CreatorEconomy: undefined;
+  CreateProduct: undefined;
   Reels: undefined;
   Notifications: undefined;
   AddBusiness: undefined;
@@ -275,6 +277,7 @@ export function AppNavigator() {
               <RootStack.Screen name="QuranReader" component={QuranReaderScreen} options={{ title: "Quran Reader" }} />
               <RootStack.Screen name="SalahSettings" component={SalahSettingsScreen} options={{ title: "Salah Settings" }} />
               <RootStack.Screen name="CreatorEconomy" component={CreatorEconomyScreen} options={{ title: "Creator hub" }} />
+              <RootStack.Screen name="CreateProduct" component={CreateProductScreen} options={{ title: "Add product" }} />
               <RootStack.Screen name="AddBusiness" component={AddBusinessScreen} options={{ title: "Add business" }} />
               <RootStack.Screen name="BusinessDetail" component={BusinessDetailScreen} options={{ title: "Business" }} />
               <RootStack.Screen

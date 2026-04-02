@@ -74,17 +74,52 @@ export async function fetchSubscriptionAccess(creatorUserId: number) {
   );
 }
 
+export type MonetizationBoostTier = "standard" | "boosted" | "aggressive";
+
+export type CreatorProductRow = {
+  id: number;
+  creator_user_id: number;
+  title: string;
+  description: string | null;
+  price_minor: number;
+  currency: string;
+  product_type: "digital" | "service" | "subscription";
+  status: "draft" | "published" | "archived";
+  platform_fee_bps: number;
+  boost_tier?: string | null;
+};
+
 export async function fetchMyProducts() {
-  return apiRequest<{
-    items: Array<{
-      id: number;
-      title: string;
-      product_type: "digital" | "service" | "subscription";
-      website_url?: string | null;
-      platform_fee_bps: number;
-      boost_tier?: string | null;
-    }>;
-  }>("/monetization/products/me", { auth: true });
+  return apiRequest<{ items: CreatorProductRow[] }>("/monetization/products/me", { auth: true });
+}
+
+export async function createProduct(input: {
+  title: string;
+  description?: string;
+  priceMinor: number;
+  currency?: string;
+  productType: "digital" | "service" | "subscription";
+  deliveryMediaKey?: string;
+  serviceDetails?: string;
+  deliveryMethod?: string;
+  websiteUrl?: string;
+  audienceTarget?: "b2b" | "b2c" | "both";
+  businessCategory?: string;
+  boostTier?: MonetizationBoostTier;
+}) {
+  return apiRequest<CreatorProductRow>("/monetization/products", {
+    method: "POST",
+    auth: true,
+    body: { ...input, currency: input.currency || "usd" }
+  });
+}
+
+export async function publishProduct(productId: number) {
+  return apiRequest<CreatorProductRow>(`/monetization/products/${productId}/publish`, {
+    method: "POST",
+    auth: true,
+    body: {}
+  });
 }
 
 export async function attachProductToPost(postId: number, productId: number) {
