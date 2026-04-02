@@ -116,3 +116,17 @@ export function IconPlaySmall({ color, size }: IconProps) {
     </Svg>
   );
 }
+
+export function IconShoppingBag({ color, size }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M6 8h12l-1 12H7L6 8zM9 8V6a3 3 0 0 1 6 0v2"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}

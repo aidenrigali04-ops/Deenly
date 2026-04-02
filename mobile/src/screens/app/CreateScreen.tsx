@@ -18,10 +18,11 @@ import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { CompositeScreenProps } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { ApiError, apiRequest } from "../../lib/api";
+import { assistPostText } from "../../lib/ai-assist";
 import { fetchSessionMe } from "../../lib/auth";
-import { attachProductToPost, fetchMyProducts } from "../../lib/monetization";
+import { attachProductToPost, fetchMyProducts, type CreatorProductRow } from "../../lib/monetization";
 import { fetchInstagramStatus, requestInstagramCrossPost } from "../../lib/instagram";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { colors } from "../../theme";
 import { resolveMediaUrl } from "../../lib/media-url";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
@@ -51,7 +52,48 @@ function SectionTitle({ children }: { children: string }) {
   return <Text style={styles.sectionTitle}>{children}</Text>;
 }
 
+function applyCatalogProductToPromoteForm(
+  row: CreatorProductRow,
+  set: {
+    setProductType: (v: "digital" | "service" | "subscription") => void;
+    setPriceMinor: (v: string) => void;
+    setProductTitle: (v: string) => void;
+    setProductDescription: (v: string) => void;
+    setServiceDetails: (v: string) => void;
+    setServiceKeyPoints: (v: string) => void;
+    setDeliveryMethod: (v: string) => void;
+    setWebsiteUrl: (v: string) => void;
+    setAudienceTarget: (v: "b2b" | "b2c" | "both") => void;
+    setBusinessCategory: (v: string) => void;
+    setProductFile: (v: DocumentPicker.DocumentPickerAsset | null) => void;
+    setServiceAssistErr: (v: string) => void;
+  }
+) {
+  const pt = row.product_type;
+  if (pt === "digital" || pt === "service" || pt === "subscription") {
+    set.setProductType(pt);
+  }
+  set.setPriceMinor(String(Number(row.price_minor) > 0 ? row.price_minor : ""));
+  set.setProductTitle((row.title || "").trim());
+  set.setProductDescription((row.description || "").trim());
+  set.setServiceDetails((row.service_details || "").trim());
+  set.setServiceKeyPoints("");
+  set.setDeliveryMethod((row.delivery_method || "").trim());
+  const site = (row.website_url || "").trim();
+  set.setWebsiteUrl(site);
+  const at = row.audience_target;
+  if (at === "b2b" || at === "b2c" || at === "both") {
+    set.setAudienceTarget(at);
+  } else {
+    set.setAudienceTarget("both");
+  }
+  set.setBusinessCategory((row.business_category || "").trim());
+  set.setProductFile(null);
+  set.setServiceAssistErr("");
+}
+
 export function CreateScreen({ navigation }: Props) {
+  const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
   const [postType, setPostType] = useState<"post" | "marketplace" | "reel">("post");
   const [content, setContent] = useState("");
@@ -67,12 +109,13 @@ export function CreateScreen({ navigation }: Props) {
   const [productTitle, setProductTitle] = useState("");
   const [productDescription, setProductDescription] = useState("");
   const [serviceDetails, setServiceDetails] = useState("");
+  const [serviceKeyPoints, setServiceKeyPoints] = useState("");
+  const [serviceAssistBusy, setServiceAssistBusy] = useState(false);
+  const [serviceAssistErr, setServiceAssistErr] = useState("");
   const [deliveryMethod, setDeliveryMethod] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [audienceTarget, setAudienceTarget] = useState<"b2b" | "b2c" | "both">("both");
   const [businessCategory, setBusinessCategory] = useState("");
-  const [ctaLabel, setCtaLabel] = useState("");
-  const [ctaUrl, setCtaUrl] = useState("");
   const [crossPostToInstagram, setCrossPostToInstagram] = useState(false);
 
   const sessionQuery = useQuery({
@@ -119,7 +162,7 @@ export function CreateScreen({ navigation }: Props) {
 
   const myProductsQuery = useQuery({
     queryKey: ["mobile-create-my-products"],
-    queryFn: () => fetchMyProducts()
+    queryFn: () => fetchMyProducts({ limit: 50 })
   });
   const instagramQuery = useQuery({
     queryKey: ["mobile-instagram-status"],
@@ -160,6 +203,33 @@ export function CreateScreen({ navigation }: Props) {
     }
   };
 
+  const generateServiceDescriptionForSell = async () => {
+    const k = serviceKeyPoints.trim();
+    if (k.length < 5) {
+      setServiceAssistErr("Add key points (bullets or short notes).");
+      return;
+    }
+    setServiceAssistErr("");
+    setServiceAssistBusy(true);
+    try {
+      const lines = [
+        productTitle.trim() ? `Product title: ${productTitle.trim()}` : null,
+        `Product type: ${productType}`,
+        "",
+        "Key points from creator:",
+        k
+      ]
+        .filter(Boolean)
+        .join("\n");
+      const res = await assistPostText(lines, "service_details_generate");
+      setServiceDetails(res.suggestion);
+    } catch (e) {
+      setServiceAssistErr(e instanceof ApiError ? e.message : "Could not generate.");
+    } finally {
+      setServiceAssistBusy(false);
+    }
+  };
+
   const createPost = async () => {
     setIsSubmitting(true);
     setError("");
@@ -178,8 +248,10 @@ export function CreateScreen({ navigation }: Props) {
         throw new Error("Attach image or video to cross-post to Instagram.");
       }
 
+      const inlineSellThisProduct = Boolean(sellThis && selectedProductId == null);
+
       let deliveryMediaKey: string | undefined;
-      if (sellThis && productType === "digital") {
+      if (inlineSellThisProduct && productType === "digital") {
         if (!productFile) {
           throw new Error("Select a delivery file for digital product.");
         }
@@ -221,18 +293,17 @@ export function CreateScreen({ navigation }: Props) {
             .map((tag) => tag.trim())
             .filter(Boolean),
           isBusinessPost: sellThis,
-          ctaLabel: sellThis && ctaLabel.trim() ? ctaLabel.trim() : undefined,
-          ctaUrl: sellThis && ctaUrl.trim() ? ctaUrl.trim() : undefined,
-          sellThis,
+          sellThis: inlineSellThisProduct,
           audienceTarget: sellThis ? audienceTarget : "both",
           businessCategory: sellThis && businessCategory ? businessCategory : undefined,
           productType,
-          priceMinor: sellThis ? Number(priceMinor) : undefined,
-          productTitle: sellThis && productTitle.trim() ? productTitle.trim() : undefined,
-          productDescription: sellThis && productDescription.trim() ? productDescription.trim() : undefined,
-          serviceDetails: sellThis && serviceDetails.trim() ? serviceDetails.trim() : undefined,
-          deliveryMethod: sellThis && deliveryMethod.trim() ? deliveryMethod.trim() : undefined,
-          websiteUrl: sellThis && websiteUrl.trim() ? websiteUrl.trim() : undefined,
+          priceMinor: inlineSellThisProduct ? Number(priceMinor) : undefined,
+          productTitle: inlineSellThisProduct && productTitle.trim() ? productTitle.trim() : undefined,
+          productDescription:
+            inlineSellThisProduct && productDescription.trim() ? productDescription.trim() : undefined,
+          serviceDetails: inlineSellThisProduct && serviceDetails.trim() ? serviceDetails.trim() : undefined,
+          deliveryMethod: inlineSellThisProduct && deliveryMethod.trim() ? deliveryMethod.trim() : undefined,
+          websiteUrl: inlineSellThisProduct && websiteUrl.trim() ? websiteUrl.trim() : undefined,
           deliveryMediaKey,
           ...(postType === "reel" && selectedFile
             ? { mediaMimeType: selectedFile.mimeType || "video/mp4" }
@@ -296,6 +367,16 @@ export function CreateScreen({ navigation }: Props) {
         await attachProductToPost(post.id, selectedProductId);
       }
 
+      await queryClient.invalidateQueries({ queryKey: ["mobile-feed"] });
+      await queryClient.invalidateQueries({ queryKey: ["mobile-feed-reels"] });
+      await queryClient.invalidateQueries({ queryKey: ["mobile-creator-products"] });
+      await queryClient.invalidateQueries({ queryKey: ["mobile-creator-catalog"] });
+      const meId = sessionQuery.data?.id;
+      if (meId) {
+        await queryClient.invalidateQueries({ queryKey: ["mobile-user-posts", meId] });
+        await queryClient.invalidateQueries({ queryKey: ["mobile-account-posts", meId] });
+      }
+
       setContent("");
       setTagsInput("");
       setSelectedFile(null);
@@ -307,12 +388,12 @@ export function CreateScreen({ navigation }: Props) {
       setProductTitle("");
       setProductDescription("");
       setServiceDetails("");
+      setServiceKeyPoints("");
+      setServiceAssistErr("");
       setDeliveryMethod("");
       setWebsiteUrl("");
       setAudienceTarget("both");
       setBusinessCategory("");
-      setCtaLabel("");
-      setCtaUrl("");
       setCrossPostToInstagram(false);
       navigation.navigate("PostDetail", { id: post.id });
     } catch (err) {
@@ -427,6 +508,87 @@ export function CreateScreen({ navigation }: Props) {
                 </View>
                 {sellThis ? (
               <View style={styles.promoteFields}>
+                {(myProductsQuery.data?.items || []).length > 0 ? (
+                  <>
+                    <SectionTitle>Attach catalog product</SectionTitle>
+                    <Text style={styles.helperLight}>
+                      Choose a listing first — we fill pricing, type, audience, offer copy, and delivery from that
+                      product. No duplicate product is created when you attach.
+                    </Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.attachChipsScrollContent}
+                      style={styles.attachChipsScroll}
+                    >
+                      {(myProductsQuery.data?.items || []).map((item) => {
+                        const productId = Number(item.id);
+                        if (!productId) {
+                          return null;
+                        }
+                        return (
+                          <Pressable
+                            key={productId}
+                            onPress={() => {
+                              setSelectedProductId(productId);
+                              applyCatalogProductToPromoteForm(item, {
+                                setProductType,
+                                setPriceMinor,
+                                setProductTitle,
+                                setProductDescription,
+                                setServiceDetails,
+                                setServiceKeyPoints,
+                                setDeliveryMethod,
+                                setWebsiteUrl,
+                                setAudienceTarget,
+                                setBusinessCategory,
+                                setProductFile,
+                                setServiceAssistErr
+                              });
+                            }}
+                            style={[
+                              styles.chipLight,
+                              selectedProductId === productId ? styles.chipLightActive : null
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.chipLightText,
+                                selectedProductId === productId ? styles.chipLightTextActive : null
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {item.title || `Product ${productId}`}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </ScrollView>
+                    {selectedProductId ? (
+                      <Pressable
+                        onPress={() => {
+                          setSelectedProductId(null);
+                          setProductType("digital");
+                          setPriceMinor("");
+                          setProductTitle("");
+                          setProductDescription("");
+                          setServiceDetails("");
+                          setServiceKeyPoints("");
+                          setDeliveryMethod("");
+                          setWebsiteUrl("");
+                          setAudienceTarget("both");
+                          setBusinessCategory("");
+                          setProductFile(null);
+                          setServiceAssistErr("");
+                        }}
+                        style={styles.buttonSecondaryLight}
+                      >
+                        <Text style={styles.buttonSecondaryLightText}>Clear attached product</Text>
+                      </Pressable>
+                    ) : null}
+                    <View style={styles.dividerThin} />
+                  </>
+                ) : null}
                 <SectionTitle>Pricing and type</SectionTitle>
                 <TextInput
                   style={styles.inputComposerSingle}
@@ -528,25 +690,57 @@ export function CreateScreen({ navigation }: Props) {
                 <SectionTitle>Delivery</SectionTitle>
                 {productType === "digital" ? (
                   <View style={styles.fileRow}>
-                    <Pressable style={styles.buttonSecondaryLight} onPress={pickProductFile}>
-                      <Text style={styles.buttonSecondaryLightText}>Upload delivery file</Text>
-                    </Pressable>
-                    {productFile ? (
-                      <Text style={styles.mutedLight} numberOfLines={1}>
-                        {productFile.name}
+                    {selectedProductId ? (
+                      <Text style={styles.mutedLight}>
+                        Delivery media is stored on the attached catalog product — no upload needed for this post.
                       </Text>
-                    ) : null}
+                    ) : (
+                      <>
+                        <Pressable style={styles.buttonSecondaryLight} onPress={pickProductFile}>
+                          <Text style={styles.buttonSecondaryLightText}>Upload delivery file</Text>
+                        </Pressable>
+                        {productFile ? (
+                          <Text style={styles.mutedLight} numberOfLines={1}>
+                            {productFile.name}
+                          </Text>
+                        ) : null}
+                      </>
+                    )}
                   </View>
                 ) : (
-                  <TextInput
-                    style={styles.inputComposer}
-                    multiline
-                    placeholder="Service details"
-                    placeholderTextColor={colors.composerMuted}
-                    value={serviceDetails}
-                    onChangeText={setServiceDetails}
-                    textAlignVertical="top"
-                  />
+                  <View style={{ gap: 8 }}>
+                    <TextInput
+                      style={styles.inputComposer}
+                      multiline
+                      placeholder="Key points — what you offer, who it is for…"
+                      placeholderTextColor={colors.composerMuted}
+                      value={serviceKeyPoints}
+                      onChangeText={setServiceKeyPoints}
+                      textAlignVertical="top"
+                    />
+                    <Pressable
+                      style={[styles.buttonSecondaryLight, serviceAssistBusy && { opacity: 0.6 }]}
+                      onPress={() => void generateServiceDescriptionForSell()}
+                      disabled={serviceAssistBusy}
+                    >
+                      <Text style={styles.buttonSecondaryLightText}>
+                        {serviceAssistBusy ? "Generating…" : "Generate with AI"}
+                      </Text>
+                    </Pressable>
+                    {serviceAssistErr ? (
+                      <Text style={[styles.mutedLight, { color: colors.danger }]}>{serviceAssistErr}</Text>
+                    ) : null}
+                    <Text style={styles.helperLight}>Edit the generated text below before posting.</Text>
+                    <TextInput
+                      style={styles.inputComposer}
+                      multiline
+                      placeholder="Service description & value proposition"
+                      placeholderTextColor={colors.composerMuted}
+                      value={serviceDetails}
+                      onChangeText={setServiceDetails}
+                      textAlignVertical="top"
+                    />
+                  </View>
                 )}
                 <TextInput
                   style={styles.inputComposerSingle}
@@ -563,24 +757,6 @@ export function CreateScreen({ navigation }: Props) {
                   onChangeText={setWebsiteUrl}
                   autoCapitalize="none"
                 />
-                <SectionTitle>Call to action</SectionTitle>
-                <TextInput
-                  style={styles.inputComposerSingle}
-                  placeholder="CTA label"
-                  placeholderTextColor={colors.composerMuted}
-                  value={ctaLabel}
-                  onChangeText={setCtaLabel}
-                  maxLength={80}
-                />
-                <TextInput
-                  style={styles.inputComposerSingle}
-                  placeholder="CTA URL (https://...)"
-                  placeholderTextColor={colors.composerMuted}
-                  value={ctaUrl}
-                  onChangeText={setCtaUrl}
-                  autoCapitalize="none"
-                />
-                <Text style={styles.helperLight}>Add both CTA fields or leave both empty.</Text>
               </View>
             ) : null}
               </>
@@ -629,13 +805,12 @@ export function CreateScreen({ navigation }: Props) {
                 <Text style={styles.muted}>Runs after upload; needs public HTTPS media.</Text>
               )}
             </View>
-            {(myProductsQuery.data?.items || []).length ? (
+            {!sellThis && (myProductsQuery.data?.items || []).length > 0 ? (
               <View style={styles.fileRow}>
                 <Text style={styles.muted}>Attach product (optional)</Text>
                 <View style={styles.typeRowWrap}>
-                  {myProductsQuery.data?.items.slice(0, 4).map((item) => {
-                    const product = item as { id?: number; title?: string };
-                    const productId = Number(product.id || 0);
+                  {(myProductsQuery.data?.items || []).slice(0, 8).map((item) => {
+                    const productId = Number(item.id);
                     if (!productId) {
                       return null;
                     }
@@ -645,7 +820,7 @@ export function CreateScreen({ navigation }: Props) {
                         onPress={() => setSelectedProductId(productId)}
                         style={[styles.chip, selectedProductId === productId ? styles.chipActive : null]}
                       >
-                        <Text style={styles.chipText}>{product.title || `Product ${productId}`}</Text>
+                        <Text style={styles.chipText}>{item.title || `Product ${productId}`}</Text>
                       </Pressable>
                     );
                   })}
@@ -786,6 +961,19 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth,
     backgroundColor: colors.composerBorder,
     marginVertical: 4
+  },
+  dividerThin: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.composerBorder,
+    marginVertical: 10
+  },
+  attachChipsScroll: { maxHeight: 48, marginBottom: 2 },
+  attachChipsScrollContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 4,
+    paddingRight: 8
   },
   promoteRow: {
     flexDirection: "row",

@@ -94,10 +94,55 @@ export type CreatorProductRow = {
   status: "draft" | "published" | "archived";
   platform_fee_bps: number;
   boost_tier?: string | null;
+  business_category?: string | null;
+  audience_target?: string | null;
+  service_details?: string | null;
+  delivery_method?: string | null;
+  website_url?: string | null;
+  delivery_media_key?: string | null;
 };
 
-export async function fetchMyProducts() {
-  return apiRequest<{ items: CreatorProductRow[] }>("/monetization/products/me", { auth: true });
+export type CatalogProductRow = {
+  id: number;
+  creator_user_id: number;
+  title: string;
+  description: string | null;
+  price_minor: number;
+  currency: string;
+  product_type: "digital" | "service" | "subscription";
+  service_details: string | null;
+  delivery_method: string | null;
+  website_url: string | null;
+  audience_target: string | null;
+  business_category: string | null;
+  platform_fee_bps: number;
+  boost_tier: string | null;
+  status: "published";
+  created_at: string;
+  updated_at: string;
+  creator_username: string | null;
+  creator_display_name: string | null;
+  creator_avatar_url: string | null;
+};
+
+export async function fetchMyProducts(params?: { limit?: number; offset?: number }) {
+  const qs = new URLSearchParams();
+  if (params?.limit != null) {
+    qs.set("limit", String(params.limit));
+  }
+  if (params?.offset != null) {
+    qs.set("offset", String(params.offset));
+  }
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiRequest<{ items: CreatorProductRow[] }>(`/monetization/products/me${suffix}`, { auth: true });
+}
+
+export async function fetchCreatorProducts(creatorUserId: number) {
+  return apiRequest<{ items: CreatorProductRow[] }>(`/monetization/products/creator/${creatorUserId}`);
+}
+
+export async function fetchCatalogProduct(productId: number) {
+  return apiRequest<CatalogProductRow>(`/monetization/catalog/products/${productId}`);
 }
 
 export type ProductImportDraft = {
@@ -172,6 +217,53 @@ export async function createProduct(input: {
   });
 }
 
+/** Full row as returned by GET /products/:id (snake_case from API). */
+export type CreatorProductDetail = {
+  id: number;
+  title: string;
+  description: string | null;
+  price_minor: number;
+  currency: string;
+  product_type: "digital" | "service" | "subscription";
+  status: "draft" | "published" | "archived";
+  delivery_media_key: string | null;
+  service_details: string | null;
+  delivery_method: string | null;
+  website_url: string | null;
+  audience_target: string | null;
+  business_category: string | null;
+  boost_tier: string | null;
+};
+
+export async function fetchMyProductById(productId: number) {
+  return apiRequest<CreatorProductDetail>(`/monetization/products/${productId}`, { auth: true });
+}
+
+export async function patchProduct(
+  productId: number,
+  input: {
+    title?: string;
+    description?: string;
+    priceMinor?: number;
+    currency?: string;
+    productType?: "digital" | "service" | "subscription";
+    deliveryMediaKey?: string | null;
+    serviceDetails?: string;
+    deliveryMethod?: string;
+    websiteUrl?: string;
+    audienceTarget?: "b2b" | "b2c" | "both";
+    businessCategory?: string;
+    boostTier?: MonetizationBoostTier;
+    status?: "draft" | "published" | "archived";
+  }
+) {
+  return apiRequest<CreatorProductRow>(`/monetization/products/${productId}`, {
+    method: "PATCH",
+    auth: true,
+    body: input
+  });
+}
+
 export async function publishProduct(productId: number) {
   return apiRequest<CreatorProductRow>(`/monetization/products/${productId}/publish`, {
     method: "POST",
@@ -197,6 +289,33 @@ export async function fetchMyEarnings() {
     "/monetization/earnings/me",
     { auth: true }
   );
+}
+
+export type MyPurchaseRow = {
+  order_id: number;
+  kind: string;
+  status: string;
+  amount_minor: number;
+  currency: string;
+  created_at: string;
+  seller_username: string;
+  seller_display_name: string | null;
+  product_id: number | null;
+  product_title: string | null;
+  product_type: string | null;
+  tier_title: string | null;
+};
+
+export async function fetchMyPurchases(params?: { limit?: number; offset?: number }) {
+  const qs = new URLSearchParams();
+  if (params?.limit != null) {
+    qs.set("limit", String(params.limit));
+  }
+  if (params?.offset != null) {
+    qs.set("offset", String(params.offset));
+  }
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiRequest<{ items: MyPurchaseRow[] }>(`/monetization/purchases/me${suffix}`, { auth: true });
 }
 
 export async function fetchAffiliateCodes() {

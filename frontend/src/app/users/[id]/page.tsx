@@ -460,41 +460,45 @@ export default function UserProfilePage() {
                                     loginNextEncoded={loginNext}
                                   />
                                 </div>
-                                <div className="shrink-0">
-                                  {isOwner ? (
+                                <div className="flex shrink-0 flex-col gap-2 sm:items-end">
+                                  <div className="flex flex-wrap gap-2">
                                     <Link
-                                      href="/account/creator?tab=products"
+                                      href={`/products/${product.id}#offer-details`}
                                       className="btn-secondary inline-flex px-3 py-1.5 text-xs"
                                     >
-                                      Manage in Creator hub
-                                    </Link>
-                                  ) : !sessionUser ? (
-                                    <Link
-                                      href={`/auth/login?next=${loginNext}`}
-                                      className="btn-primary inline-flex px-3 py-1.5 text-xs"
-                                    >
-                                      Log in to buy
-                                    </Link>
-                                  ) : product.product_type !== "digital" && product.website_url ? (
-                                    <button
-                                      type="button"
-                                      className="btn-secondary px-3 py-1.5 text-xs"
-                                      onClick={() =>
-                                        window.open(product.website_url || "", "_blank", "noopener,noreferrer")
-                                      }
-                                    >
                                       View offer
-                                    </button>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      className="btn-primary px-3 py-1.5 text-xs"
-                                      disabled={productCheckoutMutation.isPending}
-                                      onClick={() => productCheckoutMutation.mutate(product.id)}
-                                    >
-                                      {productCheckoutMutation.isPending ? "Opening..." : "Buy"}
-                                    </button>
-                                  )}
+                                    </Link>
+                                    {isOwner ? (
+                                      <Link
+                                        href="/account/creator?tab=products"
+                                        className="btn-secondary inline-flex px-3 py-1.5 text-xs"
+                                      >
+                                        Manage
+                                      </Link>
+                                    ) : !sessionUser ? (
+                                      <Link
+                                        href={`/auth/login?next=${encodeURIComponent(`/products/${product.id}`)}`}
+                                        className="btn-primary inline-flex px-3 py-1.5 text-xs"
+                                      >
+                                        Buy now
+                                      </Link>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        className="btn-primary px-3 py-1.5 text-xs"
+                                        disabled={
+                                          productCheckoutMutation.isPending &&
+                                          productCheckoutMutation.variables === product.id
+                                        }
+                                        onClick={() => productCheckoutMutation.mutate(product.id)}
+                                      >
+                                        {productCheckoutMutation.isPending &&
+                                        productCheckoutMutation.variables === product.id
+                                          ? "Opening..."
+                                          : "Buy now"}
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             </li>

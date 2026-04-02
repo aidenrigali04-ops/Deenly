@@ -1,17 +1,29 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { colors, radii } from "../theme";
+import { colors, radii, shadows } from "../theme";
 
 type SettingsRowProps = {
   title: string;
   subtitle?: string;
   onPress: () => void;
   accessibilityLabel?: string;
+  /** Emphasize as a destructive action (e.g. log out). */
+  destructive?: boolean;
+  /** Hide trailing chevron when the action is not a drill-in. */
+  showChevron?: boolean;
   /** @internal set by SettingsSection for last row */
   isLast?: boolean;
 };
 
-export function SettingsRow({ title, subtitle, onPress, accessibilityLabel, isLast }: SettingsRowProps) {
+export function SettingsRow({
+  title,
+  subtitle,
+  onPress,
+  accessibilityLabel,
+  destructive,
+  showChevron = true,
+  isLast
+}: SettingsRowProps) {
   return (
     <Pressable
       onPress={onPress}
@@ -20,18 +32,22 @@ export function SettingsRow({ title, subtitle, onPress, accessibilityLabel, isLa
       accessibilityLabel={accessibilityLabel ?? title}
     >
       <View style={styles.rowText}>
-        <Text style={styles.rowTitle}>{title}</Text>
+        <Text style={[styles.rowTitle, destructive && styles.rowTitleDestructive]}>{title}</Text>
         {subtitle ? <Text style={styles.rowSubtitle}>{subtitle}</Text> : null}
       </View>
-      <Text style={styles.chevron} accessibilityElementsHidden>
-        ›
-      </Text>
+      {showChevron ? (
+        <Text style={styles.chevron} accessibilityElementsHidden>
+          →
+        </Text>
+      ) : (
+        <View style={styles.chevronSpacer} />
+      )}
     </Pressable>
   );
 }
 
 type SettingsSectionProps = {
-  title: string;
+  title?: string;
   children: React.ReactNode;
 };
 
@@ -39,8 +55,8 @@ export function SettingsSection({ title, children }: SettingsSectionProps) {
   const items = React.Children.toArray(children).filter(Boolean);
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.card}>
+      {title ? <Text style={styles.sectionTitle}>{title}</Text> : null}
+      <View style={[styles.card, shadows.card]}>
         {React.Children.map(items, (child, index) => {
           if (!React.isValidElement(child)) {
             return child;
@@ -61,17 +77,18 @@ const styles = StyleSheet.create({
     gap: 8
   },
   sectionTitle: {
-    fontSize: 12,
-    fontWeight: "700",
+    fontSize: 11,
+    fontWeight: "600",
     color: colors.muted,
     textTransform: "uppercase",
-    letterSpacing: 0.6,
-    marginLeft: 4
+    letterSpacing: 1,
+    marginLeft: 2,
+    marginBottom: 2
   },
   card: {
     borderRadius: radii.panel,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderColor: colors.borderSubtle,
     backgroundColor: colors.card,
     overflow: "hidden"
   },
@@ -79,34 +96,43 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    minHeight: 48
+    paddingVertical: 15,
+    paddingHorizontal: 18,
+    minHeight: 52
   },
   rowBorder: {
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border
+    borderBottomColor: colors.borderSubtle
   },
   rowPressed: {
-    backgroundColor: colors.surface
+    backgroundColor: colors.subtleFill
   },
   rowText: {
     flex: 1,
-    paddingRight: 12,
-    gap: 2
+    paddingRight: 14,
+    gap: 3
   },
   rowTitle: {
     fontSize: 16,
-    fontWeight: "600",
-    color: colors.text
+    fontWeight: "500",
+    color: colors.text,
+    letterSpacing: -0.2
+  },
+  rowTitleDestructive: {
+    color: colors.danger,
+    fontWeight: "600"
   },
   rowSubtitle: {
     fontSize: 13,
-    color: colors.muted
+    color: colors.muted,
+    lineHeight: 18,
+    letterSpacing: -0.1
   },
   chevron: {
-    fontSize: 22,
+    fontSize: 15,
     color: colors.muted,
-    fontWeight: "300"
-  }
+    fontWeight: "400",
+    marginTop: 1
+  },
+  chevronSpacer: { width: 16 }
 });

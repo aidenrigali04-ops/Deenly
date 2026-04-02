@@ -1,3 +1,5 @@
+import { Platform } from "react-native";
+
 /**
  * Main app palette — matches [frontend/tailwind.config.ts] (light shell).
  * Use `onAccent` for text/icons on black primary buttons.
@@ -7,6 +9,8 @@ export const colors = {
   surface: "#ffffff",
   card: "#ffffff",
   border: "rgba(0, 0, 0, 0.1)",
+  /** Hairlines inside grouped lists (SaaS-style separators) */
+  borderSubtle: "rgba(0, 0, 0, 0.06)",
   text: "#111111",
   muted: "#6b7280",
   accent: "#000000",
@@ -28,9 +32,30 @@ export const colors = {
 
 /** Radii aligned with web `rounded-panel` / `rounded-control` / `rounded-pill`. */
 export const radii = {
-  panel: 20,
-  control: 14,
+  panel: 16,
+  control: 12,
   pill: 999
+};
+
+/** Soft elevation for cards (settings, summaries). */
+export const shadows = {
+  card: Platform.select({
+    ios: {
+      shadowColor: "#0f172a",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 10
+    },
+    android: { elevation: 2 },
+    default: {}
+  })
+};
+
+/** Consistent screen gutters. */
+export const spacing = {
+  screenHorizontal: 20,
+  screenBottom: 40,
+  sectionGap: 24
 };
 
 /** Light auth screens — same tokens as main app; kept for explicit Login/Signup imports. */

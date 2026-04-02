@@ -18,6 +18,7 @@ import { CompositeScreenProps } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { fetchSessionMe } from "../../lib/auth";
 import { apiRequest } from "../../lib/api";
+import { fetchMyProducts, formatMinorCurrency } from "../../lib/monetization";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { colors, radii } from "../../theme";
 import type { FeedItem } from "../../types";
@@ -26,13 +27,13 @@ import { resolveMediaUrl } from "../../lib/media-url";
 import {
   IconCamera,
   IconChevronDown,
-  IconFilm,
   IconGrid,
   IconImages,
   IconLink,
   IconMenu,
   IconPlaySmall,
-  IconPlus
+  IconPlus,
+  IconShoppingBag
 } from "../../components/profile-ui-icons";
 
 type Props = CompositeScreenProps<
@@ -51,7 +52,7 @@ function normalizeWebsiteUrl(raw: string) {
 export function ProfileScreen({ navigation }: Props) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState<"posts" | "media">("posts");
+  const [activeTab, setActiveTab] = useState<"posts" | "products">("posts");
   const [avatarUploading, setAvatarUploading] = useState(false);
   const queryClient = useQueryClient();
   const sessionQuery = useQuery({
@@ -84,9 +85,20 @@ export function ProfileScreen({ navigation }: Props) {
       }),
     enabled: Boolean(sessionQuery.data?.id)
   });
+  const businessesMineQuery = useQuery({
+    queryKey: ["mobile-businesses-mine"],
+    queryFn: () => apiRequest<{ items: { id: number }[] }>("/businesses/mine", { auth: true }),
+    enabled: Boolean(sessionQuery.data?.id)
+  });
+  const productsQuery = useQuery({
+    queryKey: ["mobile-creator-products"],
+    queryFn: () => fetchMyProducts(),
+    enabled: Boolean(sessionQuery.data?.id)
+  });
 
   const items = postsQuery.data?.items || [];
-  const visibleItems = activeTab === "media" ? items.filter((item) => Boolean(item.media_url)) : items;
+  const productItems = productsQuery.data?.items || [];
+  const hasBusinessListing = (businessesMineQuery.data?.items?.length ?? 0) > 0;
   const avatarUri = resolveMediaUrl(profileQuery.data?.avatar_url);
   const tileSize = Math.floor((width - 2) / 3);
   const p = profileQuery.data;
@@ -257,39 +269,30 @@ export function ProfileScreen({ navigation }: Props) {
             </View>
 
             <View style={styles.insightsCard}>
-              <Text style={styles.insightsTitle}>On Deenly</Text>
+              <Text style={styles.insightsTitle}>Engagement</Text>
               <Text style={styles.insightsSub}>
-                {p.likes_received_count} hearts from the community · {p.likes_given_count} you have given
+                {p.likes_received_count} received · {p.likes_given_count} given
               </Text>
             </View>
 
             <View style={styles.ctaRow}>
               <Pressable
-                style={[styles.ctaButton, styles.ctaButtonFlex]}
-                onPress={() => navigation.navigate("Settings")}
+                style={[styles.ctaButton, styles.ctaButtonPrimary, styles.ctaButtonFlex]}
+                onPress={() => navigation.navigate("EditProfile")}
               >
-                <Text style={styles.ctaButtonText}>Edit profile</Text>
+                <Text style={styles.ctaButtonPrimaryText}>Edit profile</Text>
               </Pressable>
-              <Pressable style={[styles.ctaButton, styles.ctaButtonFlex]} onPress={shareProfile}>
-                <Text style={styles.ctaButtonText}>Share profile</Text>
+              <Pressable style={[styles.ctaButton, styles.ctaButtonOutline, styles.ctaButtonFlex]} onPress={shareProfile}>
+                <Text style={styles.ctaButtonOutlineText}>Share</Text>
               </Pressable>
             </View>
 
-            <Pressable style={styles.addBusinessBtn} onPress={() => navigation.navigate("AddBusiness")}>
-              <Text style={styles.addBusinessText}>Add your business</Text>
-            </Pressable>
+            {!hasBusinessListing ? (
+              <Pressable style={styles.addBusinessBtn} onPress={() => navigation.navigate("AddBusiness")}>
+                <Text style={styles.addBusinessText}>List your business</Text>
+              </Pressable>
+            ) : null}
 
-            <Pressable style={styles.addBusinessBtn} onPress={() => navigation.navigate("CreatorEconomy")}>
-              <Text style={styles.addBusinessText}>Creator hub</Text>
-            </Pressable>
-
-            <Pressable style={styles.addBusinessBtn} onPress={() => navigation.navigate("CreateProduct")}>
-              <Text style={styles.addBusinessText}>Add product</Text>
-            </Pressable>
-
-            <Pressable style={styles.feedPrefsLink} onPress={() => navigation.navigate("Onboarding")}>
-              <Text style={styles.feedPrefsText}>Feed & discovery preferences</Text>
-            </Pressable>
           </>
         ) : null}
 
@@ -298,56 +301,94 @@ export function ProfileScreen({ navigation }: Props) {
             style={[styles.tabItem, activeTab === "posts" ? styles.tabItemActive : null]}
             onPress={() => setActiveTab("posts")}
           >
-            <IconGrid color={activeTab === "posts" ? colors.text : colors.muted} size={22} />
+            <View style={styles.tabInner}>
+              <IconGrid color={activeTab === "posts" ? colors.text : colors.muted} size={20} />
+              <Text style={[styles.tabLabel, activeTab === "posts" ? styles.tabLabelActive : null]}>Posts</Text>
+            </View>
           </Pressable>
           <Pressable
-            style={[styles.tabItem, activeTab === "media" ? styles.tabItemActive : null]}
-            onPress={() => setActiveTab("media")}
+            style={[styles.tabItem, activeTab === "products" ? styles.tabItemActive : null]}
+            onPress={() => setActiveTab("products")}
           >
-            <IconFilm color={activeTab === "media" ? colors.text : colors.muted} size={22} />
+            <View style={styles.tabInner}>
+              <IconShoppingBag color={activeTab === "products" ? colors.text : colors.muted} size={20} />
+              <Text style={[styles.tabLabel, activeTab === "products" ? styles.tabLabelActive : null]}>Shop</Text>
+            </View>
           </Pressable>
         </View>
 
-        {postsQuery.isLoading ? <LoadingState label="Loading posts..." /> : null}
-        {postsQuery.error ? <ErrorState message={(postsQuery.error as Error).message} /> : null}
-        {!postsQuery.isLoading && !postsQuery.error && visibleItems.length === 0 ? (
-          <View style={styles.emptyGrid}>
-            <IconImages color={colors.muted} size={48} />
-            <Text style={styles.emptyGridTitle}>
-              {activeTab === "posts" ? "No posts yet" : "No media yet"}
-            </Text>
-            <Text style={styles.emptyGridSub}>Add a post from the Create tab.</Text>
-          </View>
-        ) : null}
-
-        <View style={styles.grid}>
-          {visibleItems.map((item) => {
-            const mediaUrl = resolveMediaUrl(item.media_url);
-            const isImage = Boolean(item.media_mime_type?.startsWith("image/"));
-            const isVideo = Boolean(item.media_mime_type?.startsWith("video/"));
-            const fallbackLabel = item.content?.trim().slice(0, 20) || "Post";
-            return (
-              <Pressable
-                key={item.id}
-                style={[styles.tile, { width: tileSize, height: tileSize }]}
-                onPress={() => navigation.navigate("PostDetail", { id: item.id })}
-              >
-                {mediaUrl && isImage ? (
-                  <Image source={{ uri: mediaUrl }} style={styles.tileImage} resizeMode="cover" />
-                ) : (
-                  <View style={[styles.tileFallback, isVideo ? styles.tileFallbackVideo : null]}>
-                    <Text style={styles.tileFallbackText}>{isVideo ? "Video" : fallbackLabel}</Text>
-                  </View>
-                )}
-                {isVideo ? (
-                  <View style={styles.tileBadge}>
-                    <IconPlaySmall color={colors.text} size={10} />
-                  </View>
-                ) : null}
-              </Pressable>
-            );
-          })}
-        </View>
+        {activeTab === "posts" ? (
+          <>
+            {postsQuery.isLoading ? <LoadingState label="Loading posts..." /> : null}
+            {postsQuery.error ? <ErrorState message={(postsQuery.error as Error).message} /> : null}
+            {!postsQuery.isLoading && !postsQuery.error && items.length === 0 ? (
+              <View style={styles.emptyGrid}>
+                <IconImages color={colors.muted} size={48} />
+                <Text style={styles.emptyGridTitle}>No posts yet</Text>
+                <Text style={styles.emptyGridSub}>Start from the Create tab.</Text>
+              </View>
+            ) : null}
+            <View style={styles.grid}>
+              {items.map((item) => {
+                const mediaUrl = resolveMediaUrl(item.media_url);
+                const isImage = Boolean(item.media_mime_type?.startsWith("image/"));
+                const isVideo = Boolean(item.media_mime_type?.startsWith("video/"));
+                const fallbackLabel = item.content?.trim().slice(0, 20) || "Post";
+                return (
+                  <Pressable
+                    key={item.id}
+                    style={[styles.tile, { width: tileSize, height: tileSize }]}
+                    onPress={() => navigation.navigate("PostDetail", { id: item.id })}
+                  >
+                    {mediaUrl && isImage ? (
+                      <Image source={{ uri: mediaUrl }} style={styles.tileImage} resizeMode="cover" />
+                    ) : (
+                      <View style={[styles.tileFallback, isVideo ? styles.tileFallbackVideo : null]}>
+                        <Text style={styles.tileFallbackText}>{isVideo ? "Video" : fallbackLabel}</Text>
+                      </View>
+                    )}
+                    {isVideo ? (
+                      <View style={styles.tileBadge}>
+                        <IconPlaySmall color={colors.text} size={10} />
+                      </View>
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </>
+        ) : (
+          <>
+            {productsQuery.isLoading ? <LoadingState label="Loading products..." /> : null}
+            {productsQuery.error ? <ErrorState message={(productsQuery.error as Error).message} /> : null}
+            {!productsQuery.isLoading && !productsQuery.error && productItems.length === 0 ? (
+              <View style={styles.emptyGrid}>
+                <IconShoppingBag color={colors.muted} size={48} />
+                <Text style={styles.emptyGridTitle}>No products yet</Text>
+                <Text style={styles.emptyGridSub}>Add a product under Settings → Creator hub.</Text>
+              </View>
+            ) : null}
+            <View style={styles.grid}>
+              {productItems.map((prod) => (
+                <Pressable
+                  key={prod.id}
+                  style={[styles.tile, styles.productTile, { width: tileSize, minHeight: tileSize }]}
+                  onPress={() => navigation.navigate("ProductDetail", { productId: prod.id })}
+                >
+                  <Text style={styles.productTileTitle} numberOfLines={3}>
+                    {prod.title}
+                  </Text>
+                  <Text style={styles.productTilePrice}>
+                    {formatMinorCurrency(Number(prod.price_minor || 0), prod.currency || "usd")}
+                  </Text>
+                  {prod.status !== "published" ? (
+                    <Text style={styles.productTileStatus}>{prod.status}</Text>
+                  ) : null}
+                </Pressable>
+              ))}
+            </View>
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -503,45 +544,62 @@ const styles = StyleSheet.create({
   insightsCard: {
     marginHorizontal: 16,
     marginTop: 14,
-    padding: 14,
-    borderRadius: radii.control,
-    backgroundColor: colors.subtleFill,
+    padding: 16,
+    borderRadius: radii.panel,
+    backgroundColor: colors.card,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border
+    borderColor: colors.borderSubtle
   },
   insightsTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: colors.text
+    fontSize: 11,
+    fontWeight: "600",
+    color: colors.muted,
+    textTransform: "uppercase",
+    letterSpacing: 1
   },
   insightsSub: {
-    fontSize: 12,
-    color: colors.muted,
-    marginTop: 4,
-    lineHeight: 17
+    fontSize: 14,
+    color: colors.text,
+    marginTop: 6,
+    lineHeight: 20,
+    letterSpacing: -0.2
   },
   ctaRow: {
     flexDirection: "row",
-    gap: 8,
+    gap: 10,
     paddingHorizontal: 16,
-    marginTop: 14
+    marginTop: 16
   },
   ctaButton: {
     borderRadius: radii.control,
-    backgroundColor: colors.subtleFill,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    paddingVertical: 10,
+    paddingVertical: 12,
     alignItems: "center",
     justifyContent: "center"
+  },
+  ctaButtonPrimary: {
+    backgroundColor: colors.accent,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.accent
+  },
+  ctaButtonOutline: {
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderSubtle
   },
   ctaButtonFlex: {
     flex: 1
   },
-  ctaButtonText: {
+  ctaButtonPrimaryText: {
     fontSize: 14,
-    fontWeight: "700",
-    color: colors.text
+    fontWeight: "600",
+    color: colors.onAccent,
+    letterSpacing: -0.2
+  },
+  ctaButtonOutlineText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.text,
+    letterSpacing: -0.2
   },
   addBusinessBtn: {
     marginHorizontal: 16,
@@ -551,37 +609,38 @@ const styles = StyleSheet.create({
   },
   addBusinessText: {
     fontSize: 14,
-    fontWeight: "700",
-    color: colors.accent
-  },
-  feedPrefsLink: {
-    marginHorizontal: 16,
-    marginTop: 4,
-    paddingVertical: 8,
-    alignItems: "center"
-  },
-  feedPrefsText: {
-    fontSize: 13,
     fontWeight: "600",
-    color: colors.muted
+    color: colors.accent,
+    letterSpacing: -0.2
   },
   tabBar: {
     flexDirection: "row",
-    marginTop: 16,
+    marginTop: 20,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
+    borderTopColor: colors.borderSubtle,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border
+    borderBottomColor: colors.borderSubtle,
+    backgroundColor: colors.surface
   },
   tabItem: {
     flex: 1,
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderBottomWidth: 2,
     borderBottomColor: "transparent"
   },
   tabItemActive: {
     borderBottomColor: colors.accent
+  },
+  tabInner: { alignItems: "center", gap: 4 },
+  tabLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: colors.muted,
+    letterSpacing: 0.2
+  },
+  tabLabelActive: {
+    color: colors.text
   },
   grid: {
     flexDirection: "row",
@@ -623,6 +682,29 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.9)"
+  },
+  productTile: {
+    padding: 8,
+    justifyContent: "center",
+    alignItems: "stretch"
+  },
+  productTileTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.text
+  },
+  productTilePrice: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: colors.accent,
+    marginTop: 6
+  },
+  productTileStatus: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: colors.muted,
+    marginTop: 4,
+    textTransform: "capitalize"
   },
   emptyGrid: {
     alignItems: "center",

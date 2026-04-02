@@ -104,6 +104,9 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
   const [newProductFormError, setNewProductFormError] = useState("");
   const [assistError, setAssistError] = useState("");
   const [assistPending, setAssistPending] = useState(false);
+  const [newProductServiceKeyPoints, setNewProductServiceKeyPoints] = useState("");
+  const [serviceAssistError, setServiceAssistError] = useState("");
+  const [serviceAssistPending, setServiceAssistPending] = useState(false);
   const [lastCreated, setLastCreated] = useState<CreatorProduct | null>(null);
   const [publishError, setPublishError] = useState("");
   const [stripeImportItems, setStripeImportItems] = useState<StripeProductImportRow[]>([]);
@@ -151,6 +154,8 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
     setNewProductAudienceTarget("both");
     setNewProductBusinessCategory("");
     setNewProductServiceDetails("");
+    setNewProductServiceKeyPoints("");
+    setServiceAssistError("");
     setNewProductDeliveryMethod("");
     setNewProductWebsiteUrl("");
     setNewProductDeliveryFile(null);
@@ -264,6 +269,31 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
       setAssistError(e instanceof ApiError ? e.message : "Could not improve text.");
     } finally {
       setAssistPending(false);
+    }
+  };
+
+  const onGenerateServiceDescription = async () => {
+    const keyPoints = newProductServiceKeyPoints.trim();
+    if (keyPoints.length < 5) {
+      setServiceAssistError("Add key points about your service (bullets or short notes).");
+      return;
+    }
+    setServiceAssistError("");
+    setServiceAssistPending(true);
+    try {
+      const lines = [
+        newProductTitle.trim() ? `Product title: ${newProductTitle.trim()}` : null,
+        `Product type: ${newProductType}`,
+        "",
+        "Key points from creator:",
+        keyPoints
+      ].filter(Boolean) as string[];
+      const res = await assistPostText(lines.join("\n"), "service_details_generate");
+      setNewProductServiceDetails(res.suggestion);
+    } catch (e) {
+      setServiceAssistError(e instanceof ApiError ? e.message : "Could not generate service description.");
+    } finally {
+      setServiceAssistPending(false);
     }
   };
 
@@ -610,13 +640,36 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
             aria-label="Digital delivery file"
           />
         ) : (
-          <textarea
-            className="input min-h-24 resize-y bg-white"
-            placeholder="Service details / what buyer receives"
-            value={newProductServiceDetails}
-            onChange={(e) => setNewProductServiceDetails(e.target.value)}
-            aria-label="Service details"
-          />
+          <div className="space-y-2">
+            <textarea
+              className="input min-h-20 resize-y bg-white"
+              placeholder="Key points — what you offer, who it is for, format (e.g. 1:1 calls), length of engagement…"
+              value={newProductServiceKeyPoints}
+              onChange={(e) => setNewProductServiceKeyPoints(e.target.value)}
+              aria-label="Service key points for AI"
+            />
+            <button
+              type="button"
+              className="btn-secondary px-3 py-1.5 text-xs"
+              onClick={() => void onGenerateServiceDescription()}
+              disabled={serviceAssistPending}
+            >
+              {serviceAssistPending ? "Generating…" : "Generate with AI"}
+            </button>
+            {serviceAssistError ? (
+              <p className="text-xs text-red-600" role="alert">
+                {serviceAssistError}
+              </p>
+            ) : null}
+            <p className="text-xs text-muted">Generated text appears below — edit before saving.</p>
+            <textarea
+              className="input min-h-28 resize-y bg-white"
+              placeholder="Service description & value proposition (generated or write your own)"
+              value={newProductServiceDetails}
+              onChange={(e) => setNewProductServiceDetails(e.target.value)}
+              aria-label="Service details"
+            />
+          </div>
         )}
         <input
           className="input bg-white"

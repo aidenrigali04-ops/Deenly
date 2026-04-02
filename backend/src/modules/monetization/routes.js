@@ -516,9 +516,7 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
       if (!Number.isInteger(priceMinor) || priceMinor <= 0) {
         throw httpError(400, "priceMinor must be a positive integer");
       }
-      if (productType === "digital" && !deliveryMediaKey) {
-        throw httpError(400, "deliveryMediaKey is required for digital products");
-      }
+      // Drafts may omit delivery until publish; publish and PATCH-to-published enforce delivery for digital.
 
       const audienceTarget = parseProductAudienceTarget(req.body?.audienceTarget);
       const businessCategory = parseProductBusinessCategory(req.body?.businessCategory);
@@ -821,13 +819,13 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
       if (websiteUrl && !/^https?:\/\//i.test(websiteUrl)) {
         throw httpError(400, "websiteUrl must be an absolute http(s) URL");
       }
-      if (productType === "digital" && !deliveryMediaKey) {
-        throw httpError(400, "deliveryMediaKey is required for digital products");
-      }
       const status =
         req.body?.status !== undefined ? String(req.body.status).trim().toLowerCase() : previous.status;
       if (!PRODUCT_STATUSES.has(status)) {
         throw httpError(400, "status must be draft, published, or archived");
+      }
+      if (productType === "digital" && !deliveryMediaKey && status === "published") {
+        throw httpError(400, "Upload delivery media before publishing digital products");
       }
       const audienceTarget =
         req.body?.audienceTarget !== undefined
@@ -892,6 +890,20 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
       if (!productId) {
         throw httpError(400, "productId must be a number");
       }
+      const existing = await db.query(
+        `SELECT product_type, delivery_media_key
+         FROM creator_products
+         WHERE id = $1 AND creator_user_id = $2
+         LIMIT 1`,
+        [productId, req.user.id]
+      );
+      if (existing.rowCount === 0) {
+        throw httpError(404, "Product not found");
+      }
+      const row = existing.rows[0];
+      if (row.product_type === "digital" && !row.delivery_media_key) {
+        throw httpError(400, "Upload delivery media before publishing digital products");
+      }
       const updated = await db.query(
         `UPDATE creator_products
          SET status = 'published',
@@ -901,9 +913,6 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
          RETURNING *`,
         [productId, req.user.id]
       );
-      if (updated.rowCount === 0) {
-        throw httpError(404, "Product not found");
-      }
       res.status(200).json(updated.rows[0]);
     })
   );

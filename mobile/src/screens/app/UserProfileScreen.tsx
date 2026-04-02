@@ -23,6 +23,7 @@ import { resolveMediaUrl } from "../../lib/media-url";
 import {
   createSupportCheckout,
   createTierCheckout,
+  fetchCreatorProducts,
   fetchCreatorTiers,
   fetchSubscriptionAccess,
   formatMinorCurrency
@@ -48,7 +49,7 @@ export function UserProfileScreen({ route, navigation }: Props) {
   const { width } = useWindowDimensions();
   const userId = route.params.id;
   const sessionUser = useSessionStore((s) => s.user);
-  const [activeTab, setActiveTab] = useState<"posts" | "media">("posts");
+  const [activeTab, setActiveTab] = useState<"posts" | "products">("posts");
   const queryClient = useQueryClient();
   const profileQuery = useQuery({
     queryKey: ["mobile-user-profile", userId],
@@ -111,6 +112,10 @@ export function UserProfileScreen({ route, navigation }: Props) {
     queryFn: () =>
       apiRequest<{ items: FeedItem[] }>(`/feed?authorId=${userId}&limit=40`, { auth: true })
   });
+  const creatorProductsQuery = useQuery({
+    queryKey: ["mobile-creator-catalog", userId],
+    queryFn: () => fetchCreatorProducts(userId)
+  });
   const tiersQuery = useQuery({
     queryKey: ["mobile-user-tiers", userId],
     queryFn: () => fetchCreatorTiers(userId)
@@ -160,7 +165,7 @@ export function UserProfileScreen({ route, navigation }: Props) {
   const user = profileQuery.data;
   const avatarUri = resolveMediaUrl(user.avatar_url);
   const items = postsQuery.data?.items || [];
-  const visibleItems = activeTab === "media" ? items.filter((item) => Boolean(item.media_url)) : items;
+  const catalogProducts = creatorProductsQuery.data?.items || [];
   const tileSize = Math.floor((width - 32 - 8) / 3);
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -241,53 +246,87 @@ export function UserProfileScreen({ route, navigation }: Props) {
           <Text style={[styles.buttonText, activeTab === "posts" ? styles.buttonTextActive : null]}>Posts</Text>
         </Pressable>
         <Pressable
-          style={[styles.buttonSecondary, activeTab === "media" ? styles.buttonActive : null]}
-          onPress={() => setActiveTab("media")}
+          style={[styles.buttonSecondary, activeTab === "products" ? styles.buttonActive : null]}
+          onPress={() => setActiveTab("products")}
         >
-          <Text style={[styles.buttonText, activeTab === "media" ? styles.buttonTextActive : null]}>Media</Text>
+          <Text style={[styles.buttonText, activeTab === "products" ? styles.buttonTextActive : null]}>
+            Products
+          </Text>
         </Pressable>
       </View>
-      {postsQuery.isLoading ? <LoadingState label="Loading posts..." /> : null}
-      {postsQuery.error ? <ErrorState message={(postsQuery.error as Error).message} /> : null}
-      {!postsQuery.isLoading && !postsQuery.error && visibleItems.length === 0 ? (
-        <EmptyState title={activeTab === "posts" ? "No posts yet" : "No media yet"} />
-      ) : null}
-      <View style={styles.grid}>
-        {visibleItems.map((item) => {
-          const mediaUrl = resolveMediaUrl(item.media_url);
-          const isImage = Boolean(item.media_mime_type?.startsWith("image/"));
-          const isVideo = Boolean(item.media_mime_type?.startsWith("video/"));
-          const fallbackLabel = item.content?.trim().slice(0, 20) || "Post";
-          return (
-            <View key={item.id} style={[styles.tile, { width: tileSize, height: tileSize }]}>
+      {activeTab === "posts" ? (
+        <>
+          {postsQuery.isLoading ? <LoadingState label="Loading posts..." /> : null}
+          {postsQuery.error ? <ErrorState message={(postsQuery.error as Error).message} /> : null}
+          {!postsQuery.isLoading && !postsQuery.error && items.length === 0 ? (
+            <EmptyState title="No posts yet" />
+          ) : null}
+          <View style={styles.grid}>
+            {items.map((item) => {
+              const mediaUrl = resolveMediaUrl(item.media_url);
+              const isImage = Boolean(item.media_mime_type?.startsWith("image/"));
+              const isVideo = Boolean(item.media_mime_type?.startsWith("video/"));
+              const fallbackLabel = item.content?.trim().slice(0, 20) || "Post";
+              return (
+                <View key={item.id} style={[styles.tile, { width: tileSize, height: tileSize }]}>
+                  <Pressable
+                    style={styles.tileOpen}
+                    onPress={() => navigation.navigate("PostDetail", { id: item.id })}
+                  >
+                    {mediaUrl && isImage ? (
+                      <Image source={{ uri: mediaUrl }} style={styles.tileImage} resizeMode="cover" />
+                    ) : (
+                      <View style={[styles.tileFallback, isVideo ? styles.tileFallbackVideo : null]}>
+                        <Text style={styles.tileFallbackText}>{isVideo ? "Video" : fallbackLabel}</Text>
+                      </View>
+                    )}
+                    {isVideo ? (
+                      <View style={styles.tileBadge}>
+                        <Text style={styles.tileBadgeText}>Video</Text>
+                      </View>
+                    ) : null}
+                  </Pressable>
+                  <Pressable
+                    style={styles.tileLike}
+                    onPress={() => likeMutation.mutate(item.id)}
+                    disabled={likeMutation.isPending}
+                  >
+                    <Text style={styles.tileLikeText}>{likeMutation.isPending ? "..." : "Like"}</Text>
+                  </Pressable>
+                </View>
+              );
+            })}
+          </View>
+        </>
+      ) : (
+        <>
+          {creatorProductsQuery.isLoading ? <LoadingState label="Loading products..." /> : null}
+          {creatorProductsQuery.error ? (
+            <ErrorState message={(creatorProductsQuery.error as Error).message} />
+          ) : null}
+          {!creatorProductsQuery.isLoading &&
+          !creatorProductsQuery.error &&
+          catalogProducts.length === 0 ? (
+            <EmptyState title="No products listed" />
+          ) : null}
+          <View style={styles.grid}>
+            {catalogProducts.map((prod) => (
               <Pressable
-                style={styles.tileOpen}
-                onPress={() => navigation.navigate("PostDetail", { id: item.id })}
+                key={prod.id}
+                style={[styles.productTile, { width: tileSize, minHeight: tileSize }]}
+                onPress={() => navigation.navigate("ProductDetail", { productId: prod.id })}
               >
-                {mediaUrl && isImage ? (
-                  <Image source={{ uri: mediaUrl }} style={styles.tileImage} resizeMode="cover" />
-                ) : (
-                  <View style={[styles.tileFallback, isVideo ? styles.tileFallbackVideo : null]}>
-                    <Text style={styles.tileFallbackText}>{isVideo ? "Video" : fallbackLabel}</Text>
-                  </View>
-                )}
-                {isVideo ? (
-                  <View style={styles.tileBadge}>
-                    <Text style={styles.tileBadgeText}>Video</Text>
-                  </View>
-                ) : null}
+                <Text style={styles.productTileTitle} numberOfLines={3}>
+                  {prod.title}
+                </Text>
+                <Text style={styles.productTilePrice}>
+                  {formatMinorCurrency(Number(prod.price_minor || 0), prod.currency || "usd")}
+                </Text>
               </Pressable>
-              <Pressable
-                style={styles.tileLike}
-                onPress={() => likeMutation.mutate(item.id)}
-                disabled={likeMutation.isPending}
-              >
-                <Text style={styles.tileLikeText}>{likeMutation.isPending ? "..." : "Like"}</Text>
-              </Pressable>
-            </View>
-          );
-        })}
-      </View>
+            ))}
+          </View>
+        </>
+      )}
     </ScrollView>
   );
 }
@@ -396,5 +435,15 @@ const styles = StyleSheet.create({
   },
   buttonActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   buttonText: { color: colors.text, fontWeight: "600" },
-  buttonTextActive: { color: colors.onAccent }
+  buttonTextActive: { color: colors.onAccent },
+  productTile: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    borderRadius: radii.control,
+    padding: 8,
+    justifyContent: "center"
+  },
+  productTileTitle: { fontSize: 12, fontWeight: "700", color: colors.text },
+  productTilePrice: { fontSize: 11, fontWeight: "600", color: colors.accent, marginTop: 6 }
 });

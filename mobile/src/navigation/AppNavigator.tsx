@@ -34,6 +34,7 @@ import { QuranReaderScreen } from "../screens/app/QuranReaderScreen";
 import { SalahSettingsScreen } from "../screens/app/SalahSettingsScreen";
 import { CreatorEconomyScreen } from "../screens/app/CreatorEconomyScreen";
 import { CreateProductScreen } from "../screens/app/CreateProductScreen";
+import { ProductDetailScreen } from "../screens/app/ProductDetailScreen";
 import type { ProductImportDraft } from "../lib/monetization";
 import { ReelsScreen } from "../screens/app/ReelsScreen";
 import { NotificationsScreen } from "../screens/app/NotificationsScreen";
@@ -41,6 +42,9 @@ import { AddBusinessScreen } from "../screens/app/AddBusinessScreen";
 import { BusinessDetailScreen } from "../screens/app/BusinessDetailScreen";
 import { BusinessesNearMeScreen } from "../screens/app/BusinessesNearMeScreen";
 import { SettingsScreen } from "../screens/app/SettingsScreen";
+import { EditProfileScreen } from "../screens/app/EditProfileScreen";
+import { PurchasesScreen } from "../screens/app/PurchasesScreen";
+import { NavigateAppScreen } from "../screens/app/NavigateAppScreen";
 import { AdminHubScreen } from "../screens/app/AdminHubScreen";
 import { NavTabIcon } from "../components/icons/NavTabIcon";
 import { BusinessPersonalizerOverlay } from "../components/BusinessPersonalizerOverlay";
@@ -78,13 +82,17 @@ export type RootStackParamList = {
   QuranReader: undefined;
   SalahSettings: undefined;
   CreatorEconomy: undefined;
-  CreateProduct: { initialDraft?: ProductImportDraft } | undefined;
+  CreateProduct: { initialDraft?: ProductImportDraft; editProductId?: number } | undefined;
+  ProductDetail: { productId: number };
   Reels: undefined;
   Notifications: undefined;
   AddBusiness: undefined;
   BusinessDetail: { id: number };
   BusinessesNearMe: undefined;
   Settings: undefined;
+  EditProfile: undefined;
+  Purchases: undefined;
+  NavigateApp: undefined;
   AdminHub: undefined;
 };
 
@@ -266,8 +274,11 @@ export function AppNavigator() {
               <RootStack.Screen name="AppTabs" component={AppTabs} options={{ headerShown: false }} />
               <RootStack.Screen name="PostDetail" component={PostDetailScreen} options={{ title: "Post" }} />
               <RootStack.Screen name="UserProfile" component={UserProfileScreen} options={{ title: "User" }} />
-              <RootStack.Screen name="Onboarding" component={OnboardingScreen} options={{ title: "Setup" }} />
+              <RootStack.Screen name="Onboarding" component={OnboardingScreen} options={{ title: "Setup & feed" }} />
               <RootStack.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
+              <RootStack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: "Edit profile" }} />
+              <RootStack.Screen name="Purchases" component={PurchasesScreen} options={{ title: "Purchases" }} />
+              <RootStack.Screen name="NavigateApp" component={NavigateAppScreen} options={{ title: "Navigate" }} />
               <RootStack.Screen name="Sessions" component={SessionsScreen} options={{ title: "Sessions" }} />
               <RootStack.Screen name="Beta" component={BetaScreen} options={{ title: "Beta" }} />
               <RootStack.Screen name="Support" component={SupportScreen} options={{ title: "Support" }} />
@@ -279,6 +290,7 @@ export function AppNavigator() {
               <RootStack.Screen name="SalahSettings" component={SalahSettingsScreen} options={{ title: "Salah Settings" }} />
               <RootStack.Screen name="CreatorEconomy" component={CreatorEconomyScreen} options={{ title: "Creator hub" }} />
               <RootStack.Screen name="CreateProduct" component={CreateProductScreen} options={{ title: "Add product" }} />
+              <RootStack.Screen name="ProductDetail" component={ProductDetailScreen} options={{ title: "Product" }} />
               <RootStack.Screen name="AddBusiness" component={AddBusinessScreen} options={{ title: "Add business" }} />
               <RootStack.Screen name="BusinessDetail" component={BusinessDetailScreen} options={{ title: "Business" }} />
               <RootStack.Screen

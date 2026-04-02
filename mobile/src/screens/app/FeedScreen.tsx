@@ -3,6 +3,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import {
   ActivityIndicator,
   FlatList,
+  Linking,
   ListRenderItem,
   Platform,
   Pressable,
@@ -24,6 +25,9 @@ import { HomeStoriesRow } from "../../components/HomeStoriesRow";
 import { colors, radii } from "../../theme";
 import type { FeedItem } from "../../types";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
+import { createGuestProductCheckout, createProductCheckout } from "../../lib/monetization";
+import { hapticSuccess } from "../../lib/haptics";
+import { useSessionStore } from "../../store/session-store";
 
 type FeedResponse = {
   items: FeedItem[];
@@ -38,6 +42,8 @@ type Props = CompositeScreenProps<
 };
 
 export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
+  const sessionUser = useSessionStore((s) => s.user);
+  const [buyHandoffProductId, setBuyHandoffProductId] = useState<number | null>(null);
   const [followingOnly, setFollowingOnly] = useState(false);
   const [feedTab, setFeedTab] = useState<"for_you" | "opportunities" | "marketplace">(
     feedVariant === "marketplace" ? "marketplace" : "for_you"
@@ -154,6 +160,26 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
       queryClient.invalidateQueries({ queryKey: feedQueryKey });
     }
   });
+  const buyProductMutation = useMutation({
+    mutationFn: async (productId: number) => {
+      if (sessionUser) {
+        return createProductCheckout(productId);
+      }
+      return createGuestProductCheckout(productId, { smsOptIn: false });
+    },
+    onSuccess: async (result, productId) => {
+      if (result?.checkoutUrl) {
+        setBuyHandoffProductId(productId);
+        await hapticSuccess();
+        await new Promise((resolve) => setTimeout(resolve, 220));
+        await Linking.openURL(result.checkoutUrl);
+        setBuyHandoffProductId(null);
+      }
+    },
+    onError: () => {
+      setBuyHandoffProductId(null);
+    }
+  });
 
   const openNotifications = useCallback(() => {
     const parent = navigation.getParent<NativeStackNavigationProp<RootStackParamList>>();
@@ -243,6 +269,10 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
           layout="home"
           onOpen={() => navigation.navigate("PostDetail", { id: item.id })}
           onAuthor={() => navigation.navigate("UserProfile", { id: item.author_id })}
+          onViewOffer={(productId) => navigation.navigate("ProductDetail", { productId })}
+          onBuyNow={(productId) => buyProductMutation.mutate(productId)}
+          buyBusy={buyProductMutation.isPending}
+          buyHandoffProductId={buyHandoffProductId}
           onLike={() => likeMutation.mutate({ postId: item.id, nextLiked: !item.liked_by_viewer })}
           liking={likeMutation.isPending}
           onToggleFollow={(authorId, currentlyFollowing) =>
@@ -255,7 +285,7 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
         />
       </View>
     ),
-    [followMutation, likeMutation, navigation]
+    [buyHandoffProductId, buyProductMutation, followMutation, likeMutation, navigation]
   );
 
   const onEndReached = useCallback(() => {

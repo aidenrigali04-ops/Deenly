@@ -5,7 +5,7 @@ import { fetchSessionMe, logout } from "../../lib/auth";
 import { apiRequest } from "../../lib/api";
 import { useSessionStore } from "../../store/session-store";
 import { SettingsRow, SettingsSection } from "../../components/SettingsSection";
-import { colors, radii } from "../../theme";
+import { colors, radii, shadows, spacing } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { fetchMyEarnings, fetchConnectStatus, formatMinorCurrency } from "../../lib/monetization";
 import {
@@ -72,46 +72,90 @@ export function SettingsScreen({ navigation }: Props) {
 
   const p = profileQuery.data;
 
+  const sessionEmail = sessionQuery.data?.email?.trim();
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {sessionEmail ? (
+        <Text style={styles.signedInHint} numberOfLines={1}>
+          Signed in as {sessionEmail}
+        </Text>
+      ) : null}
+
       {p ? (
-        <View style={styles.summary}>
-          <Text style={styles.summaryTitle}>Overview</Text>
+        <View style={[styles.summary, shadows.card]}>
+          <Text style={styles.summaryTitle}>Activity</Text>
           <Text style={styles.summaryLine}>
             {p.posts_count} posts · {p.followers_count} followers · {p.following_count} following
           </Text>
           <Text style={styles.summaryLine}>
-            Likes received {p.likes_received_count} · Likes by you {p.likes_given_count}
+            {p.likes_received_count} likes received · {p.likes_given_count} you gave
           </Text>
         </View>
       ) : null}
 
-      <SettingsSection title="Account">
-        <SettingsRow title="Sessions" subtitle="Signed-in devices" onPress={() => navigation.navigate("Sessions")} />
-        <SettingsRow title="Log out" onPress={handleLogout} accessibilityLabel="Log out of Deenly" />
-      </SettingsSection>
-
-      <SettingsSection title="Creator">
+      <SettingsSection title="General">
+        <SettingsRow
+          title="Navigate"
+          subtitle="Jump to any main tab in one tap."
+          onPress={() => navigation.navigate("NavigateApp")}
+        />
+        <SettingsRow
+          title="Edit profile"
+          subtitle="Display name, bio, and business line."
+          onPress={() => navigation.navigate("EditProfile")}
+        />
+        <SettingsRow
+          title="Purchases"
+          subtitle="Order history and digital access."
+          onPress={() => navigation.navigate("Purchases")}
+        />
         <SettingsRow
           title="Creator hub"
           subtitle={
             creatorConnectQuery.data?.connected
-              ? `Stripe · ${formatMinorCurrency(creatorEarningsQuery.data?.totals?.balance_minor || 0, "usd")} balance`
-              : "Payments & payouts"
+              ? `Payouts · ${formatMinorCurrency(creatorEarningsQuery.data?.totals?.balance_minor || 0, "usd")} available`
+              : "Stripe Connect and your catalog."
           }
           onPress={() => navigation.navigate("CreatorEconomy")}
         />
         <SettingsRow
-          title="Add product"
-          subtitle="Create a listing without attaching a post"
+          title="New listing"
+          subtitle="Add a product without a post."
           onPress={() => navigation.navigate("CreateProduct")}
+        />
+        <SettingsRow
+          title="Feed & defaults"
+          subtitle="Interests and how the app opens."
+          onPress={() => navigation.navigate("Onboarding")}
+        />
+        <SettingsRow
+          title="Sessions"
+          subtitle="Devices where you stay signed in."
+          onPress={() => navigation.navigate("Sessions")}
+        />
+        <SettingsRow
+          title="Inbox"
+          subtitle="Alerts and updates."
+          onPress={() => navigation.navigate("Notifications")}
         />
       </SettingsSection>
 
-      <View style={styles.igCard}>
+      <SettingsSection title="Account">
+        <SettingsRow
+          title="Log out"
+          destructive
+          showChevron={false}
+          onPress={handleLogout}
+          accessibilityLabel="Log out of Deenly"
+        />
+      </SettingsSection>
+
+      <View style={[styles.igCard, shadows.card]}>
         <Text style={styles.igTitle}>Instagram</Text>
         <Text style={styles.igMuted}>
-          Business/Creator via Facebook Page. OAuth opens in the browser; return here when done.
+          Connect a Business or Creator account (Facebook Page). You will complete sign-in in the browser, then return
+          here.
         </Text>
         {instagramQuery.isError ? (
           <Text style={styles.igMuted}>Instagram is not configured on this server.</Text>
@@ -146,20 +190,24 @@ export function SettingsScreen({ navigation }: Props) {
       </View>
 
       <SettingsSection title="Deen">
-        <SettingsRow title="Dhikr" onPress={() => navigation.navigate("Dhikr")} />
-        <SettingsRow title="Quran reader" onPress={() => navigation.navigate("QuranReader")} />
-        <SettingsRow title="Salah settings" onPress={() => navigation.navigate("SalahSettings")} />
+        <SettingsRow title="Dhikr" subtitle="Calm remembrance mode." onPress={() => navigation.navigate("Dhikr")} />
+        <SettingsRow title="Quran" subtitle="Reader and navigation." onPress={() => navigation.navigate("QuranReader")} />
+        <SettingsRow title="Salah" subtitle="Prayer notifications and method." onPress={() => navigation.navigate("SalahSettings")} />
       </SettingsSection>
 
-      <SettingsSection title="Help">
-        <SettingsRow title="Beta program" onPress={() => navigation.navigate("Beta")} />
-        <SettingsRow title="Support" onPress={() => navigation.navigate("Support")} />
-        <SettingsRow title="Community guidelines" onPress={() => navigation.navigate("Guidelines")} />
+      <SettingsSection title="Support">
+        <SettingsRow title="Beta" subtitle="Early access and feedback." onPress={() => navigation.navigate("Beta")} />
+        <SettingsRow title="Help center" subtitle="Contact and questions." onPress={() => navigation.navigate("Support")} />
+        <SettingsRow title="Guidelines" subtitle="Community standards." onPress={() => navigation.navigate("Guidelines")} />
       </SettingsSection>
 
       {isOwnerAdmin ? (
-        <SettingsSection title="Administration">
-          <SettingsRow title="Admin tools" subtitle="Moderation, ops, analytics, tables" onPress={() => navigation.navigate("AdminHub")} />
+        <SettingsSection title="Admin">
+          <SettingsRow
+            title="Admin console"
+            subtitle="Moderation, operations, analytics."
+            onPress={() => navigation.navigate("AdminHub")}
+          />
         </SettingsSection>
       ) : null}
     </ScrollView>
@@ -168,37 +216,61 @@ export function SettingsScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: 16, paddingBottom: 40, gap: 22 },
+  content: {
+    paddingHorizontal: spacing.screenHorizontal,
+    paddingTop: 8,
+    paddingBottom: spacing.screenBottom,
+    gap: spacing.sectionGap
+  },
+  signedInHint: {
+    fontSize: 13,
+    color: colors.muted,
+    letterSpacing: -0.1,
+    marginBottom: -8
+  },
   summary: {
     borderRadius: radii.panel,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderColor: colors.borderSubtle,
     backgroundColor: colors.card,
-    padding: 16,
-    gap: 6
+    padding: 18,
+    gap: 8
   },
-  summaryTitle: { fontSize: 13, fontWeight: "700", color: colors.text },
-  summaryLine: { fontSize: 13, color: colors.muted },
+  summaryTitle: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: colors.muted,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 2
+  },
+  summaryLine: { fontSize: 14, color: colors.text, lineHeight: 20, letterSpacing: -0.2 },
   igCard: {
     borderRadius: radii.panel,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderColor: colors.borderSubtle,
     backgroundColor: colors.card,
-    padding: 16,
-    gap: 8
+    padding: 18,
+    gap: 10
   },
-  igTitle: { fontSize: 13, fontWeight: "700", color: colors.text },
-  igMuted: { fontSize: 13, color: colors.muted, lineHeight: 18 },
+  igTitle: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: colors.muted,
+    textTransform: "uppercase",
+    letterSpacing: 1
+  },
+  igMuted: { fontSize: 14, color: colors.text, lineHeight: 21, letterSpacing: -0.2, opacity: 0.85 },
   igRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 10 },
   smallBtn: {
     alignSelf: "flex-start",
-    marginTop: 4,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    marginTop: 2,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     borderRadius: radii.control,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.surface
+    borderColor: colors.borderSubtle,
+    backgroundColor: colors.subtleFill
   },
-  smallBtnText: { fontWeight: "600", color: colors.text, fontSize: 14 }
+  smallBtnText: { fontWeight: "600", color: colors.text, fontSize: 14, letterSpacing: -0.2 }
 });

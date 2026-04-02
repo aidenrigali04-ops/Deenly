@@ -78,6 +78,11 @@ export default function PublicProductPage() {
   const creatorName = p.creator_display_name?.trim() || p.creator_username || "Creator";
   const isOwner = sessionUser?.id === p.creator_user_id;
 
+  const scrollToFullOffer = () => {
+    if (typeof document === "undefined") return;
+    document.getElementById("offer-details")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   return (
     <div className="page-stack mx-auto w-full max-w-3xl">
       <header className="page-header">
@@ -114,119 +119,121 @@ export default function PublicProductPage() {
           </div>
         </div>
 
-        <section className="mt-6">
-          <h2 className="section-title text-sm">About this offer</h2>
-          {p.description ? (
-            <p className="mt-2 whitespace-pre-line text-sm text-text/90">{p.description}</p>
-          ) : (
-            <p className="mt-2 text-sm text-muted">No description provided.</p>
-          )}
-        </section>
-
-        {p.service_details ? (
-          <section className="mt-6">
-            <h2 className="section-title text-sm">What you get</h2>
-            <p className="mt-2 whitespace-pre-line text-sm text-text/90">{p.service_details}</p>
-          </section>
-        ) : null}
-
-        <section className="mt-6">
-          <h2 className="section-title text-sm">Delivery</h2>
-          <p className="mt-2 text-sm text-muted">
-            {p.delivery_method?.trim() || "Details are confirmed after checkout where applicable."}
-          </p>
-        </section>
-
-        {p.website_url ? (
-          <section className="mt-6">
-            <h2 className="section-title text-sm">More info</h2>
-            <a
-              href={p.website_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-2 inline-block text-sm text-sky-600 hover:underline"
-            >
-              Visit website
-            </a>
-          </section>
-        ) : null}
+        {isOwner ? (
+          <div className="mt-6">
+            <Link href="/account/creator?tab=products" className="btn-secondary inline-flex px-4 py-2 text-sm">
+              Manage in Creator hub
+            </Link>
+          </div>
+        ) : (
+          <>
+            <div className="mt-6 flex flex-wrap gap-2">
+              <button type="button" className="btn-secondary px-4 py-2 text-sm" onClick={scrollToFullOffer}>
+                View offer
+              </button>
+              {!sessionUser ? (
+                <>
+                  <Link href={`/auth/login?next=${loginNext}`} className="btn-primary inline-flex px-4 py-2 text-sm">
+                    Log in to buy
+                  </Link>
+                  <button
+                    type="button"
+                    className="btn-secondary px-4 py-2 text-sm"
+                    onClick={() => setGuestExpanded((v) => !v)}
+                  >
+                    {guestExpanded ? "Hide guest checkout" : "Buy now as guest"}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="btn-primary px-4 py-2 text-sm"
+                  disabled={checkoutMutation.isPending}
+                  onClick={() => checkoutMutation.mutate()}
+                >
+                  {checkoutMutation.isPending ? "Opening…" : "Buy now"}
+                </button>
+              )}
+            </div>
+            {!sessionUser && guestExpanded ? (
+              <div className="surface-card mt-4 space-y-3 rounded-control border border-black/10 px-4 py-4 text-sm">
+                <p className="text-muted">
+                  Secure Stripe checkout. Optional email below; check the box if you want a text with your access link
+                  (phone collected on Stripe if needed).
+                </p>
+                <input
+                  className="input w-full bg-white"
+                  placeholder="Email (optional)"
+                  type="email"
+                  autoComplete="email"
+                  value={guestEmail}
+                  onChange={(e) => setGuestEmail(e.target.value)}
+                />
+                <label className="flex cursor-pointer items-center gap-2 text-muted">
+                  <input type="checkbox" checked={smsOptIn} onChange={(e) => setSmsOptIn(e.target.checked)} />
+                  Text me the access link (optional)
+                </label>
+                <button
+                  type="button"
+                  className="btn-primary px-4 py-2 text-sm"
+                  disabled={guestCheckoutMutation.isPending}
+                  onClick={() => guestCheckoutMutation.mutate()}
+                >
+                  {guestCheckoutMutation.isPending ? "Opening Stripe…" : "Buy now"}
+                </button>
+              </div>
+            ) : null}
+            {sessionUser ? (
+              <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-muted">
+                <input type="checkbox" checked={smsOptIn} onChange={(e) => setSmsOptIn(e.target.checked)} />
+                Also text me the access link (phone collected on Stripe if checked)
+              </label>
+            ) : null}
+          </>
+        )}
 
         <p className="mt-6 rounded-control border border-black/10 bg-surface px-3 py-2 text-xs text-muted">
           Secure checkout with Stripe. You will complete payment on Stripe, then return to Deenly.
         </p>
 
-        <div className="mt-6 flex flex-col gap-3">
-          {isOwner ? (
-            <Link href="/account/creator?tab=products" className="btn-secondary inline-flex px-4 py-2 text-sm">
-              Manage in Creator hub
-            </Link>
-          ) : !sessionUser ? (
-            <>
-              <div className="flex flex-wrap gap-2">
-                <Link href={`/auth/login?next=${loginNext}`} className="btn-primary inline-flex px-4 py-2 text-sm">
-                  Log in to buy
-                </Link>
-                <button
-                  type="button"
-                  className="btn-secondary px-4 py-2 text-sm"
-                  onClick={() => setGuestExpanded((v) => !v)}
-                >
-                  {guestExpanded ? "Hide guest checkout" : "Continue as guest"}
-                </button>
-              </div>
-              {guestExpanded ? (
-                <div className="surface-card space-y-3 rounded-control border border-black/10 px-4 py-4 text-sm">
-                  <p className="text-muted">
-                    Stripe will collect payment. Optional: prefill your email. If you want a text with your access link,
-                    check the box (phone is collected on Stripe checkout).
-                  </p>
-                  <input
-                    className="input w-full bg-white"
-                    placeholder="Email (optional)"
-                    type="email"
-                    autoComplete="email"
-                    value={guestEmail}
-                    onChange={(e) => setGuestEmail(e.target.value)}
-                  />
-                  <label className="flex cursor-pointer items-center gap-2 text-muted">
-                    <input type="checkbox" checked={smsOptIn} onChange={(e) => setSmsOptIn(e.target.checked)} />
-                    Text me the access link (optional)
-                  </label>
-                  <button
-                    type="button"
-                    className="btn-primary px-4 py-2 text-sm"
-                    disabled={guestCheckoutMutation.isPending}
-                    onClick={() => guestCheckoutMutation.mutate()}
-                  >
-                    {guestCheckoutMutation.isPending ? "Opening Stripe…" : "Pay as guest"}
-                  </button>
-                </div>
-              ) : null}
-            </>
-          ) : p.product_type !== "digital" && p.website_url ? (
-            <button
-              type="button"
-              className="btn-secondary px-4 py-2 text-sm"
-              onClick={() => window.open(p.website_url || "", "_blank", "noopener,noreferrer")}
-            >
-              View offer
-            </button>
-          ) : (
-            <>
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-muted">
-                <input type="checkbox" checked={smsOptIn} onChange={(e) => setSmsOptIn(e.target.checked)} />
-                Also text me the access link (phone collected on Stripe if checked)
-              </label>
-              <button
-                type="button"
-                className="btn-primary px-4 py-2 text-sm"
-                disabled={checkoutMutation.isPending}
-                onClick={() => checkoutMutation.mutate()}
+        <div id="offer-details" className="scroll-mt-24 space-y-6 border-t border-black/10 pt-8">
+          <section>
+            <h2 className="section-title text-sm">Full offer</h2>
+            <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted">About this offer</h3>
+            {p.description ? (
+              <p className="mt-2 whitespace-pre-line text-sm text-text/90">{p.description}</p>
+            ) : (
+              <p className="mt-2 text-sm text-muted">No description provided.</p>
+            )}
+          </section>
+
+          {p.service_details ? (
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">What you get</h3>
+              <p className="mt-2 whitespace-pre-line text-sm text-text/90">{p.service_details}</p>
+            </section>
+          ) : null}
+
+          <section>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Delivery</h3>
+            <p className="mt-2 text-sm text-muted">
+              {p.delivery_method?.trim() || "Details are confirmed after checkout where applicable."}
+            </p>
+          </section>
+
+          {p.website_url ? (
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">More info</h3>
+              <a
+                href={p.website_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-block text-sm text-sky-600 hover:underline"
               >
-                {checkoutMutation.isPending ? "Opening…" : "Buy now"}
-              </button>
-            </>
-          )}
+                Visit website
+              </a>
+            </section>
+          ) : null}
         </div>
       </article>
     </div>

@@ -2,7 +2,8 @@ function errorHandler(logger) {
   return (err, req, res, _next) => {
     const statusCode = err.statusCode || 500;
     const message =
-      statusCode >= 500 ? "Internal server error" : err.message || "Request failed";
+      err.publicMessage ||
+      (statusCode >= 500 ? "Internal server error" : err.message || "Request failed");
 
     logger.error(
       {

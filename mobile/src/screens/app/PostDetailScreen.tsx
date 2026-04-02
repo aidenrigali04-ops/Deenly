@@ -11,6 +11,8 @@ import { colors } from "../../theme";
 import type { FeedItem } from "../../types";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { createGuestProductCheckout, createProductCheckout, formatMinorCurrency } from "../../lib/monetization";
+import { ProductCheckoutSheet } from "../../components/ProductCheckoutSheet";
+import { hapticPrimary, hapticSuccess, hapticTap } from "../../lib/haptics";
 import { useSessionStore } from "../../store/session-store";
 
 type PostDetail = FeedItem & {
@@ -41,6 +43,11 @@ export function PostDetailScreen({ route, navigation }: Props) {
   const [mediaFailed, setMediaFailed] = useState(false);
   const [liked, setLiked] = useState(false);
   const [benefitedCount, setBenefitedCount] = useState(0);
+  const [checkoutProductId, setCheckoutProductId] = useState<number | null>(null);
+  const [checkoutProductTitle, setCheckoutProductTitle] = useState("Product");
+  const [checkoutPriceLabel, setCheckoutPriceLabel] = useState("");
+  const [guestCheckoutEmail, setGuestCheckoutEmail] = useState("");
+  const [checkoutHandoff, setCheckoutHandoff] = useState(false);
   const sessionUser = useSessionStore((state) => state.user);
 
   const postQuery = useQuery({
@@ -128,21 +135,35 @@ export function PostDetailScreen({ route, navigation }: Props) {
     mutationFn: (productId: number) => createProductCheckout(productId),
     onSuccess: async (result) => {
       if (result?.checkoutUrl) {
+        setCheckoutHandoff(true);
+        await hapticSuccess();
+        await new Promise((resolve) => setTimeout(resolve, 220));
         await Linking.openURL(result.checkoutUrl);
+        setCheckoutHandoff(false);
       }
     }
   });
   const guestProductCheckoutMutation = useMutation({
-    mutationFn: (productId: number) => createGuestProductCheckout(productId, { smsOptIn: false }),
+    mutationFn: ({ productId, email }: { productId: number; email?: string }) =>
+      createGuestProductCheckout(productId, { smsOptIn: false, guestEmail: email }),
     onSuccess: async (result) => {
       if (result?.checkoutUrl) {
+        setCheckoutHandoff(true);
+        await hapticSuccess();
+        await new Promise((resolve) => setTimeout(resolve, 220));
         await Linking.openURL(result.checkoutUrl);
+        setCheckoutHandoff(false);
       }
     }
   });
-  const attachedProductType = postQuery.data?.attached_product_type || "digital";
-  const attachedProductWebsiteUrl = postQuery.data?.attached_product_website_url || null;
+  const buyPending = productCheckoutMutation.isPending || guestProductCheckoutMutation.isPending;
+  const checkoutError = productCheckoutMutation.error || guestProductCheckoutMutation.error;
 
+  const openCheckoutSheet = (productId: number, title: string, priceMinor: number, currency: string) => {
+    setCheckoutProductId(productId);
+    setCheckoutProductTitle(title || "Product");
+    setCheckoutPriceLabel(formatMinorCurrency(priceMinor, currency || "usd"));
+  };
   if (postQuery.isLoading) {
     return <LoadingState label="Loading post..." />;
   }
@@ -154,11 +175,46 @@ export function PostDetailScreen({ route, navigation }: Props) {
   }
 
   const post = postQuery.data;
+  const isOwnAttachedProduct =
+    Boolean(post.attached_product_id) && sessionUser?.id === post.author_id;
   const mediaUri = resolveMediaUrl(post.media_url) || undefined;
   const canRenderMedia = Boolean(mediaUri) && !mediaFailed;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <>
+      <ProductCheckoutSheet
+        visible={checkoutProductId !== null}
+        title={checkoutProductTitle}
+        priceLabel={checkoutPriceLabel}
+        isGuest={!sessionUser}
+        guestEmail={guestCheckoutEmail}
+        loading={buyPending}
+        handoffState={checkoutHandoff}
+        errorMessage={checkoutError ? (checkoutError as Error).message : undefined}
+        onGuestEmailChange={setGuestCheckoutEmail}
+        onClose={() => {
+          if (!buyPending) {
+            setCheckoutProductId(null);
+          }
+        }}
+        onConfirm={() => {
+          setCheckoutHandoff(false);
+          if (!checkoutProductId) return;
+          if (sessionUser) {
+            productCheckoutMutation
+              .mutateAsync(checkoutProductId)
+              .then(() => setCheckoutProductId(null))
+              .catch(() => undefined);
+            return;
+          }
+          const nextEmail = guestCheckoutEmail.trim();
+          guestProductCheckoutMutation
+            .mutateAsync({ productId: checkoutProductId, email: nextEmail || undefined })
+            .then(() => setCheckoutProductId(null))
+            .catch(() => undefined);
+        }}
+      />
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.card}>
         <Text style={styles.title}>{post.content}</Text>
         <Text style={styles.muted}>{post.author_display_name}</Text>
@@ -256,21 +312,6 @@ export function PostDetailScreen({ route, navigation }: Props) {
             <Text style={styles.buttonText}>Author</Text>
           </Pressable>
         </View>
-        {post.cta_label && post.cta_url ? (
-          <Pressable
-            style={styles.buttonSecondary}
-            onPress={async () => {
-              await apiRequest("/interactions/cta-click", {
-                method: "POST",
-                auth: true,
-                body: { postId }
-              }).catch(() => null);
-              await Linking.openURL(post.cta_url || "");
-            }}
-          >
-            <Text style={styles.buttonText}>{post.cta_label}</Text>
-          </Pressable>
-        ) : null}
         {sessionUser?.id === post.author_id ? (
           <Pressable
             style={styles.buttonSecondary}
@@ -291,29 +332,50 @@ export function PostDetailScreen({ route, navigation }: Props) {
                 post.attached_product_currency || "usd"
               )}
             </Text>
-            <Pressable
-              style={styles.buttonSecondary}
-              onPress={async () => {
-                if (attachedProductType !== "digital" && attachedProductWebsiteUrl) {
-                  await Linking.openURL(attachedProductWebsiteUrl);
-                  return;
+            <View style={styles.productCtaRow}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.buttonSecondary,
+                  styles.productCtaHalf,
+                  pressed && styles.buttonPressed
+                ]}
+                onPress={() => {
+                  void hapticTap();
+                  navigation.navigate("ProductDetail", { productId: post.attached_product_id as number });
+                }}
+              >
+                <Text style={styles.buttonText}>View offer</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.buttonSecondary,
+                  styles.productCtaHalf,
+                  pressed && !isOwnAttachedProduct && !buyPending && styles.buttonPressed
+                ]}
+                onPress={() => {
+                  if (isOwnAttachedProduct) return;
+                  void hapticPrimary();
+                  openCheckoutSheet(
+                    post.attached_product_id as number,
+                    post.attached_product_title || "Creator product",
+                    Number(post.attached_product_price_minor || 0),
+                    post.attached_product_currency || "usd"
+                  );
+                }}
+                disabled={
+                  isOwnAttachedProduct ||
+                  buyPending
                 }
-                if (!sessionUser) {
-                  guestProductCheckoutMutation.mutate(post.attached_product_id as number);
-                  return;
-                }
-                productCheckoutMutation.mutate(post.attached_product_id as number);
-              }}
-              disabled={productCheckoutMutation.isPending || guestProductCheckoutMutation.isPending}
-            >
-              <Text style={styles.buttonText}>
-                {productCheckoutMutation.isPending || guestProductCheckoutMutation.isPending
-                  ? "Opening..."
-                  : attachedProductType === "digital"
-                    ? "Buy product"
-                    : "View offer"}
-              </Text>
-            </Pressable>
+              >
+                <Text style={styles.buttonText}>
+                  {isOwnAttachedProduct
+                    ? "Your product"
+                    : buyPending
+                      ? "Opening..."
+                      : "Buy securely"}
+                </Text>
+              </Pressable>
+            </View>
           </View>
         ) : null}
       </View>
@@ -411,7 +473,8 @@ export function PostDetailScreen({ route, navigation }: Props) {
         </Pressable>
       </View>
       {message ? <Text style={styles.muted}>{message}</Text> : null}
-    </ScrollView>
+      </ScrollView>
+    </>
   );
 }
 
@@ -491,8 +554,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8
   },
+  buttonPressed: {
+    transform: [{ scale: 0.99 }]
+  },
   buttonText: {
     color: colors.text,
     fontWeight: "600"
+  },
+  productCtaRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 4
+  },
+  productCtaHalf: {
+    flex: 1,
+    alignItems: "center"
   }
 });

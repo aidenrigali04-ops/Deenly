@@ -1,11 +1,11 @@
-import { Image, Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useEffect, useState } from "react";
 import { AppVideoView } from "./AppVideoView";
 import { colors, radii } from "../theme";
 import { resolveMediaUrl } from "../lib/media-url";
 import type { FeedItem } from "../types";
 import { formatMinorCurrency } from "../lib/monetization";
-import { apiRequest } from "../lib/api";
+import { hapticPrimary, hapticTap } from "../lib/haptics";
 
 function isImageMedia(item: FeedItem) {
   if (item.media_mime_type?.startsWith("image/")) {
@@ -22,6 +22,10 @@ export function PostCard({
   onOpen,
   onAuthor,
   onLike,
+  onViewOffer,
+  onBuyNow,
+  buyBusy = false,
+  buyHandoffProductId,
   liking = false,
   layout = "default",
   onToggleFollow,
@@ -31,6 +35,10 @@ export function PostCard({
   onOpen: () => void;
   onAuthor: () => void;
   onLike?: () => void;
+  onViewOffer?: (productId: number) => void;
+  onBuyNow?: (productId: number) => void;
+  buyBusy?: boolean;
+  buyHandoffProductId?: number | null;
   liking?: boolean;
   layout?: "default" | "home";
   onToggleFollow?: (authorId: number, currentlyFollowing: boolean) => void;
@@ -49,24 +57,6 @@ export function PostCard({
     .map((part) => part[0]?.toUpperCase())
     .join("");
   const authorAvatarUri = resolveMediaUrl(item.author_avatar_url) || undefined;
-  const handleCtaPress = async () => {
-    if (!item.cta_url) {
-      return;
-    }
-    await apiRequest("/interactions/cta-click", {
-      method: "POST",
-      auth: true,
-      body: { postId: item.id }
-    }).catch(() => null);
-    if (item.sponsored && item.ad_campaign_id) {
-      await apiRequest("/ads/events/click", {
-        method: "POST",
-        auth: true,
-        body: { campaignId: item.ad_campaign_id, destinationUrl: item.cta_url }
-      }).catch(() => null);
-    }
-    await Linking.openURL(item.cta_url);
-  };
   const [liked, setLiked] = useState(Boolean(item.liked_by_viewer));
   const [benefitedCount, setBenefitedCount] = useState(Number(item.benefited_count || 0));
   const isFollowing = Boolean(item.is_following_author);
@@ -187,10 +177,34 @@ export function PostCard({
           {item.tags?.length ? (
             <Text style={styles.homeMetaText}>#{item.tags.slice(0, 3).join(" #")}</Text>
           ) : null}
-          {item.cta_label && item.cta_url ? (
-            <Pressable style={styles.buttonSecondary} onPress={handleCtaPress}>
-              <Text style={styles.buttonText}>{item.cta_label}</Text>
-            </Pressable>
+          {item.attached_product_id ? (
+            <View style={styles.productCtaRow}>
+              <Pressable
+                style={[styles.buttonSecondary, styles.productCtaHalf]}
+                onPress={() => {
+                  void hapticTap();
+                  onViewOffer?.(item.attached_product_id as number);
+                }}
+              >
+                <Text style={styles.buttonText}>View offer</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.buttonPrimary, styles.productCtaHalf, buyBusy && styles.buttonDisabled]}
+                onPress={() => {
+                  void hapticPrimary();
+                  onBuyNow?.(item.attached_product_id as number);
+                }}
+                disabled={buyBusy}
+              >
+                <Text style={styles.buttonPrimaryText}>
+                  {buyHandoffProductId === item.attached_product_id
+                    ? "Securely opening..."
+                    : buyBusy
+                      ? "Opening..."
+                      : "Buy now"}
+                </Text>
+              </Pressable>
+            </View>
           ) : null}
           <Text style={styles.content}>
             <Text style={styles.homeAuthor}>{item.author_display_name} </Text>
@@ -250,10 +264,34 @@ export function PostCard({
       {item.tags?.length ? (
         <Text style={styles.muted}>#{item.tags.slice(0, 3).join(" #")}</Text>
       ) : null}
-      {item.cta_label && item.cta_url ? (
-        <Pressable style={styles.buttonSecondary} onPress={handleCtaPress}>
-          <Text style={styles.buttonText}>{item.cta_label}</Text>
-        </Pressable>
+      {item.attached_product_id ? (
+        <View style={styles.productCtaRow}>
+          <Pressable
+            style={[styles.buttonSecondary, styles.productCtaHalf]}
+            onPress={() => {
+              void hapticTap();
+              onViewOffer?.(item.attached_product_id as number);
+            }}
+          >
+            <Text style={styles.buttonText}>View offer</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.buttonPrimary, styles.productCtaHalf, buyBusy && styles.buttonDisabled]}
+            onPress={() => {
+              void hapticPrimary();
+              onBuyNow?.(item.attached_product_id as number);
+            }}
+            disabled={buyBusy}
+          >
+            <Text style={styles.buttonPrimaryText}>
+              {buyHandoffProductId === item.attached_product_id
+                ? "Securely opening..."
+                : buyBusy
+                  ? "Opening..."
+                  : "Buy now"}
+            </Text>
+          </Pressable>
+        </View>
       ) : null}
       {item.attached_product_id ? (
         <View style={styles.monetizationChip}>
@@ -463,6 +501,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8
   },
+  productCtaRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 4
+  },
+  productCtaHalf: {
+    flex: 1,
+    alignItems: "center"
+  },
   buttonSecondary: {
     borderColor: colors.border,
     borderWidth: StyleSheet.hairlineWidth,
@@ -471,8 +518,23 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     backgroundColor: colors.surface
   },
+  buttonPrimary: {
+    borderColor: colors.accent,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.control,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: colors.accent
+  },
   buttonText: {
     color: colors.text,
     fontWeight: "600"
+  },
+  buttonPrimaryText: {
+    color: colors.onAccent,
+    fontWeight: "700"
+  },
+  buttonDisabled: {
+    opacity: 0.6
   }
 });

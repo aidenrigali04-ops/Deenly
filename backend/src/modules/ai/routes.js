@@ -6,7 +6,12 @@ const { httpError } = require("../../utils/http-error");
 const { requireString, optionalString } = require("../../utils/validators");
 const { completeOpenAiChat } = require("../../services/openai-chat");
 
-const INTENTS = new Set(["polish", "marketplace_listing", "product_listing"]);
+const INTENTS = new Set([
+  "polish",
+  "marketplace_listing",
+  "product_listing",
+  "service_details_generate"
+]);
 
 function systemPromptForIntent(intent) {
   const base =
@@ -14,6 +19,17 @@ function systemPromptForIntent(intent) {
     "Do not give religious rulings, fatwas, or medical/legal advice. " +
     "Do not invent prices, guarantees, refunds, or product facts the user did not state. " +
     "Output plain text only: no markdown fences, no preamble or closing remarks.";
+
+  if (intent === "service_details_generate") {
+    return (
+      base +
+      " The creator provided KEY POINTS (bullets or short notes) about a service or subscription offer. " +
+      "Write a full service description for their product listing that includes: (1) what the buyer gets and how it is delivered, " +
+      "(2) who it is for, (3) a clear value proposition, (4) a calm next step (e.g. purchase, book, or message). " +
+      "Expand only from what the key points imply; do not invent specific guarantees, timelines, or credentials not hinted at. " +
+      "Match the language of the key points. Max about 2200 characters."
+    );
+  }
 
   if (intent === "marketplace_listing") {
     return (
@@ -186,6 +202,7 @@ function createAiRouter({ config, db, logger }) {
           { role: "user", content: `PRODUCT FACTS:\n${facts}` }
         ],
         maxTokens: 500,
+        timeoutMs: 60000,
         logger
       });
       const clipped = summary.length > 1200 ? `${summary.slice(0, 1197).trimEnd()}…` : summary;

@@ -1,6 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
+  Animated,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -12,15 +15,20 @@ import {
 import * as DocumentPicker from "expo-document-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, apiRequest } from "../../lib/api";
+import { assistPostText } from "../../lib/ai-assist";
 import {
   createProduct,
   publishProduct,
+  patchProduct,
+  fetchMyProducts,
+  fetchMyProductById,
   fetchStripeProductImportList,
   importProductDraftFromStripe,
   importProductDraftFromUrl,
   formatMinorCurrency,
+  type CreatorProductDetail,
   type MonetizationBoostTier,
   type ProductImportDraft,
   type StripeProductImportRow
@@ -87,6 +95,109 @@ function applyDraftToForm(
   }
 }
 
+function normalizeBoostTier(raw: string | null | undefined): MonetizationBoostTier {
+  const t = (raw || "standard").toLowerCase();
+  if (t === "boosted" || t === "aggressive") return t;
+  return "standard";
+}
+
+function applyProductDetailToForm(
+  p: CreatorProductDetail,
+  set: {
+    setTitle: (v: string) => void;
+    setDescription: (v: string) => void;
+    setCurrency: (v: string) => void;
+    setPriceUsd: (v: string) => void;
+    setPriceMinorOnly: (v: string) => void;
+    setUseMinorPrice: (v: boolean) => void;
+    setProductType: (v: "digital" | "service" | "subscription") => void;
+    setWebsiteUrl: (v: string) => void;
+    setServiceDetails: (v: string) => void;
+    setDeliveryMethod: (v: string) => void;
+    setAudienceTarget: (v: "b2b" | "b2c" | "both") => void;
+    setBusinessCategory: (v: string) => void;
+    setBoostTier: (v: MonetizationBoostTier) => void;
+    setHasRemoteDelivery: (v: boolean) => void;
+    setDeliveryFile: (v: DocumentPicker.DocumentPickerAsset | null) => void;
+    setSavedDraftId: (v: number | null) => void;
+  }
+) {
+  set.setTitle(p.title);
+  set.setDescription(p.description || "");
+  const cur = (p.currency || "usd").toLowerCase().slice(0, 3);
+  set.setCurrency(cur);
+  if (cur === "usd") {
+    set.setUseMinorPrice(false);
+    set.setPriceUsd((p.price_minor / 100).toFixed(2));
+    set.setPriceMinorOnly("");
+  } else {
+    set.setUseMinorPrice(true);
+    set.setPriceMinorOnly(String(p.price_minor));
+    set.setPriceUsd("");
+  }
+  set.setProductType(p.product_type);
+  set.setWebsiteUrl(p.website_url || "");
+  set.setServiceDetails(p.service_details || "");
+  set.setDeliveryMethod(p.delivery_method || "");
+  const at = p.audience_target;
+  if (at === "b2b" || at === "b2c" || at === "both") {
+    set.setAudienceTarget(at);
+  } else {
+    set.setAudienceTarget("both");
+  }
+  set.setBusinessCategory(p.business_category || "");
+  set.setBoostTier(normalizeBoostTier(p.boost_tier));
+  set.setHasRemoteDelivery(Boolean(p.delivery_media_key));
+  set.setDeliveryFile(null);
+  set.setSavedDraftId(p.id);
+}
+
+function SuccessCheckOverlay({
+  visible,
+  title,
+  subtitle
+}: {
+  visible: boolean;
+  title: string;
+  subtitle?: string;
+}) {
+  const scale = useRef(new Animated.Value(0)).current;
+  const fade = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!visible) {
+      scale.setValue(0);
+      fade.setValue(0);
+      return;
+    }
+    fade.setValue(0);
+    scale.setValue(0);
+    Animated.parallel([
+      Animated.timing(fade, { toValue: 1, duration: 180, useNativeDriver: true }),
+      Animated.spring(scale, {
+        toValue: 1,
+        friction: 7,
+        tension: 100,
+        useNativeDriver: true
+      })
+    ]).start();
+  }, [visible, fade, scale]);
+
+  return (
+    <Modal visible={visible} transparent animationType="none">
+      <Animated.View style={[styles.overlayBackdrop, { opacity: fade }]}>
+        <View style={styles.overlayCard}>
+          <Animated.View style={[styles.checkCircle, { transform: [{ scale }] }]}>
+            <Text style={styles.checkMark}>✓</Text>
+          </Animated.View>
+          <Text style={styles.overlayTitle}>{title}</Text>
+          {subtitle ? <Text style={styles.overlaySubtitle}>{subtitle}</Text> : null}
+        </View>
+      </Animated.View>
+    </Modal>
+  );
+}
+
 export function CreateProductScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
@@ -102,11 +213,16 @@ export function CreateProductScreen({ navigation, route }: Props) {
   const [businessCategory, setBusinessCategory] = useState("");
   const [boostTier, setBoostTier] = useState<MonetizationBoostTier>("standard");
   const [serviceDetails, setServiceDetails] = useState("");
+  const [serviceKeyPoints, setServiceKeyPoints] = useState("");
+  const [serviceAssistBusy, setServiceAssistBusy] = useState(false);
+  const [serviceAssistErr, setServiceAssistErr] = useState("");
   const [deliveryMethod, setDeliveryMethod] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [deliveryFile, setDeliveryFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
+  const [hasRemoteDelivery, setHasRemoteDelivery] = useState(false);
   const [formError, setFormError] = useState("");
   const [savedDraftId, setSavedDraftId] = useState<number | null>(null);
+  const [successKind, setSuccessKind] = useState<"draft" | "added" | null>(null);
   const [stripeItems, setStripeItems] = useState<StripeProductImportRow[]>([]);
   const [stripeBusy, setStripeBusy] = useState(false);
   const [stripePickBusy, setStripePickBusy] = useState(false);
@@ -114,9 +230,11 @@ export function CreateProductScreen({ navigation, route }: Props) {
   const [urlImportBusy, setUrlImportBusy] = useState(false);
   const [importNotice, setImportNotice] = useState("");
 
+  const editProductId = route.params?.editProductId;
+
   useEffect(() => {
     const d = route.params?.initialDraft;
-    if (!d || appliedInitialDraft.current) {
+    if (editProductId || !d || appliedInitialDraft.current) {
       return;
     }
     appliedInitialDraft.current = true;
@@ -130,13 +248,64 @@ export function CreateProductScreen({ navigation, route }: Props) {
       setProductType,
       setWebsiteUrl
     });
-  }, [route.params?.initialDraft]);
+  }, [route.params?.initialDraft, editProductId]);
+
+  const hydratedEditId = useRef<number | null>(null);
+  useEffect(() => {
+    hydratedEditId.current = null;
+  }, [editProductId]);
+
+  const { data: editRow, isLoading: editLoading, isError: editError } = useQuery({
+    queryKey: ["creator-product-edit", editProductId],
+    queryFn: () => fetchMyProductById(editProductId!),
+    enabled: Boolean(editProductId && editProductId > 0)
+  });
+
+  useEffect(() => {
+    if (!editProductId || !editRow || hydratedEditId.current === editProductId) {
+      return;
+    }
+    if (editRow.status !== "draft") {
+      hydratedEditId.current = editProductId;
+      return;
+    }
+    hydratedEditId.current = editProductId;
+    applyProductDetailToForm(editRow, {
+      setTitle,
+      setDescription,
+      setCurrency,
+      setPriceUsd,
+      setPriceMinorOnly,
+      setUseMinorPrice,
+      setProductType,
+      setWebsiteUrl,
+      setServiceDetails,
+      setDeliveryMethod,
+      setAudienceTarget,
+      setBusinessCategory,
+      setBoostTier,
+      setHasRemoteDelivery,
+      setDeliveryFile,
+      setSavedDraftId
+    });
+  }, [editProductId, editRow]);
+
+  const { data: myProducts } = useQuery({
+    queryKey: ["mobile-create-my-products"],
+    queryFn: () => fetchMyProducts({ limit: 50 })
+  });
+
+  const draftItems = useMemo(
+    () => (myProducts?.items || []).filter((i) => i.status === "draft"),
+    [myProducts]
+  );
 
   const createMutation = useMutation({
     mutationFn: createProduct,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["mobile-create-my-products"] });
       await queryClient.invalidateQueries({ queryKey: ["mobile-creator-products"] });
+      await queryClient.invalidateQueries({ queryKey: ["mobile-creator-catalog"] });
     }
   });
 
@@ -145,8 +314,49 @@ export function CreateProductScreen({ navigation, route }: Props) {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["mobile-create-my-products"] });
       await queryClient.invalidateQueries({ queryKey: ["mobile-creator-products"] });
+      await queryClient.invalidateQueries({ queryKey: ["mobile-creator-catalog"] });
     }
   });
+
+  const patchMutation = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: Parameters<typeof patchProduct>[1] }) => patchProduct(id, body),
+    onSuccess: async (_, { id }) => {
+      await queryClient.invalidateQueries({ queryKey: ["mobile-create-my-products"] });
+      await queryClient.invalidateQueries({ queryKey: ["mobile-creator-products"] });
+      await queryClient.invalidateQueries({ queryKey: ["mobile-creator-catalog"] });
+      await queryClient.invalidateQueries({ queryKey: ["creator-product-edit", id] });
+    }
+  });
+
+  const saveDraftPending = createMutation.isPending || patchMutation.isPending;
+  const addProductPending = saveDraftPending || publishMutation.isPending;
+
+  const generateServiceDescription = async () => {
+    const k = serviceKeyPoints.trim();
+    if (k.length < 5) {
+      setServiceAssistErr("Add key points (bullets or short notes).");
+      return;
+    }
+    setServiceAssistErr("");
+    setServiceAssistBusy(true);
+    try {
+      const lines = [
+        title.trim() ? `Product title: ${title.trim()}` : null,
+        `Product type: ${productType}`,
+        "",
+        "Key points from creator:",
+        k
+      ]
+        .filter(Boolean)
+        .join("\n");
+      const res = await assistPostText(lines, "service_details_generate");
+      setServiceDetails(res.suggestion);
+    } catch (e) {
+      setServiceAssistErr(e instanceof ApiError ? e.message : "Could not generate.");
+    } finally {
+      setServiceAssistBusy(false);
+    }
+  };
 
   const pickDeliveryFile = async () => {
     const result = await DocumentPicker.getDocumentAsync({
@@ -154,9 +364,74 @@ export function CreateProductScreen({ navigation, route }: Props) {
       copyToCacheDirectory: true
     });
     if (!result.canceled && result.assets.length > 0) {
+      setHasRemoteDelivery(false);
       setDeliveryFile(result.assets[0]);
     }
   };
+
+  const readPriceMinor = (): number | null => {
+    const cur = currency.toLowerCase();
+    if (cur === "usd" && !useMinorPrice) {
+      return parseUsdToMinor(priceUsd);
+    }
+    const raw = priceMinorOnly.replace(/\D/g, "");
+    const parsed = raw ? Number.parseInt(raw, 10) : NaN;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  };
+
+  const priceErrorMessage = (): string => {
+    const cur = currency.toLowerCase();
+    if (cur === "usd" && !useMinorPrice) {
+      return "Enter a valid price in USD (e.g. 9.99).";
+    }
+    return "Enter a valid price in minor units for this currency.";
+  };
+
+  const uploadDigitalDeliveryFile = async (): Promise<string> => {
+    if (!deliveryFile) {
+      throw new Error("No delivery file.");
+    }
+    const mimeType = deliveryFile.mimeType || "application/octet-stream";
+    const mediaType = deriveMediaType(mimeType);
+    if (!mediaType) {
+      throw new Error("Delivery file must be an image or video.");
+    }
+    const signature = await apiRequest<UploadSignatureResponse>("/media/upload-signature", {
+      method: "POST",
+      auth: true,
+      body: {
+        mediaType,
+        mimeType,
+        originalFilename: deliveryFile.name,
+        fileSizeBytes: deliveryFile.size || 1
+      }
+    });
+    const blob = await (await fetch(deliveryFile.uri)).blob();
+    const uploaded = await fetch(signature.uploadUrl, {
+      method: "PUT",
+      headers: signature.headers,
+      body: blob
+    });
+    if (!uploaded.ok) {
+      throw new Error("Could not upload delivery file.");
+    }
+    return signature.key;
+  };
+
+  const buildCommonBody = (t: string, priceMinor: number) => ({
+    title: t,
+    description: description.trim() || undefined,
+    priceMinor,
+    currency,
+    productType,
+    serviceDetails:
+      productType === "digital" ? undefined : serviceDetails.trim() || undefined,
+    deliveryMethod: deliveryMethod.trim().slice(0, 120) || undefined,
+    websiteUrl: websiteUrl.trim() || undefined,
+    audienceTarget,
+    businessCategory: businessCategory.trim() || undefined,
+    boostTier
+  });
 
   const onSaveDraft = async () => {
     setFormError("");
@@ -165,107 +440,144 @@ export function CreateProductScreen({ navigation, route }: Props) {
       setFormError("Title must be at least 3 characters.");
       return;
     }
-    const cur = currency.toLowerCase();
-    let priceMinor: number | null = null;
-    if (cur === "usd" && !useMinorPrice) {
-      priceMinor = parseUsdToMinor(priceUsd);
-      if (priceMinor === null) {
-        setFormError("Enter a valid price in USD (e.g. 9.99).");
-        return;
+    const priceMinor = readPriceMinor();
+    if (priceMinor === null) {
+      setFormError(priceErrorMessage());
+      return;
+    }
+
+    try {
+      const common = buildCommonBody(t, priceMinor);
+      if (savedDraftId) {
+        await patchMutation.mutateAsync({ id: savedDraftId, body: { ...common, status: "draft" } });
+      } else {
+        const row = await createMutation.mutateAsync(common);
+        if (Number.isFinite(row.id)) {
+          setSavedDraftId(row.id);
+        }
       }
-    } else {
-      const raw = priceMinorOnly.replace(/\D/g, "");
-      const parsed = raw ? Number.parseInt(raw, 10) : NaN;
-      priceMinor = Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-      if (priceMinor === null) {
-        setFormError("Enter a valid price in minor units for this currency.");
-        return;
-      }
+      setSuccessKind("draft");
+      setTimeout(() => setSuccessKind(null), 1500);
+    } catch (e) {
+      setFormError(e instanceof ApiError ? e.message : "Could not save draft.");
+    }
+  };
+
+  const onAddProduct = async () => {
+    setFormError("");
+    const t = title.trim();
+    if (t.length < 3) {
+      setFormError("Title must be at least 3 characters.");
+      return;
+    }
+    const priceMinor = readPriceMinor();
+    if (priceMinor === null) {
+      setFormError(priceErrorMessage());
+      return;
+    }
+    if (productType === "digital" && !deliveryFile && !hasRemoteDelivery) {
+      setFormError("Choose a delivery image or video before publishing.");
+      return;
     }
 
     try {
       let deliveryMediaKey: string | undefined;
-      if (productType === "digital") {
-        if (!deliveryFile) {
-          setFormError("Choose a delivery file (image or video) for digital products.");
-          return;
-        }
-        const mimeType = deliveryFile.mimeType || "application/octet-stream";
-        const mediaType = deriveMediaType(mimeType);
-        if (!mediaType) {
-          setFormError("Delivery file must be an image or video.");
-          return;
-        }
-        const signature = await apiRequest<UploadSignatureResponse>("/media/upload-signature", {
-          method: "POST",
-          auth: true,
-          body: {
-            mediaType,
-            mimeType,
-            originalFilename: deliveryFile.name,
-            fileSizeBytes: deliveryFile.size || 1
-          }
-        });
-        const blob = await (await fetch(deliveryFile.uri)).blob();
-        const uploaded = await fetch(signature.uploadUrl, {
-          method: "PUT",
-          headers: signature.headers,
-          body: blob
-        });
-        if (!uploaded.ok) {
-          throw new Error("Could not upload delivery file.");
-        }
-        deliveryMediaKey = signature.key;
+      if (productType === "digital" && deliveryFile) {
+        deliveryMediaKey = await uploadDigitalDeliveryFile();
+        setHasRemoteDelivery(true);
+        setDeliveryFile(null);
       }
 
-      const row = await createMutation.mutateAsync({
-        title: t,
-        description: description.trim() || undefined,
-        priceMinor,
-        currency,
-        productType,
-        deliveryMediaKey,
-        serviceDetails: serviceDetails.trim() || undefined,
-        deliveryMethod: deliveryMethod.trim().slice(0, 120) || undefined,
-        websiteUrl: websiteUrl.trim() || undefined,
-        audienceTarget,
-        businessCategory: businessCategory.trim() || undefined,
-        boostTier
-      });
-      setSavedDraftId(row.id);
+      const base = buildCommonBody(t, priceMinor);
+
+      let productId = savedDraftId;
+      if (productId) {
+        await patchMutation.mutateAsync({
+          id: productId,
+          body: {
+            ...base,
+            ...(deliveryMediaKey ? { deliveryMediaKey } : {})
+          }
+        });
+      } else {
+        const row = await createMutation.mutateAsync({
+          ...base,
+          ...(deliveryMediaKey ? { deliveryMediaKey } : {})
+        });
+        productId = row.id;
+        setSavedDraftId(row.id);
+      }
+
+      await publishMutation.mutateAsync(productId);
+      setSuccessKind("added");
+      setTimeout(() => {
+        setSuccessKind(null);
+        navigation.goBack();
+      }, 1600);
     } catch (e) {
-      setFormError(e instanceof ApiError ? e.message : "Could not save product.");
+      setFormError(e instanceof ApiError ? e.message : "Could not add product.");
     }
   };
 
-  const onPublish = async () => {
-    if (!savedDraftId) return;
-    setFormError("");
-    try {
-      await publishMutation.mutateAsync(savedDraftId);
-      navigation.goBack();
-    } catch (e) {
-      setFormError(e instanceof ApiError ? e.message : "Could not publish.");
-    }
-  };
+  const editBlockedNonDraft = Boolean(editRow && editRow.status !== "draft");
 
   return (
     <KeyboardAvoidingView
       style={styles.root}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
+      <SuccessCheckOverlay
+        visible={successKind !== null}
+        title={successKind === "added" ? "Product added" : "Draft saved"}
+        subtitle={
+          successKind === "added"
+            ? "Your catalog is updated."
+            : "Nothing was uploaded. Continue editing or publish when ready."
+        }
+      />
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 24 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.lede}>
-          Save a draft, publish when ready, then attach it from Create post or your Creator hub.
+          Publish goes live on your catalog. Save draft keeps work private—delivery uploads only when you publish.
         </Text>
+
+        {editLoading ? (
+          <View style={styles.editLoadingRow}>
+            <ActivityIndicator color={colors.accent} />
+            <Text style={styles.editLoadingText}>Loading draft…</Text>
+          </View>
+        ) : null}
+        {editError ? <Text style={styles.error}>Could not open this draft.</Text> : null}
+        {editBlockedNonDraft ? (
+          <Text style={styles.error}>Only drafts can be edited here. Published products are managed from your profile.</Text>
+        ) : null}
+
+        {draftItems.length > 0 && !editProductId ? (
+          <>
+            <SectionLabel>Drafts</SectionLabel>
+            <Text style={styles.importHint}>Tap to resume. Drafts never upload delivery files.</Text>
+            <View style={styles.stripeList}>
+              {draftItems.map((d) => (
+                <Pressable
+                  key={d.id}
+                  style={styles.stripeRow}
+                  onPress={() => navigation.navigate("CreateProduct", { editProductId: d.id })}
+                >
+                  <Text style={styles.stripeRowText} numberOfLines={2}>
+                    {d.title} · {formatMinorCurrency(Number(d.price_minor || 0), d.currency || "usd")}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </>
+        ) : null}
 
         <SectionLabel>Import</SectionLabel>
         <Text style={styles.importHint}>
-          Stripe: completed Connect required. Link: public https product pages only.
+          Stripe needs Connect complete. URLs must be public https product pages.
         </Text>
         <Pressable
           style={[styles.btnSecondary, stripeBusy && styles.btnDisabled]}
@@ -374,22 +686,6 @@ export function CreateProductScreen({ navigation, route }: Props) {
           <Text style={styles.btnSecondaryText}>{urlImportBusy ? "Fetching…" : "Import from link"}</Text>
         </Pressable>
         {importNotice ? <Text style={styles.importNotice}>{importNotice}</Text> : null}
-
-        {savedDraftId ? (
-          <View style={styles.banner}>
-            <Text style={styles.bannerText}>Draft saved. Publish to show it on your profile.</Text>
-            <Pressable
-              style={[styles.btnPrimary, publishMutation.isPending && styles.btnDisabled]}
-              onPress={() => void onPublish()}
-              disabled={publishMutation.isPending}
-            >
-              <Text style={styles.btnPrimaryText}>{publishMutation.isPending ? "Publishing…" : "Publish now"}</Text>
-            </Pressable>
-            <Pressable style={styles.btnGhost} onPress={() => navigation.goBack()}>
-              <Text style={styles.btnGhostText}>Done</Text>
-            </Pressable>
-          </View>
-        ) : null}
 
         <SectionLabel>Pricing & type</SectionLabel>
         <TextInput
@@ -521,18 +817,43 @@ export function CreateProductScreen({ navigation, route }: Props) {
         {productType === "digital" ? (
           <Pressable style={styles.filePick} onPress={pickDeliveryFile}>
             <Text style={styles.filePickText}>
-              {deliveryFile ? deliveryFile.name || "File selected" : "Tap to choose delivery image or video"}
+              {deliveryFile
+                ? deliveryFile.name || "File selected"
+                : hasRemoteDelivery
+                  ? "Delivery file attached — tap to replace"
+                  : "Tap to choose delivery image or video (required to publish)"}
             </Text>
           </Pressable>
         ) : (
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="Service details / what buyer receives"
-            placeholderTextColor={colors.muted}
-            value={serviceDetails}
-            onChangeText={setServiceDetails}
-            multiline
-          />
+          <View style={{ gap: 8 }}>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Key points — what you offer, who it is for, format, length…"
+              placeholderTextColor={colors.muted}
+              value={serviceKeyPoints}
+              onChangeText={setServiceKeyPoints}
+              multiline
+            />
+            <Pressable
+              style={[styles.btnSecondary, serviceAssistBusy && styles.btnDisabled]}
+              onPress={() => void generateServiceDescription()}
+              disabled={serviceAssistBusy}
+            >
+              <Text style={styles.btnSecondaryText}>
+                {serviceAssistBusy ? "Generating…" : "Generate with AI"}
+              </Text>
+            </Pressable>
+            {serviceAssistErr ? <Text style={styles.error}>{serviceAssistErr}</Text> : null}
+            <Text style={styles.importHint}>Generated text fills the box below — edit before saving.</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Service description & value proposition"
+              placeholderTextColor={colors.muted}
+              value={serviceDetails}
+              onChangeText={setServiceDetails}
+              multiline
+            />
+          </View>
         )}
         <TextInput
           style={styles.input}
@@ -554,15 +875,26 @@ export function CreateProductScreen({ navigation, route }: Props) {
 
         {formError ? <Text style={styles.error}>{formError}</Text> : null}
 
-        {!savedDraftId ? (
-          <Pressable
-            style={[styles.btnPrimary, createMutation.isPending && styles.btnDisabled]}
-            onPress={() => void onSaveDraft()}
-            disabled={createMutation.isPending}
-          >
-            <Text style={styles.btnPrimaryText}>{createMutation.isPending ? "Saving…" : "Save draft"}</Text>
-          </Pressable>
-        ) : null}
+        <Pressable
+          style={[styles.btnPrimary, (addProductPending || editLoading || editBlockedNonDraft) && styles.btnDisabled]}
+          onPress={() => void onAddProduct()}
+          disabled={addProductPending || editLoading || editBlockedNonDraft}
+        >
+          <Text style={styles.btnPrimaryText}>
+            {addProductPending
+              ? publishMutation.isPending
+                ? "Publishing…"
+                : "Preparing…"
+              : "Add product"}
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[styles.btnSecondary, (saveDraftPending || editLoading || editBlockedNonDraft) && styles.btnDisabled]}
+          onPress={() => void onSaveDraft()}
+          disabled={saveDraftPending || editLoading || editBlockedNonDraft}
+        >
+          <Text style={styles.btnSecondaryText}>{saveDraftPending ? "Saving…" : "Save draft"}</Text>
+        </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -571,18 +903,18 @@ export function CreateProductScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   scroll: { padding: 16, gap: 10 },
-  lede: { color: colors.muted, fontSize: 14, lineHeight: 20, marginBottom: 8 },
+  lede: { color: colors.muted, fontSize: 14, lineHeight: 21, marginBottom: 10, letterSpacing: -0.2 },
   sectionLabel: {
-    marginTop: 8,
-    fontSize: 12,
-    fontWeight: "700",
+    marginTop: 10,
+    fontSize: 11,
+    fontWeight: "600",
     color: colors.muted,
     textTransform: "uppercase",
-    letterSpacing: 0.5
+    letterSpacing: 1
   },
   input: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderColor: colors.borderSubtle,
     borderRadius: radii.control,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -598,7 +930,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: radii.pill,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderColor: colors.borderSubtle,
     backgroundColor: colors.surface
   },
   chipOn: { borderColor: colors.accent, backgroundColor: colors.subtleFill },
@@ -606,7 +938,7 @@ const styles = StyleSheet.create({
   chipTextOn: { color: colors.text },
   filePick: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderColor: colors.borderSubtle,
     borderRadius: radii.control,
     padding: 14,
     backgroundColor: colors.surface
@@ -622,21 +954,10 @@ const styles = StyleSheet.create({
   },
   btnDisabled: { opacity: 0.6 },
   btnPrimaryText: { color: colors.onAccent, fontSize: 16, fontWeight: "700" },
-  banner: {
-    padding: 14,
-    borderRadius: radii.control,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
-    gap: 10,
-    marginBottom: 8
-  },
-  bannerText: { fontSize: 14, color: colors.text, fontWeight: "600" },
-  btnGhost: { paddingVertical: 8, alignItems: "center" },
-  btnGhostText: { fontSize: 15, color: colors.muted, fontWeight: "600" },
   btnSecondary: {
+    marginTop: 10,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderColor: colors.borderSubtle,
     borderRadius: radii.control,
     paddingVertical: 12,
     paddingHorizontal: 14,
@@ -648,11 +969,59 @@ const styles = StyleSheet.create({
   stripeList: { gap: 6 },
   stripeRow: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderColor: colors.borderSubtle,
     borderRadius: radii.control,
     padding: 12,
     backgroundColor: colors.surface
   },
   stripeRowText: { fontSize: 13, color: colors.text, fontWeight: "600" },
-  importNotice: { fontSize: 13, color: colors.accent, marginTop: 4 }
+  importNotice: { fontSize: 13, color: colors.accent, marginTop: 4 },
+  overlayBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24
+  },
+  overlayCard: {
+    alignItems: "center",
+    maxWidth: 300,
+    width: "100%",
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+    borderRadius: radii.panel,
+    backgroundColor: colors.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderSubtle
+  },
+  checkCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.subtleFill,
+    borderWidth: 2,
+    borderColor: colors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16
+  },
+  checkMark: { fontSize: 36, color: colors.accent, fontWeight: "700" },
+  overlayTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: colors.text,
+    textAlign: "center",
+    letterSpacing: -0.4
+  },
+  overlaySubtitle: {
+    fontSize: 14,
+    color: colors.muted,
+    textAlign: "center",
+    marginTop: 10,
+    lineHeight: 21,
+    letterSpacing: -0.1,
+    paddingHorizontal: 8
+  },
+  editLoadingRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 },
+  editLoadingText: { fontSize: 14, color: colors.muted }
 });
