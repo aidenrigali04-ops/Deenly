@@ -8,8 +8,14 @@ import { assistPostText } from "@/lib/ai-assist";
 import {
   createProduct,
   publishProduct,
+  fetchStripeProductImportList,
+  importProductDraftFromStripe,
+  importProductDraftFromUrl,
+  formatMinorCurrency,
   type BoostTier,
-  type CreatorProduct
+  type CreatorProduct,
+  type ProductImportDraft,
+  type StripeProductImportRow
 } from "@/lib/monetization";
 
 type UploadSignatureResponse = {
@@ -47,6 +53,38 @@ export type CreateProductComposerProps = {
   onCreated?: (product: CreatorProduct) => void;
 };
 
+function applyImportedDraft(
+  draft: ProductImportDraft,
+  setters: {
+    setTitle: (v: string) => void;
+    setDescription: (v: string) => void;
+    setCurrency: (v: string) => void;
+    setShowAdvanced: (v: boolean) => void;
+    setPriceUsd: (v: string) => void;
+    setPriceMinorRaw: (v: string) => void;
+    setProductType: (v: "digital" | "service" | "subscription") => void;
+    setWebsiteUrl: (v: string) => void;
+  }
+) {
+  setters.setTitle(draft.title);
+  setters.setDescription(draft.description || "");
+  const cur = (draft.currency || "usd").toLowerCase().slice(0, 3);
+  setters.setCurrency(cur);
+  if (cur === "usd") {
+    setters.setShowAdvanced(false);
+    setters.setPriceUsd((draft.priceMinor / 100).toFixed(2));
+    setters.setPriceMinorRaw("");
+  } else {
+    setters.setShowAdvanced(true);
+    setters.setPriceMinorRaw(String(draft.priceMinor));
+    setters.setPriceUsd("");
+  }
+  setters.setProductType(draft.productType);
+  if (draft.websiteUrl) {
+    setters.setWebsiteUrl(draft.websiteUrl);
+  }
+}
+
 export function CreateProductComposer({ variant, onCreated }: CreateProductComposerProps) {
   const queryClient = useQueryClient();
   const [newProductTitle, setNewProductTitle] = useState("");
@@ -54,6 +92,7 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
   const [newProductPriceUsd, setNewProductPriceUsd] = useState("");
   const [showPriceMinorAdvanced, setShowPriceMinorAdvanced] = useState(false);
   const [newProductPriceMinorRaw, setNewProductPriceMinorRaw] = useState("");
+  const [newProductCurrency, setNewProductCurrency] = useState("usd");
   const [newProductType, setNewProductType] = useState<"digital" | "service" | "subscription">("digital");
   const [newProductAudienceTarget, setNewProductAudienceTarget] = useState<"b2b" | "b2c" | "both">("both");
   const [newProductBusinessCategory, setNewProductBusinessCategory] = useState("");
@@ -67,12 +106,19 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
   const [assistPending, setAssistPending] = useState(false);
   const [lastCreated, setLastCreated] = useState<CreatorProduct | null>(null);
   const [publishError, setPublishError] = useState("");
+  const [stripeImportItems, setStripeImportItems] = useState<StripeProductImportRow[]>([]);
+  const [stripeImportBusy, setStripeImportBusy] = useState(false);
+  const [stripePickBusy, setStripePickBusy] = useState(false);
+  const [urlImportInput, setUrlImportInput] = useState("");
+  const [urlImportBusy, setUrlImportBusy] = useState(false);
+  const [importError, setImportError] = useState("");
 
   const createProductMutation = useMutation({
     mutationFn: (input: {
       title: string;
       description?: string;
       priceMinor: number;
+      currency?: string;
       productType: "digital" | "service" | "subscription";
       deliveryMediaKey?: string;
       serviceDetails?: string;
@@ -81,7 +127,7 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
       audienceTarget?: "b2b" | "b2c" | "both";
       businessCategory?: string;
       boostTier?: BoostTier;
-    }) => createProduct({ ...input, currency: "usd" }),
+    }) => createProduct({ ...input, currency: input.currency || "usd" }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["account-monetization-products"] });
     }
@@ -100,6 +146,7 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
     setNewProductPriceUsd("");
     setNewProductPriceMinorRaw("");
     setShowPriceMinorAdvanced(false);
+    setNewProductCurrency("usd");
     setNewProductType("digital");
     setNewProductAudienceTarget("both");
     setNewProductBusinessCategory("");
@@ -109,6 +156,9 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
     setNewProductDeliveryFile(null);
     setNewProductBoostTier("standard");
     setNewProductFormError("");
+    setStripeImportItems([]);
+    setUrlImportInput("");
+    setImportError("");
   };
 
   const onCreateProductSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -120,12 +170,13 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
       return;
     }
     let priceMinor: number | null = null;
-    if (showPriceMinorAdvanced) {
+    const curLower = newProductCurrency.toLowerCase();
+    if (showPriceMinorAdvanced || curLower !== "usd") {
       const raw = newProductPriceMinorRaw.replace(/\D/g, "");
       const parsed = raw ? Number.parseInt(raw, 10) : NaN;
       priceMinor = Number.isFinite(parsed) && parsed > 0 ? parsed : null;
       if (priceMinor === null) {
-        setNewProductFormError("Enter a valid price in minor units (cents), greater than zero.");
+        setNewProductFormError("Enter a valid price in minor units for the selected currency, greater than zero.");
         return;
       }
     } else {
@@ -175,6 +226,7 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
         title,
         description: newProductDescription.trim() || undefined,
         priceMinor,
+        currency: newProductCurrency,
         productType: newProductType,
         deliveryMediaKey,
         serviceDetails: newProductServiceDetails.trim() || undefined,
@@ -260,9 +312,151 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
 
   return (
     <form className="space-y-4" onSubmit={onCreateProductSubmit}>
+      <div className="space-y-3 rounded-control border border-black/10 bg-black/[0.02] px-4 py-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">Import</p>
+        <p className="text-xs text-muted">
+          Requires completed Stripe Connect for catalog import. Link import uses public https pages only.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="btn-secondary px-3 py-1.5 text-xs"
+            disabled={stripeImportBusy}
+            onClick={() => {
+              setImportError("");
+              setStripeImportBusy(true);
+              void (async () => {
+                try {
+                  const r = await fetchStripeProductImportList({ limit: 50 });
+                  setStripeImportItems(r.items);
+                  if (r.items.length === 0) {
+                    setImportError("No active Stripe prices found on your connected account.");
+                  }
+                } catch (err) {
+                  setImportError(err instanceof ApiError ? err.message : "Could not load Stripe catalog.");
+                } finally {
+                  setStripeImportBusy(false);
+                }
+              })();
+            }}
+          >
+            {stripeImportBusy ? "Loading Stripe…" : "Load Stripe prices"}
+          </button>
+        </div>
+        {stripeImportItems.length > 0 ? (
+          <div className="space-y-1">
+            <label className="text-xs text-muted" htmlFor="cp-stripe-import-select">
+              Choose a price to fill the form
+            </label>
+            <select
+              id="cp-stripe-import-select"
+              className="input bg-white text-sm"
+              defaultValue=""
+              disabled={stripePickBusy}
+              onChange={(e) => {
+                const id = e.target.value;
+                if (!id) {
+                  return;
+                }
+                const item = stripeImportItems.find((row) => row.stripePriceId === id);
+                if (!item) {
+                  return;
+                }
+                setImportError("");
+                setStripePickBusy(true);
+                void (async () => {
+                  try {
+                    const r = await importProductDraftFromStripe({
+                      stripeProductId: item.stripeProductId,
+                      stripePriceId: item.stripePriceId
+                    });
+                    applyImportedDraft(r.draft, {
+                      setTitle: setNewProductTitle,
+                      setDescription: setNewProductDescription,
+                      setCurrency: setNewProductCurrency,
+                      setShowAdvanced: setShowPriceMinorAdvanced,
+                      setPriceUsd: setNewProductPriceUsd,
+                      setPriceMinorRaw: setNewProductPriceMinorRaw,
+                      setProductType: setNewProductType,
+                      setWebsiteUrl: setNewProductWebsiteUrl
+                    });
+                  } catch (err) {
+                    setImportError(err instanceof ApiError ? err.message : "Could not import from Stripe.");
+                  } finally {
+                    setStripePickBusy(false);
+                    e.target.value = "";
+                  }
+                })();
+              }}
+            >
+              <option value="">Select…</option>
+              {stripeImportItems.map((row) => (
+                <option key={row.stripePriceId} value={row.stripePriceId}>
+                  {row.title} — {formatMinorCurrency(row.priceMinor, row.currency)}
+                  {row.recurring ? ` / ${row.recurring.interval}` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <div className="min-w-0 flex-1 space-y-1">
+            <label className="text-xs text-muted" htmlFor="cp-import-url">
+              Product page URL
+            </label>
+            <input
+              id="cp-import-url"
+              className="input bg-white text-sm"
+              placeholder="https://…"
+              value={urlImportInput}
+              onChange={(e) => setUrlImportInput(e.target.value)}
+              autoCapitalize="off"
+            />
+          </div>
+          <button
+            type="button"
+            className="btn-secondary shrink-0 px-3 py-2 text-sm"
+            disabled={urlImportBusy}
+            onClick={() => {
+              setImportError("");
+              setUrlImportBusy(true);
+              void (async () => {
+                try {
+                  const r = await importProductDraftFromUrl(urlImportInput.trim());
+                  applyImportedDraft(r.draft, {
+                    setTitle: setNewProductTitle,
+                    setDescription: setNewProductDescription,
+                    setCurrency: setNewProductCurrency,
+                    setShowAdvanced: setShowPriceMinorAdvanced,
+                    setPriceUsd: setNewProductPriceUsd,
+                    setPriceMinorRaw: setNewProductPriceMinorRaw,
+                    setProductType: setNewProductType,
+                    setWebsiteUrl: setNewProductWebsiteUrl
+                  });
+                  if (r.warnings?.length) {
+                    setImportError(r.warnings.join(" "));
+                  }
+                } catch (err) {
+                  setImportError(err instanceof ApiError ? err.message : "Could not import from URL.");
+                } finally {
+                  setUrlImportBusy(false);
+                }
+              })();
+            }}
+          >
+            {urlImportBusy ? "Fetching…" : "Import from link"}
+          </button>
+        </div>
+        {importError ? (
+          <p className="text-xs text-amber-800 dark:text-amber-200" role="status">
+            {importError}
+          </p>
+        ) : null}
+      </div>
+
       <div className="space-y-3 border-t border-black/10 pt-4 first:border-t-0 first:pt-0">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">Pricing and type</p>
-        {!showPriceMinorAdvanced ? (
+        {!showPriceMinorAdvanced && newProductCurrency.toLowerCase() === "usd" ? (
           <div className="space-y-1">
             <label className="text-xs text-muted" htmlFor="cp-product-price-usd">
               Price (USD)
@@ -280,7 +474,7 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
         ) : (
           <div className="space-y-1">
             <label className="text-xs text-muted" htmlFor="cp-product-price-minor">
-              Price in cents (minor units)
+              Price in minor units (smallest currency unit)
             </label>
             <input
               id="cp-product-price-minor"
@@ -299,8 +493,21 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
             checked={showPriceMinorAdvanced}
             onChange={(e) => setShowPriceMinorAdvanced(e.target.checked)}
           />
-          Advanced: enter minor units (cents) directly
+          Advanced: enter minor units directly
         </label>
+        <div className="space-y-1">
+          <label className="text-xs text-muted" htmlFor="cp-product-currency">
+            Currency (ISO)
+          </label>
+          <input
+            id="cp-product-currency"
+            className="input max-w-[8rem] bg-white"
+            value={newProductCurrency}
+            onChange={(e) => setNewProductCurrency(e.target.value.trim().toLowerCase().slice(0, 3) || "usd")}
+            maxLength={3}
+            aria-label="Currency code"
+          />
+        </div>
         <select
           className="input bg-white"
           value={newProductType}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -17,7 +17,13 @@ import { ApiError, apiRequest } from "../../lib/api";
 import {
   createProduct,
   publishProduct,
-  type MonetizationBoostTier
+  fetchStripeProductImportList,
+  importProductDraftFromStripe,
+  importProductDraftFromUrl,
+  formatMinorCurrency,
+  type MonetizationBoostTier,
+  type ProductImportDraft,
+  type StripeProductImportRow
 } from "../../lib/monetization";
 import { colors, radii } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
@@ -49,12 +55,48 @@ function SectionLabel({ children }: { children: string }) {
   return <Text style={styles.sectionLabel}>{children}</Text>;
 }
 
-export function CreateProductScreen({ navigation }: Props) {
+function applyDraftToForm(
+  draft: ProductImportDraft,
+  set: {
+    setTitle: (v: string) => void;
+    setDescription: (v: string) => void;
+    setCurrency: (v: string) => void;
+    setPriceUsd: (v: string) => void;
+    setPriceMinorOnly: (v: string) => void;
+    setUseMinorPrice: (v: boolean) => void;
+    setProductType: (v: "digital" | "service" | "subscription") => void;
+    setWebsiteUrl: (v: string) => void;
+  }
+) {
+  set.setTitle(draft.title);
+  set.setDescription(draft.description || "");
+  const cur = (draft.currency || "usd").toLowerCase().slice(0, 3);
+  set.setCurrency(cur);
+  if (cur === "usd") {
+    set.setUseMinorPrice(false);
+    set.setPriceUsd((draft.priceMinor / 100).toFixed(2));
+    set.setPriceMinorOnly("");
+  } else {
+    set.setUseMinorPrice(true);
+    set.setPriceMinorOnly(String(draft.priceMinor));
+    set.setPriceUsd("");
+  }
+  set.setProductType(draft.productType);
+  if (draft.websiteUrl) {
+    set.setWebsiteUrl(draft.websiteUrl);
+  }
+}
+
+export function CreateProductScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const appliedInitialDraft = useRef(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priceUsd, setPriceUsd] = useState("");
+  const [priceMinorOnly, setPriceMinorOnly] = useState("");
+  const [currency, setCurrency] = useState("usd");
+  const [useMinorPrice, setUseMinorPrice] = useState(false);
   const [productType, setProductType] = useState<"digital" | "service" | "subscription">("digital");
   const [audienceTarget, setAudienceTarget] = useState<"b2b" | "b2c" | "both">("both");
   const [businessCategory, setBusinessCategory] = useState("");
@@ -65,6 +107,30 @@ export function CreateProductScreen({ navigation }: Props) {
   const [deliveryFile, setDeliveryFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [formError, setFormError] = useState("");
   const [savedDraftId, setSavedDraftId] = useState<number | null>(null);
+  const [stripeItems, setStripeItems] = useState<StripeProductImportRow[]>([]);
+  const [stripeBusy, setStripeBusy] = useState(false);
+  const [stripePickBusy, setStripePickBusy] = useState(false);
+  const [urlImportInput, setUrlImportInput] = useState("");
+  const [urlImportBusy, setUrlImportBusy] = useState(false);
+  const [importNotice, setImportNotice] = useState("");
+
+  useEffect(() => {
+    const d = route.params?.initialDraft;
+    if (!d || appliedInitialDraft.current) {
+      return;
+    }
+    appliedInitialDraft.current = true;
+    applyDraftToForm(d, {
+      setTitle,
+      setDescription,
+      setCurrency,
+      setPriceUsd,
+      setPriceMinorOnly,
+      setUseMinorPrice,
+      setProductType,
+      setWebsiteUrl
+    });
+  }, [route.params?.initialDraft]);
 
   const createMutation = useMutation({
     mutationFn: createProduct,
@@ -99,10 +165,22 @@ export function CreateProductScreen({ navigation }: Props) {
       setFormError("Title must be at least 3 characters.");
       return;
     }
-    const priceMinor = parseUsdToMinor(priceUsd);
-    if (priceMinor === null) {
-      setFormError("Enter a valid price in USD (e.g. 9.99).");
-      return;
+    const cur = currency.toLowerCase();
+    let priceMinor: number | null = null;
+    if (cur === "usd" && !useMinorPrice) {
+      priceMinor = parseUsdToMinor(priceUsd);
+      if (priceMinor === null) {
+        setFormError("Enter a valid price in USD (e.g. 9.99).");
+        return;
+      }
+    } else {
+      const raw = priceMinorOnly.replace(/\D/g, "");
+      const parsed = raw ? Number.parseInt(raw, 10) : NaN;
+      priceMinor = Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+      if (priceMinor === null) {
+        setFormError("Enter a valid price in minor units for this currency.");
+        return;
+      }
     }
 
     try {
@@ -144,6 +222,7 @@ export function CreateProductScreen({ navigation }: Props) {
         title: t,
         description: description.trim() || undefined,
         priceMinor,
+        currency,
         productType,
         deliveryMediaKey,
         serviceDetails: serviceDetails.trim() || undefined,
@@ -184,6 +263,118 @@ export function CreateProductScreen({ navigation }: Props) {
           Save a draft, publish when ready, then attach it from Create post or your Creator hub.
         </Text>
 
+        <SectionLabel>Import</SectionLabel>
+        <Text style={styles.importHint}>
+          Stripe: completed Connect required. Link: public https product pages only.
+        </Text>
+        <Pressable
+          style={[styles.btnSecondary, stripeBusy && styles.btnDisabled]}
+          onPress={() => {
+            setImportNotice("");
+            setStripeBusy(true);
+            void (async () => {
+              try {
+                const r = await fetchStripeProductImportList({ limit: 40 });
+                setStripeItems(r.items);
+                if (r.items.length === 0) {
+                  setImportNotice("No active Stripe prices found.");
+                }
+              } catch (e) {
+                setImportNotice(e instanceof ApiError ? e.message : "Could not load Stripe catalog.");
+              } finally {
+                setStripeBusy(false);
+              }
+            })();
+          }}
+          disabled={stripeBusy}
+        >
+          <Text style={styles.btnSecondaryText}>{stripeBusy ? "Loading Stripe…" : "Load Stripe prices"}</Text>
+        </Pressable>
+        {stripeItems.length > 0 ? (
+          <View style={styles.stripeList}>
+            {stripeItems.map((row) => (
+              <Pressable
+                key={row.stripePriceId}
+                style={[styles.stripeRow, stripePickBusy && styles.btnDisabled]}
+                disabled={stripePickBusy}
+                onPress={() => {
+                  setImportNotice("");
+                  setStripePickBusy(true);
+                  void (async () => {
+                    try {
+                      const r = await importProductDraftFromStripe({
+                        stripeProductId: row.stripeProductId,
+                        stripePriceId: row.stripePriceId
+                      });
+                      applyDraftToForm(r.draft, {
+                        setTitle,
+                        setDescription,
+                        setCurrency,
+                        setPriceUsd,
+                        setPriceMinorOnly,
+                        setUseMinorPrice,
+                        setProductType,
+                        setWebsiteUrl
+                      });
+                    } catch (e) {
+                      setImportNotice(e instanceof ApiError ? e.message : "Stripe import failed.");
+                    } finally {
+                      setStripePickBusy(false);
+                    }
+                  })();
+                }}
+              >
+                <Text style={styles.stripeRowText} numberOfLines={2}>
+                  {row.title} · {formatMinorCurrency(row.priceMinor, row.currency)}
+                  {row.recurring ? ` / ${row.recurring.interval}` : ""}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+        <TextInput
+          style={styles.input}
+          placeholder="https://… product page"
+          placeholderTextColor={colors.muted}
+          value={urlImportInput}
+          onChangeText={setUrlImportInput}
+          autoCapitalize="none"
+          keyboardType="url"
+        />
+        <Pressable
+          style={[styles.btnSecondary, urlImportBusy && styles.btnDisabled]}
+          disabled={urlImportBusy}
+          onPress={() => {
+            setImportNotice("");
+            setUrlImportBusy(true);
+            void (async () => {
+              try {
+                const r = await importProductDraftFromUrl(urlImportInput.trim());
+                applyDraftToForm(r.draft, {
+                  setTitle,
+                  setDescription,
+                  setCurrency,
+                  setPriceUsd,
+                  setPriceMinorOnly,
+                  setUseMinorPrice,
+                  setProductType,
+                  setWebsiteUrl
+                });
+                if (r.warnings?.length) {
+                  setImportNotice(r.warnings.join(" "));
+                }
+              } catch (e) {
+                setImportNotice(e instanceof ApiError ? e.message : "URL import failed.");
+              } finally {
+                setUrlImportBusy(false);
+              }
+            })();
+          }}
+        >
+          <Text style={styles.btnSecondaryText}>{urlImportBusy ? "Fetching…" : "Import from link"}</Text>
+        </Pressable>
+        {importNotice ? <Text style={styles.importNotice}>{importNotice}</Text> : null}
+
         {savedDraftId ? (
           <View style={styles.banner}>
             <Text style={styles.bannerText}>Draft saved. Publish to show it on your profile.</Text>
@@ -203,12 +394,40 @@ export function CreateProductScreen({ navigation }: Props) {
         <SectionLabel>Pricing & type</SectionLabel>
         <TextInput
           style={styles.input}
-          placeholder="Price USD (e.g. 9.99)"
+          placeholder="Currency (usd, eur, …)"
           placeholderTextColor={colors.muted}
-          value={priceUsd}
-          onChangeText={setPriceUsd}
-          keyboardType="decimal-pad"
+          value={currency}
+          onChangeText={(v) => setCurrency(v.trim().toLowerCase().slice(0, 3) || "usd")}
+          autoCapitalize="characters"
+          maxLength={3}
         />
+        {currency.toLowerCase() === "usd" && !useMinorPrice ? (
+          <TextInput
+            style={styles.input}
+            placeholder="Price USD (e.g. 9.99)"
+            placeholderTextColor={colors.muted}
+            value={priceUsd}
+            onChangeText={setPriceUsd}
+            keyboardType="decimal-pad"
+          />
+        ) : (
+          <TextInput
+            style={styles.input}
+            placeholder="Price in minor units (smallest currency unit)"
+            placeholderTextColor={colors.muted}
+            value={priceMinorOnly}
+            onChangeText={setPriceMinorOnly}
+            keyboardType="number-pad"
+          />
+        )}
+        <Pressable
+          style={styles.chip}
+          onPress={() => setUseMinorPrice((x) => !x)}
+        >
+          <Text style={styles.chipText}>
+            {useMinorPrice ? "Using minor units" : "Using USD dollars"} — tap to toggle
+          </Text>
+        </Pressable>
         <View style={styles.chipRow}>
           {(["digital", "service", "subscription"] as const).map((pt) => (
             <Pressable
@@ -414,5 +633,26 @@ const styles = StyleSheet.create({
   },
   bannerText: { fontSize: 14, color: colors.text, fontWeight: "600" },
   btnGhost: { paddingVertical: 8, alignItems: "center" },
-  btnGhostText: { fontSize: 15, color: colors.muted, fontWeight: "600" }
+  btnGhostText: { fontSize: 15, color: colors.muted, fontWeight: "600" },
+  btnSecondary: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: radii.control,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    backgroundColor: colors.surface
+  },
+  btnSecondaryText: { fontSize: 14, fontWeight: "700", color: colors.accent },
+  importHint: { fontSize: 12, color: colors.muted, lineHeight: 18 },
+  stripeList: { gap: 6 },
+  stripeRow: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: radii.control,
+    padding: 12,
+    backgroundColor: colors.surface
+  },
+  stripeRowText: { fontSize: 13, color: colors.text, fontWeight: "600" },
+  importNotice: { fontSize: 13, color: colors.accent, marginTop: 4 }
 });

@@ -34,6 +34,7 @@ import { QuranReaderScreen } from "../screens/app/QuranReaderScreen";
 import { SalahSettingsScreen } from "../screens/app/SalahSettingsScreen";
 import { CreatorEconomyScreen } from "../screens/app/CreatorEconomyScreen";
 import { CreateProductScreen } from "../screens/app/CreateProductScreen";
+import type { ProductImportDraft } from "../lib/monetization";
 import { ReelsScreen } from "../screens/app/ReelsScreen";
 import { NotificationsScreen } from "../screens/app/NotificationsScreen";
 import { AddBusinessScreen } from "../screens/app/AddBusinessScreen";
@@ -77,7 +78,7 @@ export type RootStackParamList = {
   QuranReader: undefined;
   SalahSettings: undefined;
   CreatorEconomy: undefined;
-  CreateProduct: undefined;
+  CreateProduct: { initialDraft?: ProductImportDraft } | undefined;
   Reels: undefined;
   Notifications: undefined;
   AddBusiness: undefined;

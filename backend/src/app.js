@@ -261,6 +261,7 @@ function createApp({
     createMonetizationRouter({
       db,
       config,
+      logger,
       monetizationGateway: app.locals.monetizationGateway,
       mediaStorage: app.locals.mediaStorage,
       analytics: app.locals.analytics

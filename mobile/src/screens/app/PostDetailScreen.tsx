@@ -10,7 +10,7 @@ import { enqueueMutation } from "../../lib/mutation-queue";
 import { colors } from "../../theme";
 import type { FeedItem } from "../../types";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
-import { createProductCheckout, formatMinorCurrency } from "../../lib/monetization";
+import { createGuestProductCheckout, createProductCheckout, formatMinorCurrency } from "../../lib/monetization";
 import { useSessionStore } from "../../store/session-store";
 
 type PostDetail = FeedItem & {
@@ -126,6 +126,14 @@ export function PostDetailScreen({ route, navigation }: Props) {
   }, [postQuery.data, benefitedCount]);
   const productCheckoutMutation = useMutation({
     mutationFn: (productId: number) => createProductCheckout(productId),
+    onSuccess: async (result) => {
+      if (result?.checkoutUrl) {
+        await Linking.openURL(result.checkoutUrl);
+      }
+    }
+  });
+  const guestProductCheckoutMutation = useMutation({
+    mutationFn: (productId: number) => createGuestProductCheckout(productId, { smsOptIn: false }),
     onSuccess: async (result) => {
       if (result?.checkoutUrl) {
         await Linking.openURL(result.checkoutUrl);
@@ -290,12 +298,16 @@ export function PostDetailScreen({ route, navigation }: Props) {
                   await Linking.openURL(attachedProductWebsiteUrl);
                   return;
                 }
+                if (!sessionUser) {
+                  guestProductCheckoutMutation.mutate(post.attached_product_id as number);
+                  return;
+                }
                 productCheckoutMutation.mutate(post.attached_product_id as number);
               }}
-              disabled={productCheckoutMutation.isPending}
+              disabled={productCheckoutMutation.isPending || guestProductCheckoutMutation.isPending}
             >
               <Text style={styles.buttonText}>
-                {productCheckoutMutation.isPending
+                {productCheckoutMutation.isPending || guestProductCheckoutMutation.isPending
                   ? "Opening..."
                   : attachedProductType === "digital"
                     ? "Buy product"

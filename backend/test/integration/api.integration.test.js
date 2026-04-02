@@ -1124,6 +1124,29 @@ describeIfDatabase("integration api flows", () => {
     expect(catalogMissing.statusCode).toBe(404);
   });
 
+  it("rejects product import from URL when not https or host is blocked", async () => {
+    const u = await request(app).post("/api/v1/auth/register").send({
+      email: "import-url@example.com",
+      username: "import_url_user",
+      password: "StrongPass123",
+      displayName: "Import URL"
+    });
+    expect(u.statusCode).toBe(201);
+    const token = u.body.tokens.accessToken;
+
+    const httpUrl = await request(app)
+      .post("/api/v1/monetization/products/import/url")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ url: "http://example.com/product" });
+    expect(httpUrl.statusCode).toBe(400);
+
+    const local = await request(app)
+      .post("/api/v1/monetization/products/import/url")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ url: "https://localhost/foo" });
+    expect(local.statusCode).toBe(400);
+  });
+
   it("admin can set profile verification and it appears on public user GET", async () => {
     const target = await request(app).post("/api/v1/auth/register").send({
       email: "verify-target@example.com",
@@ -1169,7 +1192,10 @@ describeIfDatabase("integration api flows", () => {
       createConnectedAccount: jest.fn(),
       retrieveConnectedAccount: jest.fn(),
       createOnboardingLink: jest.fn(),
-      createDashboardLink: jest.fn()
+      createDashboardLink: jest.fn(),
+      listConnectAccountPrices: jest.fn(async () => ({ data: [], has_more: false })),
+      retrieveConnectAccountPrice: jest.fn(),
+      retrieveConnectAccountProduct: jest.fn()
     };
 
     const testApp = createApp({

@@ -74,7 +74,10 @@ function createMonetizationGateway({ config }) {
     recurringInterval = "month",
     connectedAccountId = null,
     applicationFeeAmountMinor = null,
-    platformFeeBps = null
+    platformFeeBps = null,
+    customerEmail = null,
+    collectPhone = false,
+    metadataExtra = null
   }) {
     const client = requireStripeClient();
     const base = requireAppBaseUrl();
@@ -91,6 +94,12 @@ function createMonetizationGateway({ config }) {
         paymentIntentData.application_fee_amount = applicationFeeAmountMinor;
       }
     }
+    const extra =
+      metadataExtra && typeof metadataExtra === "object"
+        ? Object.fromEntries(
+            Object.entries(metadataExtra).map(([k, v]) => [k, v == null ? "" : String(v).slice(0, 500)])
+          )
+        : {};
     return client.checkout.sessions.create({
       mode: normalizedMode,
       success_url: `${base}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
@@ -118,6 +127,8 @@ function createMonetizationGateway({ config }) {
         }
       ],
       ...(Object.keys(paymentIntentData).length ? { payment_intent_data: paymentIntentData } : {}),
+      ...(customerEmail ? { customer_email: String(customerEmail).trim().slice(0, 255) } : {}),
+      ...(collectPhone ? { phone_number_collection: { enabled: true } } : {}),
       metadata: {
         kind,
         mode: normalizedMode,
@@ -126,7 +137,8 @@ function createMonetizationGateway({ config }) {
         productId: productId ? String(productId) : "",
         tierId: tierId ? String(tierId) : "",
         affiliateCodeId: affiliateCodeId ? String(affiliateCodeId) : "",
-        platformFeeBps: platformFeeBps != null ? String(platformFeeBps) : ""
+        platformFeeBps: platformFeeBps != null ? String(platformFeeBps) : "",
+        ...extra
       }
     });
   }
@@ -144,6 +156,37 @@ function createMonetizationGateway({ config }) {
     return client.checkout.sessions.retrieve(sessionId);
   }
 
+  /**
+   * List active prices on a Connect account (expanded product) for import UI.
+   */
+  async function listConnectAccountPrices({ stripeAccountId, limit = 30, startingAfter = null }) {
+    const client = requireStripeClient();
+    const cap = Math.min(Math.max(Number(limit) || 30, 1), 100);
+    return client.prices.list(
+      {
+        active: true,
+        limit: cap,
+        starting_after: startingAfter || undefined,
+        expand: ["data.product"]
+      },
+      { stripeAccount: stripeAccountId }
+    );
+  }
+
+  async function retrieveConnectAccountPrice({ stripeAccountId, priceId }) {
+    const client = requireStripeClient();
+    return client.prices.retrieve(
+      priceId,
+      { expand: ["product"] },
+      { stripeAccount: stripeAccountId }
+    );
+  }
+
+  async function retrieveConnectAccountProduct({ stripeAccountId, productId }) {
+    const client = requireStripeClient();
+    return client.products.retrieve(productId, {}, { stripeAccount: stripeAccountId });
+  }
+
   return {
     createConnectedAccount,
     retrieveConnectedAccount,
@@ -151,7 +194,10 @@ function createMonetizationGateway({ config }) {
     createDashboardLink,
     createCheckoutSession,
     constructWebhookEvent,
-    retrieveCheckoutSession
+    retrieveCheckoutSession,
+    listConnectAccountPrices,
+    retrieveConnectAccountPrice,
+    retrieveConnectAccountProduct
   };
 }
 

@@ -47,11 +47,18 @@ export async function createSupportCheckout(creatorUserId: number, amountMinor: 
   });
 }
 
-export async function createProductCheckout(productId: number) {
+export async function createGuestProductCheckout(productId: number, body?: { guestEmail?: string; smsOptIn?: boolean }) {
+  return apiRequest<{ checkoutUrl: string }>(`/monetization/checkout/product/${productId}/guest`, {
+    method: "POST",
+    body: { guestEmail: body?.guestEmail, smsOptIn: body?.smsOptIn }
+  });
+}
+
+export async function createProductCheckout(productId: number, opts?: { smsOptIn?: boolean }) {
   return apiRequest<{ checkoutUrl: string }>(`/monetization/checkout/product/${productId}`, {
     method: "POST",
     auth: true,
-    body: {}
+    body: { smsOptIn: opts?.smsOptIn }
   });
 }
 
@@ -91,6 +98,57 @@ export type CreatorProductRow = {
 
 export async function fetchMyProducts() {
   return apiRequest<{ items: CreatorProductRow[] }>("/monetization/products/me", { auth: true });
+}
+
+export type ProductImportDraft = {
+  title: string;
+  description: string | null;
+  priceMinor: number;
+  currency: string;
+  productType: "digital" | "service" | "subscription";
+  websiteUrl: string | null;
+};
+
+export type StripeProductImportRow = {
+  stripePriceId: string;
+  stripeProductId: string;
+  title: string;
+  priceMinor: number;
+  currency: string;
+  recurring: { interval: string; intervalCount: number } | null;
+  productActive: boolean;
+};
+
+export async function fetchStripeProductImportList(params?: { limit?: number; startingAfter?: string | null }) {
+  const qs = new URLSearchParams();
+  if (params?.limit != null) {
+    qs.set("limit", String(params.limit));
+  }
+  if (params?.startingAfter) {
+    qs.set("startingAfter", params.startingAfter);
+  }
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiRequest<{ items: StripeProductImportRow[]; hasMore: boolean; nextStartingAfter: string | null }>(
+    `/monetization/products/import/stripe${suffix}`,
+    { auth: true }
+  );
+}
+
+export async function importProductDraftFromStripe(body: { stripeProductId: string; stripePriceId: string }) {
+  return apiRequest<{ draft: ProductImportDraft; provenance: { stripeProductId: string; stripePriceId: string } }>(
+    "/monetization/products/import/stripe",
+    { method: "POST", auth: true, body }
+  );
+}
+
+export async function importProductDraftFromUrl(url: string) {
+  return apiRequest<{
+    draft: ProductImportDraft;
+    sourceUrl: string;
+    confidence: string;
+    warnings: string[];
+    hints: { ogImage: string | null };
+  }>("/monetization/products/import/url", { method: "POST", auth: true, body: { url } });
 }
 
 export async function createProduct(input: {

@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
+import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { resolveMediaUrl } from "@/lib/media-url";
 import {
+  createGuestProductCheckout,
   createProductCheckout,
   fetchPublicProduct,
   formatMinorCurrency,
@@ -32,8 +34,25 @@ export default function PublicProductPage() {
     enabled: Number.isFinite(productId) && productId > 0
   });
 
+  const [smsOptIn, setSmsOptIn] = useState(false);
+  const [guestEmail, setGuestEmail] = useState("");
+  const [guestExpanded, setGuestExpanded] = useState(false);
+
   const checkoutMutation = useMutation({
-    mutationFn: () => createProductCheckout(productId),
+    mutationFn: () => createProductCheckout(productId, { smsOptIn }),
+    onSuccess: (result) => {
+      if (result?.checkoutUrl && typeof window !== "undefined") {
+        window.location.assign(result.checkoutUrl);
+      }
+    }
+  });
+
+  const guestCheckoutMutation = useMutation({
+    mutationFn: () =>
+      createGuestProductCheckout(productId, {
+        guestEmail: guestEmail.trim() || undefined,
+        smsOptIn
+      }),
     onSuccess: (result) => {
       if (result?.checkoutUrl && typeof window !== "undefined") {
         window.location.assign(result.checkoutUrl);
@@ -136,15 +155,54 @@ export default function PublicProductPage() {
           Secure checkout with Stripe. You will complete payment on Stripe, then return to Deenly.
         </p>
 
-        <div className="mt-6 flex flex-wrap gap-2">
+        <div className="mt-6 flex flex-col gap-3">
           {isOwner ? (
             <Link href="/account/creator?tab=products" className="btn-secondary inline-flex px-4 py-2 text-sm">
               Manage in Creator hub
             </Link>
           ) : !sessionUser ? (
-            <Link href={`/auth/login?next=${loginNext}`} className="btn-primary inline-flex px-4 py-2 text-sm">
-              Log in to buy
-            </Link>
+            <>
+              <div className="flex flex-wrap gap-2">
+                <Link href={`/auth/login?next=${loginNext}`} className="btn-primary inline-flex px-4 py-2 text-sm">
+                  Log in to buy
+                </Link>
+                <button
+                  type="button"
+                  className="btn-secondary px-4 py-2 text-sm"
+                  onClick={() => setGuestExpanded((v) => !v)}
+                >
+                  {guestExpanded ? "Hide guest checkout" : "Continue as guest"}
+                </button>
+              </div>
+              {guestExpanded ? (
+                <div className="surface-card space-y-3 rounded-control border border-black/10 px-4 py-4 text-sm">
+                  <p className="text-muted">
+                    Stripe will collect payment. Optional: prefill your email. If you want a text with your access link,
+                    check the box (phone is collected on Stripe checkout).
+                  </p>
+                  <input
+                    className="input w-full bg-white"
+                    placeholder="Email (optional)"
+                    type="email"
+                    autoComplete="email"
+                    value={guestEmail}
+                    onChange={(e) => setGuestEmail(e.target.value)}
+                  />
+                  <label className="flex cursor-pointer items-center gap-2 text-muted">
+                    <input type="checkbox" checked={smsOptIn} onChange={(e) => setSmsOptIn(e.target.checked)} />
+                    Text me the access link (optional)
+                  </label>
+                  <button
+                    type="button"
+                    className="btn-primary px-4 py-2 text-sm"
+                    disabled={guestCheckoutMutation.isPending}
+                    onClick={() => guestCheckoutMutation.mutate()}
+                  >
+                    {guestCheckoutMutation.isPending ? "Opening Stripe…" : "Pay as guest"}
+                  </button>
+                </div>
+              ) : null}
+            </>
           ) : p.product_type !== "digital" && p.website_url ? (
             <button
               type="button"
@@ -154,14 +212,20 @@ export default function PublicProductPage() {
               View offer
             </button>
           ) : (
-            <button
-              type="button"
-              className="btn-primary px-4 py-2 text-sm"
-              disabled={checkoutMutation.isPending}
-              onClick={() => checkoutMutation.mutate()}
-            >
-              {checkoutMutation.isPending ? "Opening…" : "Buy now"}
-            </button>
+            <>
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-muted">
+                <input type="checkbox" checked={smsOptIn} onChange={(e) => setSmsOptIn(e.target.checked)} />
+                Also text me the access link (phone collected on Stripe if checked)
+              </label>
+              <button
+                type="button"
+                className="btn-primary px-4 py-2 text-sm"
+                disabled={checkoutMutation.isPending}
+                onClick={() => checkoutMutation.mutate()}
+              >
+                {checkoutMutation.isPending ? "Opening…" : "Buy now"}
+              </button>
+            </>
           )}
         </div>
       </article>

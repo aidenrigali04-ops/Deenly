@@ -1,8 +1,21 @@
 const express = require("express");
+const { setImmediate } = require("timers");
+const rateLimit = require("express-rate-limit");
 const { authenticate } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
 const { httpError } = require("../../utils/http-error");
 const { requireString, optionalString } = require("../../utils/validators");
+const { mapStripeProductPriceToDraft } = require("../../services/product-import-stripe-map");
+const { importProductDraftFromUrl } = require("../../services/product-import-url");
+const { fulfillProductOrderAfterPayment, parseSmsOptIn } = require("../../services/purchase-fulfillment");
+const { hashToken } = require("../../services/purchase-access-token");
+
+function extractCheckoutCustomerContact(sessionObj) {
+  const d = sessionObj?.customer_details || {};
+  const email = String(d.email || sessionObj?.customer_email || "").trim();
+  const phone = String(d.phone || "").trim();
+  return { email, phone };
+}
 
 const PRODUCT_STATUSES = new Set(["draft", "published", "archived"]);
 const PRODUCT_TYPES = new Set(["digital", "service", "subscription"]);
@@ -125,12 +138,86 @@ function parseProductBusinessCategory(rawValue) {
   return value ? value.trim().toLowerCase() : null;
 }
 
-function createMonetizationRouter({ db, config, monetizationGateway, mediaStorage, analytics }) {
+function createMonetizationRouter({ db, config, logger, monetizationGateway, mediaStorage, analytics }) {
   const router = express.Router();
   const authMiddleware = authenticate({ config, db });
+  const log = logger || { info: () => {}, error: () => {}, warn: () => {} };
 
   if (!monetizationGateway) {
     throw new Error("monetizationGateway is required");
+  }
+
+  const guestProductCheckoutLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 30,
+    standardHeaders: true,
+    legacyHeaders: false
+  });
+
+  const purchaseTokenLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 60,
+    standardHeaders: true,
+    legacyHeaders: false
+  });
+
+  const productImportLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 60,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator(req) {
+      return req.user?.id ? `product-import:${req.user.id}` : req.ip;
+    }
+  });
+
+  async function loadPurchaseTokenEntitlementRow(rawToken, { enforceUseLimit = true } = {}) {
+    const trimmed = String(rawToken || "").trim();
+    if (trimmed.length < 20) {
+      throw httpError(400, "Invalid token");
+    }
+    const h = hashToken(trimmed);
+    const r = await db.query(
+      `SELECT t.id AS token_id, t.use_count, t.max_uses, t.expires_at, t.revoked_at,
+              o.id AS order_id, o.status AS order_status, o.product_id, o.buyer_user_id,
+              cp.title, cp.product_type, cp.delivery_media_key, cp.website_url, cp.creator_user_id
+       FROM purchase_access_tokens t
+       INNER JOIN orders o ON o.id = t.order_id
+       INNER JOIN creator_products cp ON cp.id = o.product_id
+       WHERE t.token_hash = $1
+       LIMIT 1`,
+      [h]
+    );
+    if (r.rowCount === 0) {
+      throw httpError(404, "Invalid or expired link");
+    }
+    const row = r.rows[0];
+    if (row.revoked_at) {
+      throw httpError(404, "Invalid or expired link");
+    }
+    if (row.order_status !== "completed") {
+      throw httpError(403, "Purchase is not active");
+    }
+    if (new Date(row.expires_at).getTime() < Date.now()) {
+      throw httpError(410, "This access link has expired");
+    }
+    if (enforceUseLimit && row.use_count >= row.max_uses) {
+      throw httpError(429, "This link has been used too many times");
+    }
+    return row;
+  }
+
+  async function consumeTokenUse(tokenId) {
+    const u = await db.query(
+      `UPDATE purchase_access_tokens
+       SET use_count = use_count + 1
+       WHERE id = $1 AND use_count < max_uses
+       RETURNING use_count`,
+      [tokenId]
+    );
+    if (u.rowCount === 0) {
+      throw httpError(429, "This link has been used too many times");
+    }
   }
 
   async function ensureCheckoutSessionRecord({
@@ -465,6 +552,112 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
         ]
       );
       res.status(201).json(created.rows[0]);
+    })
+  );
+
+  router.get(
+    "/products/import/stripe",
+    authMiddleware,
+    productImportLimiter,
+    asyncHandler(async (req, res) => {
+      const stripeAccountId = await requireSellerStripeAccountId(req.user.id);
+      const limit = Math.min(Math.max(Number(req.query.limit) || 30, 1), 100);
+      const startingAfter =
+        typeof req.query.startingAfter === "string" && req.query.startingAfter.trim()
+          ? req.query.startingAfter.trim()
+          : null;
+      const page = await monetizationGateway.listConnectAccountPrices({
+        stripeAccountId,
+        limit,
+        startingAfter
+      });
+      const items = [];
+      for (const price of page.data || []) {
+        const unitAmount = Number(price.unit_amount);
+        if (!Number.isInteger(unitAmount) || unitAmount <= 0) {
+          continue;
+        }
+        const rawProduct = price.product;
+        const stripeProductId = typeof rawProduct === "string" ? rawProduct : rawProduct?.id;
+        if (!stripeProductId) {
+          continue;
+        }
+        const productName =
+          typeof rawProduct === "object" && rawProduct && !rawProduct.deleted
+            ? String(rawProduct.name || "").trim()
+            : "";
+        const productActive =
+          typeof rawProduct === "object" && rawProduct && !rawProduct.deleted
+            ? Boolean(rawProduct.active)
+            : true;
+        const recurring = price.recurring || null;
+        items.push({
+          stripePriceId: price.id,
+          stripeProductId,
+          title: productName || stripeProductId,
+          priceMinor: unitAmount,
+          currency: normalizeCurrency(price.currency),
+          recurring: recurring
+            ? { interval: recurring.interval, intervalCount: recurring.interval_count || 1 }
+            : null,
+          productActive
+        });
+      }
+      res.status(200).json({
+        items,
+        hasMore: Boolean(page.has_more),
+        nextStartingAfter: page.has_more && page.data?.length ? page.data[page.data.length - 1].id : null
+      });
+    })
+  );
+
+  router.post(
+    "/products/import/stripe",
+    authMiddleware,
+    productImportLimiter,
+    asyncHandler(async (req, res) => {
+      const stripeAccountId = await requireSellerStripeAccountId(req.user.id);
+      const stripeProductId = requireString(req.body?.stripeProductId, "stripeProductId", 3, 128);
+      const stripePriceId = requireString(req.body?.stripePriceId, "stripePriceId", 3, 128);
+      const price = await monetizationGateway.retrieveConnectAccountPrice({
+        stripeAccountId,
+        priceId: stripePriceId
+      });
+      const linkedId = typeof price.product === "string" ? price.product : price.product?.id;
+      if (!linkedId || linkedId !== stripeProductId) {
+        throw httpError(400, "stripePriceId does not belong to stripeProductId");
+      }
+      let product =
+        typeof price.product === "object" && price.product && !price.product.deleted
+          ? price.product
+          : null;
+      if (!product) {
+        product = await monetizationGateway.retrieveConnectAccountProduct({
+          stripeAccountId,
+          productId: stripeProductId
+        });
+      }
+      let draft;
+      try {
+        draft = mapStripeProductPriceToDraft(product, price);
+      } catch (e) {
+        throw httpError(400, e?.message || "Could not map Stripe product");
+      }
+      res.status(200).json({
+        draft,
+        provenance: { stripeProductId, stripePriceId }
+      });
+    })
+  );
+
+  router.post(
+    "/products/import/url",
+    authMiddleware,
+    productImportLimiter,
+    asyncHandler(async (req, res) => {
+      const url = requireString(req.body?.url, "url", 8, 2000);
+      const result = await importProductDraftFromUrl(url);
+      res.status(200).json(result);
     })
   );
 
@@ -915,6 +1108,97 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
   );
 
   router.post(
+    "/checkout/product/:productId/guest",
+    guestProductCheckoutLimiter,
+    asyncHandler(async (req, res) => {
+      const productId = Number(req.params.productId);
+      if (!productId) {
+        throw httpError(400, "productId must be a number");
+      }
+      const productResult = await db.query(
+        `SELECT cp.*, u.email AS creator_email
+         FROM creator_products cp
+         JOIN users u ON u.id = cp.creator_user_id
+         WHERE cp.id = $1
+           AND cp.status = 'published'
+         LIMIT 1`,
+        [productId]
+      );
+      if (productResult.rowCount === 0) {
+        throw httpError(404, "Product not found");
+      }
+      const product = productResult.rows[0];
+      const guestEmail = optionalString(req.body?.guestEmail, "guestEmail", 320);
+      const smsOptIn = Boolean(req.body?.smsOptIn);
+      if (guestEmail) {
+        const ge = guestEmail.trim().toLowerCase();
+        const ce = String(product.creator_email || "")
+          .trim()
+          .toLowerCase();
+        if (ce && ge === ce) {
+          throw httpError(400, "Sign in to manage your own products");
+        }
+      }
+
+      const connectedAccountId = await requireSellerStripeAccountId(product.creator_user_id);
+      const affiliateCode = await resolveAffiliateCode({
+        rawCode: req.body?.affiliateCode,
+        sellerUserId: product.creator_user_id,
+        buyerUserId: null
+      });
+
+      const platformFeeBps = clampSessionPlatformFeeBps(product.platform_fee_bps, config);
+      const applicationFeeAmountMinor = Math.max(
+        0,
+        Math.round((Number(product.price_minor) * platformFeeBps) / 10000)
+      );
+
+      const session = await monetizationGateway.createCheckoutSession({
+        kind: "product",
+        amountMinor: product.price_minor,
+        currency: product.currency,
+        buyerUserId: null,
+        sellerUserId: product.creator_user_id,
+        productId: product.id,
+        affiliateCodeId: affiliateCode?.id || null,
+        title: product.title,
+        description: product.description,
+        connectedAccountId,
+        applicationFeeAmountMinor,
+        platformFeeBps,
+        customerEmail: guestEmail || null,
+        collectPhone: smsOptIn,
+        metadataExtra: {
+          smsOptIn: smsOptIn ? "true" : "false",
+          guestCheckout: "true"
+        }
+      });
+
+      await ensureCheckoutSessionRecord({
+        sessionId: session.id,
+        kind: "product",
+        buyerUserId: null,
+        sellerUserId: product.creator_user_id,
+        productId: product.id,
+        amountMinor: product.price_minor,
+        currency: product.currency,
+        metadata: {
+          affiliateCodeId: affiliateCode?.id || null,
+          platformFeeBps,
+          stripeApplicationFeeMinor: applicationFeeAmountMinor,
+          smsOptIn,
+          guestCheckout: true
+        }
+      });
+
+      res.status(200).json({
+        checkoutSessionId: session.id,
+        checkoutUrl: session.url
+      });
+    })
+  );
+
+  router.post(
     "/checkout/product/:productId",
     authMiddleware,
     asyncHandler(async (req, res) => {
@@ -950,6 +1234,8 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
         Math.round((Number(product.price_minor) * platformFeeBps) / 10000)
       );
 
+      const smsOptIn = Boolean(req.body?.smsOptIn);
+
       const session = await monetizationGateway.createCheckoutSession({
         kind: "product",
         amountMinor: product.price_minor,
@@ -962,7 +1248,12 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
         description: product.description,
         connectedAccountId,
         applicationFeeAmountMinor,
-        platformFeeBps
+        platformFeeBps,
+        collectPhone: smsOptIn,
+        metadataExtra: {
+          smsOptIn: smsOptIn ? "true" : "false",
+          guestCheckout: "false"
+        }
       });
 
       await ensureCheckoutSessionRecord({
@@ -976,7 +1267,9 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
         metadata: {
           affiliateCodeId: affiliateCode?.id || null,
           platformFeeBps,
-          stripeApplicationFeeMinor: applicationFeeAmountMinor
+          stripeApplicationFeeMinor: applicationFeeAmountMinor,
+          smsOptIn,
+          guestCheckout: false
         }
       });
 
@@ -1218,6 +1511,8 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
       const affiliateCodeId = Number(sessionMetadata.affiliateCodeId || 0) || null;
       const tierId = Number(sessionMetadata.tierId || 0) || null;
 
+      let productFulfillmentOrderId = null;
+
       await db.query("BEGIN");
       try {
         let affiliateCommissionMinor = 0;
@@ -1369,10 +1664,42 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
            WHERE id = $1`,
           [sessionRow.id]
         );
+        if (sessionRow.kind === "product") {
+          productFulfillmentOrderId = order.rows[0].id;
+        }
         await db.query("COMMIT");
       } catch (error) {
         await db.query("ROLLBACK");
         throw error;
+      }
+
+      if (productFulfillmentOrderId) {
+        const contact = extractCheckoutCustomerContact(event.data.object);
+        const meta =
+          sessionRow.metadata && typeof sessionRow.metadata === "object" ? sessionRow.metadata : {};
+        const smsOptIn = parseSmsOptIn(meta);
+        setImmediate(() => {
+          void (async () => {
+            try {
+              const pt = await db.query(`SELECT title FROM creator_products WHERE id = $1 LIMIT 1`, [
+                sessionRow.product_id
+              ]);
+              const productTitle = pt.rows[0]?.title || "Your purchase";
+              await fulfillProductOrderAfterPayment({
+                db,
+                config,
+                logger: log,
+                orderId: productFulfillmentOrderId,
+                customerEmail: contact.email,
+                customerPhone: contact.phone,
+                productTitle,
+                smsOptIn
+              });
+            } catch (err) {
+              log.error({ err, orderId: productFulfillmentOrderId }, "purchase_fulfillment_async_failed");
+            }
+          })();
+        });
       }
 
       if (analytics) {
@@ -1385,6 +1712,85 @@ function createMonetizationRouter({ db, config, monetizationGateway, mediaStorag
       }
 
       return res.status(200).json({ received: true, processed: true });
+    })
+  );
+
+  function readQueryToken(req) {
+    const raw = req.query?.token;
+    const s = Array.isArray(raw) ? raw[0] : raw;
+    return requireString(s != null ? String(s) : "", "token", 20, 512);
+  }
+
+  router.get(
+    "/purchase/access",
+    purchaseTokenLimiter,
+    asyncHandler(async (req, res) => {
+      const token = readQueryToken(req);
+      const row = await loadPurchaseTokenEntitlementRow(token, { enforceUseLimit: false });
+      res.status(200).json({
+        orderId: row.order_id,
+        productId: row.product_id,
+        title: row.title,
+        productType: row.product_type,
+        websiteUrl: row.website_url || null,
+        hasDigitalDelivery: row.product_type === "digital" && Boolean(row.delivery_media_key)
+      });
+    })
+  );
+
+  router.get(
+    "/purchase/download",
+    purchaseTokenLimiter,
+    asyncHandler(async (req, res) => {
+      const token = readQueryToken(req);
+      const row = await loadPurchaseTokenEntitlementRow(token);
+      await consumeTokenUse(row.token_id);
+      if (row.product_type === "digital") {
+        if (!row.delivery_media_key) {
+          throw httpError(404, "Digital asset not available");
+        }
+        const downloadUrl = mediaStorage?.resolveMediaUrl
+          ? mediaStorage.resolveMediaUrl({
+              mediaKey: row.delivery_media_key,
+              mediaUrl: row.delivery_media_key
+            })
+          : row.delivery_media_key;
+        if (downloadUrl && /^https?:\/\//i.test(downloadUrl)) {
+          return res.redirect(302, downloadUrl);
+        }
+        return res.status(200).json({ downloadUrl });
+      }
+      if (row.website_url && /^https?:\/\//i.test(row.website_url)) {
+        return res.redirect(302, row.website_url);
+      }
+      throw httpError(404, "No download URL for this product type");
+    })
+  );
+
+  router.post(
+    "/purchase/claim/attach",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const token = requireString(req.body?.token, "token", 20, 512);
+      const row = await loadPurchaseTokenEntitlementRow(token, { enforceUseLimit: false });
+      if (row.buyer_user_id != null && row.buyer_user_id !== req.user.id) {
+        throw httpError(409, "This purchase is already linked to another account");
+      }
+      if (row.buyer_user_id === req.user.id) {
+        return res.status(200).json({ attached: false, alreadyYours: true });
+      }
+      const updated = await db.query(
+        `UPDATE orders
+         SET buyer_user_id = $2
+         WHERE id = $1
+           AND buyer_user_id IS NULL
+         RETURNING id`,
+        [row.order_id, req.user.id]
+      );
+      if (updated.rowCount === 0) {
+        throw httpError(409, "Could not attach purchase");
+      }
+      res.status(200).json({ attached: true });
     })
   );
 

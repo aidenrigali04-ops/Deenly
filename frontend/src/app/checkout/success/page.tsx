@@ -12,8 +12,9 @@ function CheckoutSuccessContent() {
     <div className="page-stack mx-auto max-w-md px-4 py-16 text-center">
       <h1 className="text-xl font-semibold text-text">Payment received</h1>
       <p className="mt-3 text-sm text-muted">
-        Thank you. If you bought access to a product, you can open it again from the post or your library when that flow
-        is available. Subscription and support payments are recorded on your account.
+        Thank you. For product purchases, we email you a secure access link (check spam). If you opted in, you will also get
+        a text with the same link. Subscription and support payments are recorded on your Deenly account when you paid
+        while signed in.
       </p>
       {sessionId ? (
         <p className="mt-2 font-mono text-xs text-muted break-all" aria-label="Checkout session reference">

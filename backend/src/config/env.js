@@ -231,7 +231,22 @@ function loadEnv(envSource = process.env) {
     metaTokenEncryptionKey: String(envSource.META_TOKEN_ENCRYPTION_KEY || "").trim(),
     metaOauthStateSecret: String(envSource.META_OAUTH_STATE_SECRET || "").trim(),
     openaiApiKey: String(envSource.OPENAI_API_KEY || "").trim(),
-    openaiModel: String(envSource.OPENAI_MODEL || "gpt-4o-mini").trim()
+    openaiModel: String(envSource.OPENAI_MODEL || "gpt-4o-mini").trim(),
+    sendgridApiKey: String(envSource.SENDGRID_API_KEY || "").trim(),
+    sendgridFromEmail: String(envSource.SENDGRID_FROM_EMAIL || "").trim(),
+    twilioAccountSid: String(envSource.TWILIO_ACCOUNT_SID || "").trim(),
+    twilioAuthToken: String(envSource.TWILIO_AUTH_TOKEN || "").trim(),
+    twilioFromNumber: String(envSource.TWILIO_FROM_NUMBER || "").trim(),
+    purchaseAccessTokenTtlDays: (() => {
+      const v = parseNumber(envSource.PURCHASE_ACCESS_TOKEN_TTL_DAYS, 14);
+      const n = Math.round(v);
+      if (!Number.isInteger(n) || n < 1) {
+        return 14;
+      }
+      return Math.min(365, n);
+    })(),
+    fulfillmentEmailEnabled: parseBoolean(envSource.FULFILLMENT_EMAIL_ENABLED, true),
+    fulfillmentSmsEnabled: parseBoolean(envSource.FULFILLMENT_SMS_ENABLED, true)
   };
 
   if (!VALID_DB_SSL_MODES.has(config.dbSslMode)) {

@@ -95,6 +95,57 @@ export async function fetchPublicProduct(productId: number) {
   return apiRequest<PublicCatalogProduct>(`/monetization/catalog/products/${productId}`);
 }
 
+export type ProductImportDraft = {
+  title: string;
+  description: string | null;
+  priceMinor: number;
+  currency: string;
+  productType: "digital" | "service" | "subscription";
+  websiteUrl: string | null;
+};
+
+export type StripeProductImportRow = {
+  stripePriceId: string;
+  stripeProductId: string;
+  title: string;
+  priceMinor: number;
+  currency: string;
+  recurring: { interval: string; intervalCount: number } | null;
+  productActive: boolean;
+};
+
+export async function fetchStripeProductImportList(params?: { limit?: number; startingAfter?: string | null }) {
+  const qs = new URLSearchParams();
+  if (params?.limit != null) {
+    qs.set("limit", String(params.limit));
+  }
+  if (params?.startingAfter) {
+    qs.set("startingAfter", params.startingAfter);
+  }
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiRequest<{ items: StripeProductImportRow[]; hasMore: boolean; nextStartingAfter: string | null }>(
+    `/monetization/products/import/stripe${suffix}`,
+    { auth: true }
+  );
+}
+
+export async function importProductDraftFromStripe(body: { stripeProductId: string; stripePriceId: string }) {
+  return apiRequest<{ draft: ProductImportDraft; provenance: { stripeProductId: string; stripePriceId: string } }>(
+    "/monetization/products/import/stripe",
+    { method: "POST", auth: true, body }
+  );
+}
+
+export async function importProductDraftFromUrl(url: string) {
+  return apiRequest<{
+    draft: ProductImportDraft;
+    sourceUrl: string;
+    confidence: string;
+    warnings: string[];
+    hints: { ogImage: string | null };
+  }>("/monetization/products/import/url", { method: "POST", auth: true, body: { url } });
+}
+
 export async function createProduct(input: {
   title: string;
   description?: string;
@@ -188,15 +239,58 @@ export async function attachProductToPost(postId: number, productId: number) {
   });
 }
 
-export async function createProductCheckout(productId: number, affiliateCode?: string) {
+export async function createGuestProductCheckout(
+  productId: number,
+  body?: { guestEmail?: string; smsOptIn?: boolean; affiliateCode?: string }
+) {
+  return apiRequest<{ checkoutSessionId: string; checkoutUrl: string }>(
+    `/monetization/checkout/product/${productId}/guest`,
+    {
+      method: "POST",
+      body: {
+        guestEmail: body?.guestEmail,
+        smsOptIn: body?.smsOptIn,
+        affiliateCode: body?.affiliateCode
+      }
+    }
+  );
+}
+
+export async function createProductCheckout(
+  productId: number,
+  opts?: { affiliateCode?: string; smsOptIn?: boolean }
+) {
   return apiRequest<{ checkoutSessionId: string; checkoutUrl: string }>(
     `/monetization/checkout/product/${productId}`,
     {
       method: "POST",
       auth: true,
-      body: { affiliateCode }
+      body: { affiliateCode: opts?.affiliateCode, smsOptIn: opts?.smsOptIn }
     }
   );
+}
+
+export type PurchaseAccessPayload = {
+  orderId: number;
+  productId: number;
+  title: string;
+  productType: string;
+  websiteUrl: string | null;
+  hasDigitalDelivery: boolean;
+};
+
+export async function fetchPurchaseAccess(token: string) {
+  return apiRequest<PurchaseAccessPayload>(
+    `/monetization/purchase/access?token=${encodeURIComponent(token)}`
+  );
+}
+
+export async function claimPurchaseAttach(token: string) {
+  return apiRequest<{ attached: boolean; alreadyYours?: boolean }>("/monetization/purchase/claim/attach", {
+    method: "POST",
+    auth: true,
+    body: { token }
+  });
 }
 
 export async function createSupportCheckout(creatorUserId: number, amountMinor: number, affiliateCode?: string) {
