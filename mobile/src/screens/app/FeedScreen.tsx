@@ -267,8 +267,6 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
         <PostCard
           item={item}
           layout="home"
-          onOpen={() => navigation.navigate("PostDetail", { id: item.id })}
-          onAuthor={() => navigation.navigate("UserProfile", { id: item.author_id })}
           onViewOffer={(productId) => navigation.navigate("ProductDetail", { productId })}
           onBuyNow={(productId) => buyProductMutation.mutate(productId)}
           buyBusy={buyProductMutation.isPending}

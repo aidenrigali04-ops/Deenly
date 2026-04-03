@@ -19,8 +19,6 @@ function isImageMedia(item: FeedItem) {
 
 export function PostCard({
   item,
-  onOpen,
-  onAuthor,
   onLike,
   onViewOffer,
   onBuyNow,
@@ -32,8 +30,6 @@ export function PostCard({
   followBusy = false
 }: {
   item: FeedItem;
-  onOpen: () => void;
-  onAuthor: () => void;
   onLike?: () => void;
   onViewOffer?: (productId: number) => void;
   onBuyNow?: (productId: number) => void;
@@ -161,6 +157,10 @@ export function PostCard({
               </Text>
             </View>
           ) : null}
+          <Text style={styles.content}>
+            <Text style={styles.homeAuthor}>{item.author_display_name} </Text>
+            {item.content}
+          </Text>
           <Text style={styles.homeMetaText}>
             {benefitedCount} likes · {item.comment_count || 0} comments
           </Text>
@@ -206,23 +206,6 @@ export function PostCard({
               </Pressable>
             </View>
           ) : null}
-          <Text style={styles.content}>
-            <Text style={styles.homeAuthor}>{item.author_display_name} </Text>
-            {item.content}
-          </Text>
-          <View style={styles.actions}>
-            <Pressable style={styles.buttonSecondary} onPress={onOpen}>
-              <Text style={styles.buttonText}>Open post</Text>
-            </Pressable>
-            <Pressable style={styles.buttonSecondary} onPress={onAuthor}>
-              <Text style={styles.buttonText}>Author</Text>
-            </Pressable>
-            {onLike ? (
-              <Pressable style={styles.buttonSecondary} onPress={onLike} disabled={liking}>
-                <Text style={styles.buttonText}>{liking ? "Liking..." : "Like"}</Text>
-              </Pressable>
-            ) : null}
-          </View>
         </View>
       </View>
     );
@@ -235,7 +218,6 @@ export function PostCard({
         <Text style={styles.muted}>{new Date(item.created_at).toLocaleString()}</Text>
       </View>
       <Text style={styles.type}>{item.post_type}</Text>
-      <Text style={styles.content}>{item.content}</Text>
       {canRenderMedia ? (
         isImageMedia(item) ? (
           <Image
@@ -264,6 +246,7 @@ export function PostCard({
       {item.tags?.length ? (
         <Text style={styles.muted}>#{item.tags.slice(0, 3).join(" #")}</Text>
       ) : null}
+      <Text style={styles.content}>{item.content}</Text>
       {item.attached_product_id ? (
         <View style={styles.productCtaRow}>
           <Pressable
@@ -304,19 +287,6 @@ export function PostCard({
           </Text>
         </View>
       ) : null}
-      <View style={styles.actions}>
-        <Pressable style={styles.buttonSecondary} onPress={onOpen}>
-          <Text style={styles.buttonText}>Open post</Text>
-        </Pressable>
-        <Pressable style={styles.buttonSecondary} onPress={onAuthor}>
-          <Text style={styles.buttonText}>Author</Text>
-        </Pressable>
-        {onLike ? (
-          <Pressable style={styles.buttonSecondary} onPress={onLike} disabled={liking}>
-            <Text style={styles.buttonText}>{liking ? "Liking..." : "Like"}</Text>
-          </Pressable>
-        ) : null}
-      </View>
     </View>
   );
 }
