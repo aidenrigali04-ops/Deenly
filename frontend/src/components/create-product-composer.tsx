@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, apiRequest } from "@/lib/api";
 import { assistPostText } from "@/lib/ai-assist";
 import {
   createProduct,
   publishProduct,
+  fetchConnectStatus,
   fetchStripeProductImportList,
   importProductDraftFromStripe,
   importProductDraftFromUrl,
+  estimateCreatorNet,
   formatMinorCurrency,
   type BoostTier,
   type CreatorProduct,
@@ -115,6 +117,33 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
   const [urlImportInput, setUrlImportInput] = useState("");
   const [urlImportBusy, setUrlImportBusy] = useState(false);
   const [importError, setImportError] = useState("");
+  const connectStatusQuery = useQuery({
+    queryKey: ["creator-product-composer-connect-status"],
+    queryFn: () => fetchConnectStatus()
+  });
+  const boostTierBps: Record<BoostTier, number> = {
+    standard: 350,
+    boosted: 2000,
+    aggressive: 3500
+  };
+  const activeBoostTiers =
+    connectStatusQuery.data?.feePolicy?.tiers?.filter((tier) => tier.enabled) ||
+    [
+      { key: "standard" as const, label: "Standard", platformFeeBps: 350, description: "Default placement." },
+      { key: "boosted" as const, label: "Boosted", platformFeeBps: 2000, description: "Higher-priority placement." }
+    ];
+  const previewPriceMinor = (() => {
+    const curLower = newProductCurrency.toLowerCase();
+    if (showPriceMinorAdvanced || curLower !== "usd") {
+      const raw = newProductPriceMinorRaw.replace(/\D/g, "");
+      const parsed = raw ? Number.parseInt(raw, 10) : NaN;
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    }
+    return parseUsdToMinor(newProductPriceUsd);
+  })();
+  const previewFeeBps = boostTierBps[newProductBoostTier] ?? 350;
+  const previewNet =
+    previewPriceMinor && previewPriceMinor > 0 ? estimateCreatorNet(previewPriceMinor, previewFeeBps, 700, true) : null;
 
   const createProductMutation = useMutation({
     mutationFn: (input: {
@@ -559,10 +588,28 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
             onChange={(e) => setNewProductBoostTier(e.target.value as BoostTier)}
             aria-label="Boost tier"
           >
-            <option value="standard">Standard (3.5%)</option>
-            <option value="boosted">Boosted (20%)</option>
-            <option value="aggressive">Aggressive (35%)</option>
+            {activeBoostTiers.map((tier) => (
+              <option key={tier.key} value={tier.key}>
+                {tier.label} ({(tier.platformFeeBps / 100).toFixed(1)}%)
+              </option>
+            ))}
           </select>
+          <div className="rounded-control border border-black/10 bg-white px-3 py-2 text-xs text-muted">
+            <p className="font-semibold text-text">Payout preview</p>
+            <p>Buyer pays: {previewPriceMinor ? formatMinorCurrency(previewPriceMinor, newProductCurrency) : "—"}</p>
+            <p>
+              Platform fee ({(previewFeeBps / 100).toFixed(1)}%):{" "}
+              {previewNet ? formatMinorCurrency(previewNet.platformFeeMinor, newProductCurrency) : "—"}
+            </p>
+            <p>
+              Affiliate impact (up to 7.0%):{" "}
+              {previewNet ? formatMinorCurrency(previewNet.affiliateMinor, newProductCurrency) : "—"}
+            </p>
+            <p className="font-semibold text-text">
+              You receive (estimated):{" "}
+              {previewNet ? formatMinorCurrency(previewNet.creatorNetMinor, newProductCurrency) : "Enter valid price"}
+            </p>
+          </div>
         </div>
       </div>
 

@@ -30,9 +30,51 @@ const BOOST_TIER_BPS = Object.freeze({
 });
 const BOOST_TIER_KEYS = new Set(Object.keys(BOOST_TIER_BPS));
 
+function getEnabledBoostTierSet(config) {
+  const enabled = new Set(["standard"]);
+  if (config.monetizationEnableBoostedTier !== false) {
+    enabled.add("boosted");
+  }
+  if (config.monetizationEnableAggressiveTier === true) {
+    enabled.add("aggressive");
+  }
+  return enabled;
+}
+
+function getBoostTierPolicy(config) {
+  const enabled = getEnabledBoostTierSet(config);
+  return {
+    feeExperimentEnabled: Boolean(config.monetizationFeeExperimentEnabled),
+    tiers: [
+      {
+        key: "standard",
+        label: "Standard",
+        platformFeeBps: BOOST_TIER_BPS.standard,
+        enabled: enabled.has("standard"),
+        description: "Default distribution placement."
+      },
+      {
+        key: "boosted",
+        label: "Boosted",
+        platformFeeBps: BOOST_TIER_BPS.boosted,
+        enabled: enabled.has("boosted"),
+        description: "Higher-priority distribution placement."
+      },
+      {
+        key: "aggressive",
+        label: "Aggressive",
+        platformFeeBps: BOOST_TIER_BPS.aggressive,
+        enabled: enabled.has("aggressive"),
+        description: "Maximum distribution exposure (limited rollout)."
+      }
+    ]
+  };
+}
+
 function resolveProductPlatformFeeFields(body, previous, config, { isPatch }) {
   const minBps = config.monetizationPlatformFeeBpsMin;
   const maxBps = config.monetizationPlatformFeeBpsMax;
+  const enabledTierKeys = getEnabledBoostTierSet(config);
   const hasTierKey = body && Object.prototype.hasOwnProperty.call(body, "boostTier");
   const hasBpsKey = body && Object.prototype.hasOwnProperty.call(body, "platformFeeBps");
 
@@ -52,6 +94,9 @@ function resolveProductPlatformFeeFields(body, previous, config, { isPatch }) {
       const t = String(v).trim().toLowerCase();
       if (!BOOST_TIER_KEYS.has(t)) {
         throw httpError(400, "boostTier must be standard, boosted, or aggressive");
+      }
+      if (!enabledTierKeys.has(t)) {
+        throw httpError(400, `${t} boost tier is not available right now`);
       }
       tierFromBody = t;
     }
@@ -455,7 +500,8 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
       );
       if (accountResult.rowCount === 0) {
         return res.status(200).json({
-          connected: false
+          connected: false,
+          feePolicy: getBoostTierPolicy(config)
         });
       }
       const accountRow = accountResult.rows[0];
@@ -489,8 +535,16 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
         chargesEnabled: Boolean(stripeAccount.charges_enabled),
         payoutsEnabled: Boolean(stripeAccount.payouts_enabled),
         detailsSubmitted: Boolean(stripeAccount.details_submitted),
-        dashboardUrl
+        dashboardUrl,
+        feePolicy: getBoostTierPolicy(config)
       });
+    })
+  );
+
+  router.get(
+    "/fee-policy",
+    asyncHandler(async (_req, res) => {
+      res.status(200).json(getBoostTierPolicy(config));
     })
   );
 
@@ -549,6 +603,17 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
           boostTier
         ]
       );
+      if (analytics) {
+        await analytics.trackEvent("creator_product_draft_saved", {
+          creatorUserId: req.user.id,
+          productId: created.rows[0].id,
+          productType,
+          currency,
+          priceMinor,
+          platformFeeBps,
+          boostTier: boostTier || "custom"
+        });
+      }
       res.status(201).json(created.rows[0]);
     })
   );
@@ -729,6 +794,13 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
       if (result.rowCount === 0) {
         throw httpError(404, "Product not found");
       }
+      if (analytics) {
+        await analytics.trackEvent("product_offer_viewed", {
+          productId,
+          creatorUserId: result.rows[0].creator_user_id,
+          source: "public_catalog"
+        });
+      }
       res.status(200).json(result.rows[0]);
     })
   );
@@ -754,6 +826,14 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
       const product = result.rows[0];
       if (product.creator_user_id !== req.user.id && product.status !== "published") {
         throw httpError(404, "Product not found");
+      }
+      if (analytics) {
+        await analytics.trackEvent("product_offer_viewed", {
+          productId,
+          creatorUserId: product.creator_user_id,
+          viewerUserId: req.user.id,
+          source: product.creator_user_id === req.user.id ? "creator_self" : "authenticated_catalog"
+        });
       }
       res.status(200).json(product);
     })
@@ -878,6 +958,18 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
           boostTier
         ]
       );
+      if (analytics) {
+        await analytics.trackEvent(status === "published" ? "creator_product_published" : "creator_product_draft_saved", {
+          creatorUserId: req.user.id,
+          productId,
+          productType,
+          currency,
+          priceMinor,
+          platformFeeBps,
+          boostTier: boostTier || "custom",
+          source: "patch"
+        });
+      }
       res.status(200).json(updated.rows[0]);
     })
   );
@@ -913,6 +1005,13 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
          RETURNING *`,
         [productId, req.user.id]
       );
+      if (analytics && updated.rowCount > 0) {
+        await analytics.trackEvent("creator_product_published", {
+          creatorUserId: req.user.id,
+          productId,
+          source: "publish_endpoint"
+        });
+      }
       res.status(200).json(updated.rows[0]);
     })
   );
@@ -936,6 +1035,14 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
          RETURNING *`,
         [req.user.id, title, description, monthlyPriceMinor, currency]
       );
+      if (analytics) {
+        await analytics.trackEvent("creator_tier_draft_saved", {
+          creatorUserId: req.user.id,
+          tierId: created.rows[0].id,
+          currency,
+          monthlyPriceMinor
+        });
+      }
       res.status(201).json(created.rows[0]);
     })
   );
@@ -1030,6 +1137,15 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
          RETURNING *`,
         [tierId, req.user.id, title, description, monthlyPriceMinor, currency, status]
       );
+      if (analytics && updated.rowCount > 0) {
+        await analytics.trackEvent(status === "published" ? "creator_tier_published" : "creator_tier_draft_saved", {
+          creatorUserId: req.user.id,
+          tierId,
+          currency,
+          monthlyPriceMinor,
+          source: "patch"
+        });
+      }
       res.status(200).json(updated.rows[0]);
     })
   );
@@ -1053,6 +1169,13 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
       );
       if (updated.rowCount === 0) {
         throw httpError(404, "Tier not found");
+      }
+      if (analytics) {
+        await analytics.trackEvent("creator_tier_published", {
+          creatorUserId: req.user.id,
+          tierId,
+          source: "publish_endpoint"
+        });
       }
       res.status(200).json(updated.rows[0]);
     })
@@ -1138,6 +1261,7 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
       }
       const product = productResult.rows[0];
       const guestEmail = optionalString(req.body?.guestEmail, "guestEmail", 320);
+      const checkoutVariant = optionalString(req.body?.checkoutVariant, "checkoutVariant", 40) || "default";
       const smsOptIn = Boolean(req.body?.smsOptIn);
       if (guestEmail) {
         const ge = guestEmail.trim().toLowerCase();
@@ -1179,7 +1303,8 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
         collectPhone: smsOptIn,
         metadataExtra: {
           smsOptIn: smsOptIn ? "true" : "false",
-          guestCheckout: "true"
+          guestCheckout: "true",
+          checkoutVariant
         }
       });
 
@@ -1196,9 +1321,24 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
           platformFeeBps,
           stripeApplicationFeeMinor: applicationFeeAmountMinor,
           smsOptIn,
-          guestCheckout: true
+          guestCheckout: true,
+          checkoutVariant
         }
       });
+      if (analytics) {
+        await analytics.trackEvent("checkout_started", {
+          kind: "product",
+          productId: product.id,
+          sellerUserId: product.creator_user_id,
+          buyerUserId: null,
+          amountMinor: Number(product.price_minor),
+          currency: product.currency,
+          platformFeeBps,
+          boostTier: product.boost_tier || "custom",
+          checkoutVariant,
+          guestCheckout: true
+        });
+      }
 
       res.status(200).json({
         checkoutSessionId: session.id,
@@ -1244,6 +1384,7 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
       );
 
       const smsOptIn = Boolean(req.body?.smsOptIn);
+      const checkoutVariant = optionalString(req.body?.checkoutVariant, "checkoutVariant", 40) || "default";
 
       const session = await monetizationGateway.createCheckoutSession({
         kind: "product",
@@ -1261,7 +1402,8 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
         collectPhone: smsOptIn,
         metadataExtra: {
           smsOptIn: smsOptIn ? "true" : "false",
-          guestCheckout: "false"
+          guestCheckout: "false",
+          checkoutVariant
         }
       });
 
@@ -1278,9 +1420,24 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
           platformFeeBps,
           stripeApplicationFeeMinor: applicationFeeAmountMinor,
           smsOptIn,
-          guestCheckout: false
+          guestCheckout: false,
+          checkoutVariant
         }
       });
+      if (analytics) {
+        await analytics.trackEvent("checkout_started", {
+          kind: "product",
+          productId: product.id,
+          sellerUserId: product.creator_user_id,
+          buyerUserId: req.user.id,
+          amountMinor: Number(product.price_minor),
+          currency: product.currency,
+          platformFeeBps,
+          boostTier: product.boost_tier || "custom",
+          checkoutVariant,
+          guestCheckout: false
+        });
+      }
 
       res.status(200).json({
         checkoutSessionId: session.id,
@@ -1310,6 +1467,7 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
         throw httpError(404, "Creator not found");
       }
       await ensureSellerPayoutReady(creatorUserId);
+      const checkoutVariant = optionalString(req.body?.checkoutVariant, "checkoutVariant", 40) || "default";
       const affiliateCode = await resolveAffiliateCode({
         rawCode: req.body?.affiliateCode,
         sellerUserId: creatorUserId,
@@ -1324,7 +1482,10 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
         productId: null,
         affiliateCodeId: affiliateCode?.id || null,
         title: "Support Creator",
-        description: "One-time support payment"
+        description: "One-time support payment",
+        metadataExtra: {
+          checkoutVariant
+        }
       });
       await ensureCheckoutSessionRecord({
         sessionId: session.id,
@@ -1336,9 +1497,21 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
         currency,
         metadata: {
           affiliateCodeId: affiliateCode?.id || null,
-          platformFeeBps: Number(config.monetizationPlatformFeeBps || 350)
+          platformFeeBps: Number(config.monetizationPlatformFeeBps || 350),
+          checkoutVariant
         }
       });
+      if (analytics) {
+        await analytics.trackEvent("checkout_started", {
+          kind: "support",
+          sellerUserId: creatorUserId,
+          buyerUserId: req.user.id,
+          amountMinor,
+          currency,
+          platformFeeBps: Number(config.monetizationPlatformFeeBps || 350),
+          checkoutVariant
+        });
+      }
       res.status(200).json({
         checkoutSessionId: session.id,
         checkoutUrl: session.url
@@ -1370,6 +1543,7 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
         throw httpError(400, "You cannot subscribe to your own tier");
       }
       await ensureSellerPayoutReady(tier.creator_user_id);
+      const checkoutVariant = optionalString(req.body?.checkoutVariant, "checkoutVariant", 40) || "default";
       const affiliateCode = await resolveAffiliateCode({
         rawCode: req.body?.affiliateCode,
         sellerUserId: tier.creator_user_id,
@@ -1386,7 +1560,10 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
         affiliateCodeId: affiliateCode?.id || null,
         title: `${tier.title} Membership`,
         description: tier.description || "Creator monthly membership",
-        recurringInterval: "month"
+        recurringInterval: "month",
+        metadataExtra: {
+          checkoutVariant
+        }
       });
       await ensureCheckoutSessionRecord({
         sessionId: session.id,
@@ -1399,9 +1576,22 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
         metadata: {
           tierId: tier.id,
           affiliateCodeId: affiliateCode?.id || null,
-          platformFeeBps: Number(config.monetizationPlatformFeeBps || 350)
+          platformFeeBps: Number(config.monetizationPlatformFeeBps || 350),
+          checkoutVariant
         }
       });
+      if (analytics) {
+        await analytics.trackEvent("checkout_started", {
+          kind: "subscription",
+          tierId: tier.id,
+          sellerUserId: tier.creator_user_id,
+          buyerUserId: req.user.id,
+          amountMinor: Number(tier.monthly_price_minor),
+          currency: tier.currency,
+          platformFeeBps: Number(config.monetizationPlatformFeeBps || 350),
+          checkoutVariant
+        });
+      }
       res.status(200).json({
         checkoutSessionId: session.id,
         checkoutUrl: session.url
@@ -1716,7 +1906,16 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
           checkoutSessionId: stripeSessionId,
           sellerUserId: sessionRow.seller_user_id,
           buyerUserId: sessionRow.buyer_user_id,
-          kind: sessionRow.kind
+          productId: sessionRow.product_id || null,
+          kind: sessionRow.kind,
+          amountMinor,
+          currency: sessionRow.currency,
+          platformFeeMinor,
+          platformFeeBps,
+          creatorNetMinor,
+          affiliateCodeId,
+          affiliateCommissionMinor,
+          checkoutVariant: sessionMetadata.checkoutVariant || "default"
         });
       }
 

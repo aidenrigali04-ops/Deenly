@@ -53,8 +53,13 @@ function productTypeSummary(t: string) {
   return "Offer details are shown below.";
 }
 
+function resolveCheckoutVariant(seed: number): "trust_first" | "speed_first" {
+  return seed % 2 === 0 ? "trust_first" : "speed_first";
+}
+
 export function ProductDetailScreen({ route, navigation }: Props) {
   const { productId } = route.params;
+  const checkoutVariant = resolveCheckoutVariant(productId);
   const sessionUser = useSessionStore((s) => s.user);
   const [aiOpen, setAiOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -78,7 +83,7 @@ export function ProductDetailScreen({ route, navigation }: Props) {
   });
 
   const checkoutMutation = useMutation({
-    mutationFn: () => createProductCheckout(productId),
+    mutationFn: () => createProductCheckout(productId, { checkoutVariant }),
     onSuccess: async (result) => {
       if (result?.checkoutUrl) {
         setCheckoutHandoff(true);
@@ -92,7 +97,7 @@ export function ProductDetailScreen({ route, navigation }: Props) {
 
   const guestCheckoutMutation = useMutation({
     mutationFn: (email?: string) =>
-      createGuestProductCheckout(productId, { smsOptIn: false, guestEmail: email }),
+      createGuestProductCheckout(productId, { smsOptIn: false, guestEmail: email, checkoutVariant }),
     onSuccess: async (result) => {
       if (result?.checkoutUrl) {
         setCheckoutHandoff(true);
@@ -155,6 +160,7 @@ export function ProductDetailScreen({ route, navigation }: Props) {
         guestEmail={guestEmail}
         loading={buyPending}
         handoffState={checkoutHandoff}
+        checkoutVariant={checkoutVariant}
         errorMessage={checkoutError ? (checkoutError as Error).message : undefined}
         onGuestEmailChange={setGuestEmail}
         onClose={() => {

@@ -8,6 +8,16 @@ export type ConnectStatus = {
   detailsSubmitted?: boolean;
   /** Present when Stripe allows an Express login link for this account */
   dashboardUrl?: string | null;
+  feePolicy?: {
+    feeExperimentEnabled?: boolean;
+    tiers?: Array<{
+      key: BoostTier;
+      label: string;
+      platformFeeBps: number;
+      enabled: boolean;
+      description: string;
+    }>;
+  };
 };
 
 export type BoostTier = "standard" | "boosted" | "aggressive";
@@ -401,6 +411,21 @@ export function formatMinorCurrency(valueMinor: number, currency = "usd") {
     style: "currency",
     currency: currency.toUpperCase()
   }).format((Number(valueMinor) || 0) / 100);
+}
+
+export function estimateCreatorNet(
+  amountMinor: number,
+  platformFeeBps: number,
+  affiliateCommissionBps = 700,
+  includeAffiliate = false
+) {
+  const normalizedAmount = Math.max(0, Number(amountMinor) || 0);
+  const feeBps = Math.max(0, Number(platformFeeBps) || 0);
+  const affiliateBps = Math.max(0, Number(affiliateCommissionBps) || 0);
+  const platformFeeMinor = Math.max(0, Math.round((normalizedAmount * feeBps) / 10000));
+  const affiliateMinor = includeAffiliate ? Math.max(0, Math.round((normalizedAmount * affiliateBps) / 10000)) : 0;
+  const creatorNetMinor = Math.max(0, normalizedAmount - platformFeeMinor - affiliateMinor);
+  return { platformFeeMinor, affiliateMinor, creatorNetMinor };
 }
 
 export type PostDistributionMetrics = {

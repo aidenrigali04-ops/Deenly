@@ -24,9 +24,11 @@ import {
   patchProduct,
   fetchMyProducts,
   fetchMyProductById,
+  fetchConnectStatus,
   fetchStripeProductImportList,
   importProductDraftFromStripe,
   importProductDraftFromUrl,
+  estimateCreatorNet,
   formatMinorCurrency,
   type CreatorProductDetail,
   type MonetizationBoostTier,
@@ -100,6 +102,12 @@ function normalizeBoostTier(raw: string | null | undefined): MonetizationBoostTi
   if (t === "boosted" || t === "aggressive") return t;
   return "standard";
 }
+
+const BOOST_TIER_BPS: Record<MonetizationBoostTier, number> = {
+  standard: 350,
+  boosted: 2000,
+  aggressive: 3500
+};
 
 function applyProductDetailToForm(
   p: CreatorProductDetail,
@@ -294,6 +302,10 @@ export function CreateProductScreen({ navigation, route }: Props) {
     queryKey: ["mobile-create-my-products"],
     queryFn: () => fetchMyProducts({ limit: 50 })
   });
+  const { data: connectStatus } = useQuery({
+    queryKey: ["mobile-create-connect-status"],
+    queryFn: () => fetchConnectStatus()
+  });
 
   const draftItems = useMemo(
     () => (myProducts?.items || []).filter((i) => i.status === "draft"),
@@ -386,6 +398,35 @@ export function CreateProductScreen({ navigation, route }: Props) {
     }
     return "Enter a valid price in minor units for this currency.";
   };
+
+  const enabledBoostTierRows = useMemo(() => {
+    const fromPolicy = connectStatus?.feePolicy?.tiers?.filter((t) => t.enabled);
+    if (fromPolicy && fromPolicy.length > 0) {
+      return fromPolicy;
+    }
+    return [
+      {
+        key: "standard" as const,
+        label: "Standard",
+        platformFeeBps: BOOST_TIER_BPS.standard,
+        enabled: true,
+        description: "Default distribution placement."
+      },
+      {
+        key: "boosted" as const,
+        label: "Boosted",
+        platformFeeBps: BOOST_TIER_BPS.boosted,
+        enabled: true,
+        description: "Higher-priority distribution placement."
+      }
+    ];
+  }, [connectStatus?.feePolicy?.tiers]);
+  const selectedPlatformFeeBps = BOOST_TIER_BPS[boostTier] ?? BOOST_TIER_BPS.standard;
+  const previewPriceMinor = readPriceMinor();
+  const previewNumbers =
+    previewPriceMinor && previewPriceMinor > 0
+      ? estimateCreatorNet(previewPriceMinor, selectedPlatformFeeBps, 700, true)
+      : null;
 
   const uploadDigitalDeliveryFile = async (): Promise<string> => {
     if (!deliveryFile) {
@@ -738,19 +779,36 @@ export function CreateProductScreen({ navigation, route }: Props) {
 
         <SectionLabel>Marketplace boost</SectionLabel>
         <View style={styles.chipRow}>
-          {(
-            [
-              { k: "standard" as const, l: "Standard 3.5%" },
-              { k: "boosted" as const, l: "Boosted 20%" },
-              { k: "aggressive" as const, l: "Aggressive 35%" }
-            ] as const
-          ).map(({ k, l }) => (
-            <Pressable key={k} onPress={() => setBoostTier(k)} style={[styles.chip, boostTier === k && styles.chipOn]}>
-              <Text style={[styles.chipText, boostTier === k && styles.chipTextOn]} numberOfLines={1}>
-                {l}
+          {enabledBoostTierRows.map(({ key, label, platformFeeBps }) => (
+            <Pressable
+              key={key}
+              onPress={() => setBoostTier(key)}
+              style={[styles.chip, boostTier === key && styles.chipOn]}
+            >
+              <Text style={[styles.chipText, boostTier === key && styles.chipTextOn]} numberOfLines={1}>
+                {label} {(platformFeeBps / 100).toFixed(1)}%
               </Text>
             </Pressable>
           ))}
+        </View>
+        <Text style={styles.hintText}>Boost tiers are optional distribution upgrades. You can start standard and change later.</Text>
+        <View style={styles.previewCard}>
+          <Text style={styles.previewTitle}>Payout preview</Text>
+          <Text style={styles.previewCopy}>
+            Buyer pays: {previewPriceMinor ? formatMinorCurrency(previewPriceMinor, currency) : "—"}
+          </Text>
+          <Text style={styles.previewCopy}>
+            Platform fee ({(selectedPlatformFeeBps / 100).toFixed(1)}%):{" "}
+            {previewNumbers ? formatMinorCurrency(previewNumbers.platformFeeMinor, currency) : "—"}
+          </Text>
+          <Text style={styles.previewCopy}>
+            Affiliate impact (up to 7.0%):{" "}
+            {previewNumbers ? formatMinorCurrency(previewNumbers.affiliateMinor, currency) : "—"}
+          </Text>
+          <Text style={styles.previewNet}>
+            You receive (estimated):{" "}
+            {previewNumbers ? formatMinorCurrency(previewNumbers.creatorNetMinor, currency) : "Add valid price"}
+          </Text>
         </View>
 
         <SectionLabel>Audience</SectionLabel>
@@ -936,6 +994,19 @@ const styles = StyleSheet.create({
   chipOn: { borderColor: colors.accent, backgroundColor: colors.subtleFill },
   chipText: { fontSize: 13, color: colors.muted, fontWeight: "600", textTransform: "capitalize" },
   chipTextOn: { color: colors.text },
+  hintText: { fontSize: 12, color: colors.muted, lineHeight: 18, marginTop: 2 },
+  previewCard: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderSubtle,
+    borderRadius: radii.control,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 4
+  },
+  previewTitle: { fontSize: 12, color: colors.muted, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
+  previewCopy: { fontSize: 13, color: colors.muted },
+  previewNet: { fontSize: 14, color: colors.text, fontWeight: "700", marginTop: 2 },
   filePick: {
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.borderSubtle,

@@ -25,6 +25,7 @@ import {
   fetchMyProducts,
   fetchMyTiers,
   fetchCreatorRankings,
+  estimateCreatorNet,
   formatMinorCurrency,
   publishProduct,
   publishTier,
@@ -199,6 +200,10 @@ function AccountCreatorPageInner() {
     }
   });
   const [newTierMonthlyUsd, setNewTierMonthlyUsd] = useState("5.00");
+  const newTierMinor = parseUsdToMinor(newTierMonthlyUsd);
+  const tierPlatformFeeBps =
+    connectStatusQuery.data?.feePolicy?.tiers?.find((tier) => tier.key === "standard")?.platformFeeBps || 350;
+  const tierPreview = newTierMinor ? estimateCreatorNet(newTierMinor, tierPlatformFeeBps, 700, true) : null;
 
   const createTierMutation = useMutation({
     mutationFn: (monthlyPriceMinor: number) =>
@@ -222,6 +227,12 @@ function AccountCreatorPageInner() {
   const products = myProductsQuery.data?.items ?? [];
   const productCount = products.length;
   const publishedProductCount = products.filter((p) => p.status === "published").length;
+  const productBoostTierOptions =
+    connectStatusQuery.data?.feePolicy?.tiers?.filter((tier) => tier.enabled) ||
+    [
+      { key: "standard" as const, label: "Standard", platformFeeBps: 350 },
+      { key: "boosted" as const, label: "Boosted", platformFeeBps: 2000 }
+    ];
 
   const payoutsPanel = (c: ConnectStatus | undefined) => {
     const stripeSetupComplete = Boolean(c?.detailsSubmitted) && Boolean(c?.chargesEnabled);
@@ -379,9 +390,11 @@ function AccountCreatorPageInner() {
                     }}
                     aria-label={`Boost tier for ${product.title}`}
                   >
-                    <option value="standard">Standard (3.5%)</option>
-                    <option value="boosted">Boosted (20%)</option>
-                    <option value="aggressive">Aggressive (35%)</option>
+                    {productBoostTierOptions.map((tier) => (
+                      <option key={tier.key} value={tier.key}>
+                        {tier.label} ({(tier.platformFeeBps / 100).toFixed(1)}%)
+                      </option>
+                    ))}
                     <option value="custom" disabled>
                       Custom ({(product.platform_fee_bps / 100).toFixed(1)}%)
                     </option>
@@ -429,6 +442,22 @@ function AccountCreatorPageInner() {
               {createTierMutation.isPending ? "Creating..." : "Create tier"}
             </button>
           </div>
+            <div className="rounded-control border border-black/10 bg-white px-3 py-2 text-xs text-muted">
+              <p className="font-semibold text-text">Tier payout preview</p>
+              <p>Member pays: {newTierMinor ? formatMinorCurrency(newTierMinor, "usd") : "—"}/mo</p>
+              <p>
+                Platform fee ({(tierPlatformFeeBps / 100).toFixed(1)}%):{" "}
+                {tierPreview ? formatMinorCurrency(tierPreview.platformFeeMinor, "usd") : "—"}
+              </p>
+              <p>
+                Affiliate impact (up to 7.0%):{" "}
+                {tierPreview ? formatMinorCurrency(tierPreview.affiliateMinor, "usd") : "—"}
+              </p>
+              <p className="font-semibold text-text">
+                You receive (estimated):{" "}
+                {tierPreview ? formatMinorCurrency(tierPreview.creatorNetMinor, "usd") : "Enter valid amount"}
+              </p>
+            </div>
           <button
             className="btn-secondary"
             type="button"

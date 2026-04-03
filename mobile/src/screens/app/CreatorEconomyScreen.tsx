@@ -17,6 +17,12 @@ import {
 } from "../../lib/monetization";
 import { colors, radii } from "../../theme";
 
+function triState(value: boolean | undefined) {
+  if (value === true) return "Yes";
+  if (value === false) return "No";
+  return "—";
+}
+
 export function CreatorEconomyScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const connectStatusQuery = useQuery({
@@ -65,6 +71,11 @@ export function CreatorEconomyScreen() {
   }
 
   const connected = Boolean(connectStatusQuery.data?.connected);
+  const detailsSubmitted = Boolean(connectStatusQuery.data?.detailsSubmitted);
+  const chargesEnabled = Boolean(connectStatusQuery.data?.chargesEnabled);
+  const payoutsEnabled = Boolean(connectStatusQuery.data?.payoutsEnabled);
+  const stripeSetupComplete = connected && detailsSubmitted && chargesEnabled;
+  const showConnectGuide = !stripeSetupComplete;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -81,6 +92,39 @@ export function CreatorEconomyScreen() {
         <Text style={styles.muted}>
           Stripe {connected ? "connected" : "not connected yet"} — link your account to receive earnings.
         </Text>
+        {showConnectGuide ? (
+          <View style={styles.guideCard}>
+            <Text style={styles.guideTitle}>Steps to connect Stripe</Text>
+            <View style={styles.guideList}>
+              <Text style={[styles.guideItem, !connected && styles.guideItemActive]}>
+                1. <Text style={styles.guideItemStrong}>Connect Stripe account</Text> — Deenly links your Stripe Express
+                account for payouts.
+              </Text>
+              <Text style={[styles.guideItem, connected && !chargesEnabled && styles.guideItemActive]}>
+                2. <Text style={styles.guideItemStrong}>Finish in Stripe</Text> — add business details, identity, and bank
+                info.
+              </Text>
+              <Text style={styles.guideItem}>
+                3. <Text style={styles.guideItemStrong}>Return to Deenly</Text> — status below updates when charges and
+                payouts are enabled.
+              </Text>
+            </View>
+          </View>
+        ) : null}
+        <View style={styles.statusList}>
+          <View style={styles.statusRow}>
+            <Text style={styles.statusLabel}>Details submitted</Text>
+            <Text style={styles.statusValue}>{triState(connectStatusQuery.data?.detailsSubmitted)}</Text>
+          </View>
+          <View style={styles.statusRow}>
+            <Text style={styles.statusLabel}>Charges enabled</Text>
+            <Text style={styles.statusValue}>{triState(connectStatusQuery.data?.chargesEnabled)}</Text>
+          </View>
+          <View style={styles.statusRow}>
+            <Text style={styles.statusLabel}>Payouts enabled</Text>
+            <Text style={styles.statusValue}>{triState(connectStatusQuery.data?.payoutsEnabled)}</Text>
+          </View>
+        </View>
         <View style={styles.row}>
           {!connected ? (
             <Pressable
@@ -89,7 +133,7 @@ export function CreatorEconomyScreen() {
               disabled={connectAccountMutation.isPending}
             >
               <Text style={styles.buttonText}>
-                {connectAccountMutation.isPending ? "Working…" : "Connect Stripe"}
+                {connectAccountMutation.isPending ? "Connecting…" : "Connect Stripe account"}
               </Text>
             </Pressable>
           ) : null}
@@ -99,9 +143,17 @@ export function CreatorEconomyScreen() {
             disabled={onboardingMutation.isPending || !connected}
           >
             <Text style={styles.buttonText}>
-              {onboardingMutation.isPending ? "Opening…" : "Continue in Stripe"}
+              {onboardingMutation.isPending ? "Opening…" : "Continue setup in Stripe"}
             </Text>
           </Pressable>
+          {connectStatusQuery.data?.dashboardUrl ? (
+            <Pressable
+              style={styles.buttonSecondary}
+              onPress={() => void Linking.openURL(connectStatusQuery.data?.dashboardUrl || "")}
+            >
+              <Text style={styles.buttonText}>Open Stripe dashboard</Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
 
@@ -204,6 +256,53 @@ const styles = StyleSheet.create({
     borderRadius: radii.control,
     padding: 14,
     gap: 10
+  },
+  guideCard: {
+    borderColor: "#bfdbfe",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.control,
+    backgroundColor: "#f0f9ff",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 6
+  },
+  guideTitle: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: "700"
+  },
+  guideList: {
+    gap: 6
+  },
+  guideItem: {
+    color: colors.muted,
+    fontSize: 12,
+    lineHeight: 17
+  },
+  guideItemStrong: {
+    color: colors.text,
+    fontWeight: "600"
+  },
+  guideItemActive: {
+    color: colors.text,
+    fontWeight: "600"
+  },
+  statusList: {
+    gap: 4
+  },
+  statusRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 8
+  },
+  statusLabel: {
+    color: colors.muted,
+    fontSize: 12
+  },
+  statusValue: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: "600"
   },
   sectionTitle: {
     color: colors.text,

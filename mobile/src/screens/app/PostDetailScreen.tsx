@@ -23,6 +23,10 @@ type PostDetail = FeedItem & {
 
 type Props = NativeStackScreenProps<RootStackParamList, "PostDetail">;
 
+function resolveCheckoutVariant(seed: number): "trust_first" | "speed_first" {
+  return seed % 2 === 0 ? "trust_first" : "speed_first";
+}
+
 function isImageMedia(post: PostDetail) {
   if (post.media_mime_type?.startsWith("image/")) {
     return true;
@@ -35,6 +39,7 @@ function isImageMedia(post: PostDetail) {
 
 export function PostDetailScreen({ route, navigation }: Props) {
   const { id: postId } = route.params;
+  const checkoutVariant = resolveCheckoutVariant(postId);
   const [comment, setComment] = useState("");
   const [reportReason, setReportReason] = useState("");
   const [reportCategory, setReportCategory] = useState("other");
@@ -132,7 +137,7 @@ export function PostDetailScreen({ route, navigation }: Props) {
     ];
   }, [postQuery.data, benefitedCount]);
   const productCheckoutMutation = useMutation({
-    mutationFn: (productId: number) => createProductCheckout(productId),
+    mutationFn: (productId: number) => createProductCheckout(productId, { checkoutVariant }),
     onSuccess: async (result) => {
       if (result?.checkoutUrl) {
         setCheckoutHandoff(true);
@@ -145,7 +150,7 @@ export function PostDetailScreen({ route, navigation }: Props) {
   });
   const guestProductCheckoutMutation = useMutation({
     mutationFn: ({ productId, email }: { productId: number; email?: string }) =>
-      createGuestProductCheckout(productId, { smsOptIn: false, guestEmail: email }),
+      createGuestProductCheckout(productId, { smsOptIn: false, guestEmail: email, checkoutVariant }),
     onSuccess: async (result) => {
       if (result?.checkoutUrl) {
         setCheckoutHandoff(true);
@@ -190,6 +195,7 @@ export function PostDetailScreen({ route, navigation }: Props) {
         guestEmail={guestCheckoutEmail}
         loading={buyPending}
         handoffState={checkoutHandoff}
+        checkoutVariant={checkoutVariant}
         errorMessage={checkoutError ? (checkoutError as Error).message : undefined}
         onGuestEmailChange={setGuestCheckoutEmail}
         onClose={() => {

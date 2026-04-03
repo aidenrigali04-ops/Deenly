@@ -7,6 +7,16 @@ export type MonetizationConnectStatus = {
   payoutsEnabled?: boolean;
   detailsSubmitted?: boolean;
   dashboardUrl?: string;
+  feePolicy?: {
+    feeExperimentEnabled?: boolean;
+    tiers?: Array<{
+      key: MonetizationBoostTier;
+      label: string;
+      platformFeeBps: number;
+      enabled: boolean;
+      description: string;
+    }>;
+  };
 };
 
 export type MonetizationTier = {
@@ -39,34 +49,41 @@ export async function createOnboardingLink() {
   });
 }
 
-export async function createSupportCheckout(creatorUserId: number, amountMinor: number) {
+export async function createSupportCheckout(
+  creatorUserId: number,
+  amountMinor: number,
+  opts?: { checkoutVariant?: string }
+) {
   return apiRequest<{ checkoutUrl: string }>(`/monetization/checkout/support/${creatorUserId}`, {
     method: "POST",
     auth: true,
-    body: { amountMinor, currency: "usd" }
+    body: { amountMinor, currency: "usd", checkoutVariant: opts?.checkoutVariant }
   });
 }
 
-export async function createGuestProductCheckout(productId: number, body?: { guestEmail?: string; smsOptIn?: boolean }) {
+export async function createGuestProductCheckout(
+  productId: number,
+  body?: { guestEmail?: string; smsOptIn?: boolean; checkoutVariant?: string }
+) {
   return apiRequest<{ checkoutUrl: string }>(`/monetization/checkout/product/${productId}/guest`, {
     method: "POST",
-    body: { guestEmail: body?.guestEmail, smsOptIn: body?.smsOptIn }
+    body: { guestEmail: body?.guestEmail, smsOptIn: body?.smsOptIn, checkoutVariant: body?.checkoutVariant }
   });
 }
 
-export async function createProductCheckout(productId: number, opts?: { smsOptIn?: boolean }) {
+export async function createProductCheckout(productId: number, opts?: { smsOptIn?: boolean; checkoutVariant?: string }) {
   return apiRequest<{ checkoutUrl: string }>(`/monetization/checkout/product/${productId}`, {
     method: "POST",
     auth: true,
-    body: { smsOptIn: opts?.smsOptIn }
+    body: { smsOptIn: opts?.smsOptIn, checkoutVariant: opts?.checkoutVariant }
   });
 }
 
-export async function createTierCheckout(tierId: number) {
+export async function createTierCheckout(tierId: number, opts?: { checkoutVariant?: string }) {
   return apiRequest<{ checkoutUrl: string }>(`/monetization/checkout/tier/${tierId}`, {
     method: "POST",
     auth: true,
-    body: {}
+    body: { checkoutVariant: opts?.checkoutVariant }
   });
 }
 
@@ -338,4 +355,19 @@ export function formatMinorCurrency(valueMinor: number, currency = "usd") {
     style: "currency",
     currency: currency.toUpperCase()
   }).format((Number(valueMinor) || 0) / 100);
+}
+
+export function estimateCreatorNet(
+  amountMinor: number,
+  platformFeeBps: number,
+  affiliateCommissionBps = 700,
+  includeAffiliate = false
+) {
+  const normalizedAmount = Math.max(0, Number(amountMinor) || 0);
+  const feeBps = Math.max(0, Number(platformFeeBps) || 0);
+  const affiliateBps = Math.max(0, Number(affiliateCommissionBps) || 0);
+  const platformFeeMinor = Math.max(0, Math.round((normalizedAmount * feeBps) / 10000));
+  const affiliateMinor = includeAffiliate ? Math.max(0, Math.round((normalizedAmount * affiliateBps) / 10000)) : 0;
+  const creatorNetMinor = Math.max(0, normalizedAmount - platformFeeMinor - affiliateMinor);
+  return { platformFeeMinor, affiliateMinor, creatorNetMinor };
 }

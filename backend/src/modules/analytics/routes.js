@@ -117,6 +117,64 @@ function createAnalyticsRouter({ db, config }) {
     })
   );
 
+  router.get(
+    "/dashboard/monetization",
+    authMiddleware,
+    modGuard,
+    asyncHandler(async (_req, res) => {
+      const [eventsResult, orderResult] = await Promise.all([
+        db.query(
+          `SELECT
+             COUNT(*) FILTER (WHERE event_name = 'checkout_started')::int AS checkout_started_count,
+             COUNT(*) FILTER (WHERE event_name = 'purchase_completed')::int AS purchase_completed_events_count,
+             COUNT(*) FILTER (WHERE event_name = 'creator_product_draft_saved')::int AS product_draft_saved_count,
+             COUNT(*) FILTER (WHERE event_name = 'creator_product_published')::int AS product_published_count,
+             COUNT(*) FILTER (WHERE event_name = 'creator_tier_draft_saved')::int AS tier_draft_saved_count,
+             COUNT(*) FILTER (WHERE event_name = 'creator_tier_published')::int AS tier_published_count
+           FROM analytics_events
+           WHERE created_at >= NOW() - INTERVAL '30 days'`
+        ),
+        db.query(
+          `SELECT
+             COUNT(*)::int AS orders_completed_count,
+             COALESCE(SUM(amount_minor), 0)::int AS gmv_minor,
+             COALESCE(SUM(platform_fee_minor), 0)::int AS platform_fee_minor,
+             COALESCE(SUM(creator_net_minor), 0)::int AS creator_net_minor
+           FROM orders
+           WHERE status = 'completed'
+             AND created_at >= NOW() - INTERVAL '30 days'`
+        )
+      ]);
+
+      const e = eventsResult.rows[0] || {};
+      const o = orderResult.rows[0] || {};
+      const started = Number(e.checkout_started_count || 0);
+      const completed = Number(e.purchase_completed_events_count || 0);
+      const checkoutConversionRate = started > 0 ? Number((completed / started).toFixed(4)) : 0;
+
+      res.status(200).json({
+        windowDays: 30,
+        funnel: {
+          checkoutStarted: started,
+          purchasesCompletedEvents: completed,
+          checkoutConversionRate
+        },
+        creatorFlow: {
+          productDraftSaved: Number(e.product_draft_saved_count || 0),
+          productPublished: Number(e.product_published_count || 0),
+          tierDraftSaved: Number(e.tier_draft_saved_count || 0),
+          tierPublished: Number(e.tier_published_count || 0)
+        },
+        economics: {
+          ordersCompleted: Number(o.orders_completed_count || 0),
+          gmvMinor: Number(o.gmv_minor || 0),
+          platformFeeMinor: Number(o.platform_fee_minor || 0),
+          creatorNetMinor: Number(o.creator_net_minor || 0)
+        }
+      });
+    })
+  );
+
   return router;
 }
 

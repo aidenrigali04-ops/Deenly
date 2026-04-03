@@ -41,6 +41,10 @@ type Props = CompositeScreenProps<
   feedVariant?: "home" | "marketplace";
 };
 
+function resolveCheckoutVariant(seed: number): "trust_first" | "speed_first" {
+  return seed % 2 === 0 ? "trust_first" : "speed_first";
+}
+
 export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
   const sessionUser = useSessionStore((s) => s.user);
   const [buyHandoffProductId, setBuyHandoffProductId] = useState<number | null>(null);
@@ -162,10 +166,11 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
   });
   const buyProductMutation = useMutation({
     mutationFn: async (productId: number) => {
+      const checkoutVariant = resolveCheckoutVariant(productId);
       if (sessionUser) {
-        return createProductCheckout(productId);
+        return createProductCheckout(productId, { checkoutVariant });
       }
-      return createGuestProductCheckout(productId, { smsOptIn: false });
+      return createGuestProductCheckout(productId, { smsOptIn: false, checkoutVariant });
     },
     onSuccess: async (result, productId) => {
       if (result?.checkoutUrl) {

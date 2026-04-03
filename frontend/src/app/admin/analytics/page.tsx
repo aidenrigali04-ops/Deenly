@@ -29,6 +29,27 @@ type FeedHealth = {
   total_views: number;
 };
 
+type MonetizationDashboard = {
+  windowDays: number;
+  funnel: {
+    checkoutStarted: number;
+    purchasesCompletedEvents: number;
+    checkoutConversionRate: number;
+  };
+  creatorFlow: {
+    productDraftSaved: number;
+    productPublished: number;
+    tierDraftSaved: number;
+    tierPublished: number;
+  };
+  economics: {
+    ordersCompleted: number;
+    gmvMinor: number;
+    platformFeeMinor: number;
+    creatorNetMinor: number;
+  };
+};
+
 function Card({ title, value }: { title: string; value: string | number }) {
   return (
     <div className="surface-card space-y-2">
@@ -55,12 +76,16 @@ export default function AdminAnalyticsPage() {
     queryKey: ["analytics-feed-health"],
     queryFn: () => apiRequest<FeedHealth>("/analytics/dashboard/feed-health", { auth: true })
   });
+  const monetization = useQuery({
+    queryKey: ["analytics-monetization"],
+    queryFn: () => apiRequest<MonetizationDashboard>("/analytics/dashboard/monetization", { auth: true })
+  });
 
-  if (summary.isLoading || funnel.isLoading || retention.isLoading || feedHealth.isLoading) {
+  if (summary.isLoading || funnel.isLoading || retention.isLoading || feedHealth.isLoading || monetization.isLoading) {
     return <LoadingState label="Loading analytics dashboard..." />;
   }
 
-  if (summary.error || funnel.error || retention.error || feedHealth.error) {
+  if (summary.error || funnel.error || retention.error || feedHealth.error || monetization.error) {
     return <ErrorState message="Unable to load analytics dashboard." />;
   }
 
@@ -82,6 +107,21 @@ export default function AdminAnalyticsPage() {
         <Card title="Avg Completion %" value={feedHealth.data?.avg_completion_rate ?? 0} />
         <Card title="Avg Watch Time (ms)" value={feedHealth.data?.avg_watch_time_ms ?? 0} />
         <Card title="Total Views" value={feedHealth.data?.total_views ?? 0} />
+      </div>
+      <div className="surface-card space-y-3">
+        <h2 className="text-lg font-medium">Monetization Rollout Guardrails (30 days)</h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Card title="Checkout Started" value={monetization.data?.funnel.checkoutStarted ?? 0} />
+          <Card title="Purchases Completed" value={monetization.data?.funnel.purchasesCompletedEvents ?? 0} />
+          <Card
+            title="Checkout Conversion"
+            value={`${(((monetization.data?.funnel.checkoutConversionRate || 0) * 100).toFixed(1))}%`}
+          />
+          <Card title="Orders Completed" value={monetization.data?.economics.ordersCompleted ?? 0} />
+        </div>
+        <p className="text-xs text-muted">
+          Use this panel for staged rollouts (10% → 50% → 100%). Roll back if conversion dips or support/refund guardrails degrade.
+        </p>
       </div>
       <div className="surface-card">
         <h2 className="text-lg font-medium">Event Summary (30 days)</h2>

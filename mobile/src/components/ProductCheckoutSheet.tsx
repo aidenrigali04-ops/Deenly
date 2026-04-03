@@ -11,6 +11,7 @@ type Props = {
   guestEmail: string;
   loading: boolean;
   handoffState?: boolean;
+  checkoutVariant?: "trust_first" | "speed_first";
   errorMessage?: string;
   onGuestEmailChange: (value: string) => void;
   onClose: () => void;
@@ -25,6 +26,7 @@ export function ProductCheckoutSheet({
   guestEmail,
   loading,
   handoffState,
+  checkoutVariant = "trust_first",
   errorMessage,
   onGuestEmailChange,
   onClose,
@@ -51,6 +53,10 @@ export function ProductCheckoutSheet({
     [trimmedGuestEmail]
   );
   const confirmDisabled = loading || (isGuest && !guestEmailLooksValid);
+  const points =
+    checkoutVariant === "speed_first"
+      ? ["Checkout completes in under a minute.", "Delivery access is shared right after payment."]
+      : ["Payment completes in Stripe.", "Access details are sent after payment."];
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={() => (loading ? undefined : onClose())}>
@@ -65,14 +71,12 @@ export function ProductCheckoutSheet({
             </Text>
             <Text style={styles.price}>{priceLabel}</Text>
 
-            <View style={styles.pointRow}>
-              <Text style={styles.pointDot}>•</Text>
-              <Text style={styles.copy}>Payment completes in Stripe.</Text>
-            </View>
-            <View style={styles.pointRow}>
-              <Text style={styles.pointDot}>•</Text>
-              <Text style={styles.copy}>Access details are sent after payment.</Text>
-            </View>
+            {points.map((point) => (
+              <View key={point} style={styles.pointRow}>
+                <Text style={styles.pointDot}>•</Text>
+                <Text style={styles.copy}>{point}</Text>
+              </View>
+            ))}
 
             {isGuest ? (
               <View style={styles.guestWrap}>
