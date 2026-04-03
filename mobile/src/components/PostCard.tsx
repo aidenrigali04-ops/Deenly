@@ -137,7 +137,9 @@ export function PostCard({
               }}
               disabled={liking}
             >
-              <Text style={styles.homeActionIcon}>{liked ? "♥" : "♡"}</Text>
+              <Text style={[styles.homeActionIcon, liked && styles.homeActionIconLiked]}>
+                {liked ? "♥" : "♡"}
+              </Text>
             </Pressable>
             <Text style={styles.homeActionIcon}>◌</Text>
             <Text style={styles.homeActionIcon}>➤</Text>
@@ -391,6 +393,9 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 20,
     lineHeight: 20
+  },
+  homeActionIconLiked: {
+    color: "#ef4444"
   },
   homeCaptionWrap: {
     paddingHorizontal: 16,
