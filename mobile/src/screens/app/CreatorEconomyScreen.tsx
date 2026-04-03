@@ -180,7 +180,7 @@ export function CreatorEconomyScreen() {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Subscription tiers</Text>
+        <Text style={styles.sectionTitle}>Membership plans</Text>
         {(tiersQuery.data?.items || []).length ? (
           tiersQuery.data?.items.slice(0, 8).map((tier) => (
             <Text key={tier.id} style={styles.listLine}>
@@ -192,7 +192,7 @@ export function CreatorEconomyScreen() {
             </Text>
           ))
         ) : (
-          <EmptyState title="No tiers yet" subtitle="Create tiers from the web Creator hub → Grow." />
+          <EmptyState title="No plans yet" subtitle="Create membership plans from web Creator hub -> Grow." />
         )}
       </View>
 

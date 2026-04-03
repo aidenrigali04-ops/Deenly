@@ -64,7 +64,7 @@ function applyImportedDraft(
     setShowAdvanced: (v: boolean) => void;
     setPriceUsd: (v: string) => void;
     setPriceMinorRaw: (v: string) => void;
-    setProductType: (v: "digital" | "service" | "subscription") => void;
+    setProductType: (v: "digital" | "service") => void;
     setWebsiteUrl: (v: string) => void;
   }
 ) {
@@ -81,7 +81,7 @@ function applyImportedDraft(
     setters.setPriceMinorRaw(String(draft.priceMinor));
     setters.setPriceUsd("");
   }
-  setters.setProductType(draft.productType);
+  setters.setProductType(draft.productType === "digital" ? "digital" : "service");
   if (draft.websiteUrl) {
     setters.setWebsiteUrl(draft.websiteUrl);
   }
@@ -95,7 +95,7 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
   const [showPriceMinorAdvanced, setShowPriceMinorAdvanced] = useState(false);
   const [newProductPriceMinorRaw, setNewProductPriceMinorRaw] = useState("");
   const [newProductCurrency, setNewProductCurrency] = useState("usd");
-  const [newProductType, setNewProductType] = useState<"digital" | "service" | "subscription">("digital");
+  const [newProductType, setNewProductType] = useState<"digital" | "service">("digital");
   const [newProductAudienceTarget, setNewProductAudienceTarget] = useState<"b2b" | "b2c" | "both">("both");
   const [newProductBusinessCategory, setNewProductBusinessCategory] = useState("");
   const [newProductServiceDetails, setNewProductServiceDetails] = useState("");
@@ -151,7 +151,7 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
       description?: string;
       priceMinor: number;
       currency?: string;
-      productType: "digital" | "service" | "subscription";
+      productType: "digital" | "service";
       deliveryMediaKey?: string;
       serviceDetails?: string;
       deliveryMethod?: string;
@@ -570,13 +570,13 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
         <select
           className="input bg-white"
           value={newProductType}
-          onChange={(e) => setNewProductType(e.target.value as "digital" | "service" | "subscription")}
+          onChange={(e) => setNewProductType(e.target.value as "digital" | "service")}
           aria-label="Product type"
         >
           <option value="digital">Digital</option>
           <option value="service">Service</option>
-          <option value="subscription">Subscription</option>
         </select>
+        <p className="text-xs text-muted">Recurring offers are managed as Membership plans in Creator hub.</p>
         <div className="space-y-1">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">Marketplace boost fee</p>
           <p className="text-xs text-muted">

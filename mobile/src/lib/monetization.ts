@@ -218,7 +218,7 @@ export async function createProduct(input: {
   description?: string;
   priceMinor: number;
   currency?: string;
-  productType: "digital" | "service" | "subscription";
+  productType: "digital" | "service";
   deliveryMediaKey?: string;
   serviceDetails?: string;
   deliveryMethod?: string;
@@ -263,7 +263,7 @@ export async function patchProduct(
     description?: string;
     priceMinor?: number;
     currency?: string;
-    productType?: "digital" | "service" | "subscription";
+    productType?: "digital" | "service";
     deliveryMediaKey?: string | null;
     serviceDetails?: string;
     deliveryMethod?: string;

@@ -560,6 +560,9 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
       if (!PRODUCT_TYPES.has(productType)) {
         throw httpError(400, "productType must be digital, service, or subscription");
       }
+      if (productType === "subscription" && config.monetizationAllowSubscriptionProductType !== true) {
+        throw httpError(400, "Subscription products moved to Membership plans. Create a tier instead.");
+      }
       const deliveryMediaKey = optionalString(req.body?.deliveryMediaKey, "deliveryMediaKey", 512) || null;
       const serviceDetails = optionalString(req.body?.serviceDetails, "serviceDetails", 2000) || null;
       const deliveryMethod = optionalString(req.body?.deliveryMethod, "deliveryMethod", 120) || null;
@@ -613,6 +616,13 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
           platformFeeBps,
           boostTier: boostTier || "custom"
         });
+        if (productType === "subscription") {
+          await analytics.trackEvent("subscription_producttype_deprecated_used", {
+            creatorUserId: req.user.id,
+            productId: created.rows[0].id,
+            source: "create"
+          });
+        }
       }
       res.status(201).json(created.rows[0]);
     })
@@ -880,6 +890,13 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
       if (!PRODUCT_TYPES.has(productType)) {
         throw httpError(400, "productType must be digital, service, or subscription");
       }
+      if (
+        req.body?.productType !== undefined &&
+        productType === "subscription" &&
+        config.monetizationAllowSubscriptionProductType !== true
+      ) {
+        throw httpError(400, "Subscription products moved to Membership plans. Create a tier instead.");
+      }
       const deliveryMediaKey =
         req.body?.deliveryMediaKey !== undefined
           ? optionalString(req.body?.deliveryMediaKey, "deliveryMediaKey", 512)
@@ -969,6 +986,13 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
           boostTier: boostTier || "custom",
           source: "patch"
         });
+        if (productType === "subscription") {
+          await analytics.trackEvent("subscription_producttype_deprecated_used", {
+            creatorUserId: req.user.id,
+            productId,
+            source: "patch"
+          });
+        }
       }
       res.status(200).json(updated.rows[0]);
     })
@@ -2278,6 +2302,99 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
         [limit]
       );
       res.status(200).json({ limit, items: rows.rows });
+    })
+  );
+
+  router.post(
+    "/admin/migrate-subscription-products-to-tiers",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      if (!["admin", "moderator"].includes(String(req.user.role || ""))) {
+        throw httpError(403, "Insufficient permissions");
+      }
+      const limit = Math.min(Math.max(Number(req.body?.limit) || 100, 1), 500);
+      const dryRun = req.body?.dryRun === undefined ? true : Boolean(req.body?.dryRun);
+      const legacyRows = await db.query(
+        `SELECT id, creator_user_id, title, description, price_minor, currency, status
+         FROM creator_products
+         WHERE product_type = 'subscription'
+           AND status IN ('draft', 'published')
+         ORDER BY id ASC
+         LIMIT $1`,
+        [limit]
+      );
+
+      const items = [];
+      let createdCount = 0;
+      let skippedCount = 0;
+
+      for (const row of legacyRows.rows) {
+        const marker = `[migrated_from_subscription_product:${row.id}]`;
+        const existingTier = await db.query(
+          `SELECT id, status
+           FROM creator_subscription_tiers
+           WHERE creator_user_id = $1
+             AND description LIKE $2
+           LIMIT 1`,
+          [row.creator_user_id, `%${marker}%`]
+        );
+
+        if (existingTier.rowCount > 0) {
+          skippedCount += 1;
+          items.push({
+            productId: row.id,
+            action: "skipped_existing",
+            tierId: existingTier.rows[0].id,
+            tierStatus: existingTier.rows[0].status
+          });
+          continue;
+        }
+
+        if (dryRun) {
+          items.push({
+            productId: row.id,
+            action: "would_create",
+            creatorUserId: row.creator_user_id,
+            title: row.title,
+            monthlyPriceMinor: row.price_minor,
+            currency: row.currency
+          });
+          continue;
+        }
+
+        const migratedDescription = [String(row.description || "").trim(), marker].filter(Boolean).join("\n\n");
+        const inserted = await db.query(
+          `INSERT INTO creator_subscription_tiers (
+             creator_user_id, title, description, monthly_price_minor, currency, status
+           )
+           VALUES ($1, $2, $3, $4, $5, 'draft')
+           RETURNING id, status`,
+          [row.creator_user_id, row.title, migratedDescription || marker, row.price_minor, row.currency]
+        );
+        createdCount += 1;
+        items.push({
+          productId: row.id,
+          action: "created",
+          tierId: inserted.rows[0].id,
+          tierStatus: inserted.rows[0].status
+        });
+        if (analytics) {
+          await analytics.trackEvent("legacy_subscription_product_migrated_to_tier", {
+            productId: row.id,
+            creatorUserId: row.creator_user_id,
+            tierId: inserted.rows[0].id
+          });
+        }
+      }
+
+      res.status(200).json({
+        dryRun,
+        limit,
+        scanned: legacyRows.rowCount,
+        createdCount,
+        skippedCount,
+        items
+      });
     })
   );
 

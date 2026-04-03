@@ -417,7 +417,7 @@ function AccountCreatorPageInner() {
           <div className="flex flex-wrap items-end gap-2">
             <div className="min-w-[120px] flex-1">
               <label className="text-xs text-muted" htmlFor="tier-monthly-usd">
-                New tier monthly (USD)
+                New membership plan monthly (USD)
               </label>
               <input
                 id="tier-monthly-usd"
@@ -439,7 +439,7 @@ function AccountCreatorPageInner() {
               }}
               disabled={createTierMutation.isPending || parseUsdToMinor(newTierMonthlyUsd) === null}
             >
-              {createTierMutation.isPending ? "Creating..." : "Create tier"}
+              {createTierMutation.isPending ? "Creating..." : "Create plan"}
             </button>
           </div>
             <div className="rounded-control border border-black/10 bg-white px-3 py-2 text-xs text-muted">
@@ -469,7 +469,7 @@ function AccountCreatorPageInner() {
       </section>
 
       <section>
-        <h2 className="section-title text-sm">Subscription tiers</h2>
+        <h2 className="section-title text-sm">Membership plans</h2>
         <div className="mt-3 rounded-control border border-black/10 bg-surface px-3 py-2">
           <div className="mt-2 space-y-2">
             {(myTiersQuery.data?.items || []).slice(0, 20).map((tier) => (
@@ -490,7 +490,7 @@ function AccountCreatorPageInner() {
               </div>
             ))}
             {myTiersQuery.data?.items?.length ? null : (
-              <p className="text-xs text-muted">No tiers yet.</p>
+              <p className="text-xs text-muted">No plans yet.</p>
             )}
           </div>
         </div>

@@ -162,7 +162,7 @@ export async function createProduct(input: {
   priceMinor: number;
   currency?: string;
   deliveryMediaKey?: string;
-  productType?: "digital" | "service" | "subscription";
+  productType?: "digital" | "service";
   serviceDetails?: string;
   deliveryMethod?: string;
   websiteUrl?: string;
@@ -186,7 +186,7 @@ export async function updateProduct(
     priceMinor: number;
     currency: string;
     deliveryMediaKey: string | null;
-    productType: "digital" | "service" | "subscription";
+    productType: "digital" | "service";
     serviceDetails: string | null;
     deliveryMethod: string | null;
     websiteUrl: string | null;

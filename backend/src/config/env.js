@@ -221,6 +221,10 @@ function loadEnv(envSource = process.env) {
     monetizationEnableBoostedTier: parseBoolean(envSource.MONETIZATION_ENABLE_BOOSTED_TIER, true),
     monetizationEnableAggressiveTier: parseBoolean(envSource.MONETIZATION_ENABLE_AGGRESSIVE_TIER, false),
     monetizationFeeExperimentEnabled: parseBoolean(envSource.MONETIZATION_FEE_EXPERIMENT_ENABLED, false),
+    monetizationAllowSubscriptionProductType: parseBoolean(
+      envSource.MONETIZATION_ALLOW_SUBSCRIPTION_PRODUCT_TYPE,
+      false
+    ),
     affiliateGlobalCommissionBps: parsePositiveInt(
       envSource.AFFILIATE_GLOBAL_COMMISSION_BPS,
       700,

@@ -45,6 +45,7 @@ type UploadSignatureResponse = {
 };
 
 type Props = NativeStackScreenProps<RootStackParamList, "CreateProduct">;
+type EditableProductType = "digital" | "service";
 
 function deriveMediaType(mimeType: string): "image" | "video" | null {
   if (mimeType.startsWith("image/")) return "image";
@@ -74,7 +75,7 @@ function applyDraftToForm(
     setPriceUsd: (v: string) => void;
     setPriceMinorOnly: (v: string) => void;
     setUseMinorPrice: (v: boolean) => void;
-    setProductType: (v: "digital" | "service" | "subscription") => void;
+    setProductType: (v: EditableProductType) => void;
     setWebsiteUrl: (v: string) => void;
   }
 ) {
@@ -91,7 +92,7 @@ function applyDraftToForm(
     set.setPriceMinorOnly(String(draft.priceMinor));
     set.setPriceUsd("");
   }
-  set.setProductType(draft.productType);
+  set.setProductType(draft.productType === "digital" ? "digital" : "service");
   if (draft.websiteUrl) {
     set.setWebsiteUrl(draft.websiteUrl);
   }
@@ -118,7 +119,7 @@ function applyProductDetailToForm(
     setPriceUsd: (v: string) => void;
     setPriceMinorOnly: (v: string) => void;
     setUseMinorPrice: (v: boolean) => void;
-    setProductType: (v: "digital" | "service" | "subscription") => void;
+    setProductType: (v: EditableProductType) => void;
     setWebsiteUrl: (v: string) => void;
     setServiceDetails: (v: string) => void;
     setDeliveryMethod: (v: string) => void;
@@ -143,7 +144,7 @@ function applyProductDetailToForm(
     set.setPriceMinorOnly(String(p.price_minor));
     set.setPriceUsd("");
   }
-  set.setProductType(p.product_type);
+  set.setProductType(p.product_type === "digital" ? "digital" : "service");
   set.setWebsiteUrl(p.website_url || "");
   set.setServiceDetails(p.service_details || "");
   set.setDeliveryMethod(p.delivery_method || "");
@@ -216,7 +217,7 @@ export function CreateProductScreen({ navigation, route }: Props) {
   const [priceMinorOnly, setPriceMinorOnly] = useState("");
   const [currency, setCurrency] = useState("usd");
   const [useMinorPrice, setUseMinorPrice] = useState(false);
-  const [productType, setProductType] = useState<"digital" | "service" | "subscription">("digital");
+  const [productType, setProductType] = useState<EditableProductType>("digital");
   const [audienceTarget, setAudienceTarget] = useState<"b2b" | "b2c" | "both">("both");
   const [businessCategory, setBusinessCategory] = useState("");
   const [boostTier, setBoostTier] = useState<MonetizationBoostTier>("standard");
@@ -766,7 +767,7 @@ export function CreateProductScreen({ navigation, route }: Props) {
           </Text>
         </Pressable>
         <View style={styles.chipRow}>
-          {(["digital", "service", "subscription"] as const).map((pt) => (
+          {(["digital", "service"] as const).map((pt) => (
             <Pressable
               key={pt}
               onPress={() => setProductType(pt)}
@@ -776,6 +777,7 @@ export function CreateProductScreen({ navigation, route }: Props) {
             </Pressable>
           ))}
         </View>
+        <Text style={styles.hintText}>Recurring offers are managed as Membership plans in Creator hub.</Text>
 
         <SectionLabel>Marketplace boost</SectionLabel>
         <View style={styles.chipRow}>

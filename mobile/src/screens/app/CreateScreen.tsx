@@ -56,7 +56,7 @@ function SectionTitle({ children }: { children: string }) {
 function applyCatalogProductToPromoteForm(
   row: CreatorProductRow,
   set: {
-    setProductType: (v: "digital" | "service" | "subscription") => void;
+    setProductType: (v: "digital" | "service") => void;
     setPriceMinor: (v: string) => void;
     setProductTitle: (v: string) => void;
     setProductDescription: (v: string) => void;
@@ -71,9 +71,7 @@ function applyCatalogProductToPromoteForm(
   }
 ) {
   const pt = row.product_type;
-  if (pt === "digital" || pt === "service" || pt === "subscription") {
-    set.setProductType(pt);
-  }
+  set.setProductType(pt === "digital" ? "digital" : "service");
   set.setPriceMinor(String(Number(row.price_minor) > 0 ? row.price_minor : ""));
   set.setProductTitle((row.title || "").trim());
   set.setProductDescription((row.description || "").trim());
@@ -107,7 +105,7 @@ export function CreateScreen({ navigation }: Props) {
   const [error, setError] = useState("");
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
   const [sellThis, setSellThis] = useState(false);
-  const [productType, setProductType] = useState<"digital" | "service" | "subscription">("digital");
+  const [productType, setProductType] = useState<"digital" | "service">("digital");
   const [priceMinor, setPriceMinor] = useState("");
   const [productTitle, setProductTitle] = useState("");
   const [productDescription, setProductDescription] = useState("");
@@ -626,7 +624,7 @@ export function CreateScreen({ navigation }: Props) {
                   keyboardType="number-pad"
                 />
                 <View style={[styles.typeRowWrap, compact && styles.typeRowWrapCompact]}>
-                  {(["digital", "service", "subscription"] as const).map((type) => (
+                  {(["digital", "service"] as const).map((type) => (
                     <Pressable
                       key={type}
                       onPress={() => setProductType(type)}
@@ -648,6 +646,9 @@ export function CreateScreen({ navigation }: Props) {
                     </Pressable>
                   ))}
                 </View>
+                <Text style={[styles.promoteHint, compact && styles.promoteHintCompact]}>
+                  For monthly recurring offers, create a Membership plan in Creator hub.
+                </Text>
                 <SectionTitle>Who it is for</SectionTitle>
                 <View style={[styles.typeRowWrap, compact && styles.typeRowWrapCompact]}>
                   {([
