@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { NavigationContainer, DefaultTheme, NavigatorScreenParams } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchSessionMe } from "../lib/auth";
 import { getAccessToken } from "../lib/storage";
 import { useSessionStore } from "../store/session-store";
-import { colors } from "../theme";
+import { colors, radii } from "../theme";
 import { apiRequest } from "../lib/api";
 import { LoginScreen } from "../screens/auth/LoginScreen";
 import { SignupScreen } from "../screens/auth/SignupScreen";
@@ -108,19 +108,37 @@ function AppTabs() {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
           borderTopWidth: StyleSheet.hairlineWidth,
-          paddingTop: 6,
-          minHeight: 58
+          paddingTop: 8,
+          minHeight: 64
         },
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.muted,
+        tabBarActiveBackgroundColor: colors.subtleFill,
         tabBarShowLabel: true,
+        tabBarLabel: ({ focused, color, children }) => (
+          <Text
+            style={{
+              fontSize: 10,
+              fontWeight: focused ? "700" : "600",
+              marginBottom: 2,
+              letterSpacing: focused ? 0.2 : 0,
+              color,
+              opacity: focused ? 1 : 0.86
+            }}
+          >
+            {children}
+          </Text>
+        ),
         tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: "600",
-          marginBottom: 4
+          marginTop: 0
         },
         tabBarIconStyle: { marginTop: 2 },
-        tabBarItemStyle: { paddingVertical: 4 }
+        tabBarItemStyle: {
+          marginHorizontal: 4,
+          marginVertical: 5,
+          borderRadius: radii.pill,
+          paddingVertical: 2
+        }
       }}
     >
       <Tab.Screen
@@ -128,7 +146,9 @@ function AppTabs() {
         component={FeedScreen}
         options={{
           title: "Home",
-          tabBarIcon: ({ color, size }) => <NavTabIcon kind="home" color={color} size={size ?? 22} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <NavTabIcon kind="home" color={color} size={size ?? 22} focused={focused} />
+          )
         }}
       />
       <Tab.Screen
@@ -136,7 +156,9 @@ function AppTabs() {
         component={MarketplaceFeedScreen}
         options={{
           title: "Market",
-          tabBarIcon: ({ color, size }) => <NavTabIcon kind="marketplace" color={color} size={size ?? 22} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <NavTabIcon kind="marketplace" color={color} size={size ?? 22} focused={focused} />
+          )
         }}
       />
       <Tab.Screen
@@ -144,7 +166,9 @@ function AppTabs() {
         component={SearchScreen}
         options={{
           title: "Search",
-          tabBarIcon: ({ color, size }) => <NavTabIcon kind="search" color={color} size={size ?? 22} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <NavTabIcon kind="search" color={color} size={size ?? 22} focused={focused} />
+          )
         }}
       />
       <Tab.Screen
@@ -152,7 +176,9 @@ function AppTabs() {
         component={MessagesScreen}
         options={{
           title: "Messages",
-          tabBarIcon: ({ color, size }) => <NavTabIcon kind="send" color={color} size={size ?? 22} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <NavTabIcon kind="send" color={color} size={size ?? 22} focused={focused} />
+          )
         }}
       />
       <Tab.Screen
@@ -160,7 +186,9 @@ function AppTabs() {
         component={CreateScreen}
         options={{
           title: "Post",
-          tabBarIcon: ({ color, size }) => <NavTabIcon kind="upload" color={color} size={size ?? 22} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <NavTabIcon kind="upload" color={color} size={size ?? 22} focused={focused} />
+          )
         }}
       />
       <Tab.Screen
@@ -168,7 +196,9 @@ function AppTabs() {
         component={ProfileScreen}
         options={{
           title: "Profile",
-          tabBarIcon: ({ color, size }) => <NavTabIcon kind="user" color={color} size={size ?? 22} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <NavTabIcon kind="user" color={color} size={size ?? 22} focused={focused} />
+          )
         }}
       />
     </Tab.Navigator>
