@@ -4,6 +4,7 @@ import * as DocumentPicker from "expo-document-picker";
 import {
   Image,
   Linking,
+  Platform,
   Pressable,
   ScrollView,
   Share,
@@ -26,7 +27,6 @@ import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNa
 import { resolveMediaUrl } from "../../lib/media-url";
 import {
   IconCamera,
-  IconChevronDown,
   IconGrid,
   IconImages,
   IconLink,
@@ -50,7 +50,8 @@ function normalizeWebsiteUrl(raw: string) {
 }
 
 export function ProfileScreen({ navigation }: Props) {
-  const { width } = useWindowDimensions();
+  const { width, height: viewportHeight } = useWindowDimensions();
+  const compact = viewportHeight <= 700;
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<"posts" | "products">("posts");
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -173,7 +174,7 @@ export function ProfileScreen({ navigation }: Props) {
 
   return (
     <View style={styles.root}>
-      <View style={[styles.topBar, { paddingTop: insets.top + 4 }]}>
+      <View style={[styles.topBar, compact && styles.topBarCompact, { paddingTop: insets.top + 4 }]}>
         <Pressable
           style={styles.topBarHit}
           onPress={() => navigation.navigate("CreateTab")}
@@ -186,9 +187,6 @@ export function ProfileScreen({ navigation }: Props) {
           <Text style={styles.topBarUsername} numberOfLines={1}>
             @{username}
           </Text>
-          <View style={styles.topBarChevron}>
-            <IconChevronDown color={colors.muted} size={14} />
-          </View>
         </View>
         <Pressable
           style={styles.topBarHit}
@@ -202,7 +200,7 @@ export function ProfileScreen({ navigation }: Props) {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, compact && styles.scrollContentCompact]}
         showsVerticalScrollIndicator={false}
       >
         {sessionQuery.isLoading ? <LoadingState label="Loading profile..." /> : null}
@@ -213,7 +211,7 @@ export function ProfileScreen({ navigation }: Props) {
 
         {sessionQuery.data && p ? (
           <>
-            <View style={styles.heroRow}>
+            <View style={[styles.heroRow, compact && styles.heroRowCompact]}>
               <Pressable onPress={uploadAvatar} disabled={avatarUploading} style={styles.avatarWrap}>
                 {avatarUri ? (
                   <Image source={{ uri: avatarUri }} style={styles.avatar} resizeMode="cover" />
@@ -235,26 +233,26 @@ export function ProfileScreen({ navigation }: Props) {
               </Pressable>
               <View style={styles.statsRow}>
                 <View style={styles.statCell}>
-                  <Text style={styles.statNumber}>{p.posts_count}</Text>
-                  <Text style={styles.statLabel}>posts</Text>
+                  <Text style={[styles.statNumber, compact && styles.statNumberCompact]}>{p.posts_count}</Text>
+                  <Text style={[styles.statLabel, compact && styles.statLabelCompact]}>posts</Text>
                 </View>
                 <View style={styles.statCell}>
-                  <Text style={styles.statNumber}>{p.followers_count}</Text>
-                  <Text style={styles.statLabel}>followers</Text>
+                  <Text style={[styles.statNumber, compact && styles.statNumberCompact]}>{p.followers_count}</Text>
+                  <Text style={[styles.statLabel, compact && styles.statLabelCompact]}>followers</Text>
                 </View>
                 <View style={styles.statCell}>
-                  <Text style={styles.statNumber}>{p.following_count}</Text>
-                  <Text style={styles.statLabel}>following</Text>
+                  <Text style={[styles.statNumber, compact && styles.statNumberCompact]}>{p.following_count}</Text>
+                  <Text style={[styles.statLabel, compact && styles.statLabelCompact]}>following</Text>
                 </View>
               </View>
             </View>
 
-            <View style={styles.bioBlock}>
-              <Text style={styles.displayName}>{p.display_name}</Text>
+            <View style={[styles.bioBlock, compact && styles.bioBlockCompact]}>
+              <Text style={[styles.displayName, compact && styles.displayNameCompact]}>{p.display_name}</Text>
               {p.business_offering ? (
-                <Text style={styles.categoryLine}>{p.business_offering}</Text>
+                <Text style={[styles.categoryLine, compact && styles.categoryLineCompact]}>{p.business_offering}</Text>
               ) : null}
-              {p.bio ? <Text style={styles.bioText}>{p.bio}</Text> : null}
+              {p.bio ? <Text style={[styles.bioText, compact && styles.bioTextCompact]}>{p.bio}</Text> : null}
               {websiteHref ? (
                 <Pressable
                   style={styles.websiteRow}
@@ -268,14 +266,14 @@ export function ProfileScreen({ navigation }: Props) {
               ) : null}
             </View>
 
-            <View style={styles.insightsCard}>
+            <View style={[styles.insightsCard, compact && styles.insightsCardCompact]}>
               <Text style={styles.insightsTitle}>Engagement</Text>
-              <Text style={styles.insightsSub}>
+              <Text style={[styles.insightsSub, compact && styles.insightsSubCompact]}>
                 {p.likes_received_count} received · {p.likes_given_count} given
               </Text>
             </View>
 
-            <View style={styles.ctaRow}>
+            <View style={[styles.ctaRow, compact && styles.ctaRowCompact]}>
               <Pressable
                 style={[styles.ctaButton, styles.ctaButtonPrimary, styles.ctaButtonFlex]}
                 onPress={() => navigation.navigate("EditProfile")}
@@ -296,23 +294,23 @@ export function ProfileScreen({ navigation }: Props) {
           </>
         ) : null}
 
-        <View style={styles.tabBar}>
+        <View style={[styles.tabBar, compact && styles.tabBarCompact]}>
           <Pressable
-            style={[styles.tabItem, activeTab === "posts" ? styles.tabItemActive : null]}
+            style={[styles.tabItem, compact && styles.tabItemCompact, activeTab === "posts" ? styles.tabItemActive : null]}
             onPress={() => setActiveTab("posts")}
           >
             <View style={styles.tabInner}>
               <IconGrid color={activeTab === "posts" ? colors.text : colors.muted} size={20} />
-              <Text style={[styles.tabLabel, activeTab === "posts" ? styles.tabLabelActive : null]}>Posts</Text>
+              <Text style={[styles.tabLabel, compact && styles.tabLabelCompact, activeTab === "posts" ? styles.tabLabelActive : null]}>Posts</Text>
             </View>
           </Pressable>
           <Pressable
-            style={[styles.tabItem, activeTab === "products" ? styles.tabItemActive : null]}
+            style={[styles.tabItem, compact && styles.tabItemCompact, activeTab === "products" ? styles.tabItemActive : null]}
             onPress={() => setActiveTab("products")}
           >
             <View style={styles.tabInner}>
               <IconShoppingBag color={activeTab === "products" ? colors.text : colors.muted} size={20} />
-              <Text style={[styles.tabLabel, activeTab === "products" ? styles.tabLabelActive : null]}>Shop</Text>
+              <Text style={[styles.tabLabel, compact && styles.tabLabelCompact, activeTab === "products" ? styles.tabLabelActive : null]}>Shop</Text>
             </View>
           </Pressable>
         </View>
@@ -403,11 +401,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 8,
-    paddingBottom: 8,
+    paddingHorizontal: 10,
+    paddingBottom: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.borderSubtle,
     backgroundColor: colors.surface
+  },
+  topBarCompact: {
+    paddingBottom: 8
   },
   topBarHit: {
     minWidth: 44,
@@ -418,16 +419,13 @@ const styles = StyleSheet.create({
   topBarTitleWrap: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 2,
     maxWidth: "50%"
   },
   topBarUsername: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
     color: colors.text
-  },
-  topBarChevron: {
-    marginTop: 2
   },
   scroll: {
     flex: 1,
@@ -436,12 +434,19 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 32
   },
+  scrollContentCompact: {
+    paddingBottom: 24
+  },
   heroRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingTop: 16,
-    gap: 20
+    paddingTop: 14,
+    gap: 16
+  },
+  heroRowCompact: {
+    paddingTop: 10,
+    gap: 12
   },
   avatarWrap: {
     position: "relative"
@@ -502,31 +507,51 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: colors.text
   },
+  statNumberCompact: {
+    fontSize: 16
+  },
   statLabel: {
     fontSize: 12,
     color: colors.muted,
     marginTop: 2
+  },
+  statLabelCompact: {
+    fontSize: 11
   },
   bioBlock: {
     paddingHorizontal: 16,
     paddingTop: 14,
     gap: 4
   },
+  bioBlockCompact: {
+    paddingTop: 10
+  },
   displayName: {
     fontSize: 15,
     fontWeight: "700",
     color: colors.text
+  },
+  displayNameCompact: {
+    fontSize: 14
   },
   categoryLine: {
     fontSize: 13,
     color: colors.muted,
     fontWeight: "500"
   },
+  categoryLineCompact: {
+    fontSize: 12
+  },
   bioText: {
     fontSize: 14,
     color: colors.text,
     lineHeight: 20,
     marginTop: 4
+  },
+  bioTextCompact: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 2
   },
   websiteRow: {
     flexDirection: "row",
@@ -543,12 +568,25 @@ const styles = StyleSheet.create({
   },
   insightsCard: {
     marginHorizontal: 16,
-    marginTop: 14,
-    padding: 16,
+    marginTop: 12,
+    padding: 14,
     borderRadius: radii.panel,
     backgroundColor: colors.card,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle
+    borderColor: colors.borderSubtle,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.shadow,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 1,
+        shadowRadius: 10
+      },
+      android: { elevation: 1 }
+    })
+  },
+  insightsCardCompact: {
+    marginTop: 10,
+    padding: 12
   },
   insightsTitle: {
     fontSize: 11,
@@ -564,11 +602,19 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     letterSpacing: -0.2
   },
+  insightsSubCompact: {
+    fontSize: 13,
+    marginTop: 4
+  },
   ctaRow: {
     flexDirection: "row",
     gap: 10,
     paddingHorizontal: 16,
-    marginTop: 16
+    marginTop: 14
+  },
+  ctaRowCompact: {
+    marginTop: 10,
+    gap: 8
   },
   ctaButton: {
     borderRadius: radii.control,
@@ -615,22 +661,35 @@ const styles = StyleSheet.create({
   },
   tabBar: {
     flexDirection: "row",
-    marginTop: 20,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.borderSubtle,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderSubtle,
-    backgroundColor: colors.surface
+    marginTop: 18,
+    marginHorizontal: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderSubtle,
+    borderRadius: radii.control,
+    backgroundColor: colors.surface,
+    padding: 4,
+    gap: 6
+  },
+  tabBarCompact: {
+    marginTop: 14,
+    padding: 3,
+    gap: 4
   },
   tabItem: {
     flex: 1,
     alignItems: "center",
-    paddingVertical: 10,
-    borderBottomWidth: 2,
+    paddingVertical: 8,
+    borderRadius: radii.control,
+    borderBottomWidth: 0,
     borderBottomColor: "transparent"
   },
+  tabItemCompact: {
+    paddingVertical: 7
+  },
   tabItemActive: {
-    borderBottomColor: colors.accent
+    backgroundColor: colors.subtleFill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderSubtle
   },
   tabInner: { alignItems: "center", gap: 4 },
   tabLabel: {
@@ -639,8 +698,11 @@ const styles = StyleSheet.create({
     color: colors.muted,
     letterSpacing: 0.2
   },
+  tabLabelCompact: {
+    fontSize: 10
+  },
   tabLabelActive: {
-    color: colors.text
+    color: colors.accent
   },
   grid: {
     flexDirection: "row",

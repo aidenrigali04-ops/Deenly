@@ -9,7 +9,8 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  View
+  View,
+  useWindowDimensions
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
@@ -46,6 +47,8 @@ function resolveCheckoutVariant(seed: number): "trust_first" | "speed_first" {
 }
 
 export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
+  const { height: viewportHeight } = useWindowDimensions();
+  const compact = viewportHeight <= 700;
   const sessionUser = useSessionStore((s) => s.user);
   const [buyHandoffProductId, setBuyHandoffProductId] = useState<number | null>(null);
   const [followingOnly, setFollowingOnly] = useState(false);
@@ -193,9 +196,9 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
 
   const listHeader = useMemo(() => {
     return (
-      <View style={styles.headerBlock}>
+      <View style={[styles.headerBlock, compact && styles.headerBlockCompact]}>
         {visibleReminder ? (
-          <View style={styles.reminderBanner}>
+          <View style={[styles.reminderBanner, compact && styles.reminderBannerCompact]}>
             <View style={styles.reminderRow}>
               <Text style={styles.reminderText}>Time for Salah</Text>
               <Pressable onPress={acknowledgeReminder} hitSlop={8}>
@@ -206,22 +209,24 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
         ) : null}
 
         {feedVariant === "marketplace" ? (
-          <View style={styles.headerCard}>
+          <View style={[styles.headerCard, compact && styles.headerCardCompact]}>
             <View style={styles.filters}>
               <View style={styles.marketplaceTopRow}>
-                <Text style={styles.marketplaceHint}>Creator offers and local businesses.</Text>
+                <Text style={[styles.marketplaceHint, compact && styles.marketplaceHintCompact]}>
+                  Creator offers and local businesses.
+                </Text>
                 <Pressable
-                  style={styles.nearMePill}
+                  style={[styles.nearMePill, compact && styles.nearMePillCompact]}
                   onPress={() => navigation.navigate("BusinessesNearMe")}
                 >
                   <Text style={styles.nearMePillText}>Near me</Text>
                 </Pressable>
               </View>
               <Pressable
-                style={[styles.chip, followingOnly ? styles.chipActive : null]}
+                style={[styles.chip, compact && styles.chipCompact, followingOnly ? styles.chipActive : null]}
                 onPress={() => setFollowingOnly((value) => !value)}
               >
-                <Text style={[styles.chipText, followingOnly ? styles.chipTextActive : null]}>
+                <Text style={[styles.chipText, compact && styles.chipTextCompact, followingOnly ? styles.chipTextActive : null]}>
                   {followingOnly ? "Following only" : "All posts"}
                 </Text>
               </Pressable>
@@ -230,7 +235,7 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
         ) : null}
 
         {feedVariant === "home" ? (
-          <View style={styles.storiesWrap}>
+          <View style={[styles.storiesWrap, compact && styles.storiesWrapCompact]}>
             <HomeStoriesRow />
           </View>
         ) : null}
@@ -263,12 +268,13 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
     followingOnly,
     items.length,
     navigation,
-    visibleReminder
+    visibleReminder,
+    compact
   ]);
 
   const renderItem: ListRenderItem<FeedItem> = useCallback(
     ({ item }) => (
-      <View style={styles.cardWrap}>
+      <View style={[styles.cardWrap, compact && styles.cardWrapCompact]}>
         <PostCard
           item={item}
           layout="home"
@@ -288,7 +294,7 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
         />
       </View>
     ),
-    [buyHandoffProductId, buyProductMutation, followMutation, likeMutation, navigation]
+    [buyHandoffProductId, buyProductMutation, followMutation, likeMutation, navigation, compact]
   );
 
   const onEndReached = useCallback(() => {
@@ -325,7 +331,7 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
       ) : null}
       <FlatList
         style={styles.list}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, compact && styles.listContentCompact]}
         data={items}
         keyExtractor={(item) => String(item.id)}
         renderItem={renderItem}
@@ -348,31 +354,44 @@ const styles = StyleSheet.create({
     flex: 1
   },
   listContent: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingBottom: 24,
-    gap: 12
+    gap: 10
+  },
+  listContentCompact: {
+    paddingHorizontal: 8,
+    paddingBottom: 18,
+    gap: 8
   },
   headerBlock: {
-    gap: 10,
-    marginBottom: 4
+    gap: 8,
+    marginBottom: 2
+  },
+  headerBlockCompact: {
+    gap: 6
   },
   headerCard: {
     backgroundColor: colors.card,
-    borderColor: colors.border,
+    borderColor: colors.borderSubtle,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.panel,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 10,
     ...Platform.select({
       ios: {
         shadowColor: colors.shadow,
-        shadowOffset: { width: 0, height: 8 },
+        shadowOffset: { width: 0, height: 6 },
         shadowOpacity: 1,
-        shadowRadius: 24
+        shadowRadius: 18
       },
       android: { elevation: 3 }
     })
+  },
+  headerCardCompact: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8
   },
   filters: {
     flexDirection: "row",
@@ -397,6 +416,10 @@ const styles = StyleSheet.create({
       android: { elevation: 2 }
     })
   },
+  reminderBannerCompact: {
+    paddingHorizontal: 12,
+    paddingVertical: 9
+  },
   reminderText: {
     color: colors.text,
     fontSize: 13,
@@ -413,12 +436,16 @@ const styles = StyleSheet.create({
     fontWeight: "600"
   },
   chip: {
-    borderColor: colors.border,
+    borderColor: colors.borderSubtle,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
     backgroundColor: colors.surface
+  },
+  chipCompact: {
+    paddingHorizontal: 10,
+    paddingVertical: 5
   },
   chipActive: {
     backgroundColor: colors.accent,
@@ -426,8 +453,11 @@ const styles = StyleSheet.create({
   },
   chipText: {
     color: colors.text,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700"
+  },
+  chipTextCompact: {
+    fontSize: 10
   },
   chipTextActive: {
     color: colors.onAccent
@@ -443,17 +473,24 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 120,
     color: colors.muted,
-    fontSize: 12,
-    fontWeight: "600",
+    fontSize: 11,
+    fontWeight: "500",
     paddingVertical: 4
+  },
+  marketplaceHintCompact: {
+    fontSize: 10
   },
   nearMePill: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderColor: colors.borderSubtle,
     borderRadius: radii.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
     backgroundColor: colors.surface
+  },
+  nearMePillCompact: {
+    paddingHorizontal: 10,
+    paddingVertical: 5
   },
   nearMePillText: {
     color: colors.text,
@@ -461,10 +498,16 @@ const styles = StyleSheet.create({
     fontWeight: "700"
   },
   storiesWrap: {
+    marginTop: 4
+  },
+  storiesWrapCompact: {
     marginTop: 2
   },
   cardWrap: {
-    marginBottom: 4
+    marginBottom: 2
+  },
+  cardWrapCompact: {
+    marginBottom: 1
   },
   footer: {
     paddingVertical: 16,

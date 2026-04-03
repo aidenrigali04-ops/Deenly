@@ -662,7 +662,7 @@ export function CreatePostComposer({
 
         <div className="rounded-control border border-black/10 bg-surface/60 px-3 py-2">
           <p className="text-[11px] font-medium uppercase tracking-wide text-muted">Writing help (optional)</p>
-          <p className="mt-1 text-xs text-muted">AI-generated text — always review before you publish.</p>
+          <p className="mt-1 text-xs text-muted">Get a concise draft, then adjust it to your voice.</p>
           <div className="mt-2 flex flex-wrap gap-2">
             <button
               type="button"
@@ -670,7 +670,7 @@ export function CreatePostComposer({
               disabled={assistMutation.isPending || !content.trim()}
               onClick={() => assistMutation.mutate({ intent: "polish" })}
             >
-              {assistMutation.isPending ? "…" : "Polish for clarity"}
+              {assistMutation.isPending ? "…" : "Refine draft"}
             </button>
             {postType === "marketplace" || sellThis ? (
               <button
@@ -679,14 +679,14 @@ export function CreatePostComposer({
                 disabled={assistMutation.isPending || !content.trim()}
                 onClick={() => assistMutation.mutate({ intent: "marketplace_listing" })}
               >
-                Listing style
+                Concise listing
               </button>
             ) : null}
           </div>
           {assistError ? <p className="mt-2 text-xs text-red-600 dark:text-red-400">{assistError}</p> : null}
           {assistPreview ? (
             <div className="mt-3 space-y-2 border-t border-black/10 pt-3">
-              <p className="text-xs font-medium text-text">Suggestion</p>
+              <p className="text-xs font-medium text-text">Concise suggestion</p>
               <p className="whitespace-pre-wrap rounded-md border border-black/10 bg-white px-2 py-2 text-sm text-text">
                 {assistPreview}
               </p>

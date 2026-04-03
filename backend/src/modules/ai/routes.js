@@ -18,44 +18,48 @@ function systemPromptForIntent(intent) {
     "You are a writing assistant for Deenly, a respectful Muslim community and marketplace app. " +
     "Do not give religious rulings, fatwas, or medical/legal advice. " +
     "Do not invent prices, guarantees, refunds, or product facts the user did not state. " +
-    "Output plain text only: no markdown fences, no preamble or closing remarks.";
+    "Output plain text only: no markdown fences, no preamble or closing remarks. " +
+    "Keep wording concise and non-pushy. Avoid repeating points, adjectives, or calls to action. " +
+    "Use at most one calm call to action.";
 
   if (intent === "service_details_generate") {
     return (
       base +
-      " The creator provided KEY POINTS (bullets or short notes) about a service or subscription offer. " +
-      "Write a full service description for their product listing that includes: (1) what the buyer gets and how it is delivered, " +
-      "(2) who it is for, (3) a clear value proposition, (4) a calm next step (e.g. purchase, book, or message). " +
-      "Expand only from what the key points imply; do not invent specific guarantees, timelines, or credentials not hinted at. " +
-      "Match the language of the key points. Max about 2200 characters."
+      " The creator provided KEY POINTS (bullets or short notes) about a service offer. " +
+      "Write a concise listing description in exactly 4 short lines: (1) what is included, (2) who it is for, (3) how delivery works, (4) one calm next step. " +
+      "Expand only from what the key points imply; do not invent guarantees, timelines, credentials, urgency, or scarcity. " +
+      "Match the user's language. Max about 520 characters."
     );
   }
 
   if (intent === "marketplace_listing") {
     return (
       base +
-      " Rewrite the user's draft as a clear marketplace post body: what it is, who it helps, and a calm call to action. " +
-      "Keep the same language as the user (e.g. English if they wrote English). Max about 1800 characters."
+      " Rewrite the user's draft as a concise marketplace post body in 3-5 short lines: what it is, who it helps, what is included, and one calm next step. " +
+      "Keep the same language as the user (e.g. English if they wrote English). " +
+      "Do not use hype, pressure words, or repeated claims. Max about 420 characters."
     );
   }
   if (intent === "product_listing") {
     return (
       base +
-      " Rewrite the user's draft as a clear product description: what the buyer gets, who it is for, and what to do next. " +
-      "Keep the same language as the user. Max about 1800 characters."
+      " Rewrite the user's draft as a concise product description in 3-5 short lines: what buyer gets, who it is for, and one calm next step. " +
+      "Keep the same language as the user. Do not use hype or repeated wording. Max about 420 characters."
     );
   }
   return (
     base +
-    " Polish the user's post for clarity and respectful tone. Keep their meaning and voice. " +
-    "Same language as the user. Max about 1800 characters."
+    " Polish the user's post for clarity and respectful tone. Keep their meaning and voice in 2-4 short lines. " +
+    "Same language as the user. Avoid repeated wording. Max about 380 characters."
   );
 }
 
 const productOverviewSystem =
   "You summarize a creator product for shoppers on Deenly. " +
   "Use ONLY the facts given in PRODUCT FACTS. Do not invent price, delivery, refunds, guarantees, or features not stated. " +
-  "No religious rulings or legal/medical advice. Plain text, 2–4 short paragraphs, warm and clear. Max about 900 characters.";
+  "No religious rulings or legal/medical advice. Plain text only. " +
+  "Write exactly 3 concise sentences: (1) what it is, (2) what buyer gets, (3) who it fits best and one calm next step. " +
+  "No pressure language. No repeated phrasing. Max about 420 characters.";
 
 const commentSystem =
   "You help users comment respectfully on Deenly. " +
@@ -146,11 +150,11 @@ function createAiRouter({ config, db, logger }) {
           { role: "system", content: systemPromptForIntent(intent) },
           { role: "user", content: draft }
         ],
-        maxTokens: 700,
+        maxTokens: 260,
         logger
       });
 
-      const clipped = suggestion.length > 2000 ? `${suggestion.slice(0, 1997).trimEnd()}…` : suggestion;
+      const clipped = suggestion.length > 680 ? `${suggestion.slice(0, 677).trimEnd()}…` : suggestion;
       res.status(200).json({ suggestion: clipped, intent, disclaimer: "ai_generated" });
     })
   );
@@ -201,11 +205,11 @@ function createAiRouter({ config, db, logger }) {
           { role: "system", content: productOverviewSystem },
           { role: "user", content: `PRODUCT FACTS:\n${facts}` }
         ],
-        maxTokens: 500,
+        maxTokens: 220,
         timeoutMs: 60000,
         logger
       });
-      const clipped = summary.length > 1200 ? `${summary.slice(0, 1197).trimEnd()}…` : summary;
+      const clipped = summary.length > 520 ? `${summary.slice(0, 517).trimEnd()}…` : summary;
       res.status(200).json({ summary: clipped, disclaimer: "ai_generated" });
     })
   );

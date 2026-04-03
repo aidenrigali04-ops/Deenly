@@ -900,11 +900,11 @@ export function CreateProductScreen({ navigation, route }: Props) {
               disabled={serviceAssistBusy}
             >
               <Text style={styles.btnSecondaryText}>
-                {serviceAssistBusy ? "Generating…" : "Generate with AI"}
+                {serviceAssistBusy ? "Generating…" : "Generate concise draft"}
               </Text>
             </Pressable>
             {serviceAssistErr ? <Text style={styles.error}>{serviceAssistErr}</Text> : null}
-            <Text style={styles.importHint}>Generated text fills the box below — edit before saving.</Text>
+            <Text style={styles.importHint}>Concise draft fills the box below — edit as needed.</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
               placeholder="Service description & value proposition"

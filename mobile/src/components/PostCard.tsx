@@ -1,4 +1,4 @@
-import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useEffect, useState } from "react";
 import { AppVideoView } from "./AppVideoView";
 import { colors, radii } from "../theme";
@@ -40,6 +40,8 @@ export function PostCard({
   onToggleFollow?: (authorId: number, currentlyFollowing: boolean) => void;
   followBusy?: boolean;
 }) {
+  const { height: viewportHeight } = useWindowDimensions();
+  const compact = viewportHeight <= 700;
   const [mediaFailed, setMediaFailed] = useState(false);
   useEffect(() => {
     setMediaFailed(false);
@@ -63,8 +65,8 @@ export function PostCard({
 
   if (layout === "home") {
     return (
-      <View style={styles.homeCard}>
-        <View style={styles.homeHeader}>
+      <View style={[styles.homeCard, compact && styles.homeCardCompact]}>
+        <View style={[styles.homeHeader, compact && styles.homeHeaderCompact]}>
           <View style={styles.homeAuthorRow}>
             <View style={styles.homeAvatar}>
               {authorAvatarUri ? (
@@ -89,11 +91,13 @@ export function PostCard({
           </View>
           {onToggleFollow ? (
             <Pressable
-              style={styles.followPill}
+              style={[styles.followPill, compact && styles.followPillCompact]}
               onPress={() => onToggleFollow(item.author_id, isFollowing)}
               disabled={followBusy}
             >
-              <Text style={styles.followPillText}>{followBusy ? "..." : isFollowing ? "Unfollow" : "Follow"}</Text>
+              <Text style={[styles.followPillText, compact && styles.followPillTextCompact]}>
+                {followBusy ? "..." : isFollowing ? "Unfollow" : "Follow"}
+              </Text>
             </Pressable>
           ) : (
             <Text style={styles.homeSubtle}>...</Text>
@@ -126,28 +130,28 @@ export function PostCard({
           </View>
         )}
 
-        <View style={styles.homeActionRow}>
-          <View style={styles.homeActionIcons}>
-            <Pressable
-              onPress={() => {
-                const next = !liked;
-                setLiked(next);
-                setBenefitedCount((value) => Math.max(0, value + (next ? 1 : -1)));
-                onLike?.();
-              }}
-              disabled={liking}
-            >
-              <Text style={[styles.homeActionIcon, liked && styles.homeActionIconLiked]}>
-                {liked ? "♥" : "♡"}
-              </Text>
-            </Pressable>
-            <Text style={styles.homeActionIcon}>◌</Text>
-            <Text style={styles.homeActionIcon}>➤</Text>
+        <View style={[styles.homeActionRow, compact && styles.homeActionRowCompact]}>
+          <Pressable
+            style={[styles.homeActionPill, compact && styles.homeActionPillCompact, liked && styles.homeActionPillActive]}
+            onPress={() => {
+              const next = !liked;
+              setLiked(next);
+              setBenefitedCount((value) => Math.max(0, value + (next ? 1 : -1)));
+              onLike?.();
+            }}
+            disabled={liking}
+          >
+            <Text style={[styles.homeActionPillText, compact && styles.homeActionPillTextCompact, liked && styles.homeActionPillTextActive]}>
+              {liked ? "Helpful" : "Mark helpful"}
+            </Text>
+          </Pressable>
+          <View style={styles.homeActionMetaRow}>
+            <Text style={[styles.homeActionMeta, compact && styles.homeActionMetaCompact]}>{benefitedCount} helpful</Text>
+            <Text style={[styles.homeActionMeta, compact && styles.homeActionMetaCompact]}>{item.comment_count || 0} comments</Text>
           </View>
-          <Text style={styles.homeActionIcon}>⌑</Text>
         </View>
 
-        <View style={styles.homeCaptionWrap}>
+        <View style={[styles.homeCaptionWrap, compact && styles.homeCaptionWrapCompact]}>
           {item.attached_product_id ? (
             <View style={styles.monetizationChip}>
               <Text style={styles.monetizationChipText}>
@@ -163,11 +167,8 @@ export function PostCard({
             <Text style={styles.homeAuthor}>{item.author_display_name} </Text>
             {item.content}
           </Text>
-          <Text style={styles.homeMetaText}>
-            {benefitedCount} likes · {item.comment_count || 0} comments
-          </Text>
           {item.audience_target ? (
-            <Text style={styles.homeMetaText}>
+            <Text style={[styles.homeMetaText, compact && styles.homeMetaTextCompact]}>
               {item.audience_target === "b2b"
                 ? "B2B"
                 : item.audience_target === "b2c"
@@ -177,7 +178,7 @@ export function PostCard({
             </Text>
           ) : null}
           {item.tags?.length ? (
-            <Text style={styles.homeMetaText}>#{item.tags.slice(0, 3).join(" #")}</Text>
+            <Text style={[styles.homeMetaText, compact && styles.homeMetaTextCompact]}>#{item.tags.slice(0, 3).join(" #")}</Text>
           ) : null}
           {item.attached_product_id ? (
             <View style={styles.productCtaRow}>
@@ -296,26 +297,33 @@ export function PostCard({
 const styles = StyleSheet.create({
   homeCard: {
     backgroundColor: colors.card,
-    borderColor: colors.border,
+    borderColor: colors.borderSubtle,
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 23,
+    borderRadius: radii.panel,
     overflow: "hidden",
     ...Platform.select({
       ios: {
         shadowColor: colors.shadow,
-        shadowOffset: { width: 0, height: 4 },
+        shadowOffset: { width: 0, height: 6 },
         shadowOpacity: 1,
-        shadowRadius: 16
+        shadowRadius: 18
       },
       android: { elevation: 2 }
     })
+  },
+  homeCardCompact: {
+    borderRadius: radii.control
   },
   homeHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12
+    paddingHorizontal: 14,
+    paddingVertical: 10
+  },
+  homeHeaderCompact: {
+    paddingHorizontal: 12,
+    paddingVertical: 8
   },
   followPill: {
     borderColor: colors.border,
@@ -325,10 +333,17 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     backgroundColor: colors.surface
   },
+  followPillCompact: {
+    paddingHorizontal: 10,
+    paddingVertical: 5
+  },
   followPillText: {
     color: colors.text,
     fontSize: 12,
     fontWeight: "600"
+  },
+  followPillTextCompact: {
+    fontSize: 11
   },
   homeAuthorRow: {
     flexDirection: "row",
@@ -381,30 +396,71 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 8
   },
-  homeActionIcons: {
+  homeActionRowCompact: {
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 6
+  },
+  homeActionPill: {
+    borderColor: colors.borderSubtle,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: colors.surface
+  },
+  homeActionPillCompact: {
+    paddingHorizontal: 10,
+    paddingVertical: 5
+  },
+  homeActionPillActive: {
+    backgroundColor: colors.subtleFill,
+    borderColor: colors.accent
+  },
+  homeActionPillText: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: "600"
+  },
+  homeActionPillTextCompact: {
+    fontSize: 11
+  },
+  homeActionPillTextActive: {
+    color: colors.accent
+  },
+  homeActionMetaRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14
+    gap: 10
   },
-  homeActionIcon: {
-    color: colors.text,
-    fontSize: 20,
-    lineHeight: 20
+  homeActionMeta: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: "500"
   },
-  homeActionIconLiked: {
-    color: "#ef4444"
+  homeActionMetaCompact: {
+    fontSize: 10
   },
   homeCaptionWrap: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    gap: 6
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+    gap: 5
+  },
+  homeCaptionWrapCompact: {
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    gap: 4
   },
   homeMetaText: {
     color: colors.muted,
     fontSize: 12
+  },
+  homeMetaTextCompact: {
+    fontSize: 11
   },
   monetizationChip: {
     borderColor: colors.border,

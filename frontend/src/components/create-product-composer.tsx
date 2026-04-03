@@ -667,7 +667,7 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
           onClick={() => void onImproveDescription()}
           disabled={assistPending}
         >
-          {assistPending ? "Improving…" : "Improve description (AI)"}
+          {assistPending ? "Refining…" : "Refine description"}
         </button>
         {assistError ? (
           <p className="text-xs text-red-600" role="alert">
@@ -701,14 +701,14 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
               onClick={() => void onGenerateServiceDescription()}
               disabled={serviceAssistPending}
             >
-              {serviceAssistPending ? "Generating…" : "Generate with AI"}
+              {serviceAssistPending ? "Generating…" : "Generate concise draft"}
             </button>
             {serviceAssistError ? (
               <p className="text-xs text-red-600" role="alert">
                 {serviceAssistError}
               </p>
             ) : null}
-            <p className="text-xs text-muted">Generated text appears below — edit before saving.</p>
+            <p className="text-xs text-muted">Concise draft appears below — edit as needed.</p>
             <textarea
               className="input min-h-28 resize-y bg-white"
               placeholder="Service description & value proposition (generated or write your own)"

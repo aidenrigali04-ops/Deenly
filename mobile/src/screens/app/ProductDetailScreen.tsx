@@ -329,12 +329,12 @@ export function ProductDetailScreen({ route, navigation }: Props) {
                 }
               }}
             >
-              <Text style={styles.aiToggle}>{aiOpen ? "Hide AI overview" : "AI overview"}</Text>
+              <Text style={styles.aiToggle}>{aiOpen ? "Hide quick summary" : "Quick summary"}</Text>
             </Pressable>
             {aiOpen ? (
               <View style={styles.aiBody}>
                 {overviewMutation.isPending ? (
-                  <Text style={styles.muted}>Generating summary…</Text>
+                  <Text style={styles.muted}>Generating quick summary…</Text>
                 ) : overviewMutation.isError ? (
                   <View>
                     <Text style={styles.errorText}>{(overviewMutation.error as Error).message}</Text>
@@ -345,7 +345,7 @@ export function ProductDetailScreen({ route, navigation }: Props) {
                 ) : overviewMutation.data ? (
                   <>
                     <Text style={styles.aiSummary}>{overviewMutation.data.summary}</Text>
-                    <Text style={styles.aiDisclaimer}>AI-generated from listing facts only.</Text>
+                    <Text style={styles.aiDisclaimer}>AI-generated from listing facts only. Keep this as a quick guide.</Text>
                   </>
                 ) : null}
               </View>

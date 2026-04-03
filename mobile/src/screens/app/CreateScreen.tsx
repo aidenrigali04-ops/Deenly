@@ -773,13 +773,13 @@ export function CreateScreen({ navigation }: Props) {
                       disabled={serviceAssistBusy}
                     >
                       <Text style={styles.buttonSecondaryLightText}>
-                        {serviceAssistBusy ? "Generating…" : "Generate with AI"}
+                        {serviceAssistBusy ? "Generating…" : "Generate concise draft"}
                       </Text>
                     </Pressable>
                     {serviceAssistErr ? (
                       <Text style={[styles.mutedLight, { color: colors.danger }]}>{serviceAssistErr}</Text>
                     ) : null}
-                    <Text style={styles.helperLight}>Edit the generated text below before posting.</Text>
+                    <Text style={styles.helperLight}>Edit the concise draft below before posting.</Text>
                     <TextInput
                       style={[styles.inputComposer, compact && styles.inputComposerCompact]}
                       multiline

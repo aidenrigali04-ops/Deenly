@@ -58,7 +58,7 @@ function ProfileProductAiOverview({
     return (
       <p className="mt-2 text-[11px] text-muted">
         <Link href={`/auth/login?next=${loginNextEncoded}`} className="text-sky-600 hover:underline">
-          Log in for AI overview
+          Log in for quick summary
         </Link>
       </p>
     );
@@ -77,18 +77,18 @@ function ProfileProductAiOverview({
           }
         }}
       >
-        {open ? "Hide AI overview" : "AI overview"}
+        {open ? "Hide quick summary" : "Quick summary"}
       </button>
       {open ? (
         <div className="mt-2 text-xs leading-relaxed text-text/90">
           {overviewMutation.isPending ? (
-            <p className="text-muted">Generating summary…</p>
+            <p className="text-muted">Generating quick summary…</p>
           ) : overviewMutation.isError ? (
             <p className="text-red-600">{(overviewMutation.error as Error).message}</p>
           ) : overviewMutation.data ? (
             <p className="whitespace-pre-line">{overviewMutation.data.summary}</p>
           ) : null}
-          <p className="mt-2 text-[10px] text-muted">AI-generated from listing facts only.</p>
+          <p className="mt-2 text-[10px] text-muted">AI-generated from listing facts only. Use as a quick guide.</p>
         </div>
       ) : null}
     </div>
