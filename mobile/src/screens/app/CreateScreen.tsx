@@ -23,7 +23,7 @@ import { fetchSessionMe } from "../../lib/auth";
 import { attachProductToPost, fetchMyProducts, type CreatorProductRow } from "../../lib/monetization";
 import { fetchInstagramStatus, requestInstagramCrossPost } from "../../lib/instagram";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { colors } from "../../theme";
+import { colors, radii, shadows, spacing } from "../../theme";
 import { resolveMediaUrl } from "../../lib/media-url";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 
@@ -406,11 +406,11 @@ export function CreateScreen({ navigation }: Props) {
 
   return (
     <View style={styles.root}>
-      <View style={[styles.headerBar, { paddingTop: insets.top + 10 }]}>
+      <View style={[styles.headerBar, { paddingTop: insets.top + 8 }]}>
         <Text style={styles.headerTitle}>Create New Post</Text>
         <Pressable
           onPress={() => navigation.navigate("CreateProduct")}
-          style={styles.headerProductLink}
+          style={({ pressed }) => [styles.headerProductLink, pressed && styles.pressableSoft]}
           accessibilityRole="button"
           accessibilityLabel="Add product without a post"
         >
@@ -430,7 +430,7 @@ export function CreateScreen({ navigation }: Props) {
         >
           <Pressable
             onPress={pickMedia}
-            style={styles.mediaPreview}
+            style={({ pressed }) => [styles.mediaPreview, pressed && styles.mediaPreviewPressed]}
             accessibilityRole="button"
             accessibilityLabel="Add or change photo or video"
             accessibilityHint="Opens the file picker for an image or video"
@@ -546,9 +546,10 @@ export function CreateScreen({ navigation }: Props) {
                                 setServiceAssistErr
                               });
                             }}
-                            style={[
+                            style={({ pressed }) => [
                               styles.chipLight,
-                              selectedProductId === productId ? styles.chipLightActive : null
+                              selectedProductId === productId ? styles.chipLightActive : null,
+                              pressed ? styles.pressableSoft : null
                             ]}
                           >
                             <Text
@@ -581,7 +582,7 @@ export function CreateScreen({ navigation }: Props) {
                           setProductFile(null);
                           setServiceAssistErr("");
                         }}
-                        style={styles.buttonSecondaryLight}
+                        style={({ pressed }) => [styles.buttonSecondaryLight, pressed && styles.pressableSoft]}
                       >
                         <Text style={styles.buttonSecondaryLightText}>Clear attached product</Text>
                       </Pressable>
@@ -603,7 +604,11 @@ export function CreateScreen({ navigation }: Props) {
                     <Pressable
                       key={type}
                       onPress={() => setProductType(type)}
-                      style={[styles.chipLight, productType === type ? styles.chipLightActive : null]}
+                      style={({ pressed }) => [
+                        styles.chipLight,
+                        productType === type ? styles.chipLightActive : null,
+                        pressed && styles.pressableSoft
+                      ]}
                     >
                       <Text
                         style={[
@@ -626,9 +631,10 @@ export function CreateScreen({ navigation }: Props) {
                     <Pressable
                       key={item.key}
                       onPress={() => setAudienceTarget(item.key)}
-                      style={[
+                      style={({ pressed }) => [
                         styles.chipLight,
-                        audienceTarget === item.key ? styles.chipLightActive : null
+                        audienceTarget === item.key ? styles.chipLightActive : null,
+                        pressed && styles.pressableSoft
                       ]}
                     >
                       <Text
@@ -654,9 +660,10 @@ export function CreateScreen({ navigation }: Props) {
                     <Pressable
                       key={item.key}
                       onPress={() => setBusinessCategory(item.key)}
-                      style={[
+                      style={({ pressed }) => [
                         styles.chipLight,
-                        businessCategory === item.key ? styles.chipLightActive : null
+                        businessCategory === item.key ? styles.chipLightActive : null,
+                        pressed && styles.pressableSoft
                       ]}
                     >
                       <Text
@@ -696,7 +703,10 @@ export function CreateScreen({ navigation }: Props) {
                       </Text>
                     ) : (
                       <>
-                        <Pressable style={styles.buttonSecondaryLight} onPress={pickProductFile}>
+                        <Pressable
+                          style={({ pressed }) => [styles.buttonSecondaryLight, pressed && styles.pressableSoft]}
+                          onPress={pickProductFile}
+                        >
                           <Text style={styles.buttonSecondaryLightText}>Upload delivery file</Text>
                         </Pressable>
                         {productFile ? (
@@ -719,7 +729,11 @@ export function CreateScreen({ navigation }: Props) {
                       textAlignVertical="top"
                     />
                     <Pressable
-                      style={[styles.buttonSecondaryLight, serviceAssistBusy && { opacity: 0.6 }]}
+                      style={({ pressed }) => [
+                        styles.buttonSecondaryLight,
+                        serviceAssistBusy && { opacity: 0.6 },
+                        pressed && !serviceAssistBusy ? styles.pressableSoft : null
+                      ]}
                       onPress={() => void generateServiceDescriptionForSell()}
                       disabled={serviceAssistBusy}
                     >
@@ -781,7 +795,12 @@ export function CreateScreen({ navigation }: Props) {
                   key={type}
                   onPress={() => setPostType(type)}
                   disabled={sellThis}
-                  style={[styles.chip, postType === type ? styles.chipActive : null, sellThis ? { opacity: 0.5 } : null]}
+                  style={({ pressed }) => [
+                    styles.chip,
+                    postType === type ? styles.chipActive : null,
+                    sellThis ? { opacity: 0.5 } : null,
+                    pressed && !sellThis ? styles.pressableSoft : null
+                  ]}
                 >
                   <Text style={styles.chipText}>{label}</Text>
                 </Pressable>
@@ -789,7 +808,11 @@ export function CreateScreen({ navigation }: Props) {
             </View>
             <View style={styles.fileRow}>
               <Pressable
-                style={[styles.chip, crossPostToInstagram && igConnected ? styles.chipActive : null]}
+                style={({ pressed }) => [
+                  styles.chip,
+                  crossPostToInstagram && igConnected ? styles.chipActive : null,
+                  pressed && igConnected ? styles.pressableSoft : null
+                ]}
                 onPress={() => {
                   if (igConnected) {
                     setCrossPostToInstagram((v) => !v);
@@ -818,14 +841,21 @@ export function CreateScreen({ navigation }: Props) {
                       <Pressable
                         key={productId}
                         onPress={() => setSelectedProductId(productId)}
-                        style={[styles.chip, selectedProductId === productId ? styles.chipActive : null]}
+                        style={({ pressed }) => [
+                          styles.chip,
+                          selectedProductId === productId ? styles.chipActive : null,
+                          pressed ? styles.pressableSoft : null
+                        ]}
                       >
                         <Text style={styles.chipText}>{item.title || `Product ${productId}`}</Text>
                       </Pressable>
                     );
                   })}
                   {selectedProductId ? (
-                    <Pressable onPress={() => setSelectedProductId(null)} style={styles.buttonSecondary}>
+                    <Pressable
+                      onPress={() => setSelectedProductId(null)}
+                      style={({ pressed }) => [styles.buttonSecondary, pressed && styles.pressableSoft]}
+                    >
                       <Text style={styles.buttonText}>Clear</Text>
                     </Pressable>
                   ) : null}
@@ -835,7 +865,11 @@ export function CreateScreen({ navigation }: Props) {
           </View>
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
-          <Pressable style={styles.button} onPress={createPost} disabled={isSubmitting}>
+          <Pressable
+            style={({ pressed }) => [styles.button, (isSubmitting || pressed) && styles.buttonPressed]}
+            onPress={createPost}
+            disabled={isSubmitting}
+          >
             <Text style={styles.buttonPrimaryText}>{isSubmitting ? "Publishing..." : "Publish"}</Text>
           </Pressable>
         </ScrollView>
@@ -853,9 +887,11 @@ const styles = StyleSheet.create({
     flex: 1
   },
   headerBar: {
-    backgroundColor: colors.createHeaderBar,
-    paddingBottom: 14,
-    paddingHorizontal: 16,
+    backgroundColor: colors.surface,
+    borderBottomColor: colors.borderSubtle,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingBottom: 10,
+    paddingHorizontal: spacing.screenHorizontal,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -863,33 +899,39 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     color: colors.text,
-    fontSize: 17,
+    fontSize: 19,
     fontWeight: "700",
     flexShrink: 1
   },
   headerProductLink: {
-    paddingVertical: 6,
-    paddingHorizontal: 4
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: radii.pill,
+    backgroundColor: colors.subtleFill
   },
   headerProductLinkText: {
-    color: "#E8EAEF",
-    fontSize: 15,
+    color: colors.text,
+    fontSize: 14,
     fontWeight: "700"
   },
   scrollContent: {
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    gap: 14
+    paddingHorizontal: spacing.screenHorizontal,
+    paddingTop: 12,
+    gap: 12
   },
   mediaPreview: {
     minHeight: 220,
-    borderRadius: 12,
+    borderRadius: radii.panel,
     borderWidth: 1,
     borderColor: colors.mediaPreviewBorder,
     backgroundColor: colors.mediaPreviewBg,
     overflow: "hidden",
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
+    ...shadows.card
+  },
+  mediaPreviewPressed: {
+    opacity: 0.96
   },
   mediaPreviewFill: {
     width: "100%",
@@ -902,10 +944,13 @@ const styles = StyleSheet.create({
     textAlign: "center"
   },
   composerCard: {
-    backgroundColor: colors.composerBg,
-    borderRadius: 14,
+    backgroundColor: colors.surface,
+    borderColor: colors.borderSubtle,
+    borderWidth: 1,
+    borderRadius: radii.panel,
     padding: 14,
-    gap: 10
+    gap: 10,
+    ...shadows.card
   },
   identityRow: {
     flexDirection: "row",
@@ -959,12 +1004,12 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.composerBorder,
+    backgroundColor: colors.borderSubtle,
     marginVertical: 4
   },
   dividerThin: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.composerBorder,
+    backgroundColor: colors.borderSubtle,
     marginVertical: 10
   },
   attachChipsScroll: { maxHeight: 48, marginBottom: 2 },
@@ -997,7 +1042,8 @@ const styles = StyleSheet.create({
   },
   promoteFields: {
     gap: 8,
-    marginTop: 4
+    marginTop: 4,
+    paddingTop: 2
   },
   sectionTitle: {
     color: colors.composerText,
@@ -1030,7 +1076,7 @@ const styles = StyleSheet.create({
     fontWeight: "700"
   },
   chipLightTextActive: {
-    color: colors.text
+    color: colors.onAccent
   },
   buttonSecondaryLight: {
     borderColor: colors.composerBorder,
@@ -1055,7 +1101,12 @@ const styles = StyleSheet.create({
     fontSize: 11
   },
   moreSection: {
-    gap: 10
+    gap: 10,
+    backgroundColor: colors.surface,
+    borderRadius: radii.panel,
+    borderColor: colors.borderSubtle,
+    borderWidth: 1,
+    padding: 12
   },
   moreHeading: {
     color: colors.muted,
@@ -1072,7 +1123,8 @@ const styles = StyleSheet.create({
     paddingVertical: 6
   },
   chipActive: {
-    backgroundColor: colors.accent
+    backgroundColor: colors.subtleFill,
+    borderColor: colors.accent
   },
   chipText: {
     color: colors.text,
@@ -1081,9 +1133,13 @@ const styles = StyleSheet.create({
   },
   button: {
     backgroundColor: colors.accent,
-    borderRadius: 10,
+    borderRadius: radii.control,
     paddingVertical: 14,
     alignItems: "center"
+  },
+  buttonPressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.995 }]
   },
   buttonPrimaryText: {
     color: colors.onAccent,
@@ -1093,9 +1149,10 @@ const styles = StyleSheet.create({
   buttonSecondary: {
     borderColor: colors.border,
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: radii.control,
     paddingHorizontal: 12,
-    paddingVertical: 8
+    paddingVertical: 8,
+    backgroundColor: colors.surface
   },
   buttonText: {
     color: colors.text,
@@ -1110,5 +1167,8 @@ const styles = StyleSheet.create({
   },
   error: {
     color: colors.danger
+  },
+  pressableSoft: {
+    opacity: 0.86
   }
 });
