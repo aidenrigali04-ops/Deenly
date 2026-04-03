@@ -9,6 +9,7 @@ import {
   Switch,
   Text,
   TextInput,
+  useWindowDimensions,
   View
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
@@ -95,6 +96,8 @@ function applyCatalogProductToPromoteForm(
 export function CreateScreen({ navigation }: Props) {
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
+  const { height: viewportHeight } = useWindowDimensions();
+  const compact = viewportHeight <= 700;
   const [postType, setPostType] = useState<"post" | "marketplace" | "reel">("post");
   const [content, setContent] = useState("");
   const [tagsInput, setTagsInput] = useState("");
@@ -406,7 +409,13 @@ export function CreateScreen({ navigation }: Props) {
 
   return (
     <View style={styles.root}>
-      <View style={[styles.headerBar, { paddingTop: insets.top + 8 }]}>
+      <View
+        style={[
+          styles.headerBar,
+          compact && styles.headerBarCompact,
+          { paddingTop: insets.top + (compact ? 6 : 8) }
+        ]}
+      >
         <Text style={styles.headerTitle}>Create New Post</Text>
         <Pressable
           onPress={() => navigation.navigate("CreateProduct")}
@@ -424,13 +433,21 @@ export function CreateScreen({ navigation }: Props) {
       >
         <ScrollView
           style={styles.flex}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}
+          contentContainerStyle={[
+            styles.scrollContent,
+            compact && styles.scrollContentCompact,
+            { paddingBottom: insets.bottom + (compact ? 16 : 24) }
+          ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           <Pressable
             onPress={pickMedia}
-            style={({ pressed }) => [styles.mediaPreview, pressed && styles.mediaPreviewPressed]}
+            style={({ pressed }) => [
+              styles.mediaPreview,
+              compact && styles.mediaPreviewCompact,
+              pressed && styles.mediaPreviewPressed
+            ]}
             accessibilityRole="button"
             accessibilityLabel="Add or change photo or video"
             accessibilityHint="Opens the file picker for an image or video"
@@ -438,7 +455,7 @@ export function CreateScreen({ navigation }: Props) {
             {selectedFile && previewKind === "image" ? (
               <Image
                 source={{ uri: selectedFile.uri }}
-                style={styles.mediaPreviewFill}
+                style={[styles.mediaPreviewFill, compact && styles.mediaPreviewFillCompact]}
                 resizeMode="contain"
               />
             ) : null}
@@ -446,7 +463,7 @@ export function CreateScreen({ navigation }: Props) {
               <AppVideoView
                 key={selectedFile.uri}
                 uri={selectedFile.uri}
-                style={styles.mediaPreviewFill}
+                style={[styles.mediaPreviewFill, compact && styles.mediaPreviewFillCompact]}
                 contentFit="contain"
                 loop
                 play
@@ -454,27 +471,29 @@ export function CreateScreen({ navigation }: Props) {
               />
             ) : null}
             {!selectedFile ? (
-              <Text style={styles.mediaPlaceholder}>
+              <Text style={[styles.mediaPlaceholder, compact && styles.mediaPlaceholderCompact]}>
                 {postType === "reel" ? "Tap to add video (vertical works best)" : "Tap to add photo or video"}
               </Text>
             ) : null}
           </Pressable>
 
-          <View style={styles.composerCard}>
-            <View style={styles.identityRow}>
+          <View style={[styles.composerCard, compact && styles.composerCardCompact]}>
+            <View style={[styles.identityRow, compact && styles.identityRowCompact]}>
               {avatarUri ? (
-                <Image source={{ uri: avatarUri }} style={styles.avatar} resizeMode="cover" />
+                <Image source={{ uri: avatarUri }} style={[styles.avatar, compact && styles.avatarCompact]} resizeMode="cover" />
               ) : (
-                <View style={styles.avatarFallback}>
-                  <Text style={styles.avatarFallbackText}>{composerName.slice(0, 1).toUpperCase()}</Text>
+                <View style={[styles.avatarFallback, compact && styles.avatarFallbackCompact]}>
+                  <Text style={[styles.avatarFallbackText, compact && styles.avatarFallbackTextCompact]}>
+                    {composerName.slice(0, 1).toUpperCase()}
+                  </Text>
                 </View>
               )}
-              <Text style={styles.composerName} numberOfLines={1}>
+              <Text style={[styles.composerName, compact && styles.composerNameCompact]} numberOfLines={1}>
                 {composerName}
               </Text>
             </View>
             <TextInput
-              style={styles.inputComposer}
+              style={[styles.inputComposer, compact && styles.inputComposerCompact]}
               multiline
               placeholder="What's on your mind?"
               placeholderTextColor={colors.composerMuted}
@@ -484,7 +503,7 @@ export function CreateScreen({ navigation }: Props) {
               accessibilityLabel="Post caption"
             />
             <TextInput
-              style={styles.inputComposerSingle}
+              style={[styles.inputComposerSingle, compact && styles.inputComposerSingleCompact]}
               placeholder="Tags (comma separated)"
               placeholderTextColor={colors.composerMuted}
               value={tagsInput}
@@ -493,10 +512,12 @@ export function CreateScreen({ navigation }: Props) {
             <View style={styles.divider} />
             {postType !== "reel" ? (
               <>
-                <View style={styles.promoteRow}>
+                <View style={[styles.promoteRow, compact && styles.promoteRowCompact]}>
                   <View style={styles.promoteTextBlock}>
-                    <Text style={styles.promoteLabel}>Promote</Text>
-                    <Text style={styles.promoteHint}>Add pricing and offer details</Text>
+                    <Text style={[styles.promoteLabel, compact && styles.promoteLabelCompact]}>Promote</Text>
+                    <Text style={[styles.promoteHint, compact && styles.promoteHintCompact]}>
+                      Add pricing and offer details
+                    </Text>
                   </View>
                   <Switch
                     value={sellThis}
@@ -507,7 +528,7 @@ export function CreateScreen({ navigation }: Props) {
                   />
                 </View>
                 {sellThis ? (
-              <View style={styles.promoteFields}>
+              <View style={[styles.promoteFields, compact && styles.promoteFieldsCompact]}>
                 {(myProductsQuery.data?.items || []).length > 0 ? (
                   <>
                     <SectionTitle>Attach catalog product</SectionTitle>
@@ -549,6 +570,7 @@ export function CreateScreen({ navigation }: Props) {
                             style={({ pressed }) => [
                               styles.chipLight,
                               selectedProductId === productId ? styles.chipLightActive : null,
+                              compact && styles.chipLightCompact,
                               pressed ? styles.pressableSoft : null
                             ]}
                           >
@@ -582,7 +604,11 @@ export function CreateScreen({ navigation }: Props) {
                           setProductFile(null);
                           setServiceAssistErr("");
                         }}
-                        style={({ pressed }) => [styles.buttonSecondaryLight, pressed && styles.pressableSoft]}
+                        style={({ pressed }) => [
+                          styles.buttonSecondaryLight,
+                          compact && styles.buttonSecondaryLightCompact,
+                          pressed && styles.pressableSoft
+                        ]}
                       >
                         <Text style={styles.buttonSecondaryLightText}>Clear attached product</Text>
                       </Pressable>
@@ -592,14 +618,14 @@ export function CreateScreen({ navigation }: Props) {
                 ) : null}
                 <SectionTitle>Pricing and type</SectionTitle>
                 <TextInput
-                  style={styles.inputComposerSingle}
+                  style={[styles.inputComposerSingle, compact && styles.inputComposerSingleCompact]}
                   placeholder="Price (minor units)"
                   placeholderTextColor={colors.composerMuted}
                   value={priceMinor}
                   onChangeText={setPriceMinor}
                   keyboardType="number-pad"
                 />
-                <View style={styles.typeRowWrap}>
+                <View style={[styles.typeRowWrap, compact && styles.typeRowWrapCompact]}>
                   {(["digital", "service", "subscription"] as const).map((type) => (
                     <Pressable
                       key={type}
@@ -607,6 +633,7 @@ export function CreateScreen({ navigation }: Props) {
                       style={({ pressed }) => [
                         styles.chipLight,
                         productType === type ? styles.chipLightActive : null,
+                        compact && styles.chipLightCompact,
                         pressed && styles.pressableSoft
                       ]}
                     >
@@ -622,7 +649,7 @@ export function CreateScreen({ navigation }: Props) {
                   ))}
                 </View>
                 <SectionTitle>Who it is for</SectionTitle>
-                <View style={styles.typeRowWrap}>
+                <View style={[styles.typeRowWrap, compact && styles.typeRowWrapCompact]}>
                   {([
                     { key: "b2c", label: "Consumers" },
                     { key: "b2b", label: "Businesses" },
@@ -634,6 +661,7 @@ export function CreateScreen({ navigation }: Props) {
                       style={({ pressed }) => [
                         styles.chipLight,
                         audienceTarget === item.key ? styles.chipLightActive : null,
+                        compact && styles.chipLightCompact,
                         pressed && styles.pressableSoft
                       ]}
                     >
@@ -649,7 +677,7 @@ export function CreateScreen({ navigation }: Props) {
                   ))}
                 </View>
                 <SectionTitle>Category</SectionTitle>
-                <View style={styles.typeRowWrap}>
+                <View style={[styles.typeRowWrap, compact && styles.typeRowWrapCompact]}>
                   {([
                     { key: "tools_growth", label: "Tools" },
                     { key: "professional_services", label: "Services" },
@@ -663,6 +691,7 @@ export function CreateScreen({ navigation }: Props) {
                       style={({ pressed }) => [
                         styles.chipLight,
                         businessCategory === item.key ? styles.chipLightActive : null,
+                        compact && styles.chipLightCompact,
                         pressed && styles.pressableSoft
                       ]}
                     >
@@ -679,14 +708,14 @@ export function CreateScreen({ navigation }: Props) {
                 </View>
                 <SectionTitle>Offer copy</SectionTitle>
                 <TextInput
-                  style={styles.inputComposerSingle}
+                  style={[styles.inputComposerSingle, compact && styles.inputComposerSingleCompact]}
                   placeholder="Product title"
                   placeholderTextColor={colors.composerMuted}
                   value={productTitle}
                   onChangeText={setProductTitle}
                 />
                 <TextInput
-                  style={styles.inputComposer}
+                  style={[styles.inputComposer, compact && styles.inputComposerCompact]}
                   multiline
                   placeholder="Product or offer description"
                   placeholderTextColor={colors.composerMuted}
@@ -704,7 +733,11 @@ export function CreateScreen({ navigation }: Props) {
                     ) : (
                       <>
                         <Pressable
-                          style={({ pressed }) => [styles.buttonSecondaryLight, pressed && styles.pressableSoft]}
+                          style={({ pressed }) => [
+                            styles.buttonSecondaryLight,
+                            compact && styles.buttonSecondaryLightCompact,
+                            pressed && styles.pressableSoft
+                          ]}
                           onPress={pickProductFile}
                         >
                           <Text style={styles.buttonSecondaryLightText}>Upload delivery file</Text>
@@ -720,7 +753,7 @@ export function CreateScreen({ navigation }: Props) {
                 ) : (
                   <View style={{ gap: 8 }}>
                     <TextInput
-                      style={styles.inputComposer}
+                      style={[styles.inputComposer, compact && styles.inputComposerCompact]}
                       multiline
                       placeholder="Key points — what you offer, who it is for…"
                       placeholderTextColor={colors.composerMuted}
@@ -731,6 +764,7 @@ export function CreateScreen({ navigation }: Props) {
                     <Pressable
                       style={({ pressed }) => [
                         styles.buttonSecondaryLight,
+                        compact && styles.buttonSecondaryLightCompact,
                         serviceAssistBusy && { opacity: 0.6 },
                         pressed && !serviceAssistBusy ? styles.pressableSoft : null
                       ]}
@@ -746,7 +780,7 @@ export function CreateScreen({ navigation }: Props) {
                     ) : null}
                     <Text style={styles.helperLight}>Edit the generated text below before posting.</Text>
                     <TextInput
-                      style={styles.inputComposer}
+                      style={[styles.inputComposer, compact && styles.inputComposerCompact]}
                       multiline
                       placeholder="Service description & value proposition"
                       placeholderTextColor={colors.composerMuted}
@@ -757,14 +791,14 @@ export function CreateScreen({ navigation }: Props) {
                   </View>
                 )}
                 <TextInput
-                  style={styles.inputComposerSingle}
+                  style={[styles.inputComposerSingle, compact && styles.inputComposerSingleCompact]}
                   placeholder="Delivery method (email, DM, booking call)"
                   placeholderTextColor={colors.composerMuted}
                   value={deliveryMethod}
                   onChangeText={setDeliveryMethod}
                 />
                 <TextInput
-                  style={styles.inputComposerSingle}
+                  style={[styles.inputComposerSingle, compact && styles.inputComposerSingleCompact]}
                   placeholder="Website URL (https://...)"
                   placeholderTextColor={colors.composerMuted}
                   value={websiteUrl}
@@ -781,9 +815,9 @@ export function CreateScreen({ navigation }: Props) {
             )}
           </View>
 
-          <View style={styles.moreSection}>
+          <View style={[styles.moreSection, compact && styles.moreSectionCompact]}>
             <Text style={styles.moreHeading}>Post type</Text>
-            <View style={styles.typeRowWrap}>
+            <View style={[styles.typeRowWrap, compact && styles.typeRowWrapCompact]}>
               {(
                 [
                   ["post", "Post"],
@@ -798,6 +832,7 @@ export function CreateScreen({ navigation }: Props) {
                   style={({ pressed }) => [
                     styles.chip,
                     postType === type ? styles.chipActive : null,
+                    compact && styles.chipCompact,
                     sellThis ? { opacity: 0.5 } : null,
                     pressed && !sellThis ? styles.pressableSoft : null
                   ]}
@@ -811,6 +846,7 @@ export function CreateScreen({ navigation }: Props) {
                 style={({ pressed }) => [
                   styles.chip,
                   crossPostToInstagram && igConnected ? styles.chipActive : null,
+                  compact && styles.chipCompact,
                   pressed && igConnected ? styles.pressableSoft : null
                 ]}
                 onPress={() => {
@@ -844,6 +880,7 @@ export function CreateScreen({ navigation }: Props) {
                         style={({ pressed }) => [
                           styles.chip,
                           selectedProductId === productId ? styles.chipActive : null,
+                          compact && styles.chipCompact,
                           pressed ? styles.pressableSoft : null
                         ]}
                       >
@@ -866,7 +903,11 @@ export function CreateScreen({ navigation }: Props) {
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <Pressable
-            style={({ pressed }) => [styles.button, (isSubmitting || pressed) && styles.buttonPressed]}
+            style={({ pressed }) => [
+              styles.button,
+              compact && styles.buttonCompact,
+              (isSubmitting || pressed) && styles.buttonPressed
+            ]}
             onPress={createPost}
             disabled={isSubmitting}
           >
@@ -897,6 +938,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 12
   },
+  headerBarCompact: {
+    paddingBottom: 8,
+    paddingHorizontal: 14
+  },
   headerTitle: {
     color: colors.text,
     fontSize: 19,
@@ -919,6 +964,11 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     gap: 12
   },
+  scrollContentCompact: {
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    gap: 10
+  },
   mediaPreview: {
     minHeight: 220,
     borderRadius: radii.panel,
@@ -930,6 +980,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     ...shadows.card
   },
+  mediaPreviewCompact: {
+    minHeight: 176
+  },
   mediaPreviewPressed: {
     opacity: 0.96
   },
@@ -937,11 +990,18 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 220
   },
+  mediaPreviewFillCompact: {
+    height: 176
+  },
   mediaPlaceholder: {
     color: colors.composerMuted,
     fontSize: 15,
     padding: 20,
     textAlign: "center"
+  },
+  mediaPlaceholderCompact: {
+    fontSize: 13,
+    padding: 14
   },
   composerCard: {
     backgroundColor: colors.surface,
@@ -952,10 +1012,17 @@ const styles = StyleSheet.create({
     gap: 10,
     ...shadows.card
   },
+  composerCardCompact: {
+    padding: 12,
+    gap: 8
+  },
   identityRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10
+  },
+  identityRowCompact: {
+    gap: 8
   },
   avatar: {
     width: 40,
@@ -963,6 +1030,10 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
     borderColor: colors.composerBorder
+  },
+  avatarCompact: {
+    width: 34,
+    height: 34
   },
   avatarFallback: {
     width: 40,
@@ -972,16 +1043,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center"
   },
+  avatarFallbackCompact: {
+    width: 34,
+    height: 34
+  },
   avatarFallbackText: {
     color: colors.composerText,
     fontSize: 16,
     fontWeight: "700"
+  },
+  avatarFallbackTextCompact: {
+    fontSize: 14
   },
   composerName: {
     flex: 1,
     color: colors.composerText,
     fontSize: 16,
     fontWeight: "700"
+  },
+  composerNameCompact: {
+    fontSize: 15
   },
   inputComposer: {
     minHeight: 120,
@@ -993,6 +1074,11 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16
   },
+  inputComposerCompact: {
+    minHeight: 92,
+    padding: 10,
+    fontSize: 15
+  },
   inputComposerSingle: {
     borderColor: colors.composerBorder,
     borderWidth: 1,
@@ -1001,6 +1087,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.composerInputBg,
     padding: 12,
     fontSize: 15
+  },
+  inputComposerSingleCompact: {
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    fontSize: 14
   },
   divider: {
     height: StyleSheet.hairlineWidth,
@@ -1026,6 +1117,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 12
   },
+  promoteRowCompact: {
+    gap: 8
+  },
   promoteTextBlock: {
     flex: 1,
     minWidth: 0
@@ -1035,15 +1129,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700"
   },
+  promoteLabelCompact: {
+    fontSize: 15
+  },
   promoteHint: {
     color: colors.composerMuted,
     fontSize: 12,
     marginTop: 2
   },
+  promoteHintCompact: {
+    fontSize: 11
+  },
   promoteFields: {
     gap: 8,
     marginTop: 4,
     paddingTop: 2
+  },
+  promoteFieldsCompact: {
+    gap: 7,
+    marginTop: 2,
+    paddingTop: 0
   },
   sectionTitle: {
     color: colors.composerText,
@@ -1058,6 +1163,9 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 8
   },
+  typeRowWrapCompact: {
+    gap: 6
+  },
   chipLight: {
     borderColor: colors.composerBorder,
     borderWidth: 1,
@@ -1065,6 +1173,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     backgroundColor: colors.composerInputBg
+  },
+  chipLightCompact: {
+    paddingHorizontal: 9,
+    paddingVertical: 5
   },
   chipLightActive: {
     backgroundColor: colors.accent,
@@ -1087,6 +1199,10 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     backgroundColor: colors.composerInputBg
   },
+  buttonSecondaryLightCompact: {
+    paddingHorizontal: 10,
+    paddingVertical: 7
+  },
   buttonSecondaryLightText: {
     color: colors.composerText,
     fontWeight: "700",
@@ -1108,6 +1224,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 12
   },
+  moreSectionCompact: {
+    gap: 8,
+    padding: 10
+  },
   moreHeading: {
     color: colors.muted,
     fontSize: 11,
@@ -1121,6 +1241,10 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 6
+  },
+  chipCompact: {
+    paddingHorizontal: 9,
+    paddingVertical: 5
   },
   chipActive: {
     backgroundColor: colors.subtleFill,
@@ -1136,6 +1260,9 @@ const styles = StyleSheet.create({
     borderRadius: radii.control,
     paddingVertical: 14,
     alignItems: "center"
+  },
+  buttonCompact: {
+    paddingVertical: 12
   },
   buttonPressed: {
     opacity: 0.9,
