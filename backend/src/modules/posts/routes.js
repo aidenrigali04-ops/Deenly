@@ -6,6 +6,7 @@ const { resolvePostAuthorUserId } = require("../../services/anonymous-posting-us
 const { asyncHandler } = require("../../utils/async-handler");
 const { optionalString, requireString } = require("../../utils/validators");
 const { httpError } = require("../../utils/http-error");
+const { throwIfAnyUserFacingPolicyViolation } = require("../../utils/content-safety");
 
 const POST_TYPES = new Set(["post", "marketplace", "reel"]);
 const PRODUCT_TYPES = new Set(["digital", "service", "subscription"]);
@@ -134,19 +135,29 @@ function createPostsRouter({ db, config, analytics, mediaStorage, enqueueInstagr
       }
 
       const content = requireString(req.body?.content, "content", 1, 2000);
-      if (
-        config.commentBlockedTerms?.length &&
-        config.commentBlockedTerms.some((term) =>
-          content.toLowerCase().includes(String(term || "").toLowerCase())
-        )
-      ) {
-        throw httpError(400, "Post contains blocked language");
-      }
       const mediaUrl = optionalString(req.body?.mediaUrl, "mediaUrl", 2048);
       const styleTag = optionalString(req.body?.styleTag, "styleTag", 64);
       const tags = parseTags(req.body?.tags);
       const { isBusinessPost, ctaLabel, ctaUrl } = validateBusinessFields(req.body);
       const sellThis = validateSellThis(req.body?.sellThisConfig || req.body);
+      const policyMessages = {
+        termMessage: "Post contains blocked language",
+        urlMessage: "Post links to a blocked website"
+      };
+      throwIfAnyUserFacingPolicyViolation(
+        [
+          content,
+          mediaUrl,
+          styleTag,
+          tags.length ? tags.join(" ") : null,
+          ctaUrl,
+          sellThis.websiteUrl,
+          sellThis.serviceDetails,
+          sellThis.deliveryMethod
+        ],
+        config,
+        policyMessages
+      );
       if (!req.user && sellThis.sellThis) {
         throw httpError(401, "Sign in to publish posts with attached products");
       }

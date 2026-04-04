@@ -4,10 +4,19 @@ const { authenticate, requireAccessSecret } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
 const { httpError } = require("../../utils/http-error");
 const { optionalString, optionalWebsiteUrl, requireString } = require("../../utils/validators");
+const {
+  throwIfUserFacingPolicyViolation,
+  throwIfAnyUserFacingPolicyViolation
+} = require("../../utils/content-safety");
 
 const RSVP_STATUSES = new Set(["interested", "going"]);
 const EVENT_VISIBILITY = new Set(["public", "private", "invite"]);
 const EVENT_STATUS = new Set(["scheduled", "canceled", "completed"]);
+
+const EVENT_USER_CONTENT_POLICY = {
+  termMessage: "Event contains blocked language",
+  urlMessage: "Event links to a blocked website"
+};
 
 function parseIsoDate(input, fieldName) {
   const raw = String(input || "").trim();
@@ -472,6 +481,12 @@ function createEventsRouter({ db, config, analytics }) {
       }
       const { latitude, longitude } = parseLatLng(req.body?.latitude, req.body?.longitude);
 
+      throwIfAnyUserFacingPolicyViolation(
+        [title, description, onlineUrl, addressDisplay],
+        config,
+        EVENT_USER_CONTENT_POLICY
+      );
+
       const inserted = await db.query(
         `INSERT INTO events (
            host_user_id, title, description, starts_at, ends_at, timezone, is_online, online_url,
@@ -610,12 +625,16 @@ function createEventsRouter({ db, config, analytics }) {
       let i = 1;
 
       if (Object.prototype.hasOwnProperty.call(body, "title")) {
+        const nextTitle = requireString(body.title, "title", 3, 180);
+        throwIfUserFacingPolicyViolation(nextTitle, config, EVENT_USER_CONTENT_POLICY);
         sets.push(`title = $${i++}`);
-        values.push(requireString(body.title, "title", 3, 180));
+        values.push(nextTitle);
       }
       if (Object.prototype.hasOwnProperty.call(body, "description")) {
+        const nextDescription = optionalString(body.description, "description", 4000);
+        throwIfUserFacingPolicyViolation(nextDescription, config, EVENT_USER_CONTENT_POLICY);
         sets.push(`description = $${i++}`);
-        values.push(optionalString(body.description, "description", 4000));
+        values.push(nextDescription);
       }
       if (Object.prototype.hasOwnProperty.call(body, "startsAt")) {
         sets.push(`starts_at = $${i++}`);
@@ -634,12 +653,16 @@ function createEventsRouter({ db, config, analytics }) {
         values.push(Boolean(body.isOnline));
       }
       if (Object.prototype.hasOwnProperty.call(body, "onlineUrl")) {
+        const nextOnlineUrl = optionalWebsiteUrl(body.onlineUrl, "onlineUrl", 2000);
+        throwIfUserFacingPolicyViolation(nextOnlineUrl, config, EVENT_USER_CONTENT_POLICY);
         sets.push(`online_url = $${i++}`);
-        values.push(optionalWebsiteUrl(body.onlineUrl, "onlineUrl", 2000));
+        values.push(nextOnlineUrl);
       }
       if (Object.prototype.hasOwnProperty.call(body, "addressDisplay")) {
+        const nextAddress = optionalString(body.addressDisplay, "addressDisplay", 500);
+        throwIfUserFacingPolicyViolation(nextAddress, config, EVENT_USER_CONTENT_POLICY);
         sets.push(`address_display = $${i++}`);
-        values.push(optionalString(body.addressDisplay, "addressDisplay", 500));
+        values.push(nextAddress);
       }
       if (
         Object.prototype.hasOwnProperty.call(body, "latitude") ||
@@ -1110,12 +1133,10 @@ function createEventsRouter({ db, config, analytics }) {
         throw httpError(409, "Event chat has closed for this event");
       }
       const body = requireString(req.body?.body, "body", 1, 4000);
-      const blockedTerms = Array.isArray(config.commentBlockedTerms) ? config.commentBlockedTerms : [];
-      const normalizedBody = body.toLowerCase();
-      const blocked = blockedTerms.find((term) => term && normalizedBody.includes(String(term).toLowerCase()));
-      if (blocked) {
-        throw httpError(400, "Message contains blocked language");
-      }
+      throwIfUserFacingPolicyViolation(body, config, {
+        termMessage: "Message contains blocked language",
+        urlMessage: "Message links to a blocked website"
+      });
       const inserted = await db.query(
         `INSERT INTO event_chat_messages (event_id, sender_user_id, body)
          VALUES ($1, $2, $3)

@@ -4,6 +4,7 @@ const { asyncHandler } = require("../../utils/async-handler");
 const { optionalString, requireString } = require("../../utils/validators");
 const { httpError } = require("../../utils/http-error");
 const { createNotification } = require("../../services/notifications");
+const { throwIfUserFacingPolicyViolation } = require("../../utils/content-safety");
 
 const INTERACTION_TYPES = new Set(["benefited", "reflect_later", "comment"]);
 const NON_COMMENT_TYPES = new Set(["benefited", "reflect_later"]);
@@ -30,14 +31,6 @@ function encodeCommentsCursor(row) {
       id: row.id
     })
   ).toString("base64url");
-}
-
-function containsBlockedTerm(text, blockedTerms) {
-  if (!text || !blockedTerms || blockedTerms.length === 0) {
-    return false;
-  }
-  const content = text.toLowerCase();
-  return blockedTerms.some((term) => content.includes(term.toLowerCase()));
 }
 
 function createInteractionsRouter({ db, config, analytics, pushNotifications }) {
@@ -85,11 +78,11 @@ function createInteractionsRouter({ db, config, analytics, pushNotifications }) 
           throw httpError(403, "Commenting is temporarily restricted");
         }
       }
-      if (
-        interactionType === "comment" &&
-        containsBlockedTerm(commentText, config.commentBlockedTerms)
-      ) {
-        throw httpError(400, "Comment includes blocked language");
+      if (interactionType === "comment") {
+        throwIfUserFacingPolicyViolation(commentText, config, {
+          termMessage: "Comment includes blocked language",
+          urlMessage: "Comment links to a blocked website"
+        });
       }
 
       const existing = await db.query(

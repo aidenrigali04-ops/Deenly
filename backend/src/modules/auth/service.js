@@ -3,6 +3,7 @@ const { randomUUID } = require("node:crypto");
 const jwt = require("jsonwebtoken");
 const { httpError } = require("../../utils/http-error");
 const { optionalString, optionalWebsiteUrl, requireString } = require("../../utils/validators");
+const { throwIfAnyUserFacingPolicyViolation, throwIfUserFacingPolicyViolation } = require("../../utils/content-safety");
 
 function requireRefreshSecret(config) {
   const secret = config?.jwtRefreshSecret;
@@ -143,6 +144,15 @@ function createAuthService({ db, config, analytics }) {
     const businessOffering = optionalString(input.businessOffering, "businessOffering", 2000);
     const websiteUrl = optionalWebsiteUrl(input.websiteUrl, "websiteUrl", 2048);
 
+    throwIfAnyUserFacingPolicyViolation(
+      [displayName, username, businessOffering, websiteUrl],
+      config,
+      {
+        termMessage: "Registration contains blocked language",
+        urlMessage: "Registration links to a blocked website"
+      }
+    );
+
     const role =
       config.adminOwnerEmail && email === String(config.adminOwnerEmail).toLowerCase()
         ? "admin"
@@ -271,6 +281,10 @@ function createAuthService({ db, config, analytics }) {
     const username = await reserveAvailableUsername(
       profile.preferred_username || displayName || email.split("@")[0]
     );
+    throwIfUserFacingPolicyViolation(username, config, {
+      termMessage: "Could not complete sign-in: chosen username is not allowed",
+      urlMessage: "Could not complete sign-in: username contains a blocked website reference"
+    });
     const role =
       config.adminOwnerEmail && email === String(config.adminOwnerEmail).toLowerCase()
         ? "admin"
@@ -283,10 +297,15 @@ function createAuthService({ db, config, analytics }) {
       [email, username, randomPasswordHash, role]
     );
     const user = created.rows[0];
+    const profileDisplayName = displayName.slice(0, 64);
+    throwIfUserFacingPolicyViolation(profileDisplayName, config, {
+      termMessage: "Google profile name contains blocked language",
+      urlMessage: "Google profile contains a blocked website link"
+    });
     await db.query(
       `INSERT INTO profiles (user_id, display_name, avatar_url, business_offering, website_url)
        VALUES ($1, $2, $3, NULL, NULL)`,
-      [user.id, displayName.slice(0, 64), profile.picture || null]
+      [user.id, profileDisplayName, profile.picture || null]
     );
     return issueSessionTokens(user, "signup");
   }

@@ -1,5 +1,6 @@
 const DEFAULT_PORT = 3000;
 const { URL } = require("node:url");
+const { normalizeBlockedHostEntry } = require("../utils/content-safety");
 const VALID_NODE_ENVS = new Set(["development", "test", "production"]);
 const VALID_DB_SSL_MODES = new Set(["disable", "require", "no-verify"]);
 const VALID_MEDIA_PROVIDERS = new Set(["mock", "s3"]);
@@ -142,7 +143,16 @@ function loadEnv(envSource = process.env) {
     awsS3Bucket: envSource.AWS_S3_BUCKET || "",
     mediaPublicBaseUrl: parseOptionalUrl(envSource.MEDIA_PUBLIC_BASE_URL),
     googleClientId: String(envSource.GOOGLE_CLIENT_ID || "").trim(),
-    commentBlockedTerms: parseList(envSource.COMMENT_BLOCKED_TERMS),
+    commentBlockedTerms: (() => {
+      const merged = [
+        ...parseList(envSource.COMMENT_BLOCKED_TERMS),
+        ...parseList(envSource.CONTENT_BLOCKED_TERMS)
+      ];
+      return [...new Set(merged.map((t) => String(t).trim()).filter(Boolean))];
+    })(),
+    blockedUrlHosts: parseList(envSource.BLOCKED_URL_HOSTS)
+      .map((entry) => normalizeBlockedHostEntry(entry))
+      .filter(Boolean),
     mockUploadBaseUrl: envSource.MOCK_UPLOAD_BASE_URL || "",
     viewDedupeWindowSeconds: parsePositiveInt(
       envSource.VIEW_DEDUPE_WINDOW_SECONDS,

@@ -5,9 +5,11 @@ const { requireAccessSecret } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
 const { httpError } = require("../../utils/http-error");
 const { resolveProfilePutFields } = require("../../utils/profile-put");
+const { throwIfAnyUserFacingPolicyViolation } = require("../../utils/content-safety");
 const { optionalString } = require("../../utils/validators");
 const { getPrayerSettings, updatePrayerSettings } = require("../../services/prayer-settings");
 const { resolvePersonaCapabilities } = require("../../services/persona-capabilities");
+const { resolvePostAuthorUserId } = require("../../services/anonymous-posting-user");
 const INTEREST_KEYS = new Set(["post", "marketplace", "reel"]);
 const FEED_TAB_PREFS = new Set(["for_you", "opportunities", "marketplace"]);
 const APP_LANDING_PREFS = new Set(["home", "marketplace"]);
@@ -22,6 +24,40 @@ const USAGE_PERSONA_CONFLICT_KEYS = new Set([
   "businessOnboardingStep",
   "businessOnboardingDismissed"
 ]);
+/** Without auth, PATCH /me/preferences may only include these keys (onboarding continuation). */
+const ANONYMOUS_PREFERENCE_BODY_KEYS = new Set([
+  "onboardingIntents",
+  "defaultFeedTab",
+  "appLanding",
+  "businessOnboardingDismissed",
+  "preferenceSource"
+]);
+
+function assertAnonymousPreferencesBody(body) {
+  const raw = body && typeof body === "object" ? body : {};
+  for (const key of Object.keys(raw)) {
+    if (!ANONYMOUS_PREFERENCE_BODY_KEYS.has(key)) {
+      throw httpError(401, "Sign in to update these preferences");
+    }
+  }
+}
+
+/**
+ * If the client sent Authorization but optional auth did not attach a user, the token is missing,
+ * expired, or invalid. Do not fall through to anonymous/guest handling (misleading errors and
+ * wrong profile updates). Clients can refresh the access token and retry.
+ */
+function rejectBearerWithoutResolvedUser(req) {
+  const authHeader = req.headers.authorization || "";
+  const token =
+    typeof authHeader === "string" && authHeader.startsWith("Bearer ")
+      ? authHeader.slice("Bearer ".length).trim()
+      : "";
+  if (token && !req.user) {
+    throw httpError(401, "Session expired or invalid. Please sign in again.");
+  }
+}
+
 const USAGE_PERSONA_BUNDLES = {
   personal: {
     profileKind: "consumer",
@@ -188,10 +224,15 @@ function createUsersRouter({ db, config, analytics }) {
 
   router.patch(
     "/me/preferences",
-    authMiddleware,
+    optionalAuthMiddleware,
     asyncHandler(async (req, res) => {
       const body = req.body || {};
-      const previousProfile = await getMeProfileRow(req.user.id);
+      rejectBearerWithoutResolvedUser(req);
+      if (!req.user) {
+        assertAnonymousPreferencesBody(body);
+      }
+      const preferenceUserId = await resolvePostAuthorUserId(req, db, config);
+      const previousProfile = await getMeProfileRow(preferenceUserId);
       const sets = [];
       const vals = [];
       let i = 1;
@@ -320,7 +361,11 @@ function createUsersRouter({ db, config, analytics }) {
         i += 1;
       }
 
-      if (body.businessOnboardingDismissed === true) {
+      // One assignment only: PG rejects duplicate SET targets (e.g. onboarding + explicit dismiss flag).
+      if (
+        Object.prototype.hasOwnProperty.call(body, "onboardingIntents") ||
+        body.businessOnboardingDismissed === true
+      ) {
         sets.push("business_onboarding_dismissed_at = COALESCE(business_onboarding_dismissed_at, NOW())");
       }
 
@@ -329,7 +374,7 @@ function createUsersRouter({ db, config, analytics }) {
       }
 
       sets.push("updated_at = NOW()");
-      vals.push(req.user.id);
+      vals.push(preferenceUserId);
 
       const updateResult = await db.query(
         `UPDATE profiles SET ${sets.join(", ")} WHERE user_id = $${i} RETURNING user_id`,
@@ -339,18 +384,18 @@ function createUsersRouter({ db, config, analytics }) {
         throw httpError(404, "User profile not found");
       }
 
-      const payload = await buildMePayload(req.user.id);
+      const payload = await buildMePayload(preferenceUserId);
       if (analytics) {
         if (usagePersonaSelected) {
           await analytics.trackEvent("usage_persona_selected", {
-            userId: req.user.id,
+            userId: preferenceUserId,
             usagePersona: usagePersonaSelected,
             source: preferenceSource
           });
         }
         if (previousProfile.profile_kind !== payload.profile_kind) {
           await analytics.trackEvent("profile_kind_changed", {
-            userId: req.user.id,
+            userId: preferenceUserId,
             from: previousProfile.profile_kind,
             to: payload.profile_kind,
             source: preferenceSource
@@ -362,13 +407,13 @@ function createUsersRouter({ db, config, analytics }) {
           payload.profile_kind === "professional"
         ) {
           await analytics.trackEvent("professional_setup_completed", {
-            userId: req.user.id,
+            userId: preferenceUserId,
             source: preferenceSource
           });
         }
         if (!previousProfile.business_tools_unlocked_at && payload.business_tools_unlocked_at) {
           await analytics.trackEvent("business_tools_unlocked", {
-            userId: req.user.id,
+            userId: preferenceUserId,
             source: preferenceSource,
             profileKind: payload.profile_kind
           });
@@ -382,16 +427,14 @@ function createUsersRouter({ db, config, analytics }) {
     "/me/interests",
     optionalAuthMiddleware,
     asyncHandler(async (req, res) => {
-      if (!req.user) {
-        res.status(200).json({ items: [] });
-        return;
-      }
+      rejectBearerWithoutResolvedUser(req);
+      const interestViewerId = await resolvePostAuthorUserId(req, db, config);
       const result = await db.query(
         `SELECT interest_key, created_at
          FROM user_interests
          WHERE user_id = $1
          ORDER BY created_at ASC`,
-        [req.user.id]
+        [interestViewerId]
       );
 
       res.status(200).json({
@@ -402,20 +445,23 @@ function createUsersRouter({ db, config, analytics }) {
 
   router.put(
     "/me/interests",
-    authMiddleware,
+    optionalAuthMiddleware,
     asyncHandler(async (req, res) => {
+      rejectBearerWithoutResolvedUser(req);
       const interests = Array.isArray(req.body?.interests) ? req.body.interests : [];
       const normalized = interests
         .map((entry) => String(entry).trim())
         .filter(Boolean)
         .filter((entry) => INTEREST_KEYS.has(entry));
 
-      await db.query("DELETE FROM user_interests WHERE user_id = $1", [req.user.id]);
+      const interestUserId = await resolvePostAuthorUserId(req, db, config);
+
+      await db.query("DELETE FROM user_interests WHERE user_id = $1", [interestUserId]);
       for (const interestKey of [...new Set(normalized)]) {
         await db.query(
           `INSERT INTO user_interests (user_id, interest_key)
            VALUES ($1, $2)`,
-          [req.user.id, interestKey]
+          [interestUserId, interestKey]
         );
       }
 
@@ -483,6 +529,15 @@ function createUsersRouter({ db, config, analytics }) {
       const { displayName, bio, avatarUrl, businessOffering, websiteUrl } = resolveProfilePutFields(
         req.body,
         existing.rows[0]
+      );
+
+      throwIfAnyUserFacingPolicyViolation(
+        [displayName, bio, avatarUrl, businessOffering, websiteUrl],
+        config,
+        {
+          termMessage: "Profile contains blocked language",
+          urlMessage: "Profile links to a blocked website"
+        }
       );
 
       const updateResult = await db.query(

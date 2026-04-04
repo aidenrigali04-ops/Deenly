@@ -10,6 +10,7 @@ const { importProductDraftFromUrl } = require("../../services/product-import-url
 const { fulfillProductOrderAfterPayment, parseSmsOptIn } = require("../../services/purchase-fulfillment");
 const { hashToken } = require("../../services/purchase-access-token");
 const { resolvePersonaCapabilities } = require("../../services/persona-capabilities");
+const { throwIfAnyUserFacingPolicyViolation } = require("../../utils/content-safety");
 
 function extractCheckoutCustomerContact(sessionObj) {
   const d = sessionObj?.customer_details || {};
@@ -654,6 +655,14 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
       if (!Number.isInteger(priceMinor) || priceMinor <= 0) {
         throw httpError(400, "priceMinor must be a positive integer");
       }
+      throwIfAnyUserFacingPolicyViolation(
+        [title, description, serviceDetails, deliveryMethod, websiteUrl],
+        config,
+        {
+          termMessage: "Product contains blocked language",
+          urlMessage: "Product links to a blocked website"
+        }
+      );
       // Drafts may omit delivery until publish; publish and PATCH-to-published enforce delivery for digital.
 
       const audienceTarget = parseProductAudienceTarget(req.body?.audienceTarget);
@@ -1030,6 +1039,14 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
       if (websiteUrl && !/^https?:\/\//i.test(websiteUrl)) {
         throw httpError(400, "websiteUrl must be an absolute http(s) URL");
       }
+      throwIfAnyUserFacingPolicyViolation(
+        [title, description, serviceDetails, deliveryMethod, websiteUrl],
+        config,
+        {
+          termMessage: "Product contains blocked language",
+          urlMessage: "Product links to a blocked website"
+        }
+      );
       const status =
         req.body?.status !== undefined ? String(req.body.status).trim().toLowerCase() : previous.status;
       if (!PRODUCT_STATUSES.has(status)) {
@@ -1858,10 +1875,12 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
       const tierId = Number(sessionMetadata.tierId || 0) || null;
 
       let productFulfillmentOrderId = null;
+      let affiliateCommissionMinor = 0;
+      let creatorNetMinor = 0;
 
       await db.query("BEGIN");
       try {
-        let affiliateCommissionMinor = 0;
+        affiliateCommissionMinor = 0;
         let affiliateCodeRow = null;
         if (affiliateCodeId) {
           const affiliateCodeResult = await db.query(
@@ -1881,7 +1900,7 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
           }
         }
 
-        const creatorNetMinor = Math.max(0, amountMinor - platformFeeMinor - affiliateCommissionMinor);
+        creatorNetMinor = Math.max(0, amountMinor - platformFeeMinor - affiliateCommissionMinor);
 
         const order = await db.query(
           `INSERT INTO orders (
