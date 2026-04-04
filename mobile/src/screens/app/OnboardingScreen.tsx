@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "../../lib/api";
+import { applyMobileMeProfileAfterPreferencesPatch } from "../../lib/apply-me-profile-preferences-response";
 import { colors, radii } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 // Metro cannot bundle `../shared/` from this app — use `lib/onboarding-options` (mirror of repo `shared/`).
@@ -69,20 +70,22 @@ export function OnboardingScreen({ navigation }: Props) {
         auth: true,
         body: { interests: selectedInterests }
       });
-      await apiRequest("/users/me/preferences", {
+      return apiRequest("/users/me/preferences", {
         method: "PATCH",
         auth: true,
         body: {
           onboardingIntents: intents,
           defaultFeedTab: defaultFeedTab || null,
-          appLanding: appLanding || null
+          appLanding: appLanding || null,
+          businessOnboardingDismissed: true,
+          preferenceSource: "mobile_onboarding"
         }
       });
     },
-    onSuccess: async () => {
+    onSuccess: async (me) => {
       setMessage("Saved to your account.");
+      await applyMobileMeProfileAfterPreferencesPatch(queryClient, me);
       await queryClient.invalidateQueries({ queryKey: ["mobile-interests"] });
-      await queryClient.invalidateQueries({ queryKey: ["mobile-account-profile"] });
       await queryClient.invalidateQueries({ queryKey: ["mobile-my-interests"] });
     },
     onError: (e: Error) => {
@@ -103,7 +106,7 @@ export function OnboardingScreen({ navigation }: Props) {
     return (
       <View style={styles.centered}>
         <Text style={styles.heading}>Setup</Text>
-        <Text style={styles.muted}>Could not load preferences. Sign in and try again.</Text>
+        <Text style={styles.muted}>Could not load preferences. Check your connection and try again.</Text>
       </View>
     );
   }

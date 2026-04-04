@@ -1056,7 +1056,7 @@ export function CreateScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.background
+    backgroundColor: colors.atmosphere
   },
   flex: {
     flex: 1

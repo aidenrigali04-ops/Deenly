@@ -1,5 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { AtmosphereBackdrop } from "../components/AtmosphereBackdrop";
+import { TabBarGlassBackground } from "../components/TabBarGlassBackground";
 import { NavigationContainer, DefaultTheme, NavigatorScreenParams } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -105,16 +107,19 @@ const Tab = createBottomTabNavigator<AppTabParamList>();
 
 function AppTabs() {
   return (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          borderTopWidth: StyleSheet.hairlineWidth,
-          paddingTop: 8,
-          minHeight: 64
-        },
+    <View style={{ flex: 1 }}>
+      <AtmosphereBackdrop />
+      <View style={{ flex: 1 }}>
+      <Tab.Navigator
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle: {
+            backgroundColor: colors.atmosphere,
+            borderTopWidth: 0,
+            paddingTop: 8,
+            minHeight: 64,
+            elevation: 0
+          },
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.muted,
         tabBarActiveBackgroundColor: colors.subtleFill,
@@ -142,7 +147,8 @@ function AppTabs() {
           marginVertical: 5,
           borderRadius: radii.pill,
           paddingVertical: 2
-        }
+        },
+        tabBarBackground: () => <TabBarGlassBackground />
       }}
     >
       <Tab.Screen
@@ -206,6 +212,8 @@ function AppTabs() {
         }}
       />
     </Tab.Navigator>
+      </View>
+    </View>
   );
 }
 
@@ -275,26 +283,26 @@ export function AppNavigator() {
     );
   }
 
+  const navTheme = {
+    ...DefaultTheme,
+    colors: {
+      ...DefaultTheme.colors,
+      background: user ? colors.atmosphere : colors.background,
+      card: colors.surface,
+      text: colors.text,
+      border: colors.border,
+      primary: colors.accent
+    }
+  };
+
   return (
-    <NavigationContainer
-      theme={{
-        ...DefaultTheme,
-        colors: {
-          ...DefaultTheme.colors,
-          background: colors.background,
-          card: colors.surface,
-          text: colors.text,
-          border: colors.border,
-          primary: colors.accent
-        }
-      }}
-    >
+    <NavigationContainer theme={navTheme}>
       <Fragment>
         <RootStack.Navigator
           screenOptions={{
             headerStyle: { backgroundColor: colors.surface },
             headerTintColor: colors.text,
-            contentStyle: { backgroundColor: colors.background }
+            contentStyle: { backgroundColor: user ? colors.atmosphere : colors.background }
           }}
         >
           {!user ? (

@@ -134,9 +134,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="container-shell flex min-h-screen flex-col gap-4 py-4 md:flex-row md:items-start md:gap-6 md:py-6">
+    <div className="relative min-h-screen">
+      <div className="app-shell-atmosphere" aria-hidden />
+      <div className="container-shell flex min-h-screen flex-col gap-4 py-4 md:flex-row md:items-start md:gap-6 md:py-6">
       {prayerReminder ? (
-        <div className="fixed left-1/2 top-4 z-30 w-[min(92vw,480px)] -translate-x-1/2 rounded-control border border-black/20 bg-white px-4 py-3 shadow-soft">
+        <div className="fixed left-1/2 top-4 z-30 w-[min(92vw,480px)] -translate-x-1/2 glass-panel-subtle px-4 py-3">
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm font-medium">
               Time for Salah {prayerReminder.reminderPrayer ? `(${prayerReminder.reminderPrayer})` : ""}
@@ -159,6 +161,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <BusinessPersonalizerDialog />
       <Nav />
       <main className="min-w-0 flex-1 px-1 pb-12 pt-2 sm:px-3 md:px-4 md:pb-14 md:pt-1">{children}</main>
+      </div>
     </div>
   );
 }

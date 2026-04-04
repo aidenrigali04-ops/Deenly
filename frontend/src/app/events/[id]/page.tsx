@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import { ApiError } from "@/lib/api";
@@ -13,15 +13,25 @@ import {
   removeEventAttendee,
   reportEventChatUser,
   sendEventChatMessage,
-  setEventRsvp
+  setEventRsvp,
+  unmuteEventChatUser
 } from "@/lib/events";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+
+function formatChatTime(iso: string) {
+  try {
+    return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  } catch {
+    return "";
+  }
+}
 
 export default function EventDetailPage() {
   const params = useParams<{ id: string }>();
   const eventId = Number(params?.id);
   const queryClient = useQueryClient();
   const [chatInput, setChatInput] = useState("");
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const eventQuery = useQuery({
     queryKey: ["event-detail", eventId],
@@ -48,6 +58,7 @@ export default function EventDetailPage() {
     mutationFn: (status: "interested" | "going" | "none") => setEventRsvp(eventId, status, "web_detail"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["event-detail", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["event-chat", eventId] });
     }
   });
 
@@ -66,6 +77,13 @@ export default function EventDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["event-chat", eventId] });
     }
   });
+  const unmuteMutation = useMutation({
+    mutationFn: (userId: number) => unmuteEventChatUser(eventId, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["event-moderation", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["event-chat", eventId] });
+    }
+  });
   const removeAttendeeMutation = useMutation({
     mutationFn: ({ userId, reason }: { userId: number; reason?: string }) =>
       removeEventAttendee(eventId, userId, reason),
@@ -79,6 +97,12 @@ export default function EventDetailPage() {
       reportEventChatUser(eventId, userId, reason, note)
   });
 
+  const items = chatQuery.data?.items ?? [];
+  useEffect(() => {
+    if (!chatQuery.isSuccess || items.length === 0) return;
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [chatQuery.isSuccess, items.length, chatQuery.dataUpdatedAt]);
+
   const startsAtLabel = useMemo(() => {
     if (!eventQuery.data?.startsAt) return "";
     return new Date(eventQuery.data.startsAt).toLocaleString();
@@ -87,8 +111,12 @@ export default function EventDetailPage() {
   const onSendChat = async (event: FormEvent) => {
     event.preventDefault();
     const message = chatInput.trim();
-    if (!message) return;
-    await chatMutation.mutateAsync(message);
+    if (!message || chatMutation.isPending) return;
+    try {
+      await chatMutation.mutateAsync(message);
+    } catch {
+      /* mutation error surfaced via isError if we add toast later */
+    }
   };
 
   if (!eventId) {
@@ -105,6 +133,7 @@ export default function EventDetailPage() {
     return <EmptyState title="Event not found" />;
   }
   const isHost = data.hostUserId === meQuery.data?.id;
+  const myId = meQuery.data?.id;
   const mutedUserIds = new Set((moderationQuery.data?.mutes || []).map((m) => m.user_id));
 
   return (
@@ -141,74 +170,155 @@ export default function EventDetailPage() {
         ) : null}
       </div>
 
-      <div className="surface-card space-y-3">
-        <div className="flex items-center justify-between">
+      <div className="surface-card flex flex-col gap-3">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
           <h2 className="text-lg font-semibold">Event chat</h2>
-          <p className="text-xs text-muted">{data.canJoinChat ? "RSVP-gated chat" : "Set RSVP to Going to join"}</p>
+          <p className="text-xs leading-snug text-muted sm:max-w-xs sm:text-right">
+            {data.canJoinChat
+              ? "Only attendees who RSVP’d Going can read and post here."
+              : "Switch RSVP to Going to unlock chat."}
+          </p>
         </div>
         {!data.canJoinChat ? (
           <EmptyState title="Chat locked" subtitle="Switch RSVP to Going to access this chat." />
         ) : (
           <>
-            {chatQuery.isLoading ? <LoadingState label="Loading chat..." /> : null}
+            {chatQuery.isLoading ? <LoadingState label="Loading messages…" /> : null}
             {chatQuery.error ? <ErrorState message={(chatQuery.error as Error).message} /> : null}
-            <div className="max-h-72 space-y-2 overflow-y-auto rounded-lg border border-black/10 bg-surface/30 p-3">
-              {(chatQuery.data?.items || []).length === 0 ? <p className="text-sm text-muted">No messages yet.</p> : null}
-              {(chatQuery.data?.items || []).map((msg) => (
-                <div key={msg.id} className="rounded-lg border border-black/10 bg-surface p-2">
-                  <p className="text-xs text-muted">{msg.senderDisplayName || "Member"}</p>
-                  <p className="text-sm">{msg.body}</p>
-                  {isHost && msg.senderUserId !== meQuery.data?.id ? (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        className="btn-secondary px-2 py-1 text-xs"
-                        onClick={() => {
-                          const reason = window.prompt("Mute reason (optional)", "Host moderation");
-                          muteMutation.mutate({ userId: msg.senderUserId, reason: reason || undefined });
-                        }}
-                      >
-                        {mutedUserIds.has(msg.senderUserId) ? "Muted" : "Mute"}
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-secondary px-2 py-1 text-xs"
-                        onClick={() => {
-                          const reason = window.prompt("Remove attendee reason (optional)", "Host moderation");
-                          removeAttendeeMutation.mutate({ userId: msg.senderUserId, reason: reason || undefined });
-                        }}
-                      >
-                        Remove attendee
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-secondary px-2 py-1 text-xs"
-                        onClick={() => {
-                          const reason = window.prompt("Report reason", "Abusive behavior");
-                          if (!reason) return;
-                          const note = window.prompt("Extra note (optional)", "") || undefined;
-                          reportMutation.mutate({ userId: msg.senderUserId, reason, note });
-                        }}
-                      >
-                        Report
-                      </button>
-                    </div>
-                  ) : null}
+            <div
+              className="max-h-[min(52vh,26rem)] space-y-3 overflow-y-auto overscroll-contain rounded-control border border-black/10 bg-black/[0.03] p-3 scroll-smooth"
+              role="log"
+              aria-label="Event chat messages"
+              aria-live="polite"
+            >
+              {items.length === 0 && !chatQuery.isLoading ? (
+                <div className="rounded-control border border-dashed border-black/15 bg-surface/80 px-4 py-8 text-center">
+                  <p className="text-sm font-semibold text-text">Start the conversation</p>
+                  <p className="mt-1 text-sm text-muted">Say hello, share updates, or coordinate before the event.</p>
                 </div>
-              ))}
+              ) : null}
+              {items.map((msg) => {
+                const isOwn = myId != null && msg.senderUserId === myId;
+                const isMsgHost = msg.senderUserId === data.hostUserId;
+                return (
+                  <div
+                    key={msg.id}
+                    className={`flex w-full flex-col gap-1 ${isOwn ? "items-end" : "items-start"}`}
+                  >
+                    <div
+                      className={`max-w-[min(100%,28rem)] rounded-2xl px-3.5 py-2.5 ${
+                        isOwn
+                          ? "rounded-br-md bg-black text-white"
+                          : "rounded-bl-md border border-black/10 bg-surface shadow-soft"
+                      }`}
+                    >
+                      <div className="mb-1 flex flex-wrap items-center gap-2 text-[11px] font-semibold">
+                        <span className={isOwn ? "text-white/90" : "text-muted"}>
+                          {isOwn ? "You" : msg.senderDisplayName || "Member"}
+                        </span>
+                        {isMsgHost ? (
+                          <span
+                            className={`rounded-pill px-2 py-0.5 text-[10px] uppercase tracking-wide ${
+                              isOwn ? "bg-white/20 text-white" : "bg-black/[0.06] text-text"
+                            }`}
+                          >
+                            Host
+                          </span>
+                        ) : null}
+                        <span className={`ml-auto tabular-nums ${isOwn ? "text-white/70" : "text-muted"}`}>
+                          {formatChatTime(msg.createdAt)}
+                        </span>
+                      </div>
+                      <p className={`whitespace-pre-wrap text-sm leading-relaxed ${isOwn ? "text-white" : "text-text"}`}>
+                        {msg.body}
+                      </p>
+                    </div>
+                    {isHost && msg.senderUserId !== myId ? (
+                      <details className="group text-xs">
+                        <summary className="cursor-pointer select-none font-semibold text-muted underline decoration-black/20 underline-offset-2 hover:text-text">
+                          Moderate attendee
+                        </summary>
+                        <div className="mt-2 flex flex-wrap gap-2 rounded-control border border-black/10 bg-surface p-2">
+                          <button
+                            type="button"
+                            className="btn-secondary px-2 py-1.5 text-xs"
+                            disabled={muteMutation.isPending || unmuteMutation.isPending}
+                            onClick={() => {
+                              if (mutedUserIds.has(msg.senderUserId)) {
+                                unmuteMutation.mutate(msg.senderUserId);
+                              } else {
+                                const reason = window.prompt("Mute reason (optional)", "Host moderation");
+                                muteMutation.mutate({ userId: msg.senderUserId, reason: reason || undefined });
+                              }
+                            }}
+                          >
+                            {mutedUserIds.has(msg.senderUserId) ? "Unmute from chat" : "Mute from chat"}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-secondary px-2 py-1.5 text-xs"
+                            disabled={removeAttendeeMutation.isPending}
+                            onClick={() => {
+                              if (!window.confirm(`Remove ${msg.senderDisplayName || "this attendee"} from the event?`)) {
+                                return;
+                              }
+                              const reason = window.prompt("Reason (optional)", "Host moderation");
+                              removeAttendeeMutation.mutate({ userId: msg.senderUserId, reason: reason || undefined });
+                            }}
+                          >
+                            Remove from event
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-secondary px-2 py-1.5 text-xs"
+                            disabled={reportMutation.isPending}
+                            onClick={() => {
+                              const reason = window.prompt("Report reason", "Abusive behavior");
+                              if (!reason) return;
+                              const note = window.prompt("Extra note (optional)", "") || undefined;
+                              reportMutation.mutate({ userId: msg.senderUserId, reason, note });
+                            }}
+                          >
+                            Report
+                          </button>
+                        </div>
+                      </details>
+                    ) : null}
+                  </div>
+                );
+              })}
+              <div ref={chatEndRef} className="h-px w-full shrink-0" aria-hidden />
             </div>
-            <form className="flex gap-2" onSubmit={onSendChat}>
-              <input
-                className="input flex-1"
+            <form className="flex flex-col gap-2 sm:flex-row sm:items-end" onSubmit={onSendChat}>
+              <label className="sr-only" htmlFor="event-chat-input">
+                Message attendees
+              </label>
+              <textarea
+                id="event-chat-input"
+                className="input min-h-[44px] flex-1 resize-y py-2.5"
+                rows={2}
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Message attendees..."
+                placeholder="Write a message to attendees…"
                 maxLength={4000}
+                disabled={chatMutation.isPending}
+                aria-busy={chatMutation.isPending}
               />
-              <button className="btn-primary" type="submit" disabled={chatMutation.isPending}>
-                Send
+              <button
+                className="btn-primary h-11 shrink-0 px-5 sm:self-stretch"
+                type="submit"
+                disabled={chatMutation.isPending || chatInput.trim().length === 0}
+                aria-label="Send chat message"
+              >
+                {chatMutation.isPending ? "Sending…" : "Send"}
               </button>
             </form>
+            <p className="text-right text-[11px] text-muted tabular-nums">{chatInput.length} / 4000</p>
+            {chatMutation.isError ? (
+              <p className="text-sm text-rose-700" role="alert">
+                {(chatMutation.error as Error).message || "Message could not be sent."}
+              </p>
+            ) : null}
           </>
         )}
       </div>
@@ -220,17 +330,17 @@ export default function EventDetailPage() {
           {!moderationQuery.isLoading && !moderationQuery.error ? (
             <>
               <p className="text-xs text-muted">Muted attendees: {moderationQuery.data?.mutes.length || 0}</p>
-              <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border border-black/10 bg-surface/30 p-3">
+              <div className="max-h-56 space-y-2 overflow-y-auto overscroll-contain rounded-control border border-black/10 bg-black/[0.03] p-3">
                 {(moderationQuery.data?.actions || []).length === 0 ? (
                   <p className="text-sm text-muted">No moderation actions yet.</p>
                 ) : null}
                 {(moderationQuery.data?.actions || []).map((action) => (
-                  <div key={action.id} className="rounded-lg border border-black/10 bg-surface p-2 text-xs">
-                    <p className="font-medium">
+                  <div key={action.id} className="rounded-control border border-black/10 bg-surface p-2.5 text-xs shadow-soft">
+                    <p className="font-medium text-text">
                       {action.action_type} · {action.actor_display_name || "Host"} →{" "}
                       {action.target_display_name || "User"}
                     </p>
-                    {action.reason ? <p className="text-muted">{action.reason}</p> : null}
+                    {action.reason ? <p className="mt-1 text-muted">{action.reason}</p> : null}
                   </div>
                 ))}
               </div>

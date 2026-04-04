@@ -204,7 +204,7 @@ export function MessagesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.atmosphere },
   content: { padding: 14, gap: 12 },
   heading: { color: colors.text, fontSize: 24, fontWeight: "700" },
   stack: { gap: 8 },

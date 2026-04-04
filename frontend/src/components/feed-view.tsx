@@ -286,7 +286,7 @@ export function FeedView({
     <section
       className={`flex w-full flex-col gap-4 md:gap-5 ${homeStyle ? "mx-auto max-w-[680px]" : "mx-auto max-w-[1100px]"}`}
     >
-      <header className="surface-card sticky top-4 z-10 space-y-3 px-4 py-4 shadow-soft">
+      <header className="glass-panel sticky top-4 z-10 space-y-3 px-4 py-4">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h1 className="section-title text-base sm:text-lg">{heading}</h1>

@@ -18,6 +18,7 @@ export function BusinessPersonalizerDialog() {
   const user = useSessionStore((s) => s.user);
   const queryClient = useQueryClient();
   const [selectedPersona, setSelectedPersona] = useState<UsagePersonaKey>("personal");
+  const [submitError, setSubmitError] = useState("");
 
   const meQuery = useQuery({
     queryKey: ["web-user-me-onboarding"],
@@ -37,13 +38,20 @@ export function BusinessPersonalizerDialog() {
       });
       return { ...body, me };
     },
+    onMutate: () => {
+      setSubmitError("");
+    },
     onSuccess: async (body) => {
+      setSubmitError("");
       await applyWebMeProfileAfterPreferencesPatch(queryClient, body.me);
       if (body.navigate === "creator") {
         router.push("/account/creator");
       } else if (body.navigate === "onboarding") {
         router.push("/onboarding");
       }
+    },
+    onError: (err: unknown) => {
+      setSubmitError(err instanceof Error ? err.message : "Could not save. Please try again.");
     }
   });
 
@@ -66,6 +74,11 @@ export function BusinessPersonalizerDialog() {
         <p className="text-sm text-muted">
           Choose what Deenly should optimize first. You can change this later in settings.
         </p>
+        {submitError ? (
+          <p className="rounded-control border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900" role="alert">
+            {submitError}
+          </p>
+        ) : null}
         <div className="flex flex-col gap-2">
           {USAGE_PERSONA_OPTIONS.map((option) => {
             const active = selectedPersona === option.key;

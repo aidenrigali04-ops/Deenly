@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
+import { applyWebMeProfileAfterPreferencesPatch } from "@/lib/apply-me-profile-preferences-response";
 import { ErrorState, LoadingState } from "@/components/states";
 import {
   APP_LANDING_OPTIONS,
@@ -66,20 +67,22 @@ export default function OnboardingPage() {
         auth: true,
         body: { interests: selectedInterests }
       });
-      await apiRequest("/users/me/preferences", {
+      return apiRequest("/users/me/preferences", {
         method: "PATCH",
         auth: true,
         body: {
           onboardingIntents: intents,
           defaultFeedTab: defaultFeedTab || null,
-          appLanding: appLanding || null
+          appLanding: appLanding || null,
+          businessOnboardingDismissed: true,
+          preferenceSource: "web_onboarding"
         }
       });
     },
-    onSuccess: async () => {
+    onSuccess: async (me) => {
       setMessage("Preferences saved.");
+      await applyWebMeProfileAfterPreferencesPatch(queryClient, me);
       await queryClient.invalidateQueries({ queryKey: ["my-interests"] });
-      await queryClient.invalidateQueries({ queryKey: ["account-profile-me"] });
     },
     onError: (err: Error) => {
       setMessage(err.message || "Could not save.");
@@ -90,7 +93,7 @@ export default function OnboardingPage() {
     return <LoadingState label="Loading preferences..." />;
   }
   if (interestsQuery.error || meQuery.error) {
-    return <ErrorState message="Could not load preferences. Sign in and try again." />;
+    return <ErrorState message="Could not load preferences. Check your connection and try again." />;
   }
 
   const activeInterests = selectedInterests.length ? selectedInterests : interestsQuery.data?.items || [];

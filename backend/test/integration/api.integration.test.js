@@ -172,6 +172,48 @@ describeIfDatabase("integration api flows", () => {
     expect(anonSell.statusCode).toBe(401);
   });
 
+  it("saves onboarding interests and setup preferences without authentication (guest profile)", async () => {
+    const put = await request(app).put("/api/v1/users/me/interests").send({
+      interests: ["post", "marketplace"]
+    });
+    expect(put.statusCode).toBe(200);
+    expect(put.body.items.sort()).toEqual(["marketplace", "post"].sort());
+
+    const getInterests = await request(app).get("/api/v1/users/me/interests");
+    expect(getInterests.statusCode).toBe(200);
+    expect(getInterests.body.items.sort()).toEqual(["marketplace", "post"].sort());
+
+    const patch = await request(app)
+      .patch("/api/v1/users/me/preferences")
+      .send({
+        onboardingIntents: ["community", "shop"],
+        defaultFeedTab: "for_you",
+        appLanding: "home",
+        businessOnboardingDismissed: true,
+        preferenceSource: "test_anon_onboarding"
+      });
+    expect(patch.statusCode).toBe(200);
+    expect(patch.body.business_onboarding_dismissed_at).toBeTruthy();
+    expect(patch.body.onboarding_intents.sort()).toEqual(["community", "shop"].sort());
+
+    const personaWithoutAuth = await request(app).patch("/api/v1/users/me/preferences").send({
+      usagePersona: "professional"
+    });
+    expect(personaWithoutAuth.statusCode).toBe(401);
+  });
+
+  it("rejects preferences with invalid bearer instead of anonymous guest merge", async () => {
+    const res = await request(app)
+      .patch("/api/v1/users/me/preferences")
+      .set("Authorization", "Bearer not-a-valid-jwt")
+      .send({
+        onboardingIntents: ["community"],
+        preferenceSource: "test_bad_bearer"
+      });
+    expect(res.statusCode).toBe(401);
+    expect(String(res.body.message || "")).toMatch(/session expired|sign in again/i);
+  });
+
   it("registers, logs in, and fetches session user", async () => {
     const register = await request(app).post("/api/v1/auth/register").send({
       email: "tester@example.com",
@@ -980,6 +1022,18 @@ describeIfDatabase("integration api flows", () => {
       .send({ onboardingIntents: ["shop", "community"] });
     expect(updateOnboardingIntents.statusCode).toBe(200);
     expect(updateOnboardingIntents.body.onboarding_intents.sort()).toEqual(["community", "shop"].sort());
+    expect(updateOnboardingIntents.body.business_onboarding_dismissed_at).toBeTruthy();
+
+    const intentsPlusExplicitDismiss = await request(app)
+      .patch("/api/v1/users/me/preferences")
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({
+        onboardingIntents: ["sell"],
+        businessOnboardingDismissed: true,
+        preferenceSource: "test_duplicate_dismiss_guard"
+      });
+    expect(intentsPlusExplicitDismiss.statusCode).toBe(200);
+    expect(intentsPlusExplicitDismiss.body.onboarding_intents).toEqual(["sell"]);
 
     const applyProfessionalPersona = await request(app)
       .patch("/api/v1/users/me/preferences")

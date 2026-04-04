@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ApiError } from "../lib/api";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
@@ -18,6 +19,7 @@ export function BusinessPersonalizerOverlay({ visible, onDismiss }: Props) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const queryClient = useQueryClient();
   const [selectedPersona, setSelectedPersona] = useState<UsagePersonaKey>("personal");
+  const [submitError, setSubmitError] = useState("");
 
   const completeMutation = useMutation({
     mutationFn: async (body: { usagePersona: UsagePersonaKey; navigate?: "CreatorEconomy" | "Onboarding" }) => {
@@ -31,7 +33,11 @@ export function BusinessPersonalizerOverlay({ visible, onDismiss }: Props) {
       });
       return { ...body, me };
     },
+    onMutate: () => {
+      setSubmitError("");
+    },
     onSuccess: async (body) => {
+      setSubmitError("");
       await applyMobileMeProfileAfterPreferencesPatch(queryClient, body.me);
       onDismiss();
       if (body.navigate === "CreatorEconomy") {
@@ -39,6 +45,9 @@ export function BusinessPersonalizerOverlay({ visible, onDismiss }: Props) {
       } else if (body.navigate === "Onboarding") {
         navigation.navigate("Onboarding");
       }
+    },
+    onError: (err: unknown) => {
+      setSubmitError(err instanceof ApiError ? err.message : "Could not save. Please try again.");
     }
   });
 
@@ -55,6 +64,11 @@ export function BusinessPersonalizerOverlay({ visible, onDismiss }: Props) {
           <Text style={styles.sub}>
             Choose what Deenly should optimize first. You can change this later in settings.
           </Text>
+          {submitError ? (
+            <Text style={styles.error} accessibilityRole="alert">
+              {submitError}
+            </Text>
+          ) : null}
           {USAGE_PERSONA_OPTIONS.map((option) => {
             const active = selectedPersona === option.key;
             return (
@@ -133,5 +147,6 @@ const styles = StyleSheet.create({
   },
   primaryText: { color: colors.onAccent, fontWeight: "700" },
   ghost: { paddingVertical: 8, alignItems: "center" },
-  ghostText: { color: colors.muted, fontWeight: "600" }
+  ghostText: { color: colors.muted, fontWeight: "600" },
+  error: { color: "#b91c1c", fontSize: 13, lineHeight: 18 }
 });

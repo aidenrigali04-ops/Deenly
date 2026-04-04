@@ -225,7 +225,7 @@ export function Nav() {
     );
 
   return (
-    <aside className="w-full shrink-0 rounded-panel border border-black/10 bg-card p-3 md:sticky md:top-6 md:w-[76px] md:self-start">
+    <aside className="glass-panel w-full shrink-0 p-3 md:sticky md:top-6 md:w-[76px] md:self-start">
       <div className="mb-4 flex items-center justify-between md:flex-col md:gap-4">
         <Link
           href="/home"

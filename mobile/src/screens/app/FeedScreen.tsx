@@ -356,7 +356,7 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.background
+    backgroundColor: colors.atmosphere
   },
   list: {
     flex: 1
@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
     gap: 6
   },
   headerCard: {
-    backgroundColor: colors.card,
+    backgroundColor: colors.glassFillStrong,
     borderColor: colors.borderSubtle,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.panel,

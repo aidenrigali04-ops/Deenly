@@ -75,6 +75,24 @@ a {
   @apply rounded-panel border border-black/10 bg-card p-4 shadow-soft;
 }
 
+/* Fixed gradient behind authenticated layout (glass aesthetic). */
+.app-shell-atmosphere {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(155deg, #e8edf5 0%, #f1edf8 42%, #f4f5f7 100%);
+}
+
+/* Translucent “liquid” panels — use on nav rail, sticky feed chrome, floating UI. */
+.glass-panel {
+  @apply rounded-panel border border-white/50 bg-white/60 shadow-soft backdrop-blur-2xl backdrop-saturate-150;
+}
+
+.glass-panel-subtle {
+  @apply rounded-control border border-white/40 bg-white/55 shadow-soft backdrop-blur-xl backdrop-saturate-150;
+}
+
 .input {
   @apply w-full rounded-control border border-black/10 bg-surface px-3 py-2.5 text-sm text-text placeholder:text-muted focus:border-black focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20;
 }

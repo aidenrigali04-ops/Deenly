@@ -56,6 +56,31 @@ export async function fetchEventsNear(params: {
   return apiRequest<{ items: EventRecord[] }>(`/events/near?${q.toString()}`);
 }
 
+export async function updateEvent(
+  id: number,
+  body: Partial<{
+    title: string;
+    description: string | null;
+    startsAt: string;
+    endsAt: string | null;
+    timezone: string | null;
+    isOnline: boolean;
+    onlineUrl: string | null;
+    addressDisplay: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    visibility: EventVisibility;
+    capacity: number | null;
+    status: EventStatus;
+  }>
+) {
+  return apiRequest<EventRecord>(`/events/${id}`, {
+    method: "PATCH",
+    auth: true,
+    body
+  });
+}
+
 export async function createEvent(body: {
   title: string;
   description?: string | null;
@@ -95,8 +120,13 @@ export async function setEventRsvp(id: number, status: "interested" | "going" | 
   });
 }
 
-export async function fetchEventChat(id: number, limit = 60) {
-  return apiRequest<{ items: EventChatMessage[] }>(`/events/${id}/chat?limit=${limit}`, {
+export async function fetchEventChat(id: number, opts?: { limit?: number; beforeId?: number }) {
+  const limit = opts?.limit ?? 60;
+  const q = new URLSearchParams({ limit: String(limit) });
+  if (opts?.beforeId != null) {
+    q.set("beforeId", String(opts.beforeId));
+  }
+  return apiRequest<{ items: EventChatMessage[] }>(`/events/${id}/chat?${q.toString()}`, {
     auth: true
   });
 }

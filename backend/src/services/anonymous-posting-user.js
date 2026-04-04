@@ -7,8 +7,8 @@ const GUEST_EMAIL = "deenly.guest.poster@internal.invalid";
 const GUEST_DISPLAY_NAME = "Guest";
 
 /**
- * User id for posts created without a Bearer token. Uses ANONYMOUS_POSTING_USER_ID when set,
- * otherwise ensures a dedicated internal user `deenly_guest` (lazy-created).
+ * User id for unauthenticated writes (posts, media, onboarding interests/preferences).
+ * Uses ANONYMOUS_POSTING_USER_ID when set, otherwise lazy-creates internal user `deenly_guest`.
  */
 async function getAnonymousPostingUserId(db, config) {
   if (config.anonymousPostingUserId != null) {

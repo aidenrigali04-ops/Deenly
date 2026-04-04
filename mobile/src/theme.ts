@@ -6,6 +6,8 @@ import { Platform } from "react-native";
  */
 export const colors = {
   background: "#f4f5f7",
+  /** Tab / stack roots can use transparent so the atmosphere gradient shows through. */
+  atmosphere: "transparent",
   surface: "#ffffff",
   card: "#ffffff",
   border: "rgba(0, 0, 0, 0.1)",
@@ -27,7 +29,17 @@ export const colors = {
   composerInputBg: "#FFFFFF",
   composerBorder: "#CBD5E1",
   mediaPreviewBg: "#FFFFFF",
-  mediaPreviewBorder: "#CBD5E1"
+  mediaPreviewBorder: "#CBD5E1",
+  /** Translucent surfaces (Android / fallback where blur is weak). */
+  glassFill: "rgba(255, 255, 255, 0.78)",
+  glassFillStrong: "rgba(252, 252, 254, 0.92)"
+};
+
+/** Soft multi-stop gradient behind main tabs (iOS-style light depth). */
+export const atmosphereGradient = {
+  colors: ["#e8edf5", "#f2eef8", "#f4f5f7"] as const,
+  start: { x: 0.1, y: 0 },
+  end: { x: 0.9, y: 1 }
 };
 
 /** Radii aligned with web `rounded-panel` / `rounded-control` / `rounded-pill`. */
