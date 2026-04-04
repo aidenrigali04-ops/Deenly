@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter } from "next/navigation";
 import { logout } from "@/lib/auth";
+import { apiRequest } from "@/lib/api";
 import { useSessionStore } from "@/store/session-store";
 
 function Icon({
@@ -174,6 +176,11 @@ const youRailLinks: RailLink[] = [
   { href: "/account", label: "Account", icon: "user" }
 ];
 
+type MeNavProfile = {
+  profile_kind?: "consumer" | "professional" | "business_interest" | null;
+  seller_checklist_completed_at?: string | null;
+};
+
 export function Nav() {
   const pathname = usePathname();
   const router = useRouter();
@@ -187,6 +194,20 @@ export function Nav() {
     Boolean(user?.email) &&
     Boolean(adminOwnerEmail) &&
     user?.email?.toLowerCase() === adminOwnerEmail;
+  const meProfileQuery = useQuery({
+    queryKey: ["nav-user-profile-kind"],
+    queryFn: () => apiRequest<MeNavProfile>("/users/me", { auth: true }),
+    enabled: Boolean(user),
+    staleTime: 60_000
+  });
+  const isSellerFocused = Boolean(
+    meProfileQuery.data?.profile_kind === "business_interest" || meProfileQuery.data?.seller_checklist_completed_at
+  );
+  const shouldShowSellingLinks =
+    isSellerFocused || pathname.startsWith("/create/product") || pathname.startsWith("/account/creator");
+  const visibleYouLinks = shouldShowSellingLinks
+    ? youRailLinks
+    : youRailLinks.filter((link) => link.href !== "/create/product" && link.href !== "/account/creator");
 
   return (
     <aside className="w-full shrink-0 rounded-panel border border-black/10 bg-card p-3 md:sticky md:top-6 md:w-[76px] md:self-start">
@@ -232,7 +253,7 @@ export function Nav() {
           <p className="col-span-full hidden text-[10px] uppercase tracking-[0.18em] text-muted md:block">
             You &amp; create
           </p>
-          {youRailLinks.map((link) => {
+          {visibleYouLinks.map((link) => {
             const active =
               link.href === "/account"
                 ? pathname.startsWith("/account") && !pathname.startsWith("/account/creator")

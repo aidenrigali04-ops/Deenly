@@ -1,17 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchSessionMe } from "@/lib/auth";
 import { apiRequest } from "@/lib/api";
 import { ErrorState, LoadingState } from "@/components/states";
+import { USAGE_PERSONA_OPTIONS, type UsagePersonaKey } from "../../../../../shared/onboarding-options";
 
 type MeProfile = {
   likes_received_count: number;
   likes_given_count: number;
+  profile_kind?: "consumer" | "professional" | "business_interest" | null;
 };
 
 export default function AccountSettingsPage() {
+  const queryClient = useQueryClient();
   const sessionQuery = useQuery({
     queryKey: ["account-settings-session-me"],
     queryFn: () => fetchSessionMe()
@@ -20,6 +23,19 @@ export default function AccountSettingsPage() {
     queryKey: ["account-profile-me"],
     queryFn: () => apiRequest<MeProfile>("/users/me", { auth: true }),
     enabled: Boolean(sessionQuery.data?.id)
+  });
+  const usagePersonaMutation = useMutation({
+    mutationFn: (usagePersona: UsagePersonaKey) =>
+      apiRequest("/users/me/preferences", {
+        method: "PATCH",
+        auth: true,
+        body: { usagePersona }
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["account-profile-me"] });
+      await queryClient.invalidateQueries({ queryKey: ["account-settings-session-me"] });
+      await queryClient.invalidateQueries({ queryKey: ["web-user-me-onboarding"] });
+    }
   });
 
   if (sessionQuery.isLoading) {
@@ -31,6 +47,12 @@ export default function AccountSettingsPage() {
 
   const user = sessionQuery.data;
   const likes = profileQuery.data;
+  const activePersona: UsagePersonaKey =
+    likes?.profile_kind === "business_interest"
+      ? "business"
+      : likes?.profile_kind === "professional"
+        ? "professional"
+        : "personal";
 
   return (
     <div className="page-stack mx-auto w-full max-w-2xl">
@@ -70,6 +92,32 @@ export default function AccountSettingsPage() {
               <p className="text-xs uppercase tracking-wide text-muted">Role</p>
               <p className="mt-1 font-medium text-text">{user.role}</p>
             </div>
+          </div>
+        </div>
+
+        <div className="surface-card px-6 py-6">
+          <h2 className="text-sm font-semibold text-text">How you use Deenly</h2>
+          <p className="mt-1 text-xs text-muted">Sets your default experience. You can change this anytime.</p>
+          <div className="mt-3 grid gap-2">
+            {USAGE_PERSONA_OPTIONS.map((option) => {
+              const active = activePersona === option.key;
+              return (
+                <button
+                  key={option.key}
+                  type="button"
+                  className={`rounded-control border px-3 py-2 text-left transition ${
+                    active
+                      ? "border-black bg-black/[0.03]"
+                      : "border-black/10 bg-surface hover:bg-black/[0.02]"
+                  }`}
+                  disabled={usagePersonaMutation.isPending}
+                  onClick={() => usagePersonaMutation.mutate(option.key)}
+                >
+                  <p className="text-sm font-semibold text-text">{option.label}</p>
+                  <p className="mt-1 text-xs text-muted">{option.subtitle}</p>
+                </button>
+              );
+            })}
           </div>
         </div>
 

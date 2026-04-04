@@ -10,7 +10,39 @@ const INTEREST_KEYS = new Set(["post", "marketplace", "reel"]);
 const FEED_TAB_PREFS = new Set(["for_you", "opportunities", "marketplace"]);
 const APP_LANDING_PREFS = new Set(["home", "marketplace"]);
 const ONBOARDING_INTENT_KEYS = new Set(["community", "shop", "sell", "b2b"]);
-const PROFILE_KINDS = new Set(["consumer", "business_interest"]);
+const PROFILE_KINDS = new Set(["consumer", "professional", "business_interest"]);
+const USAGE_PERSONAS = new Set(["personal", "professional", "business"]);
+const USAGE_PERSONA_CONFLICT_KEYS = new Set([
+  "defaultFeedTab",
+  "appLanding",
+  "onboardingIntents",
+  "profileKind",
+  "businessOnboardingStep",
+  "businessOnboardingDismissed"
+]);
+const USAGE_PERSONA_BUNDLES = {
+  personal: {
+    profileKind: "consumer",
+    onboardingIntents: ["community", "shop"],
+    defaultFeedTab: "for_you",
+    appLanding: "home",
+    businessOnboardingStep: 0
+  },
+  professional: {
+    profileKind: "professional",
+    onboardingIntents: ["community", "b2b"],
+    defaultFeedTab: "opportunities",
+    appLanding: "home",
+    businessOnboardingStep: 1
+  },
+  business: {
+    profileKind: "business_interest",
+    onboardingIntents: ["sell", "shop", "community"],
+    defaultFeedTab: "for_you",
+    appLanding: "home",
+    businessOnboardingStep: 2
+  }
+};
 
 function createUsersRouter({ db, config }) {
   const router = express.Router();
@@ -108,6 +140,39 @@ function createUsersRouter({ db, config }) {
       const vals = [];
       let i = 1;
 
+      if (Object.prototype.hasOwnProperty.call(body, "usagePersona")) {
+        const persona = String(body.usagePersona || "").trim();
+        if (!USAGE_PERSONAS.has(persona)) {
+          throw httpError(400, "usagePersona must be personal, professional, or business");
+        }
+        const hasConflicts = [...USAGE_PERSONA_CONFLICT_KEYS].some((key) =>
+          Object.prototype.hasOwnProperty.call(body, key)
+        );
+        if (hasConflicts) {
+          throw httpError(
+            400,
+            "usagePersona cannot be combined with defaultFeedTab, appLanding, onboardingIntents, profileKind, businessOnboardingStep, or businessOnboardingDismissed"
+          );
+        }
+        const bundle = USAGE_PERSONA_BUNDLES[persona];
+        sets.push(`profile_kind = $${i}`);
+        vals.push(bundle.profileKind);
+        i += 1;
+        sets.push(`onboarding_intents = $${i}::text[]`);
+        vals.push(bundle.onboardingIntents);
+        i += 1;
+        sets.push(`default_feed_tab = $${i}`);
+        vals.push(bundle.defaultFeedTab);
+        i += 1;
+        sets.push(`app_landing = $${i}`);
+        vals.push(bundle.appLanding);
+        i += 1;
+        sets.push(`business_onboarding_step = $${i}`);
+        vals.push(bundle.businessOnboardingStep);
+        i += 1;
+        sets.push("business_onboarding_dismissed_at = COALESCE(business_onboarding_dismissed_at, NOW())");
+      }
+
       if (Object.prototype.hasOwnProperty.call(body, "defaultFeedTab")) {
         const v = body.defaultFeedTab;
         if (v === null || v === "") {
@@ -166,7 +231,7 @@ function createUsersRouter({ db, config }) {
       if (Object.prototype.hasOwnProperty.call(body, "profileKind")) {
         const t = String(body.profileKind || "").trim();
         if (!PROFILE_KINDS.has(t)) {
-          throw httpError(400, "profileKind must be consumer or business_interest");
+          throw httpError(400, "profileKind must be consumer, professional, or business_interest");
         }
         sets.push(`profile_kind = $${i}`);
         vals.push(t);

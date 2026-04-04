@@ -34,3 +34,27 @@ export const APP_LANDING_OPTIONS: { key: AppLandingKey; label: string }[] = [
   { key: "home", label: "Home" },
   { key: "marketplace", label: "Marketplace feed" }
 ];
+
+export type UsagePersonaKey = "personal" | "professional" | "business";
+
+export const USAGE_PERSONA_OPTIONS: {
+  key: UsagePersonaKey;
+  label: string;
+  subtitle: string;
+}[] = [
+  {
+    key: "personal",
+    label: "Personal",
+    subtitle: "Stay connected with community, reflections, and offers that match your interests."
+  },
+  {
+    key: "professional",
+    label: "Professional",
+    subtitle: "Build credibility for your expertise and discover opportunities with more relevance."
+  },
+  {
+    key: "business",
+    label: "Business",
+    subtitle: "Grow with creator tools, products, and payouts when you are ready to sell."
+  }
+];

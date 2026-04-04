@@ -926,15 +926,32 @@ describeIfDatabase("integration api flows", () => {
       .set("Authorization", `Bearer ${userToken}`)
       .send({ onboardingIntents: ["shop", "community"] });
     expect(updateOnboardingIntents.statusCode).toBe(200);
+    expect(updateOnboardingIntents.body.onboarding_intents.sort()).toEqual(["community", "shop"].sort());
+
+    const applyProfessionalPersona = await request(app)
+      .patch("/api/v1/users/me/preferences")
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({ usagePersona: "professional" });
+    expect(applyProfessionalPersona.statusCode).toBe(200);
+    expect(applyProfessionalPersona.body.profile_kind).toBe("professional");
+    expect(applyProfessionalPersona.body.default_feed_tab).toBe("opportunities");
+    expect(applyProfessionalPersona.body.app_landing).toBe("home");
+    expect(applyProfessionalPersona.body.business_onboarding_dismissed_at).toBeTruthy();
+    expect(Array.isArray(applyProfessionalPersona.body.onboarding_intents)).toBe(true);
+    expect(applyProfessionalPersona.body.onboarding_intents.sort()).toEqual(["community", "b2b"].sort());
+
+    const invalidMixedPersona = await request(app)
+      .patch("/api/v1/users/me/preferences")
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({ usagePersona: "personal", defaultFeedTab: "marketplace" });
+    expect(invalidMixedPersona.statusCode).toBe(400);
 
     const feedWithPersonaIntents = await request(app)
       .get("/api/v1/feed?feedTab=for_you&limit=5")
       .set("Authorization", `Bearer ${userToken}`);
     expect(feedWithPersonaIntents.statusCode).toBe(200);
     expect(Array.isArray(feedWithPersonaIntents.body.persona.onboardingIntents)).toBe(true);
-    expect(feedWithPersonaIntents.body.persona.onboardingIntents.sort()).toEqual(
-      ["community", "shop"].sort()
-    );
+    expect(feedWithPersonaIntents.body.persona.onboardingIntents.sort()).toEqual(["community", "b2b"].sort());
 
     const waitlist = await request(app).post("/api/v1/beta/waitlist").send({
       email: "beta-user@example.com",

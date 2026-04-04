@@ -8,6 +8,7 @@ import { SettingsRow, SettingsSection } from "../../components/SettingsSection";
 import { colors, radii, shadows, spacing } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { fetchMyEarnings, fetchConnectStatus, formatMinorCurrency } from "../../lib/monetization";
+import { USAGE_PERSONA_OPTIONS, type UsagePersonaKey } from "../../lib/onboarding-options";
 import {
   disconnectInstagram,
   fetchInstagramOAuthUrl,
@@ -34,6 +35,7 @@ export function SettingsScreen({ navigation }: Props) {
         following_count: number;
         likes_received_count: number;
         likes_given_count: number;
+        profile_kind?: "consumer" | "professional" | "business_interest" | null;
       }>("/users/me", { auth: true }),
     enabled: Boolean(sessionQuery.data?.id)
   });
@@ -59,6 +61,18 @@ export function SettingsScreen({ navigation }: Props) {
       await queryClient.invalidateQueries({ queryKey: ["mobile-instagram-status"] });
     }
   });
+  const usagePersonaMutation = useMutation({
+    mutationFn: (usagePersona: UsagePersonaKey) =>
+      apiRequest("/users/me/preferences", {
+        method: "PATCH",
+        auth: true,
+        body: { usagePersona }
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["mobile-account-profile"] });
+      await queryClient.invalidateQueries({ queryKey: ["mobile-user-me-onboarding"] });
+    }
+  });
 
   const handleLogout = async () => {
     await logout();
@@ -71,6 +85,12 @@ export function SettingsScreen({ navigation }: Props) {
     String(sessionQuery.data.email || "").toLowerCase() === adminOwnerEmail;
 
   const p = profileQuery.data;
+  const activePersona: UsagePersonaKey =
+    p?.profile_kind === "business_interest"
+      ? "business"
+      : p?.profile_kind === "professional"
+        ? "professional"
+        : "personal";
 
   const sessionEmail = sessionQuery.data?.email?.trim();
 
@@ -139,6 +159,25 @@ export function SettingsScreen({ navigation }: Props) {
           subtitle="Alerts and updates."
           onPress={() => navigation.navigate("Notifications")}
         />
+      </SettingsSection>
+
+      <SettingsSection title="How you use Deenly">
+        <View style={styles.personaList}>
+          {USAGE_PERSONA_OPTIONS.map((option) => {
+            const active = activePersona === option.key;
+            return (
+              <Pressable
+                key={option.key}
+                style={[styles.personaCard, active ? styles.personaCardActive : null]}
+                onPress={() => usagePersonaMutation.mutate(option.key)}
+                disabled={usagePersonaMutation.isPending}
+              >
+                <Text style={styles.personaTitle}>{option.label}</Text>
+                <Text style={styles.personaSub}>{option.subtitle}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
       </SettingsSection>
 
       <SettingsSection title="Account">
@@ -245,6 +284,21 @@ const styles = StyleSheet.create({
     marginBottom: 2
   },
   summaryLine: { fontSize: 14, color: colors.text, lineHeight: 20, letterSpacing: -0.2 },
+  personaList: { gap: 10 },
+  personaCard: {
+    borderRadius: radii.control,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderSubtle,
+    backgroundColor: colors.card,
+    paddingVertical: 10,
+    paddingHorizontal: 12
+  },
+  personaCardActive: {
+    borderColor: colors.text,
+    backgroundColor: colors.subtleFill
+  },
+  personaTitle: { color: colors.text, fontSize: 14, fontWeight: "700" },
+  personaSub: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 2 },
   igCard: {
     borderRadius: radii.panel,
     borderWidth: StyleSheet.hairlineWidth,

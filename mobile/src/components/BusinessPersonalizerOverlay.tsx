@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { apiRequest } from "../lib/api";
+import { USAGE_PERSONA_OPTIONS, type UsagePersonaKey } from "../lib/onboarding-options";
 import { colors, radii } from "../theme";
 import type { RootStackParamList } from "../navigation/AppNavigator";
 
@@ -14,29 +16,22 @@ type Props = {
 export function BusinessPersonalizerOverlay({ visible, onDismiss }: Props) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const queryClient = useQueryClient();
+  const [selectedPersona, setSelectedPersona] = useState<UsagePersonaKey>("personal");
 
   const completeMutation = useMutation({
-    mutationFn: (body: {
-      step: number;
-      profileKind: "consumer" | "business_interest";
-      navigate?: "AddBusiness" | "CreatorEconomy";
-    }) =>
+    mutationFn: (body: { usagePersona: UsagePersonaKey; navigate?: "CreatorEconomy" }) =>
       apiRequest("/users/me/preferences", {
         method: "PATCH",
         auth: true,
         body: {
-          businessOnboardingDismissed: true,
-          businessOnboardingStep: body.step,
-          profileKind: body.profileKind
+          usagePersona: body.usagePersona
         }
       }).then(() => body),
     onSuccess: async (body) => {
       await queryClient.invalidateQueries({ queryKey: ["mobile-user-me-onboarding"] });
       await queryClient.invalidateQueries({ queryKey: ["mobile-account-profile"] });
       onDismiss();
-      if (body.navigate === "AddBusiness") {
-        navigation.navigate("AddBusiness");
-      } else if (body.navigate === "CreatorEconomy") {
+      if (body.navigate === "CreatorEconomy") {
         navigation.navigate("CreatorEconomy");
       }
     }
@@ -47,39 +42,46 @@ export function BusinessPersonalizerOverlay({ visible, onDismiss }: Props) {
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={() => completeMutation.mutate({ step: 0, profileKind: "consumer" })}
+      onRequestClose={() => completeMutation.mutate({ usagePersona: "personal" })}
     >
       <View style={styles.backdrop}>
         <View style={styles.card}>
           <Text style={styles.title}>Personalize your experience</Text>
           <Text style={styles.sub}>
-            Add your business to your profile (and the map) when you&apos;re ready — or connect payments, or skip
-            and stay personal.
+            Choose what Deenly should optimize first. You can change this later in settings.
           </Text>
+          {USAGE_PERSONA_OPTIONS.map((option) => {
+            const active = selectedPersona === option.key;
+            return (
+              <Pressable
+                key={option.key}
+                style={[styles.choice, active ? styles.choiceActive : null]}
+                disabled={completeMutation.isPending}
+                onPress={() => setSelectedPersona(option.key)}
+              >
+                <Text style={styles.choiceTitle}>{option.label}</Text>
+                <Text style={styles.choiceSub}>{option.subtitle}</Text>
+              </Pressable>
+            );
+          })}
           <Pressable
             style={styles.primary}
             disabled={completeMutation.isPending}
             onPress={() =>
-              completeMutation.mutate({ step: 1, profileKind: "business_interest", navigate: "AddBusiness" })
+              completeMutation.mutate({
+                usagePersona: selectedPersona,
+                navigate: selectedPersona === "business" ? "CreatorEconomy" : undefined
+              })
             }
           >
-            <Text style={styles.primaryText}>Add business to profile</Text>
-          </Pressable>
-          <Pressable
-            style={styles.secondary}
-            disabled={completeMutation.isPending}
-            onPress={() =>
-              completeMutation.mutate({ step: 2, profileKind: "business_interest", navigate: "CreatorEconomy" })
-            }
-          >
-            <Text style={styles.secondaryText}>Stripe & selling</Text>
+            <Text style={styles.primaryText}>{completeMutation.isPending ? "Saving..." : "Continue"}</Text>
           </Pressable>
           <Pressable
             style={styles.ghost}
             disabled={completeMutation.isPending}
-            onPress={() => completeMutation.mutate({ step: 0, profileKind: "consumer" })}
+            onPress={() => completeMutation.mutate({ usagePersona: "personal" })}
           >
-            <Text style={styles.ghostText}>{completeMutation.isPending ? "Saving…" : "Skip for now"}</Text>
+            <Text style={styles.ghostText}>I'll decide later</Text>
           </Pressable>
         </View>
       </View>
@@ -104,6 +106,20 @@ const styles = StyleSheet.create({
   },
   title: { color: colors.text, fontSize: 18, fontWeight: "700" },
   sub: { color: colors.muted, fontSize: 14, lineHeight: 20 },
+  choice: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: radii.control,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: colors.surface
+  },
+  choiceActive: {
+    borderColor: colors.text,
+    backgroundColor: colors.subtleFill
+  },
+  choiceTitle: { color: colors.text, fontWeight: "700", fontSize: 14 },
+  choiceSub: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 2 },
   primary: {
     backgroundColor: colors.accent,
     borderRadius: radii.control,
@@ -111,15 +127,6 @@ const styles = StyleSheet.create({
     alignItems: "center"
   },
   primaryText: { color: colors.onAccent, fontWeight: "700" },
-  secondary: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    borderRadius: radii.control,
-    paddingVertical: 12,
-    alignItems: "center",
-    backgroundColor: colors.surface
-  },
-  secondaryText: { color: colors.text, fontWeight: "600" },
   ghost: { paddingVertical: 8, alignItems: "center" },
   ghostText: { color: colors.muted, fontWeight: "600" }
 });
