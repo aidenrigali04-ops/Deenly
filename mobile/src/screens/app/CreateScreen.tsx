@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Image,
   KeyboardAvoidingView,
@@ -14,6 +14,10 @@ import {
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import { AppVideoView } from "../../components/AppVideoView";
+import {
+  PostPublishSuccessOverlay,
+  type PostPublishVariant
+} from "../../components/PostPublishSuccessOverlay";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { CompositeScreenProps } from "@react-navigation/native";
@@ -108,6 +112,10 @@ export function CreateScreen({ navigation }: Props) {
   const [selectedFile, setSelectedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [productFile, setProductFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [publishCelebration, setPublishCelebration] = useState<{
+    postId: number;
+    variant: PostPublishVariant;
+  } | null>(null);
   const [error, setError] = useState("");
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
   const [sellThis, setSellThis] = useState(false);
@@ -195,6 +203,15 @@ export function CreateScreen({ navigation }: Props) {
     retry: false
   });
   const igConnected = Boolean(instagramQuery.data?.connected);
+
+  const handlePublishOverlayFinish = useCallback(() => {
+    setPublishCelebration((c) => {
+      if (c?.postId != null) {
+        navigation.navigate("PostDetail", { id: c.postId });
+      }
+      return null;
+    });
+  }, [navigation]);
 
   useEffect(() => {
     if (sellThis) {
@@ -479,7 +496,9 @@ export function CreateScreen({ navigation }: Props) {
       setAudienceTarget("both");
       setBusinessCategory("");
       setCrossPostToInstagram(false);
-      navigation.navigate("PostDetail", { id: post.id });
+      const celebrationVariant: PostPublishVariant =
+        postType === "reel" ? "reel" : postType === "marketplace" ? "marketplace" : "post";
+      setPublishCelebration({ postId: post.id, variant: celebrationVariant });
       void trackClientExperimentEvent({
         eventName: "task_completed",
         persona,
@@ -1049,6 +1068,11 @@ export function CreateScreen({ navigation }: Props) {
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
+      <PostPublishSuccessOverlay
+        visible={publishCelebration != null}
+        variant={publishCelebration?.variant ?? "post"}
+        onFinish={handlePublishOverlayFinish}
+      />
     </View>
   );
 }

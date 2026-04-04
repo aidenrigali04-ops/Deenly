@@ -1,6 +1,7 @@
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { BlurView } from "expo-blur";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { supportsNativeBlur } from "../lib/blur-support";
 import { colors } from "../theme";
 
 type Props = {
@@ -10,10 +11,11 @@ type Props = {
 
 export function HomeTopBar({ onPressCreate, onPressAlerts }: Props) {
   const insets = useSafeAreaInsets();
+  const useBlur = supportsNativeBlur();
   return (
     <View style={[styles.wrap, { paddingTop: insets.top + 6 }]} accessibilityRole="header">
-      {Platform.OS === "ios" || Platform.OS === "web" ? (
-        <BlurView intensity={Platform.OS === "web" ? 48 : 72} tint="light" style={StyleSheet.absoluteFill} />
+      {useBlur ? (
+        <BlurView intensity={72} tint="light" style={StyleSheet.absoluteFill} />
       ) : (
         <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.glassFill }]} />
       )}

@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useCallback, useState } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { PostPublishSuccessOverlay } from "../../components/PostPublishSuccessOverlay";
 import { ApiError } from "../../lib/api";
 import { createEvent } from "../../lib/events";
 import { colors, radii } from "../../theme";
@@ -10,11 +11,22 @@ import type { RootStackParamList } from "../../navigation/AppNavigator";
 type Props = NativeStackScreenProps<RootStackParamList, "CreateEvent">;
 
 export function CreateEventScreen({ navigation }: Props) {
+  const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [startsAtInput, setStartsAtInput] = useState("");
   const [addressDisplay, setAddressDisplay] = useState("");
   const [onlineUrl, setOnlineUrl] = useState("");
+  const [createdEventId, setCreatedEventId] = useState<number | null>(null);
+
+  const handleEventCelebrationFinish = useCallback(() => {
+    setCreatedEventId((id) => {
+      if (id != null) {
+        navigation.replace("EventDetail", { id });
+      }
+      return null;
+    });
+  }, [navigation]);
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -33,17 +45,19 @@ export function CreateEventScreen({ navigation }: Props) {
         source: "mobile_create"
       });
     },
-    onSuccess: (event) => {
-      Alert.alert("Event created", "Your event is live.", [
-        {
-          text: "View event",
-          onPress: () => navigation.replace("EventDetail", { id: event.id })
-        }
-      ]);
+    onSuccess: async (event) => {
+      await queryClient.invalidateQueries({ queryKey: ["mobile-events-near"] });
+      setTitle("");
+      setDescription("");
+      setStartsAtInput("");
+      setAddressDisplay("");
+      setOnlineUrl("");
+      setCreatedEventId(event.id);
     }
   });
 
   return (
+    <View style={styles.wrapper}>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.heading}>Create event</Text>
       <Text style={styles.subtle}>Quick setup for discovery, RSVP, and event chat.</Text>
@@ -104,10 +118,17 @@ export function CreateEventScreen({ navigation }: Props) {
         </Pressable>
       </View>
     </ScrollView>
+    <PostPublishSuccessOverlay
+      visible={createdEventId != null}
+      variant="event"
+      onFinish={handleEventCelebrationFinish}
+    />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: { flex: 1 },
   container: { flex: 1, backgroundColor: colors.background },
   content: { padding: 14, gap: 10, paddingBottom: 36 },
   heading: { color: colors.text, fontSize: 24, fontWeight: "700" },
