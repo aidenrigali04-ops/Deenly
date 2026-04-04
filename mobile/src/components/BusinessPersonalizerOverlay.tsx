@@ -7,6 +7,7 @@ import { apiRequest } from "../lib/api";
 import { USAGE_PERSONA_OPTIONS, type UsagePersonaKey } from "../lib/onboarding-options";
 import { colors, radii } from "../theme";
 import type { RootStackParamList } from "../navigation/AppNavigator";
+import { applyMobileMeProfileAfterPreferencesPatch } from "../lib/apply-me-profile-preferences-response";
 
 type Props = {
   visible: boolean;
@@ -19,18 +20,19 @@ export function BusinessPersonalizerOverlay({ visible, onDismiss }: Props) {
   const [selectedPersona, setSelectedPersona] = useState<UsagePersonaKey>("personal");
 
   const completeMutation = useMutation({
-    mutationFn: (body: { usagePersona: UsagePersonaKey; navigate?: "CreatorEconomy" | "Onboarding" }) =>
-      apiRequest("/users/me/preferences", {
+    mutationFn: async (body: { usagePersona: UsagePersonaKey; navigate?: "CreatorEconomy" | "Onboarding" }) => {
+      const me = await apiRequest("/users/me/preferences", {
         method: "PATCH",
         auth: true,
         body: {
           usagePersona: body.usagePersona,
           preferenceSource: "mobile_overlay"
         }
-      }).then(() => body),
+      });
+      return { ...body, me };
+    },
     onSuccess: async (body) => {
-      await queryClient.invalidateQueries({ queryKey: ["mobile-user-me-onboarding"] });
-      await queryClient.invalidateQueries({ queryKey: ["mobile-account-profile"] });
+      await applyMobileMeProfileAfterPreferencesPatch(queryClient, body.me);
       onDismiss();
       if (body.navigate === "CreatorEconomy") {
         navigation.navigate("CreatorEconomy");

@@ -6,6 +6,7 @@ import { fetchSessionMe } from "@/lib/auth";
 import { apiRequest } from "@/lib/api";
 import { ErrorState, LoadingState } from "@/components/states";
 import { USAGE_PERSONA_OPTIONS, type UsagePersonaKey } from "../../../../../shared/onboarding-options";
+import { applyWebMeProfileAfterPreferencesPatch } from "@/lib/apply-me-profile-preferences-response";
 
 type MeProfile = {
   likes_received_count: number;
@@ -31,15 +32,14 @@ export default function AccountSettingsPage() {
   });
   const usagePersonaMutation = useMutation({
     mutationFn: (usagePersona: UsagePersonaKey) =>
-      apiRequest("/users/me/preferences", {
+      apiRequest<MeProfile>("/users/me/preferences", {
         method: "PATCH",
         auth: true,
         body: { usagePersona, preferenceSource: "web_settings" }
       }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["account-profile-me"] });
+    onSuccess: async (me) => {
+      await applyWebMeProfileAfterPreferencesPatch(queryClient, me);
       await queryClient.invalidateQueries({ queryKey: ["account-settings-session-me"] });
-      await queryClient.invalidateQueries({ queryKey: ["web-user-me-onboarding"] });
     }
   });
 

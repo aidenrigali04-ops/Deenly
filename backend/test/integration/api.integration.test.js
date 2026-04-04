@@ -150,6 +150,28 @@ describeIfDatabase("integration api flows", () => {
     expect(connect.body.connected).toBe(false);
   });
 
+  it("creates a text post without authentication using internal guest author", async () => {
+    const create = await request(app).post("/api/v1/posts").send({
+      postType: "post",
+      content: "Hello from an unauthenticated publisher"
+    });
+    expect(create.statusCode).toBe(201);
+    expect(create.body.id).toBeDefined();
+    expect(typeof create.body.author_id).toBe("number");
+
+    const anonSell = await request(app)
+      .post("/api/v1/posts")
+      .send({
+        postType: "post",
+        content: "Should require sign-in",
+        sellThis: true,
+        productType: "digital",
+        priceMinor: 500,
+        deliveryMediaKey: "mock-delivery-key"
+      });
+    expect(anonSell.statusCode).toBe(401);
+  });
+
   it("registers, logs in, and fetches session user", async () => {
     const register = await request(app).post("/api/v1/auth/register").send({
       email: "tester@example.com",

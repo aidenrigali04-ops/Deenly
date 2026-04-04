@@ -119,7 +119,7 @@ export function FeedView({
 }: FeedViewProps) {
   const [postType, setPostType] = useState(fixedPostType);
   const [feedTab, setFeedTab] = useState<FeedTabId>(fixedFeedTab ?? "for_you");
-  const appliedProfileDefaultTab = useRef(false);
+  const lastInitialFeedTab = useRef<FeedTabId | undefined>(undefined);
   const [followingOnly, setFollowingOnly] = useState(false);
   const [busyAuthorId, setBusyAuthorId] = useState<number | null>(null);
   const user = useSessionStore((state) => state.user);
@@ -259,15 +259,20 @@ export function FeedView({
   useEffect(() => {
     if (fixedFeedTab) {
       setFeedTab(fixedFeedTab);
-    }
-  }, [fixedFeedTab]);
-
-  useEffect(() => {
-    if (fixedFeedTab || appliedProfileDefaultTab.current || !initialFeedTab) {
       return;
     }
-    setFeedTab(initialFeedTab);
-    appliedProfileDefaultTab.current = true;
+    if (!initialFeedTab) {
+      return;
+    }
+    if (lastInitialFeedTab.current === undefined) {
+      setFeedTab(initialFeedTab);
+      lastInitialFeedTab.current = initialFeedTab;
+      return;
+    }
+    if (lastInitialFeedTab.current !== initialFeedTab) {
+      setFeedTab(initialFeedTab);
+      lastInitialFeedTab.current = initialFeedTab;
+    }
   }, [fixedFeedTab, initialFeedTab]);
 
   const emptySubtitle =

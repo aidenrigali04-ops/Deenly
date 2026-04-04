@@ -460,7 +460,14 @@ export function CreatePostComposer({
         throw new Error("Add image or video media to cross-post to Instagram.");
       }
 
+      if (crossPostToInstagram && !userId) {
+        throw new Error("Sign in to cross-post to Instagram.");
+      }
+
       if (sellThis) {
+        if (!userId) {
+          throw new Error("Sign in to attach a product to your post.");
+        }
         const pid = Number(selectedProductId);
         if (!pid) {
           throw new Error("Choose a product from your catalog, or create one in Creator hub.");

@@ -1,7 +1,8 @@
 const express = require("express");
 const jwt = require("jsonwebtoken");
 const { requireAccessSecret } = require("../../middleware/auth");
-const { authenticate } = require("../../middleware/auth");
+const { authenticate, authenticateOptional } = require("../../middleware/auth");
+const { resolvePostAuthorUserId } = require("../../services/anonymous-posting-user");
 const { asyncHandler } = require("../../utils/async-handler");
 const { optionalString, requireString } = require("../../utils/validators");
 const { httpError } = require("../../utils/http-error");
@@ -30,6 +31,10 @@ function createPostsRouter({ db, config, analytics, mediaStorage, enqueueInstagr
 
   const router = express.Router();
   const authMiddleware = authenticate({
+    config: config || { jwtAccessSecret: process.env.JWT_ACCESS_SECRET || "" },
+    db
+  });
+  const optionalAuth = authenticateOptional({
     config: config || { jwtAccessSecret: process.env.JWT_ACCESS_SECRET || "" },
     db
   });
@@ -121,22 +126,8 @@ function createPostsRouter({ db, config, analytics, mediaStorage, enqueueInstagr
 
   router.post(
     "/",
-    authMiddleware,
+    optionalAuth,
     asyncHandler(async (req, res) => {
-      const restriction = await db.query(
-        `SELECT id
-         FROM user_restrictions
-         WHERE user_id = $1
-           AND is_active = true
-           AND restriction_type IN ('posting_suspended', 'account_suspended')
-           AND (ends_at IS NULL OR ends_at > NOW())
-         LIMIT 1`,
-        [req.user.id]
-      );
-      if (restriction.rowCount > 0) {
-        throw httpError(403, "Posting is temporarily restricted");
-      }
-
       const postType = requireString(req.body?.postType, "postType", 3, 32);
       if (!POST_TYPES.has(postType)) {
         throw httpError(400, "postType must be post, marketplace, or reel");
@@ -156,10 +147,34 @@ function createPostsRouter({ db, config, analytics, mediaStorage, enqueueInstagr
       const tags = parseTags(req.body?.tags);
       const { isBusinessPost, ctaLabel, ctaUrl } = validateBusinessFields(req.body);
       const sellThis = validateSellThis(req.body?.sellThisConfig || req.body);
+      if (!req.user && sellThis.sellThis) {
+        throw httpError(401, "Sign in to publish posts with attached products");
+      }
       const audienceTarget = parseAudienceTarget(req.body?.audienceTarget);
       const businessCategory = parseBusinessCategory(req.body?.businessCategory);
       const mediaMimeType = optionalString(req.body?.mediaMimeType, "mediaMimeType", 128);
       const crossPostToInstagram = Boolean(req.body?.crossPostToInstagram);
+      if (!req.user && crossPostToInstagram) {
+        throw httpError(401, "Sign in to cross-post to Instagram");
+      }
+
+      const authorId = await resolvePostAuthorUserId(req, db, config);
+
+      const restriction = await db.query(
+        `SELECT id
+         FROM user_restrictions
+         WHERE user_id = $1
+           AND is_active = true
+           AND restriction_type IN ('posting_suspended', 'account_suspended')
+           AND (ends_at IS NULL OR ends_at > NOW())
+         LIMIT 1`,
+        [authorId]
+      );
+      if (restriction.rowCount > 0) {
+        throw httpError(403, "Posting is temporarily restricted");
+      }
+
+      const actorUsername = req.user?.username || "guest";
 
       if (postType === "reel") {
         if (sellThis.sellThis) {
@@ -183,7 +198,7 @@ function createPostsRouter({ db, config, analytics, mediaStorage, enqueueInstagr
            RETURNING id, author_id, post_type, content, media_url, media_upload_key, media_mime_type, style_tag, media_status,
                      visibility_status, is_business_post, cta_label, cta_url, tags, audience_target, business_category, created_at, updated_at`,
           [
-            req.user.id,
+            authorId,
             postType,
             content,
             mediaUrl,
@@ -201,7 +216,7 @@ function createPostsRouter({ db, config, analytics, mediaStorage, enqueueInstagr
         if (sellThis.sellThis) {
           const title =
             optionalString(req.body?.productTitle, "productTitle", 180) ||
-            `${postType.replace("_", " ")} by ${req.user.username || "creator"}`;
+            `${postType.replace("_", " ")} by ${actorUsername || "creator"}`;
           const description =
             optionalString(req.body?.productDescription, "productDescription", 2000) ||
             optionalString(content, "content", 2000);
@@ -226,7 +241,7 @@ function createPostsRouter({ db, config, analytics, mediaStorage, enqueueInstagr
              VALUES ($1, $2, $3, $4, 'usd', $5, $6, $7, $8, $9, $10, $11, $12, $13, 'published')
              RETURNING id`,
             [
-              req.user.id,
+              authorId,
               title,
               description || null,
               sellThis.priceMinor,
@@ -256,12 +271,12 @@ function createPostsRouter({ db, config, analytics, mediaStorage, enqueueInstagr
       }
       if (analytics) {
         await analytics.trackEvent("create_post", {
-          userId: req.user.id,
+          userId: authorId,
           postId: result.rows[0].id,
           postType
         });
         await analytics.trackEvent("post_create", {
-          userId: req.user.id,
+          userId: authorId,
           postId: result.rows[0].id,
           postType,
           isBusinessPost,
@@ -269,7 +284,7 @@ function createPostsRouter({ db, config, analytics, mediaStorage, enqueueInstagr
         });
       }
 
-      if (typeof enqueueInstagramCrossPost === "function" && crossPostToInstagram) {
+      if (typeof enqueueInstagramCrossPost === "function" && crossPostToInstagram && req.user) {
         void enqueueInstagramCrossPost({
           userId: req.user.id,
           postRow: result.rows[0],

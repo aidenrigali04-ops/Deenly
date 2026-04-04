@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { apiRequest } from "@/lib/api";
 import { useSessionStore } from "@/store/session-store";
 import { USAGE_PERSONA_OPTIONS, type UsagePersonaKey } from "../../../shared/onboarding-options";
+import { applyWebMeProfileAfterPreferencesPatch } from "@/lib/apply-me-profile-preferences-response";
 
 type MeOnboarding = {
   business_onboarding_dismissed_at?: string | null;
@@ -25,17 +26,19 @@ export function BusinessPersonalizerDialog() {
   });
 
   const completeMutation = useMutation({
-    mutationFn: (body: { usagePersona: UsagePersonaKey; navigate?: "creator" | "onboarding" }) =>
-      apiRequest("/users/me/preferences", {
+    mutationFn: async (body: { usagePersona: UsagePersonaKey; navigate?: "creator" | "onboarding" }) => {
+      const me = await apiRequest("/users/me/preferences", {
         method: "PATCH",
         auth: true,
         body: {
           usagePersona: body.usagePersona,
           preferenceSource: "web_overlay"
         }
-      }).then(() => body),
+      });
+      return { ...body, me };
+    },
     onSuccess: async (body) => {
-      await queryClient.invalidateQueries({ queryKey: ["web-user-me-onboarding"] });
+      await applyWebMeProfileAfterPreferencesPatch(queryClient, body.me);
       if (body.navigate === "creator") {
         router.push("/account/creator");
       } else if (body.navigate === "onboarding") {

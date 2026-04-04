@@ -274,7 +274,18 @@ function loadEnv(envSource = process.env) {
       envSource.ROLLOUT_GUARDRAIL_OPEN_REPORTS_MAX,
       200,
       "ROLLOUT_GUARDRAIL_OPEN_REPORTS_MAX"
-    )
+    ),
+    anonymousPostingUserId: (() => {
+      const raw = envSource.ANONYMOUS_POSTING_USER_ID;
+      if (raw === undefined || raw === null || String(raw).trim() === "") {
+        return null;
+      }
+      const n = Number(raw);
+      if (!Number.isInteger(n) || n <= 0) {
+        throw new Error("ANONYMOUS_POSTING_USER_ID must be a positive integer when set");
+      }
+      return n;
+    })()
   };
 
   if (!VALID_DB_SSL_MODES.has(config.dbSslMode)) {

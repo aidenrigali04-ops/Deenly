@@ -14,6 +14,7 @@ import {
   fetchInstagramOAuthUrl,
   fetchInstagramStatus
 } from "../../lib/instagram";
+import { applyMobileMeProfileAfterPreferencesPatch } from "../../lib/apply-me-profile-preferences-response";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Settings">;
 
@@ -72,9 +73,8 @@ export function SettingsScreen({ navigation }: Props) {
         auth: true,
         body: { usagePersona, preferenceSource: "mobile_settings" }
       }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["mobile-account-profile"] });
-      await queryClient.invalidateQueries({ queryKey: ["mobile-user-me-onboarding"] });
+    onSuccess: async (me) => {
+      await applyMobileMeProfileAfterPreferencesPatch(queryClient, me);
     }
   });
 

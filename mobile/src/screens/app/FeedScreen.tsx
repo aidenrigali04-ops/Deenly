@@ -55,7 +55,7 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
   const [feedTab, setFeedTab] = useState<"for_you" | "opportunities" | "marketplace">(
     feedVariant === "marketplace" ? "marketplace" : "for_you"
   );
-  const appliedProfileDefaultTab = useRef(false);
+  const lastServerDefaultFeedTab = useRef<"for_you" | "opportunities" | "marketplace" | undefined>(undefined);
   const feedQueryKey = useMemo(
     () => ["mobile-feed", followingOnly, feedTab] as const,
     [followingOnly, feedTab]
@@ -73,13 +73,21 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
   });
 
   useEffect(() => {
-    if (appliedProfileDefaultTab.current || feedVariant !== "home") {
+    if (feedVariant !== "home") {
       return;
     }
     const t = profileQuery.data?.default_feed_tab;
-    if (t === "for_you" || t === "opportunities" || t === "marketplace") {
+    if (t !== "for_you" && t !== "opportunities" && t !== "marketplace") {
+      return;
+    }
+    if (lastServerDefaultFeedTab.current === undefined) {
       setFeedTab(t);
-      appliedProfileDefaultTab.current = true;
+      lastServerDefaultFeedTab.current = t;
+      return;
+    }
+    if (lastServerDefaultFeedTab.current !== t) {
+      setFeedTab(t);
+      lastServerDefaultFeedTab.current = t;
     }
   }, [feedVariant, profileQuery.data?.default_feed_tab]);
 

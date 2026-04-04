@@ -1,5 +1,6 @@
 const express = require("express");
-const { authenticate } = require("../../middleware/auth");
+const { authenticateOptional } = require("../../middleware/auth");
+const { resolvePostAuthorUserId } = require("../../services/anonymous-posting-user");
 const { asyncHandler } = require("../../utils/async-handler");
 const { httpError } = require("../../utils/http-error");
 const { requireString } = require("../../utils/validators");
@@ -8,7 +9,7 @@ const ALLOWED_MEDIA_TYPES = new Set(["image", "video"]);
 
 function createMediaRouter({ db, config, mediaStorage, analytics }) {
   const router = express.Router();
-  const authMiddleware = authenticate({ config, db });
+  const optionalAuth = authenticateOptional({ config, db });
 
   if (!mediaStorage) {
     throw new Error("mediaStorage is required");
@@ -16,7 +17,7 @@ function createMediaRouter({ db, config, mediaStorage, analytics }) {
 
   router.post(
     "/upload-signature",
-    authMiddleware,
+    optionalAuth,
     asyncHandler(async (req, res) => {
       const mediaType = requireString(req.body?.mediaType, "mediaType", 3, 32);
       if (!ALLOWED_MEDIA_TYPES.has(mediaType)) {
@@ -37,8 +38,10 @@ function createMediaRouter({ db, config, mediaStorage, analytics }) {
         throw httpError(400, "fileSizeBytes must be a positive number");
       }
 
+      const userId = await resolvePostAuthorUserId(req, db, config);
+
       const signature = await mediaStorage.createUploadSignature({
-        userId: req.user.id,
+        userId,
         mediaType,
         mimeType,
         fileSizeBytes,
@@ -47,7 +50,7 @@ function createMediaRouter({ db, config, mediaStorage, analytics }) {
 
       if (analytics) {
         await analytics.trackEvent("media_upload_signature_created", {
-          userId: req.user.id,
+          userId,
           mediaType,
           mimeType
         });
@@ -59,7 +62,7 @@ function createMediaRouter({ db, config, mediaStorage, analytics }) {
 
   router.post(
     "/posts/:postId/attach",
-    authMiddleware,
+    optionalAuth,
     asyncHandler(async (req, res) => {
       const postId = Number(req.params.postId);
       const mediaKey = requireString(req.body?.mediaKey, "mediaKey", 5, 512);
@@ -89,9 +92,11 @@ function createMediaRouter({ db, config, mediaStorage, analytics }) {
         throw httpError(400, "durationSeconds must be a positive number");
       }
 
+      const userId = await resolvePostAuthorUserId(req, db, config);
+
       const postTypeResult = await db.query(
         `SELECT post_type FROM posts WHERE id = $1 AND author_id = $2 LIMIT 1`,
-        [postId, req.user.id]
+        [postId, userId]
       );
       if (postTypeResult.rowCount === 0) {
         throw httpError(404, "Post not found");
@@ -125,7 +130,7 @@ function createMediaRouter({ db, config, mediaStorage, analytics }) {
          WHERE id = $7
            AND author_id = $8
          RETURNING id, media_upload_key, media_url, media_mime_type, media_status, media_processed_at, updated_at`;
-      const fullParams = [mediaKey, mediaUrl, mimeType, fileSizeBytes, durationSeconds, mediaStatus, postId, req.user.id];
+      const fullParams = [mediaKey, mediaUrl, mimeType, fileSizeBytes, durationSeconds, mediaStatus, postId, userId];
       const result = await db.query(fullUpdateSql, fullParams);
 
       if (result.rowCount === 0) {
@@ -134,7 +139,7 @@ function createMediaRouter({ db, config, mediaStorage, analytics }) {
 
       if (analytics) {
         await analytics.trackEvent("media_attached_to_post", {
-          userId: req.user.id,
+          userId,
           postId
         });
       }

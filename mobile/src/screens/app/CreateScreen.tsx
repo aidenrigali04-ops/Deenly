@@ -312,7 +312,18 @@ export function CreateScreen({ navigation }: Props) {
         throw new Error("Attach image or video to cross-post to Instagram.");
       }
 
+      const meIdForPost = sessionQuery.data?.id;
+      if (crossPostToInstagram && !meIdForPost) {
+        throw new Error("Sign in to cross-post to Instagram.");
+      }
+
       const inlineSellThisProduct = Boolean(sellThis && selectedProductId == null);
+      if (inlineSellThisProduct && !meIdForPost) {
+        throw new Error("Sign in to publish a post with a new product.");
+      }
+      if (selectedProductId != null && !meIdForPost) {
+        throw new Error("Sign in to attach a product to your post.");
+      }
 
       let deliveryMediaKey: string | undefined;
       if (inlineSellThisProduct && productType === "digital") {
