@@ -102,6 +102,9 @@ describeIfDatabase("integration api flows", () => {
     await db.query("TRUNCATE TABLE interactions RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE instagram_cross_posts RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE posts RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE event_chat_messages RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE event_rsvps RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE events RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE business_listings RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE follows RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE refresh_tokens RESTART IDENTITY CASCADE");
@@ -1588,5 +1591,74 @@ describeIfDatabase("integration api flows", () => {
     expect(near.statusCode).toBe(200);
     expect(Array.isArray(near.body.items)).toBe(true);
     expect(near.body.items.some((b) => b.id === bizId)).toBe(true);
+  });
+
+  it("supports event create, rsvp-gated chat, and near listing", async () => {
+    const ts = Date.now();
+    const hostReg = await request(app).post("/api/v1/auth/register").send({
+      email: `event-host-${ts}@example.com`,
+      username: `event_host_${ts}`,
+      password: "StrongPass123",
+      displayName: "Event Host"
+    });
+    expect(hostReg.statusCode).toBe(201);
+
+    const viewerReg = await request(app).post("/api/v1/auth/register").send({
+      email: `event-viewer-${ts}@example.com`,
+      username: `event_viewer_${ts}`,
+      password: "StrongPass123",
+      displayName: "Event Viewer"
+    });
+    expect(viewerReg.statusCode).toBe(201);
+
+    const hostToken = hostReg.body.tokens.accessToken;
+    const viewerToken = viewerReg.body.tokens.accessToken;
+
+    const createEvent = await request(app)
+      .post("/api/v1/events")
+      .set("Authorization", `Bearer ${hostToken}`)
+      .send({
+        title: "Integration Test Event",
+        description: "RSVP flow",
+        startsAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+        latitude: 40.73,
+        longitude: -73.99,
+        visibility: "public",
+        source: "integration_test"
+      });
+    expect(createEvent.statusCode).toBe(201);
+    const eventId = createEvent.body.id;
+
+    const near = await request(app)
+      .get("/api/v1/events/near?lat=40.73&lng=-73.99&radiusM=100000&limit=20")
+      .set("Authorization", `Bearer ${viewerToken}`);
+    expect(near.statusCode).toBe(200);
+    expect(near.body.items.some((row) => row.id === eventId)).toBe(true);
+
+    const chatDenied = await request(app)
+      .get(`/api/v1/events/${eventId}/chat`)
+      .set("Authorization", `Bearer ${viewerToken}`);
+    expect(chatDenied.statusCode).toBe(403);
+
+    const rsvpGoing = await request(app)
+      .post(`/api/v1/events/${eventId}/rsvp`)
+      .set("Authorization", `Bearer ${viewerToken}`)
+      .send({ status: "going", source: "integration_test" });
+    expect(rsvpGoing.statusCode).toBe(200);
+    expect(rsvpGoing.body.status).toBe("going");
+
+    const chatAllowed = await request(app)
+      .post(`/api/v1/events/${eventId}/chat`)
+      .set("Authorization", `Bearer ${viewerToken}`)
+      .send({ body: "Excited for this event!", source: "integration_test" });
+    expect(chatAllowed.statusCode).toBe(201);
+    expect(chatAllowed.body.body).toBe("Excited for this event!");
+
+    const chatList = await request(app)
+      .get(`/api/v1/events/${eventId}/chat`)
+      .set("Authorization", `Bearer ${viewerToken}`);
+    expect(chatList.statusCode).toBe(200);
+    expect(Array.isArray(chatList.body.items)).toBe(true);
+    expect(chatList.body.items.length).toBeGreaterThan(0);
   });
 });

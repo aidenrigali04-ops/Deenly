@@ -15,6 +15,7 @@ import { CompositeScreenProps } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { apiRequest } from "../../lib/api";
 import { fetchBusinessesNear } from "../../lib/businesses";
+import { fetchEventsNear } from "../../lib/events";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { colors, radii } from "../../theme";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
@@ -38,6 +39,7 @@ type Props = CompositeScreenProps<
 >;
 
 type Mode = "search" | "near";
+type NearKind = "all" | "businesses" | "events";
 
 const FALLBACK = { lat: 40.7128, lng: -74.006 };
 
@@ -48,6 +50,7 @@ export function SearchScreen({ navigation }: Props) {
   const [geo, setGeo] = useState<{ lat: number; lng: number } | null>(null);
   const [geoNote, setGeoNote] = useState<string | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
+  const [nearKind, setNearKind] = useState<NearKind>("all");
 
   useEffect(() => {
     if (mode !== "near") return;
@@ -103,6 +106,11 @@ export function SearchScreen({ navigation }: Props) {
   const nearQuery = useQuery({
     queryKey: ["mobile-businesses-near", geo?.lat, geo?.lng],
     queryFn: () => fetchBusinessesNear({ lat: geo!.lat, lng: geo!.lng }),
+    enabled: mode === "near" && Boolean(geo)
+  });
+  const nearEventsQuery = useQuery({
+    queryKey: ["mobile-events-near", geo?.lat, geo?.lng],
+    queryFn: () => fetchEventsNear({ lat: geo!.lat, lng: geo!.lng }),
     enabled: mode === "near" && Boolean(geo)
   });
   const profileQuery = useQuery({
@@ -194,22 +202,54 @@ export function SearchScreen({ navigation }: Props) {
               </Pressable>
               {nearQuery.isLoading ? <LoadingState label="Loading nearby…" /> : null}
               {nearQuery.error ? <ErrorState message={(nearQuery.error as Error).message} /> : null}
-              <Text style={styles.title}>Nearby businesses</Text>
-              {(nearQuery.data?.items || []).length === 0 && !nearQuery.isLoading ? (
+              {nearEventsQuery.isLoading ? <LoadingState label="Loading nearby events…" /> : null}
+              {nearEventsQuery.error ? <ErrorState message={(nearEventsQuery.error as Error).message} /> : null}
+              <View style={styles.modeRow}>
+                {(["all", "businesses", "events"] as const).map((kind) => (
+                  <Pressable
+                    key={kind}
+                    style={[styles.modeChip, nearKind === kind ? styles.modeChipOn : null]}
+                    onPress={() => setNearKind(kind)}
+                  >
+                    <Text style={[styles.modeChipText, nearKind === kind ? styles.modeChipTextOn : null]}>
+                      {kind === "all" ? "All" : kind === "businesses" ? "Businesses" : "Events"}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Text style={styles.title}>Nearby</Text>
+              {(nearQuery.data?.items || []).length === 0 &&
+              (nearEventsQuery.data?.items || []).length === 0 &&
+              !nearQuery.isLoading &&
+              !nearEventsQuery.isLoading ? (
                 <EmptyState
-                  title="No businesses yet"
-                  subtitle={canUseBusinessDirectoryTools ? "Add yours from the button above." : "Business directory listing is available in Business mode."}
+                  title="No nearby events or businesses"
+                  subtitle={canUseBusinessDirectoryTools ? "Add your business from the button above." : "Try another area."}
                 />
               ) : null}
-              {(nearQuery.data?.items || []).map((biz) => (
+              {(nearKind === "all" || nearKind === "businesses" ? nearQuery.data?.items || [] : []).map((biz) => (
                 <Pressable
                   key={biz.id}
                   style={styles.bizRow}
                   onPress={() => navigation.navigate("BusinessDetail", { id: biz.id })}
                 >
                   <Text style={styles.item}>{biz.name}</Text>
+                  <Text style={styles.muted}>Business</Text>
                   {typeof biz.distanceM === "number" ? (
                     <Text style={styles.muted}>{(biz.distanceM / 1000).toFixed(1)} km</Text>
+                  ) : null}
+                </Pressable>
+              ))}
+              {(nearKind === "all" || nearKind === "events" ? nearEventsQuery.data?.items || [] : []).map((event) => (
+                <Pressable
+                  key={`event-${event.id}`}
+                  style={styles.bizRow}
+                  onPress={() => navigation.navigate("EventDetail", { id: event.id })}
+                >
+                  <Text style={styles.item}>{event.title}</Text>
+                  <Text style={styles.muted}>Event · {new Date(event.startsAt).toLocaleDateString()}</Text>
+                  {typeof event.distanceM === "number" ? (
+                    <Text style={styles.muted}>{(event.distanceM / 1000).toFixed(1)} km</Text>
                   ) : null}
                 </Pressable>
               ))}

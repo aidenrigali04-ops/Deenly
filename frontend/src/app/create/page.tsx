@@ -27,7 +27,14 @@ export default function CreatePage() {
           >
             Create a product
           </Link>{" "}
-          instead.
+          instead. Running a meetup or session?{" "}
+          <Link
+            href="/create/event"
+            className="text-sky-600 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
+          >
+            Create an event
+          </Link>
+          .
         </p>
       </header>
 

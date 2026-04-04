@@ -46,6 +46,8 @@ import { EditProfileScreen } from "../screens/app/EditProfileScreen";
 import { PurchasesScreen } from "../screens/app/PurchasesScreen";
 import { NavigateAppScreen } from "../screens/app/NavigateAppScreen";
 import { AdminHubScreen } from "../screens/app/AdminHubScreen";
+import { CreateEventScreen } from "../screens/app/CreateEventScreen";
+import { EventDetailScreen } from "../screens/app/EventDetailScreen";
 import { NavTabIcon } from "../components/icons/NavTabIcon";
 import { BusinessPersonalizerOverlay } from "../components/BusinessPersonalizerOverlay";
 
@@ -94,6 +96,8 @@ export type RootStackParamList = {
   Purchases: undefined;
   NavigateApp: undefined;
   AdminHub: undefined;
+  CreateEvent: undefined;
+  EventDetail: { id: number };
 };
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
@@ -320,7 +324,9 @@ export function AppNavigator() {
               <RootStack.Screen name="SalahSettings" component={SalahSettingsScreen} options={{ title: "Salah Settings" }} />
               <RootStack.Screen name="CreatorEconomy" component={CreatorEconomyScreen} options={{ title: "Creator hub" }} />
               <RootStack.Screen name="CreateProduct" component={CreateProductScreen} options={{ title: "Add product" }} />
+              <RootStack.Screen name="CreateEvent" component={CreateEventScreen} options={{ title: "Create event" }} />
               <RootStack.Screen name="ProductDetail" component={ProductDetailScreen} options={{ title: "Product" }} />
+              <RootStack.Screen name="EventDetail" component={EventDetailScreen} options={{ title: "Event" }} />
               <RootStack.Screen name="AddBusiness" component={AddBusinessScreen} options={{ title: "Add business" }} />
               <RootStack.Screen name="BusinessDetail" component={BusinessDetailScreen} options={{ title: "Business" }} />
               <RootStack.Screen

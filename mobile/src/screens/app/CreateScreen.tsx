@@ -428,16 +428,26 @@ export function CreateScreen({ navigation }: Props) {
         ]}
       >
         <Text style={styles.headerTitle}>Create New Post</Text>
-        {canCreateProducts ? (
+        <View style={styles.headerActions}>
           <Pressable
-            onPress={() => navigation.navigate("CreateProduct")}
+            onPress={() => navigation.navigate("CreateEvent")}
             style={({ pressed }) => [styles.headerProductLink, pressed && styles.pressableSoft]}
             accessibilityRole="button"
-            accessibilityLabel="Add product without a post"
+            accessibilityLabel="Create an event"
           >
-            <Text style={styles.headerProductLinkText}>Add product</Text>
+            <Text style={styles.headerProductLinkText}>Add event</Text>
           </Pressable>
-        ) : null}
+          {canCreateProducts ? (
+            <Pressable
+              onPress={() => navigation.navigate("CreateProduct")}
+              style={({ pressed }) => [styles.headerProductLink, pressed && styles.pressableSoft]}
+              accessibilityRole="button"
+              accessibilityLabel="Add product without a post"
+            >
+              <Text style={styles.headerProductLinkText}>Add product</Text>
+            </Pressable>
+          ) : null}
+        </View>
       </View>
       <KeyboardAvoidingView
         style={styles.flex}
@@ -978,6 +988,11 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 14,
     fontWeight: "700"
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8
   },
   scrollContent: {
     paddingHorizontal: spacing.screenHorizontal,

@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { apiRequest } from "@/lib/api";
 import { fetchBusinessesNear } from "@/lib/businesses";
+import { fetchEventsNear } from "@/lib/events";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 
 type UserResult = {
@@ -45,12 +46,14 @@ type PostResult = {
 };
 
 type Mode = "search" | "near";
+type NearType = "businesses" | "events" | "all";
 
 export default function SearchPage() {
   const [mode, setMode] = useState<Mode>("search");
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [geo, setGeo] = useState<{ lat: number; lng: number } | null>(null);
+  const [nearType, setNearType] = useState<NearType>("all");
   const [geoError, setGeoError] = useState<string | null>(null);
   const [geoPending, setGeoPending] = useState(false);
 
@@ -81,6 +84,11 @@ export default function SearchPage() {
   const nearQuery = useQuery({
     queryKey: ["businesses-near", geo?.lat, geo?.lng],
     queryFn: () => fetchBusinessesNear({ lat: geo!.lat, lng: geo!.lng, radiusM: 25_000, limit: 50 }),
+    enabled: mode === "near" && Boolean(geo)
+  });
+  const nearEventsQuery = useQuery({
+    queryKey: ["events-near", geo?.lat, geo?.lng],
+    queryFn: () => fetchEventsNear({ lat: geo!.lat, lng: geo!.lng, radiusM: 25_000, limit: 50 }),
     enabled: mode === "near" && Boolean(geo)
   });
 
@@ -220,22 +228,56 @@ export default function SearchPage() {
               </div>
               {nearQuery.isLoading ? <LoadingState label="Loading nearby businesses…" /> : null}
               {nearQuery.error ? <ErrorState message={(nearQuery.error as Error).message} /> : null}
+              {nearEventsQuery.isLoading ? <LoadingState label="Loading nearby events…" /> : null}
+              {nearEventsQuery.error ? <ErrorState message={(nearEventsQuery.error as Error).message} /> : null}
+              <div className="flex flex-wrap gap-2">
+                {(["all", "businesses", "events"] as const).map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    className={`rounded-pill border px-3 py-1.5 text-xs font-semibold transition ${
+                      nearType === type ? "border-text bg-text text-background" : "border-black/15 text-muted hover:bg-black/[0.04]"
+                    }`}
+                    onClick={() => setNearType(type)}
+                  >
+                    {type === "all" ? "All" : type === "businesses" ? "Businesses" : "Events"}
+                  </button>
+                ))}
+              </div>
               <div className="surface-card space-y-2 rounded-panel border border-black/10 p-3">
                 <h2 className="text-lg font-semibold">Nearby</h2>
-                {(nearQuery.data?.items || []).length === 0 && !nearQuery.isLoading ? (
+                {(nearQuery.data?.items || []).length === 0 &&
+                (nearEventsQuery.data?.items || []).length === 0 &&
+                !nearQuery.isLoading &&
+                !nearEventsQuery.isLoading ? (
                   <EmptyState title="No businesses yet" subtitle="Be the first to add one." />
                 ) : null}
-                {(nearQuery.data?.items || []).map((biz) => (
+                {(nearType === "all" || nearType === "businesses"
+                  ? nearQuery.data?.items || []
+                  : []
+                ).map((biz) => (
+                  <Link key={`biz-${biz.id}`} href={`/businesses/${biz.id}`} className="block rounded-lg border border-black/10 p-3 hover:bg-black/[0.03]">
+                    <p className="font-medium">{biz.name}</p>
+                    <p className="text-xs uppercase tracking-wide text-muted">Business</p>
+                    {typeof biz.distanceM === "number" ? <p className="text-xs text-muted">{(biz.distanceM / 1000).toFixed(1)} km away</p> : null}
+                    {biz.category ? <p className="text-xs text-muted">{biz.category}</p> : null}
+                  </Link>
+                ))}
+                {(nearType === "all" || nearType === "events"
+                  ? nearEventsQuery.data?.items || []
+                  : []
+                ).map((event) => (
                   <Link
-                    key={biz.id}
-                    href={`/businesses/${biz.id}`}
+                    key={`event-${event.id}`}
+                    href={`/events/${event.id}`}
                     className="block rounded-lg border border-black/10 p-3 hover:bg-black/[0.03]"
                   >
-                    <p className="font-medium">{biz.name}</p>
-                    {typeof biz.distanceM === "number" ? (
-                      <p className="text-xs text-muted">{(biz.distanceM / 1000).toFixed(1)} km away</p>
+                    <p className="font-medium">{event.title}</p>
+                    <p className="text-xs uppercase tracking-wide text-muted">Event</p>
+                    <p className="text-xs text-muted">{new Date(event.startsAt).toLocaleString()}</p>
+                    {typeof event.distanceM === "number" ? (
+                      <p className="text-xs text-muted">{(event.distanceM / 1000).toFixed(1)} km away</p>
                     ) : null}
-                    {biz.category ? <p className="text-xs text-muted">{biz.category}</p> : null}
                   </Link>
                 ))}
               </div>

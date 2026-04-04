@@ -253,7 +253,9 @@ function loadEnv(envSource = process.env) {
       return Math.min(365, n);
     })(),
     fulfillmentEmailEnabled: parseBoolean(envSource.FULFILLMENT_EMAIL_ENABLED, true),
-    fulfillmentSmsEnabled: parseBoolean(envSource.FULFILLMENT_SMS_ENABLED, true)
+    fulfillmentSmsEnabled: parseBoolean(envSource.FULFILLMENT_SMS_ENABLED, true),
+    eventsFeatureEnabled: parseBoolean(envSource.EVENTS_FEATURE_ENABLED, true),
+    eventsChatEnabled: parseBoolean(envSource.EVENTS_CHAT_ENABLED, true)
   };
 
   if (!VALID_DB_SSL_MODES.has(config.dbSslMode)) {
