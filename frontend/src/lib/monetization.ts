@@ -124,6 +124,15 @@ export type StripeProductImportRow = {
   productActive: boolean;
 };
 
+export type StripeProductIdImportResponse =
+  | { draft: ProductImportDraft; provenance: { stripeProductId: string; stripePriceId: string } }
+  | {
+      message: string;
+      stripeProductId: string;
+      needsPriceSelection: true;
+      items: StripeProductImportRow[];
+    };
+
 export async function fetchStripeProductImportList(params?: { limit?: number; startingAfter?: string | null }) {
   const qs = new URLSearchParams();
   if (params?.limit != null) {
@@ -144,6 +153,14 @@ export async function importProductDraftFromStripe(body: { stripeProductId: stri
     "/monetization/products/import/stripe",
     { method: "POST", auth: true, body }
   );
+}
+
+export async function importProductDraftFromStripeProductId(stripeProductId: string) {
+  return apiRequest<StripeProductIdImportResponse>("/monetization/products/import/stripe/product-id", {
+    method: "POST",
+    auth: true,
+    body: { stripeProductId }
+  });
 }
 
 export async function importProductDraftFromUrl(url: string) {

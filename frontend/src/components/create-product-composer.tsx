@@ -11,6 +11,7 @@ import {
   fetchConnectStatus,
   fetchStripeProductImportList,
   importProductDraftFromStripe,
+  importProductDraftFromStripeProductId,
   importProductDraftFromUrl,
   estimateCreatorNet,
   formatMinorCurrency,
@@ -121,6 +122,7 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
   const [stripeImportItems, setStripeImportItems] = useState<StripeProductImportRow[]>([]);
   const [stripeImportBusy, setStripeImportBusy] = useState(false);
   const [stripePickBusy, setStripePickBusy] = useState(false);
+  const [stripeProductIdInput, setStripeProductIdInput] = useState("");
   const [urlImportInput, setUrlImportInput] = useState("");
   const [urlImportBusy, setUrlImportBusy] = useState(false);
   const [importError, setImportError] = useState("");
@@ -431,6 +433,65 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
             }}
           >
             {stripeImportBusy ? "Loading Stripe…" : "Load Stripe prices"}
+          </button>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <div className="min-w-0 flex-1 space-y-1">
+            <label className="text-xs text-muted" htmlFor="cp-import-stripe-product-id">
+              Stripe Product ID
+            </label>
+            <input
+              id="cp-import-stripe-product-id"
+              className="input bg-white text-sm"
+              placeholder="prod_..."
+              value={stripeProductIdInput}
+              onChange={(e) => setStripeProductIdInput(e.target.value)}
+              autoCapitalize="off"
+            />
+          </div>
+          <button
+            type="button"
+            className="btn-secondary shrink-0 px-3 py-2 text-sm"
+            disabled={stripePickBusy}
+            onClick={() => {
+              const stripeProductId = stripeProductIdInput.trim();
+              if (!stripeProductId) {
+                setImportError("Enter a Stripe Product ID (prod_...).");
+                return;
+              }
+              setImportError("");
+              setStripePickBusy(true);
+              void (async () => {
+                try {
+                  const r = await importProductDraftFromStripeProductId(stripeProductId);
+                  if ("needsPriceSelection" in r && r.needsPriceSelection) {
+                    setStripeImportItems(r.items || []);
+                    setImportError(r.message || "Multiple prices found. Pick one below.");
+                    return;
+                  }
+                  if (!("draft" in r)) {
+                    setImportError("Could not import from Stripe Product ID.");
+                    return;
+                  }
+                  applyImportedDraft(r.draft, {
+                    setTitle: setNewProductTitle,
+                    setDescription: setNewProductDescription,
+                    setCurrency: setNewProductCurrency,
+                    setShowAdvanced: setShowPriceMinorAdvanced,
+                    setPriceUsd: setNewProductPriceUsd,
+                    setPriceMinorRaw: setNewProductPriceMinorRaw,
+                    setProductType: setNewProductType,
+                    setWebsiteUrl: setNewProductWebsiteUrl
+                  });
+                } catch (err) {
+                  setImportError(err instanceof ApiError ? err.message : "Could not import from Stripe Product ID.");
+                } finally {
+                  setStripePickBusy(false);
+                }
+              })();
+            }}
+          >
+            {stripePickBusy ? "Importing…" : "Import from Product ID"}
           </button>
         </div>
         {stripeImportItems.length > 0 ? (

@@ -1149,6 +1149,118 @@ describeIfDatabase("integration api flows", () => {
     expect(catalogMissing.statusCode).toBe(404);
   });
 
+  it("imports from stripe product id and requests price selection when needed", async () => {
+    const mockMonetizationGateway = {
+      createCheckoutSession: jest.fn(),
+      constructWebhookEvent: jest.fn(),
+      retrieveCheckoutSession: jest.fn(),
+      createConnectedAccount: jest.fn(),
+      retrieveConnectedAccount: jest.fn(),
+      createOnboardingLink: jest.fn(),
+      createDashboardLink: jest.fn(),
+      listConnectAccountPrices: jest.fn(async () => ({ data: [], has_more: false })),
+      listConnectAccountPricesByProduct: jest
+        .fn()
+        .mockResolvedValueOnce({
+          data: [
+            {
+              id: "price_multi_1",
+              unit_amount: 1200,
+              currency: "usd",
+              recurring: null,
+              product: { id: "prod_abc123", name: "Consulting Call", active: true }
+            },
+            {
+              id: "price_multi_2",
+              unit_amount: 2500,
+              currency: "usd",
+              recurring: null,
+              product: { id: "prod_abc123", name: "Consulting Call", active: true }
+            }
+          ]
+        })
+        .mockResolvedValueOnce({
+          data: [
+            {
+              id: "price_single_1",
+              unit_amount: 2500,
+              currency: "usd",
+              recurring: null,
+              product: {
+                id: "prod_abc123",
+                name: "Consulting Call",
+                description: "Private session",
+                active: true
+              }
+            }
+          ]
+        }),
+      retrieveConnectAccountPrice: jest.fn(async () => ({
+        id: "price_single_1",
+        unit_amount: 2500,
+        currency: "usd",
+        recurring: null,
+        product: {
+          id: "prod_abc123",
+          name: "Consulting Call",
+          description: "Private session",
+          active: true
+        }
+      })),
+      retrieveConnectAccountProduct: jest.fn()
+    };
+
+    const testApp = createApp({
+      config,
+      logger,
+      db,
+      analytics,
+      mediaStorage,
+      pushNotifications,
+      monetizationGateway: mockMonetizationGateway
+    });
+
+    const seller = await request(testApp).post("/api/v1/auth/register").send({
+      email: "stripe-product-import@example.com",
+      username: "stripe_product_import",
+      password: "StrongPass123",
+      displayName: "Stripe Product Import"
+    });
+    expect(seller.statusCode).toBe(201);
+    const token = seller.body.tokens.accessToken;
+
+    const persona = await request(testApp)
+      .patch("/api/v1/users/me/preferences")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ usagePersona: "professional", preferenceSource: "test" });
+    expect(persona.statusCode).toBe(200);
+
+    await db.query(
+      `INSERT INTO creator_payout_accounts (
+         user_id, stripe_account_id, charges_enabled, payouts_enabled, details_submitted, country
+       ) VALUES ($1, 'acct_test_import_pid', true, true, true, 'US')`,
+      [seller.body.user.id]
+    );
+
+    const multiPrice = await request(testApp)
+      .post("/api/v1/monetization/products/import/stripe/product-id")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ stripeProductId: "prod_abc123" });
+    expect(multiPrice.statusCode).toBe(409);
+    expect(multiPrice.body.needsPriceSelection).toBe(true);
+    expect(Array.isArray(multiPrice.body.items)).toBe(true);
+    expect(multiPrice.body.items.length).toBe(2);
+
+    const singlePrice = await request(testApp)
+      .post("/api/v1/monetization/products/import/stripe/product-id")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ stripeProductId: "prod_abc123" });
+    expect(singlePrice.statusCode).toBe(200);
+    expect(singlePrice.body.draft.title).toBe("Consulting Call");
+    expect(singlePrice.body.draft.priceMinor).toBe(2500);
+    expect(singlePrice.body.provenance.stripePriceId).toBe("price_single_1");
+  });
+
   it("blocks personal profiles from creator-only monetization operations", async () => {
     const user = await request(app).post("/api/v1/auth/register").send({
       email: "personal-blocked@example.com",

@@ -173,6 +173,20 @@ function createMonetizationGateway({ config }) {
     );
   }
 
+  async function listConnectAccountPricesByProduct({ stripeAccountId, productId, limit = 30 }) {
+    const client = requireStripeClient();
+    const cap = Math.min(Math.max(Number(limit) || 30, 1), 100);
+    return client.prices.list(
+      {
+        active: true,
+        product: String(productId || "").trim(),
+        limit: cap,
+        expand: ["data.product"]
+      },
+      { stripeAccount: stripeAccountId }
+    );
+  }
+
   async function retrieveConnectAccountPrice({ stripeAccountId, priceId }) {
     const client = requireStripeClient();
     return client.prices.retrieve(
@@ -196,6 +210,7 @@ function createMonetizationGateway({ config }) {
     constructWebhookEvent,
     retrieveCheckoutSession,
     listConnectAccountPrices,
+    listConnectAccountPricesByProduct,
     retrieveConnectAccountPrice,
     retrieveConnectAccountProduct
   };

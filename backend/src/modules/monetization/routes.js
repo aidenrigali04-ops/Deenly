@@ -247,6 +247,38 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
     return caps;
   }
 
+  function mapStripeImportRowsFromPrices(priceRows) {
+    const items = [];
+    for (const price of priceRows || []) {
+      const unitAmount = Number(price.unit_amount);
+      if (!Number.isInteger(unitAmount) || unitAmount <= 0) {
+        continue;
+      }
+      const rawProduct = price.product;
+      const stripeProductId = typeof rawProduct === "string" ? rawProduct : rawProduct?.id;
+      if (!stripeProductId) {
+        continue;
+      }
+      const productName =
+        typeof rawProduct === "object" && rawProduct && !rawProduct.deleted ? String(rawProduct.name || "").trim() : "";
+      const productActive =
+        typeof rawProduct === "object" && rawProduct && !rawProduct.deleted ? Boolean(rawProduct.active) : true;
+      const recurring = price.recurring || null;
+      items.push({
+        stripePriceId: price.id,
+        stripeProductId,
+        title: productName || stripeProductId,
+        priceMinor: unitAmount,
+        currency: normalizeCurrency(price.currency),
+        recurring: recurring
+          ? { interval: recurring.interval, intervalCount: recurring.interval_count || 1 }
+          : null,
+        productActive
+      });
+    }
+    return items;
+  }
+
   async function loadPurchaseTokenEntitlementRow(rawToken, { enforceUseLimit = true } = {}) {
     const trimmed = String(rawToken || "").trim();
     if (trimmed.length < 20) {
@@ -682,42 +714,66 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
         limit,
         startingAfter
       });
-      const items = [];
-      for (const price of page.data || []) {
-        const unitAmount = Number(price.unit_amount);
-        if (!Number.isInteger(unitAmount) || unitAmount <= 0) {
-          continue;
-        }
-        const rawProduct = price.product;
-        const stripeProductId = typeof rawProduct === "string" ? rawProduct : rawProduct?.id;
-        if (!stripeProductId) {
-          continue;
-        }
-        const productName =
-          typeof rawProduct === "object" && rawProduct && !rawProduct.deleted
-            ? String(rawProduct.name || "").trim()
-            : "";
-        const productActive =
-          typeof rawProduct === "object" && rawProduct && !rawProduct.deleted
-            ? Boolean(rawProduct.active)
-            : true;
-        const recurring = price.recurring || null;
-        items.push({
-          stripePriceId: price.id,
-          stripeProductId,
-          title: productName || stripeProductId,
-          priceMinor: unitAmount,
-          currency: normalizeCurrency(price.currency),
-          recurring: recurring
-            ? { interval: recurring.interval, intervalCount: recurring.interval_count || 1 }
-            : null,
-          productActive
-        });
-      }
+      const items = mapStripeImportRowsFromPrices(page.data || []);
       res.status(200).json({
         items,
         hasMore: Boolean(page.has_more),
         nextStartingAfter: page.has_more && page.data?.length ? page.data[page.data.length - 1].id : null
+      });
+    })
+  );
+
+  router.post(
+    "/products/import/stripe/product-id",
+    authMiddleware,
+    productImportLimiter,
+    asyncHandler(async (req, res) => {
+      await requireCreatorOperationsCapability(req.user.id);
+      const stripeAccountId = await requireSellerStripeAccountId(req.user.id);
+      const stripeProductId = requireString(req.body?.stripeProductId, "stripeProductId", 3, 128);
+      const pricesPage = await monetizationGateway.listConnectAccountPricesByProduct({
+        stripeAccountId,
+        productId: stripeProductId,
+        limit: 50
+      });
+      const items = mapStripeImportRowsFromPrices(pricesPage.data || []).filter(
+        (item) => item.stripeProductId === stripeProductId
+      );
+      if (items.length === 0) {
+        throw httpError(404, "No active prices found for that Stripe product ID");
+      }
+      if (items.length > 1) {
+        return res.status(409).json({
+          message: "Multiple prices found. Choose one price to import.",
+          stripeProductId,
+          needsPriceSelection: true,
+          items
+        });
+      }
+      const selected = items[0];
+      const price = await monetizationGateway.retrieveConnectAccountPrice({
+        stripeAccountId,
+        priceId: selected.stripePriceId
+      });
+      let product =
+        typeof price.product === "object" && price.product && !price.product.deleted
+          ? price.product
+          : null;
+      if (!product) {
+        product = await monetizationGateway.retrieveConnectAccountProduct({
+          stripeAccountId,
+          productId: stripeProductId
+        });
+      }
+      let draft;
+      try {
+        draft = mapStripeProductPriceToDraft(product, price);
+      } catch (e) {
+        throw httpError(400, e?.message || "Could not map Stripe product");
+      }
+      return res.status(200).json({
+        draft,
+        provenance: { stripeProductId, stripePriceId: selected.stripePriceId }
       });
     })
   );

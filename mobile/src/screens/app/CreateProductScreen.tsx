@@ -27,6 +27,7 @@ import {
   fetchConnectStatus,
   fetchStripeProductImportList,
   importProductDraftFromStripe,
+  importProductDraftFromStripeProductId,
   importProductDraftFromUrl,
   estimateCreatorNet,
   formatMinorCurrency,
@@ -235,6 +236,7 @@ export function CreateProductScreen({ navigation, route }: Props) {
   const [stripeItems, setStripeItems] = useState<StripeProductImportRow[]>([]);
   const [stripeBusy, setStripeBusy] = useState(false);
   const [stripePickBusy, setStripePickBusy] = useState(false);
+  const [stripeProductIdInput, setStripeProductIdInput] = useState("");
   const [urlImportInput, setUrlImportInput] = useState("");
   const [urlImportBusy, setUrlImportBusy] = useState(false);
   const [importNotice, setImportNotice] = useState("");
@@ -643,6 +645,57 @@ export function CreateProductScreen({ navigation, route }: Props) {
           disabled={stripeBusy}
         >
           <Text style={styles.btnSecondaryText}>{stripeBusy ? "Loading Stripe…" : "Load Stripe prices"}</Text>
+        </Pressable>
+        <TextInput
+          style={styles.input}
+          placeholder="prod_... (Stripe Product ID)"
+          placeholderTextColor={colors.muted}
+          value={stripeProductIdInput}
+          onChangeText={setStripeProductIdInput}
+          autoCapitalize="none"
+        />
+        <Pressable
+          style={[styles.btnSecondary, stripePickBusy && styles.btnDisabled]}
+          disabled={stripePickBusy}
+          onPress={() => {
+            const stripeProductId = stripeProductIdInput.trim();
+            if (!stripeProductId) {
+              setImportNotice("Enter a Stripe Product ID (prod_...).");
+              return;
+            }
+            setImportNotice("");
+            setStripePickBusy(true);
+            void (async () => {
+              try {
+                const r = await importProductDraftFromStripeProductId(stripeProductId);
+                if ("needsPriceSelection" in r && r.needsPriceSelection) {
+                  setStripeItems(r.items || []);
+                  setImportNotice(r.message || "Multiple prices found. Choose one below.");
+                  return;
+                }
+                if (!("draft" in r)) {
+                  setImportNotice("Stripe Product ID import failed.");
+                  return;
+                }
+                applyDraftToForm(r.draft, {
+                  setTitle,
+                  setDescription,
+                  setCurrency,
+                  setPriceUsd,
+                  setPriceMinorOnly,
+                  setUseMinorPrice,
+                  setProductType,
+                  setWebsiteUrl
+                });
+              } catch (e) {
+                setImportNotice(e instanceof ApiError ? e.message : "Stripe Product ID import failed.");
+              } finally {
+                setStripePickBusy(false);
+              }
+            })();
+          }}
+        >
+          <Text style={styles.btnSecondaryText}>{stripePickBusy ? "Importing…" : "Import from Product ID"}</Text>
         </Pressable>
         {stripeItems.length > 0 ? (
           <View style={styles.stripeList}>
