@@ -104,6 +104,13 @@ export default function AccountSettingsPage() {
         <div className="surface-card px-6 py-6">
           <h2 className="text-sm font-semibold text-text">How you use Deenly</h2>
           <p className="mt-1 text-xs text-muted">Sets your default experience. You can change this anytime.</p>
+          {usagePersonaMutation.error ? (
+            <p className="mt-2 rounded-control border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
+              {usagePersonaMutation.error instanceof Error
+                ? usagePersonaMutation.error.message
+                : "Could not save settings right now. Please try again."}
+            </p>
+          ) : null}
           <div className="mt-3 grid gap-2">
             {USAGE_PERSONA_OPTIONS.map((option) => {
               const active = activePersona === option.key;

@@ -112,6 +112,10 @@ export type ProductImportDraft = {
   currency: string;
   productType: "digital" | "service" | "subscription";
   websiteUrl: string | null;
+  serviceDetails?: string | null;
+  deliveryMethod?: string | null;
+  audienceTarget?: "b2b" | "b2c" | "both" | null;
+  businessCategory?: string | null;
 };
 
 export type StripeProductImportRow = {

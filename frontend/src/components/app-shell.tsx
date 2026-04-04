@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { fetchSessionMe } from "@/lib/auth";
 import { clearTokens, getAccessToken } from "@/lib/storage";
+import { ApiError } from "@/lib/api";
 import { useSessionStore } from "@/store/session-store";
 import { Nav } from "@/components/nav";
 import { BusinessPersonalizerDialog } from "@/components/business-personalizer-dialog";
@@ -42,10 +43,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         if (!mounted) return;
         setUser(sessionUser);
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (!mounted) return;
-        clearTokens();
-        setUser(null);
+        // Only clear auth state when backend explicitly says token is invalid.
+        if (error instanceof ApiError && error.status === 401) {
+          clearTokens();
+          setUser(null);
+        }
       })
       .finally(() => {
         if (mounted) {

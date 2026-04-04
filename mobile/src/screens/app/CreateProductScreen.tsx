@@ -28,7 +28,6 @@ import {
   fetchStripeProductImportList,
   importProductDraftFromStripe,
   importProductDraftFromStripeProductId,
-  importProductDraftFromUrl,
   estimateCreatorNet,
   formatMinorCurrency,
   type CreatorProductDetail,
@@ -78,6 +77,10 @@ function applyDraftToForm(
     setUseMinorPrice: (v: boolean) => void;
     setProductType: (v: EditableProductType) => void;
     setWebsiteUrl: (v: string) => void;
+    setServiceDetails: (v: string) => void;
+    setDeliveryMethod: (v: string) => void;
+    setAudienceTarget: (v: "b2b" | "b2c" | "both") => void;
+    setBusinessCategory: (v: string) => void;
   }
 ) {
   set.setTitle(draft.title);
@@ -94,9 +97,15 @@ function applyDraftToForm(
     set.setPriceUsd("");
   }
   set.setProductType(draft.productType === "digital" ? "digital" : "service");
-  if (draft.websiteUrl) {
-    set.setWebsiteUrl(draft.websiteUrl);
-  }
+  set.setWebsiteUrl(draft.websiteUrl || "");
+  set.setServiceDetails(draft.serviceDetails || "");
+  set.setDeliveryMethod(draft.deliveryMethod || "");
+  set.setAudienceTarget(
+    draft.audienceTarget === "b2b" || draft.audienceTarget === "b2c" || draft.audienceTarget === "both"
+      ? draft.audienceTarget
+      : "both"
+  );
+  set.setBusinessCategory(draft.businessCategory || "");
 }
 
 function normalizeBoostTier(raw: string | null | undefined): MonetizationBoostTier {
@@ -237,8 +246,6 @@ export function CreateProductScreen({ navigation, route }: Props) {
   const [stripeBusy, setStripeBusy] = useState(false);
   const [stripePickBusy, setStripePickBusy] = useState(false);
   const [stripeProductIdInput, setStripeProductIdInput] = useState("");
-  const [urlImportInput, setUrlImportInput] = useState("");
-  const [urlImportBusy, setUrlImportBusy] = useState(false);
   const [importNotice, setImportNotice] = useState("");
 
   const editProductId = route.params?.editProductId;
@@ -257,7 +264,11 @@ export function CreateProductScreen({ navigation, route }: Props) {
       setPriceMinorOnly,
       setUseMinorPrice,
       setProductType,
-      setWebsiteUrl
+      setWebsiteUrl,
+      setServiceDetails,
+      setDeliveryMethod,
+      setAudienceTarget,
+      setBusinessCategory
     });
   }, [route.params?.initialDraft, editProductId]);
 
@@ -621,7 +632,7 @@ export function CreateProductScreen({ navigation, route }: Props) {
 
         <SectionLabel>Import</SectionLabel>
         <Text style={styles.importHint}>
-          Stripe needs Connect complete. URLs must be public https product pages.
+          Stripe needs Connect complete. Import by Stripe Product ID and auto-fill available fields.
         </Text>
         <Pressable
           style={[styles.btnSecondary, stripeBusy && styles.btnDisabled]}
@@ -685,7 +696,11 @@ export function CreateProductScreen({ navigation, route }: Props) {
                   setPriceMinorOnly,
                   setUseMinorPrice,
                   setProductType,
-                  setWebsiteUrl
+                  setWebsiteUrl,
+                  setServiceDetails,
+                  setDeliveryMethod,
+                  setAudienceTarget,
+                  setBusinessCategory
                 });
               } catch (e) {
                 setImportNotice(e instanceof ApiError ? e.message : "Stripe Product ID import failed.");
@@ -721,7 +736,11 @@ export function CreateProductScreen({ navigation, route }: Props) {
                         setPriceMinorOnly,
                         setUseMinorPrice,
                         setProductType,
-                        setWebsiteUrl
+                        setWebsiteUrl,
+                        setServiceDetails,
+                        setDeliveryMethod,
+                        setAudienceTarget,
+                        setBusinessCategory
                       });
                     } catch (e) {
                       setImportNotice(e instanceof ApiError ? e.message : "Stripe import failed.");
@@ -739,47 +758,6 @@ export function CreateProductScreen({ navigation, route }: Props) {
             ))}
           </View>
         ) : null}
-        <TextInput
-          style={styles.input}
-          placeholder="https://… product page"
-          placeholderTextColor={colors.muted}
-          value={urlImportInput}
-          onChangeText={setUrlImportInput}
-          autoCapitalize="none"
-          keyboardType="url"
-        />
-        <Pressable
-          style={[styles.btnSecondary, urlImportBusy && styles.btnDisabled]}
-          disabled={urlImportBusy}
-          onPress={() => {
-            setImportNotice("");
-            setUrlImportBusy(true);
-            void (async () => {
-              try {
-                const r = await importProductDraftFromUrl(urlImportInput.trim());
-                applyDraftToForm(r.draft, {
-                  setTitle,
-                  setDescription,
-                  setCurrency,
-                  setPriceUsd,
-                  setPriceMinorOnly,
-                  setUseMinorPrice,
-                  setProductType,
-                  setWebsiteUrl
-                });
-                if (r.warnings?.length) {
-                  setImportNotice(r.warnings.join(" "));
-                }
-              } catch (e) {
-                setImportNotice(e instanceof ApiError ? e.message : "URL import failed.");
-              } finally {
-                setUrlImportBusy(false);
-              }
-            })();
-          }}
-        >
-          <Text style={styles.btnSecondaryText}>{urlImportBusy ? "Fetching…" : "Import from link"}</Text>
-        </Pressable>
         {importNotice ? <Text style={styles.importNotice}>{importNotice}</Text> : null}
 
         <SectionLabel>Pricing & type</SectionLabel>

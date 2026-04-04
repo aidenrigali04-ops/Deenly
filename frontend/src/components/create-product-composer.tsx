@@ -12,7 +12,6 @@ import {
   fetchStripeProductImportList,
   importProductDraftFromStripe,
   importProductDraftFromStripeProductId,
-  importProductDraftFromUrl,
   estimateCreatorNet,
   formatMinorCurrency,
   type BoostTier,
@@ -74,6 +73,10 @@ function applyImportedDraft(
     setPriceMinorRaw: (v: string) => void;
     setProductType: (v: "digital" | "service") => void;
     setWebsiteUrl: (v: string) => void;
+    setServiceDetails: (v: string) => void;
+    setDeliveryMethod: (v: string) => void;
+    setAudienceTarget: (v: "b2b" | "b2c" | "both") => void;
+    setBusinessCategory: (v: string) => void;
   }
 ) {
   setters.setTitle(draft.title);
@@ -90,9 +93,15 @@ function applyImportedDraft(
     setters.setPriceUsd("");
   }
   setters.setProductType(draft.productType === "digital" ? "digital" : "service");
-  if (draft.websiteUrl) {
-    setters.setWebsiteUrl(draft.websiteUrl);
-  }
+  setters.setWebsiteUrl(draft.websiteUrl || "");
+  setters.setServiceDetails(draft.serviceDetails || "");
+  setters.setDeliveryMethod(draft.deliveryMethod || "");
+  setters.setAudienceTarget(
+    draft.audienceTarget === "b2b" || draft.audienceTarget === "b2c" || draft.audienceTarget === "both"
+      ? draft.audienceTarget
+      : "both"
+  );
+  setters.setBusinessCategory(draft.businessCategory || "");
 }
 
 export function CreateProductComposer({ variant, onCreated }: CreateProductComposerProps) {
@@ -123,8 +132,6 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
   const [stripeImportBusy, setStripeImportBusy] = useState(false);
   const [stripePickBusy, setStripePickBusy] = useState(false);
   const [stripeProductIdInput, setStripeProductIdInput] = useState("");
-  const [urlImportInput, setUrlImportInput] = useState("");
-  const [urlImportBusy, setUrlImportBusy] = useState(false);
   const [importError, setImportError] = useState("");
   const connectStatusQuery = useQuery({
     queryKey: ["creator-product-composer-connect-status"],
@@ -205,7 +212,6 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
     setNewProductBoostTier("standard");
     setNewProductFormError("");
     setStripeImportItems([]);
-    setUrlImportInput("");
     setImportError("");
   };
 
@@ -407,7 +413,7 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
       <div className="space-y-3 rounded-control border border-black/10 bg-black/[0.02] px-4 py-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">Import</p>
         <p className="text-xs text-muted">
-          Requires completed Stripe Connect for catalog import. Link import uses public https pages only.
+          Requires completed Stripe Connect. Import by Stripe Product ID and auto-fill product fields.
         </p>
         <div className="flex flex-wrap gap-2">
           <button
@@ -481,7 +487,11 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
                     setPriceUsd: setNewProductPriceUsd,
                     setPriceMinorRaw: setNewProductPriceMinorRaw,
                     setProductType: setNewProductType,
-                    setWebsiteUrl: setNewProductWebsiteUrl
+                    setWebsiteUrl: setNewProductWebsiteUrl,
+                    setServiceDetails: setNewProductServiceDetails,
+                    setDeliveryMethod: setNewProductDeliveryMethod,
+                    setAudienceTarget: setNewProductAudienceTarget,
+                    setBusinessCategory: setNewProductBusinessCategory
                   });
                 } catch (err) {
                   setImportError(err instanceof ApiError ? err.message : "Could not import from Stripe Product ID.");
@@ -529,7 +539,11 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
                       setPriceUsd: setNewProductPriceUsd,
                       setPriceMinorRaw: setNewProductPriceMinorRaw,
                       setProductType: setNewProductType,
-                      setWebsiteUrl: setNewProductWebsiteUrl
+                      setWebsiteUrl: setNewProductWebsiteUrl,
+                      setServiceDetails: setNewProductServiceDetails,
+                      setDeliveryMethod: setNewProductDeliveryMethod,
+                      setAudienceTarget: setNewProductAudienceTarget,
+                      setBusinessCategory: setNewProductBusinessCategory
                     });
                   } catch (err) {
                     setImportError(err instanceof ApiError ? err.message : "Could not import from Stripe.");
@@ -550,54 +564,6 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
             </select>
           </div>
         ) : null}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-          <div className="min-w-0 flex-1 space-y-1">
-            <label className="text-xs text-muted" htmlFor="cp-import-url">
-              Product page URL
-            </label>
-            <input
-              id="cp-import-url"
-              className="input bg-white text-sm"
-              placeholder="https://…"
-              value={urlImportInput}
-              onChange={(e) => setUrlImportInput(e.target.value)}
-              autoCapitalize="off"
-            />
-          </div>
-          <button
-            type="button"
-            className="btn-secondary shrink-0 px-3 py-2 text-sm"
-            disabled={urlImportBusy}
-            onClick={() => {
-              setImportError("");
-              setUrlImportBusy(true);
-              void (async () => {
-                try {
-                  const r = await importProductDraftFromUrl(urlImportInput.trim());
-                  applyImportedDraft(r.draft, {
-                    setTitle: setNewProductTitle,
-                    setDescription: setNewProductDescription,
-                    setCurrency: setNewProductCurrency,
-                    setShowAdvanced: setShowPriceMinorAdvanced,
-                    setPriceUsd: setNewProductPriceUsd,
-                    setPriceMinorRaw: setNewProductPriceMinorRaw,
-                    setProductType: setNewProductType,
-                    setWebsiteUrl: setNewProductWebsiteUrl
-                  });
-                  if (r.warnings?.length) {
-                    setImportError(r.warnings.join(" "));
-                  }
-                } catch (err) {
-                  setImportError(err instanceof ApiError ? err.message : "Could not import from URL.");
-                } finally {
-                  setUrlImportBusy(false);
-                }
-              })();
-            }}
-          >
-            {urlImportBusy ? "Fetching…" : "Import from link"}
-          </button>
-        </div>
         {importError ? (
           <p className="text-xs text-amber-800 dark:text-amber-200" role="status">
             {importError}
