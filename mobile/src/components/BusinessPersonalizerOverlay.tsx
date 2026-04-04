@@ -45,7 +45,7 @@ export function BusinessPersonalizerOverlay({ visible, onDismiss }: Props) {
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={() => completeMutation.mutate({ usagePersona: "personal" })}
+      onRequestClose={() => completeMutation.mutate({ usagePersona: "personal", navigate: "Onboarding" })}
     >
       <View style={styles.backdrop}>
         <View style={styles.card}>
@@ -73,12 +73,7 @@ export function BusinessPersonalizerOverlay({ visible, onDismiss }: Props) {
             onPress={() =>
               completeMutation.mutate({
                 usagePersona: selectedPersona,
-                navigate:
-                  selectedPersona === "business"
-                    ? "CreatorEconomy"
-                    : selectedPersona === "professional"
-                      ? "Onboarding"
-                      : undefined
+                navigate: selectedPersona === "business" ? "CreatorEconomy" : "Onboarding"
               })
             }
           >
@@ -87,7 +82,7 @@ export function BusinessPersonalizerOverlay({ visible, onDismiss }: Props) {
           <Pressable
             style={styles.ghost}
             disabled={completeMutation.isPending}
-            onPress={() => completeMutation.mutate({ usagePersona: "personal" })}
+            onPress={() => completeMutation.mutate({ usagePersona: "personal", navigate: "Onboarding" })}
           >
             <Text style={styles.ghostText}>I'll decide later</Text>
           </Pressable>

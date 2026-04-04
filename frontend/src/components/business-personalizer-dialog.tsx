@@ -90,12 +90,7 @@ export function BusinessPersonalizerDialog() {
             onClick={() => {
               completeMutation.mutate({
                 usagePersona: selectedPersona,
-                navigate:
-                  selectedPersona === "business"
-                    ? "creator"
-                    : selectedPersona === "professional"
-                      ? "onboarding"
-                      : undefined
+                navigate: selectedPersona === "business" ? "creator" : "onboarding"
               });
             }}
           >
@@ -105,7 +100,7 @@ export function BusinessPersonalizerDialog() {
             type="button"
             className="text-sm font-medium text-muted underline-offset-2 hover:underline"
             disabled={completeMutation.isPending}
-            onClick={() => completeMutation.mutate({ usagePersona: "personal" })}
+            onClick={() => completeMutation.mutate({ usagePersona: "personal", navigate: "onboarding" })}
           >
             I&apos;ll decide later
           </button>
