@@ -53,7 +53,7 @@ export async function fetchEventsNear(params: {
     limit: String(params.limit ?? 40),
     timeWindow: params.timeWindow ?? "upcoming"
   });
-  return apiRequest<{ items: EventRecord[] }>(`/events/near?${q.toString()}`, { auth: true });
+  return apiRequest<{ items: EventRecord[] }>(`/events/near?${q.toString()}`);
 }
 
 export async function createEvent(body: {
@@ -84,7 +84,7 @@ export async function fetchEventDetail(id: number, source?: string) {
     q.set("source", source);
   }
   const suffix = q.toString() ? `?${q.toString()}` : "";
-  return apiRequest<EventRecord>(`/events/${id}${suffix}`, { auth: true });
+  return apiRequest<EventRecord>(`/events/${id}${suffix}`);
 }
 
 export async function setEventRsvp(id: number, status: "interested" | "going" | "none", source?: string) {
@@ -107,4 +107,49 @@ export async function sendEventChatMessage(id: number, body: string, source?: st
     auth: true,
     body: { body, source: source ?? "mobile_event_detail" }
   });
+}
+
+export async function muteEventChatUser(eventId: number, userId: number, reason?: string) {
+  return apiRequest<{ muted: boolean }>(`/events/${eventId}/chat/mute`, {
+    method: "POST",
+    auth: true,
+    body: { userId, reason: reason || null }
+  });
+}
+
+export async function unmuteEventChatUser(eventId: number, userId: number) {
+  return apiRequest<{ muted: boolean }>(`/events/${eventId}/chat/mute/${userId}`, {
+    method: "DELETE",
+    auth: true
+  });
+}
+
+export async function removeEventAttendee(eventId: number, userId: number, reason?: string) {
+  return apiRequest<{ removed: boolean }>(`/events/${eventId}/rsvps/${userId}`, {
+    method: "DELETE",
+    auth: true,
+    body: { reason: reason || null }
+  });
+}
+
+export async function reportEventChatUser(eventId: number, userId: number, reason: string, note?: string) {
+  return apiRequest<{ reported: boolean }>(`/events/${eventId}/chat/report`, {
+    method: "POST",
+    auth: true,
+    body: { userId, reason, note: note || null }
+  });
+}
+
+export async function fetchEventChatModeration(eventId: number) {
+  return apiRequest<{
+    mutes: { user_id: number; user_display_name?: string | null; reason?: string | null; created_at: string }[];
+    actions: {
+      id: number;
+      action_type: string;
+      actor_display_name?: string | null;
+      target_display_name?: string | null;
+      reason?: string | null;
+      created_at: string;
+    }[];
+  }>(`/events/${eventId}/chat/moderation`, { auth: true });
 }

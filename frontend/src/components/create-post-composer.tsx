@@ -22,6 +22,12 @@ import {
 } from "@/lib/monetization";
 import { assistPostText, type PostAssistIntent } from "@/lib/ai-assist";
 import { ApiError } from "@/lib/api";
+import {
+  growthExperiments,
+  resolveVariant,
+  shouldShowExperimentPrompt,
+  trackClientExperimentEvent
+} from "@/lib/experiments";
 
 const CREATE_DRAFT_VERSION = 1 as const;
 
@@ -223,6 +229,10 @@ export function CreatePostComposer({
   const [assistError, setAssistError] = useState("");
 
   const userId = sessionQuery.data?.id;
+  const persona = profileQuery.data?.profile_kind || null;
+  const financialVariant = resolveVariant(String(userId || "anon"), growthExperiments.financialPrompt);
+  const timeVariant = resolveVariant(String(userId || "anon"), growthExperiments.timeCopy);
+  const convenienceVariant = resolveVariant(String(userId || "anon"), growthExperiments.convenienceResume);
   const canPromoteProducts = Boolean(profileQuery.data?.persona_capabilities?.can_promote_products_in_posts);
   const draftStorageKey = userId
     ? reelMode
@@ -341,6 +351,42 @@ export function CreatePostComposer({
   }, [canPromoteProducts, sellThis]);
 
   useEffect(() => {
+    if (!userId || !canPromoteProducts) {
+      return;
+    }
+    if (!shouldShowExperimentPrompt({ experimentId: growthExperiments.financialPrompt, persona })) {
+      return;
+    }
+    void trackClientExperimentEvent({
+      eventName: "offer_attach_prompt_shown",
+      persona,
+      source: "web",
+      surface: "create_post",
+      experimentId: growthExperiments.financialPrompt,
+      variantId: financialVariant,
+      properties: { variant: financialVariant }
+    });
+  }, [userId, canPromoteProducts, persona, financialVariant]);
+
+  useEffect(() => {
+    if (!userId || draftState.kind !== "offer") {
+      return;
+    }
+    if (!shouldShowExperimentPrompt({ experimentId: growthExperiments.convenienceResume, persona })) {
+      return;
+    }
+    void trackClientExperimentEvent({
+      eventName: "recommendation_card_shown",
+      persona,
+      source: "web",
+      surface: "create_post",
+      experimentId: growthExperiments.convenienceResume,
+      variantId: convenienceVariant,
+      properties: { card: "resume_draft" }
+    });
+  }, [userId, draftState.kind, persona, convenienceVariant]);
+
+  useEffect(() => {
     if (reelMode) {
       setPostType("reel");
       setSellThis(false);
@@ -445,6 +491,15 @@ export function CreatePostComposer({
 
       if (sellThis && selectedProductId) {
         await attachProductToPost(post.id, Number(selectedProductId));
+        void trackClientExperimentEvent({
+          eventName: "offer_attached_to_post",
+          persona,
+          source: "web",
+          surface: "create_post",
+          experimentId: growthExperiments.financialPrompt,
+          variantId: financialVariant,
+          properties: { postId: post.id, selectedProductId: Number(selectedProductId) }
+        });
       }
 
       if (file && file.size > 0) {
@@ -508,6 +563,19 @@ export function CreatePostComposer({
       } else {
         router.push(reelMode ? "/reels" : `/posts/${post.id}`);
       }
+      void trackClientExperimentEvent({
+        eventName: "task_completed",
+        persona,
+        source: "web",
+        surface: reelMode ? "create_reel" : "create_post",
+        experimentId: growthExperiments.timeCopy,
+        variantId: timeVariant,
+        properties: {
+          postId: post.id,
+          postType,
+          promoted: Boolean(selectedProductId)
+        }
+      });
     } catch (err) {
       setError((err as Error).message || "Unable to create post");
     } finally {
@@ -554,6 +622,15 @@ export function CreatePostComposer({
                 setPostType(p.postType);
                 setCrossPostToInstagram(p.crossPostToInstagram);
                 setDraftState({ kind: "ready" });
+                void trackClientExperimentEvent({
+                  eventName: "resume_flow_clicked",
+                  persona,
+                  source: "web",
+                  surface: "create_post",
+                  experimentId: growthExperiments.convenienceResume,
+                  variantId: convenienceVariant,
+                  properties: { action: "restore_draft" }
+                });
               }}
             >
               Restore
@@ -866,7 +943,11 @@ export function CreatePostComposer({
               <p className="text-xs text-muted">Loading your products…</p>
             ) : (myProductsQuery.data?.items?.length ?? 0) === 0 ? (
               <p className="text-xs text-muted">
-                No products yet.{" "}
+                {financialVariant === "value_copy"
+                  ? "No products yet. Add one to avoid missing buyer intent. "
+                  : financialVariant === "fast_path"
+                    ? "No products yet. Create one fast and attach it. "
+                    : "No products yet. "}
                 <Link
                   href="/account/creator?tab=products"
                   className="font-medium text-sky-600 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
@@ -1010,7 +1091,13 @@ export function CreatePostComposer({
 
       {error ? <ErrorState message={error} /> : null}
       <button className="btn-primary w-full" type="submit" disabled={isSubmitting}>
-        {isSubmitting ? "Publishing..." : "Publish"}
+        {isSubmitting
+          ? "Publishing..."
+          : timeVariant === "value_copy"
+            ? "Publish and start earning"
+            : timeVariant === "fast_path"
+              ? "Publish (fast)"
+              : "Publish"}
       </button>
       {variant === "inline" ? (
         <p className="text-center text-xs text-muted">

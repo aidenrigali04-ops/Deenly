@@ -26,6 +26,12 @@ import { fetchInstagramStatus, requestInstagramCrossPost } from "../../lib/insta
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { colors, radii, shadows, spacing } from "../../theme";
 import { resolveMediaUrl } from "../../lib/media-url";
+import {
+  growthExperiments,
+  resolveVariant,
+  shouldShowExperimentPrompt,
+  trackClientExperimentEvent
+} from "../../lib/experiments";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 
 type CreatePostResponse = { id: number };
@@ -139,6 +145,17 @@ export function CreateScreen({ navigation }: Props) {
   });
   const canCreateProducts = Boolean(profileQuery.data?.persona_capabilities?.can_create_products);
   const canPromoteProducts = Boolean(profileQuery.data?.persona_capabilities?.can_promote_products_in_posts);
+  const persona = profileQuery.data?.profile_kind || null;
+  const financialVariant = resolveVariant(String(sessionQuery.data?.id || "anon"), growthExperiments.financialPrompt);
+  const timeVariant = resolveVariant(String(sessionQuery.data?.id || "anon"), growthExperiments.timeCopy);
+  const convenienceVariant = resolveVariant(
+    String(sessionQuery.data?.id || "anon"),
+    growthExperiments.convenienceResume
+  );
+  const quickActionVariant = resolveVariant(
+    String(sessionQuery.data?.id || "anon"),
+    growthExperiments.quickActionPlacementV2
+  );
 
   const composerName = useMemo(() => {
     const p = profileQuery.data;
@@ -196,6 +213,39 @@ export function CreateScreen({ navigation }: Props) {
       setSellThis(false);
     }
   }, [canPromoteProducts, sellThis]);
+
+  useEffect(() => {
+    if (!canPromoteProducts) {
+      return;
+    }
+    if (!shouldShowExperimentPrompt({ experimentId: growthExperiments.financialPrompt, persona })) {
+      return;
+    }
+    void trackClientExperimentEvent({
+      eventName: "offer_attach_prompt_shown",
+      persona,
+      source: "mobile",
+      surface: "create_post",
+      experimentId: growthExperiments.financialPrompt,
+      variantId: financialVariant,
+      properties: { variant: financialVariant }
+    });
+  }, [canPromoteProducts, persona, financialVariant]);
+
+  useEffect(() => {
+    if (!shouldShowExperimentPrompt({ experimentId: growthExperiments.convenienceResume, persona })) {
+      return;
+    }
+    void trackClientExperimentEvent({
+      eventName: "quick_actions_shown",
+      persona,
+      source: "mobile",
+      surface: "create_post",
+      experimentId: growthExperiments.convenienceResume,
+      variantId: convenienceVariant,
+      properties: { actions: canCreateProducts ? ["add_event", "add_product"] : ["add_event"] }
+    });
+  }, [canCreateProducts, persona, convenienceVariant]);
 
   const pickMedia = async () => {
     const result = await DocumentPicker.getDocumentAsync({
@@ -379,6 +429,15 @@ export function CreateScreen({ navigation }: Props) {
       }
       if (selectedProductId) {
         await attachProductToPost(post.id, selectedProductId);
+        void trackClientExperimentEvent({
+          eventName: "offer_attached_to_post",
+          persona,
+          source: "mobile",
+          surface: "create_post",
+          experimentId: growthExperiments.financialPrompt,
+          variantId: financialVariant,
+          properties: { postId: post.id, selectedProductId }
+        });
       }
 
       await queryClient.invalidateQueries({ queryKey: ["mobile-feed"] });
@@ -410,6 +469,15 @@ export function CreateScreen({ navigation }: Props) {
       setBusinessCategory("");
       setCrossPostToInstagram(false);
       navigation.navigate("PostDetail", { id: post.id });
+      void trackClientExperimentEvent({
+        eventName: "task_completed",
+        persona,
+        source: "mobile",
+        surface: "create_post",
+        experimentId: growthExperiments.timeCopy,
+        variantId: timeVariant,
+        properties: { postId: post.id, postType, promoted: Boolean(selectedProductId) }
+      });
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Unable to create post";
       setError(message);
@@ -429,24 +497,41 @@ export function CreateScreen({ navigation }: Props) {
       >
         <Text style={styles.headerTitle}>Create New Post</Text>
         <View style={styles.headerActions}>
-          <Pressable
-            onPress={() => navigation.navigate("CreateEvent")}
-            style={({ pressed }) => [styles.headerProductLink, pressed && styles.pressableSoft]}
-            accessibilityRole="button"
-            accessibilityLabel="Create an event"
-          >
-            <Text style={styles.headerProductLinkText}>Add event</Text>
-          </Pressable>
-          {canCreateProducts ? (
+          {(quickActionVariant === "fast_path" && canCreateProducts
+            ? ([
+                { key: "add_product", label: "Add product" },
+                { key: "add_event", label: "Add event" }
+              ] as const)
+            : ([
+                { key: "add_event", label: "Add event" },
+                ...(canCreateProducts ? ([{ key: "add_product", label: "Add product" }] as const) : ([] as const))
+              ] as const)
+          ).map((action) => (
             <Pressable
-              onPress={() => navigation.navigate("CreateProduct")}
+              key={action.key}
+              onPress={() => {
+                void trackClientExperimentEvent({
+                  eventName: "quick_action_clicked",
+                  persona,
+                  source: "mobile",
+                  surface: "create_post",
+                  experimentId: growthExperiments.quickActionPlacementV2,
+                  variantId: quickActionVariant,
+                  properties: { action: action.key }
+                });
+                if (action.key === "add_event") {
+                  navigation.navigate("CreateEvent");
+                } else {
+                  navigation.navigate("CreateProduct");
+                }
+              }}
               style={({ pressed }) => [styles.headerProductLink, pressed && styles.pressableSoft]}
               accessibilityRole="button"
-              accessibilityLabel="Add product without a post"
+              accessibilityLabel={action.label}
             >
-              <Text style={styles.headerProductLinkText}>Add product</Text>
+              <Text style={styles.headerProductLinkText}>{action.label}</Text>
             </Pressable>
-          ) : null}
+          ))}
         </View>
       </View>
       <KeyboardAvoidingView
@@ -941,7 +1026,15 @@ export function CreateScreen({ navigation }: Props) {
             onPress={createPost}
             disabled={isSubmitting}
           >
-            <Text style={styles.buttonPrimaryText}>{isSubmitting ? "Publishing..." : "Publish"}</Text>
+            <Text style={styles.buttonPrimaryText}>
+              {isSubmitting
+                ? "Publishing..."
+                : timeVariant === "value_copy"
+                  ? "Publish and start earning"
+                  : timeVariant === "fast_path"
+                    ? "Publish (fast)"
+                    : "Publish"}
+            </Text>
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>

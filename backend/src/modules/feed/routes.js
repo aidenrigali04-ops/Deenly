@@ -66,6 +66,138 @@ async function getViewerIdFromAuthHeader({ db, config, authorization }) {
 function createFeedRouter({ db, config, mediaStorage }) {
   const router = express.Router();
 
+  async function getRankedEventCandidates({
+    db,
+    viewerId,
+    feedTab,
+    limit,
+    onboardingIntentsForFeed,
+    nowIso
+  }) {
+    if (!config.eventsFeatureEnabled || !config.eventsReadEnabled) {
+      return [];
+    }
+    if (feedTab !== "for_you") {
+      return [];
+    }
+    const cappedLimit = Math.min(Math.max(Number(limit) || 4, 1), Number(config.feedEventCandidatesLimit || 6));
+    const result = await db.query(
+      `SELECT e.id,
+              e.host_user_id,
+              e.title,
+              e.description,
+              e.starts_at,
+              e.ends_at,
+              e.timezone,
+              e.is_online,
+              e.online_url,
+              e.address_display,
+              e.latitude,
+              e.longitude,
+              e.visibility,
+              e.capacity,
+              e.status,
+              e.created_at,
+              e.updated_at,
+              p.display_name AS host_display_name,
+              (
+                SELECT r.status
+                FROM event_rsvps r
+                WHERE r.event_id = e.id
+                  AND r.user_id = $1
+                LIMIT 1
+              ) AS viewer_rsvp_status,
+              (
+                SELECT COUNT(*)::int
+                FROM event_rsvps r
+                WHERE r.event_id = e.id
+                  AND r.status = 'interested'
+              ) AS rsvp_interested_count,
+              (
+                SELECT COUNT(*)::int
+                FROM event_rsvps r
+                WHERE r.event_id = e.id
+                  AND r.status = 'going'
+              ) AS rsvp_going_count,
+              (
+                EXTRACT(EPOCH FROM e.starts_at) +
+                CASE WHEN e.host_user_id = $1 THEN 250 ELSE 0 END +
+                CASE WHEN EXISTS (
+                  SELECT 1 FROM follows f
+                  WHERE f.follower_id = $1 AND f.following_id = e.host_user_id
+                ) THEN 180 ELSE 0 END +
+                CASE WHEN EXISTS (
+                  SELECT 1
+                  FROM event_rsvps mine
+                  WHERE mine.event_id = e.id
+                    AND mine.user_id = $1
+                    AND mine.status = 'going'
+                ) THEN 220 ELSE 0 END +
+                CASE
+                  WHEN 'community' = ANY($3::text[]) THEN 80
+                  ELSE 0
+                END +
+                LEAST(
+                  GREATEST(0, COALESCE((
+                    SELECT COUNT(*)::int
+                    FROM event_rsvps rr
+                    WHERE rr.event_id = e.id
+                      AND rr.status = 'going'
+                  ), 0)),
+                  150
+                )
+              )::numeric AS event_rank_score
+       FROM events e
+       JOIN profiles p ON p.user_id = e.host_user_id
+       WHERE e.status = 'scheduled'
+         AND e.visibility = 'public'
+         AND e.starts_at >= $2::timestamptz
+         AND e.starts_at < $2::timestamptz + interval '30 day'
+         AND (
+           $1::int IS NULL
+           OR (
+             NOT EXISTS (
+               SELECT 1 FROM user_blocks ub
+               WHERE (ub.user_id = $1 AND ub.blocked_user_id = e.host_user_id)
+                  OR (ub.user_id = e.host_user_id AND ub.blocked_user_id = $1)
+             )
+             AND NOT EXISTS (
+               SELECT 1 FROM user_mutes um
+               WHERE um.user_id = $1 AND um.muted_user_id = e.host_user_id
+             )
+           )
+         )
+       ORDER BY event_rank_score DESC, e.starts_at ASC, e.id ASC
+       LIMIT $4`,
+      [viewerId, nowIso, onboardingIntentsForFeed, cappedLimit]
+    );
+    return result.rows.map((row) => ({
+      id: row.id,
+      host_user_id: row.host_user_id,
+      host_display_name: row.host_display_name,
+      title: row.title,
+      description: row.description,
+      starts_at: row.starts_at,
+      ends_at: row.ends_at,
+      timezone: row.timezone,
+      is_online: row.is_online,
+      online_url: row.online_url,
+      address_display: row.address_display,
+      latitude: row.latitude != null ? Number(row.latitude) : null,
+      longitude: row.longitude != null ? Number(row.longitude) : null,
+      visibility: row.visibility,
+      capacity: row.capacity,
+      status: row.status,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      viewer_rsvp_status: row.viewer_rsvp_status || null,
+      rsvp_interested_count: Number(row.rsvp_interested_count || 0),
+      rsvp_going_count: Number(row.rsvp_going_count || 0),
+      can_join_chat: row.viewer_rsvp_status === "going" || row.host_user_id === viewerId,
+      event_rank_score: Number(row.event_rank_score || 0)
+    }));
+  }
+
   async function getSponsoredCampaign({ db, viewerId, feedTab }) {
     const result = await db.query(
       `SELECT ac.id AS campaign_id,
@@ -141,6 +273,7 @@ function createFeedRouter({ db, config, mediaStorage }) {
         ? new Date(String(req.query.minCreatedAt))
         : null;
       const cursor = decodeCursor(req.query.cursor);
+      const includeEvents = String(req.query.includeEvents || "false") === "true";
       const rankWeights = config.feedRankWeights || {
         comment: 120,
         benefited: 60,
@@ -513,6 +646,7 @@ function createFeedRouter({ db, config, mediaStorage }) {
       );
 
       const onboardingIntentsApplied = onboardingIntentsForFeed;
+      const nowIso = new Date().toISOString();
 
       const hasMore = result.rows.length > limit;
       const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
@@ -582,9 +716,45 @@ function createFeedRouter({ db, config, mediaStorage }) {
         }
       }
       const nextCursor = hasMore ? encodeCursor(rows[rows.length - 1]) : null;
+      const eventCandidates = await getRankedEventCandidates({
+        db,
+        viewerId,
+        feedTab,
+        limit: config.feedEventCandidatesLimit,
+        onboardingIntentsForFeed,
+        nowIso
+      });
+      const eventInsertEvery = Math.max(Number(config.feedEventInsertEvery || 8), 4);
+      let mergedEventCount = 0;
+      if (includeEvents && eventCandidates.length > 0) {
+        const merged = [];
+        let postIdx = 0;
+        let eventIdx = 0;
+        while (postIdx < items.length) {
+          merged.push(items[postIdx]);
+          postIdx += 1;
+          if (postIdx % eventInsertEvery === 0 && eventIdx < eventCandidates.length) {
+            merged.push({
+              id: `event-${eventCandidates[eventIdx].id}`,
+              post_type: "event",
+              card_type: "event",
+              event: eventCandidates[eventIdx]
+            });
+            eventIdx += 1;
+          }
+        }
+        items = merged;
+        mergedEventCount = eventIdx;
+      }
 
       res.status(200).json({
         items,
+        eventCandidates,
+        eventInsertion: {
+          enabled: includeEvents,
+          insertEvery: eventInsertEvery,
+          insertedCount: mergedEventCount
+        },
         hasMore,
         nextCursor,
         limit,

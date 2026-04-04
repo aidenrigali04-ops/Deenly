@@ -30,7 +30,7 @@ export async function fetchBusinessesNear(params: { lat: number; lng: number; ra
 }
 
 export async function fetchBusiness(id: number) {
-  return apiRequest<BusinessListing>(`/businesses/${id}`, { auth: true });
+  return apiRequest<BusinessListing>(`/businesses/${id}`);
 }
 
 export async function createBusiness(body: {

@@ -186,6 +186,12 @@ function loadEnv(envSource = process.env) {
     feedTrustReportPenaltyWeight: parseNumber(envSource.FEED_TRUST_REPORT_PENALTY_WEIGHT, 250),
     feedAudienceTabBoostWeight: parseNumber(envSource.FEED_AUDIENCE_TAB_BOOST_WEIGHT, 1),
     feedRankPlatformFeeWeight: parseNumber(envSource.FEED_RANK_PLATFORM_FEE_WEIGHT, 3),
+    feedEventInsertEvery: parsePositiveInt(envSource.FEED_EVENT_INSERT_EVERY, 8, "FEED_EVENT_INSERT_EVERY"),
+    feedEventCandidatesLimit: parsePositiveInt(
+      envSource.FEED_EVENT_CANDIDATES_LIMIT,
+      6,
+      "FEED_EVENT_CANDIDATES_LIMIT"
+    ),
     feedRankPlatformFeeCapBps: (() => {
       const v = parseNumber(envSource.FEED_RANK_PLATFORM_FEE_CAP_BPS, 3500);
       if (!Number.isInteger(v) || v < 0 || v > 3500) {
@@ -255,11 +261,27 @@ function loadEnv(envSource = process.env) {
     fulfillmentEmailEnabled: parseBoolean(envSource.FULFILLMENT_EMAIL_ENABLED, true),
     fulfillmentSmsEnabled: parseBoolean(envSource.FULFILLMENT_SMS_ENABLED, true),
     eventsFeatureEnabled: parseBoolean(envSource.EVENTS_FEATURE_ENABLED, true),
-    eventsChatEnabled: parseBoolean(envSource.EVENTS_CHAT_ENABLED, true)
+    eventsReadEnabled: parseBoolean(envSource.EVENTS_READ_ENABLED, true),
+    eventsCreateEnabled: parseBoolean(envSource.EVENTS_CREATE_ENABLED, true),
+    eventsChatEnabled: parseBoolean(envSource.EVENTS_CHAT_ENABLED, true),
+    growthExperimentsEnabled: parseBoolean(envSource.GROWTH_EXPERIMENTS_ENABLED, true),
+    eventsChatGraceHours: parsePositiveInt(envSource.EVENTS_CHAT_GRACE_HOURS, 24, "EVENTS_CHAT_GRACE_HOURS"),
+    rolloutStage: String(envSource.ROLLOUT_STAGE || "read").trim().toLowerCase(),
+    rolloutCohortPercent: parsePositiveInt(envSource.ROLLOUT_COHORT_PERCENT, 10, "ROLLOUT_COHORT_PERCENT"),
+    rolloutGuardrailCheckoutConversionMin: parseNumber(envSource.ROLLOUT_GUARDRAIL_CHECKOUT_CONVERSION_MIN, 0.02),
+    rolloutGuardrailQuickActionCtrMin: parseNumber(envSource.ROLLOUT_GUARDRAIL_QUICK_ACTION_CTR_MIN, 0.05),
+    rolloutGuardrailOpenReportsMax: parsePositiveInt(
+      envSource.ROLLOUT_GUARDRAIL_OPEN_REPORTS_MAX,
+      200,
+      "ROLLOUT_GUARDRAIL_OPEN_REPORTS_MAX"
+    )
   };
 
   if (!VALID_DB_SSL_MODES.has(config.dbSslMode)) {
     throw new Error("DB_SSL_MODE must be disable, require, or no-verify");
+  }
+  if (!new Set(["read", "create", "chat", "growth", "full"]).has(config.rolloutStage)) {
+    throw new Error("ROLLOUT_STAGE must be read, create, chat, growth, or full");
   }
   if (config.monetizationPlatformFeeBpsMin > config.monetizationPlatformFeeBpsMax) {
     throw new Error("MONETIZATION_PLATFORM_FEE_BPS_MIN must be <= MONETIZATION_PLATFORM_FEE_BPS_MAX");

@@ -47,6 +47,38 @@ type PostResult = {
 
 type Mode = "search" | "near";
 type NearType = "businesses" | "events" | "all";
+type NearTimeWindow = "upcoming" | "today" | "this_week";
+
+type EventCluster = {
+  id: string;
+  latitude: number;
+  longitude: number;
+  count: number;
+  labels: string[];
+};
+
+function clusterNearbyEvents(
+  items: Array<{ id: number; title: string; latitude: number | null; longitude: number | null }>,
+  precision = 2
+) {
+  const map = new Map<string, EventCluster>();
+  for (const item of items) {
+    if (item.latitude == null || item.longitude == null) continue;
+    const lat = Number(item.latitude.toFixed(precision));
+    const lng = Number(item.longitude.toFixed(precision));
+    const key = `${lat},${lng}`;
+    const existing = map.get(key);
+    if (existing) {
+      existing.count += 1;
+      if (existing.labels.length < 3) {
+        existing.labels.push(item.title);
+      }
+    } else {
+      map.set(key, { id: key, latitude: lat, longitude: lng, count: 1, labels: [item.title] });
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => b.count - a.count);
+}
 
 export default function SearchPage() {
   const [mode, setMode] = useState<Mode>("search");
@@ -54,6 +86,8 @@ export default function SearchPage() {
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [geo, setGeo] = useState<{ lat: number; lng: number } | null>(null);
   const [nearType, setNearType] = useState<NearType>("all");
+  const [nearTimeWindow, setNearTimeWindow] = useState<NearTimeWindow>("upcoming");
+  const [selectedCluster, setSelectedCluster] = useState<string | null>(null);
   const [geoError, setGeoError] = useState<string | null>(null);
   const [geoPending, setGeoPending] = useState(false);
 
@@ -87,26 +121,29 @@ export default function SearchPage() {
     enabled: mode === "near" && Boolean(geo)
   });
   const nearEventsQuery = useQuery({
-    queryKey: ["events-near", geo?.lat, geo?.lng],
-    queryFn: () => fetchEventsNear({ lat: geo!.lat, lng: geo!.lng, radiusM: 25_000, limit: 50 }),
+    queryKey: ["events-near", geo?.lat, geo?.lng, nearTimeWindow],
+    queryFn: () =>
+      fetchEventsNear({
+        lat: geo!.lat,
+        lng: geo!.lng,
+        radiusM: 25_000,
+        limit: 50,
+        timeWindow: nearTimeWindow
+      }),
     enabled: mode === "near" && Boolean(geo)
   });
 
   const usersQuery = useQuery({
     queryKey: ["search-users", submittedQuery],
     queryFn: () =>
-      apiRequest<{ items: UserResult[] }>(`/search/users?q=${encodeURIComponent(submittedQuery)}&limit=10`, {
-        auth: true
-      }),
+      apiRequest<{ items: UserResult[] }>(`/search/users?q=${encodeURIComponent(submittedQuery)}&limit=10`),
     enabled: mode === "search" && submittedQuery.length > 0
   });
 
   const postsQuery = useQuery({
     queryKey: ["search-posts", submittedQuery],
     queryFn: () =>
-      apiRequest<{ items: PostResult[] }>(`/search/posts?q=${encodeURIComponent(submittedQuery)}&limit=10`, {
-        auth: true
-      }),
+      apiRequest<{ items: PostResult[] }>(`/search/posts?q=${encodeURIComponent(submittedQuery)}&limit=10`),
     enabled: mode === "search" && submittedQuery.length > 0
   });
 
@@ -114,6 +151,20 @@ export default function SearchPage() {
     event.preventDefault();
     setSubmittedQuery(query.trim());
   };
+  const eventClusters = clusterNearbyEvents(
+    nearEventsQuery.data?.items || [],
+    nearTimeWindow === "today" ? 2 : 1
+  );
+  const visibleEventItems =
+    selectedCluster && nearType !== "businesses"
+      ? (nearEventsQuery.data?.items || []).filter((event) => {
+          if (event.latitude == null || event.longitude == null) return false;
+          const key = `${Number(event.latitude.toFixed(nearTimeWindow === "today" ? 2 : 1))},${Number(
+            event.longitude.toFixed(nearTimeWindow === "today" ? 2 : 1)
+          )}`;
+          return key === selectedCluster;
+        })
+      : nearEventsQuery.data?.items || [];
 
   return (
     <section className="space-y-4">
@@ -244,6 +295,56 @@ export default function SearchPage() {
                   </button>
                 ))}
               </div>
+              {(nearType === "all" || nearType === "events") ? (
+                <div className="flex flex-wrap gap-2">
+                  {(["upcoming", "today", "this_week"] as const).map((windowKey) => (
+                    <button
+                      key={windowKey}
+                      type="button"
+                      className={`rounded-pill border px-3 py-1.5 text-xs font-semibold transition ${
+                        nearTimeWindow === windowKey
+                          ? "border-text bg-text text-background"
+                          : "border-black/15 text-muted hover:bg-black/[0.04]"
+                      }`}
+                      onClick={() => setNearTimeWindow(windowKey)}
+                    >
+                      {windowKey === "upcoming" ? "Upcoming" : windowKey === "today" ? "Today" : "This week"}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              {(nearType === "all" || nearType === "events") && eventClusters.length > 0 ? (
+                <div className="surface-card space-y-2 rounded-panel border border-black/10 p-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold">Event density clusters</h3>
+                    {selectedCluster ? (
+                      <button
+                        type="button"
+                        className="text-xs text-sky-600 hover:underline"
+                        onClick={() => setSelectedCluster(null)}
+                      >
+                        Clear cluster
+                      </button>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {eventClusters.map((cluster) => (
+                      <button
+                        key={cluster.id}
+                        type="button"
+                        className={`rounded-pill border px-3 py-1.5 text-xs font-semibold transition ${
+                          selectedCluster === cluster.id
+                            ? "border-text bg-text text-background"
+                            : "border-black/15 text-muted hover:bg-black/[0.04]"
+                        }`}
+                        onClick={() => setSelectedCluster(cluster.id)}
+                      >
+                        {cluster.count} events near {cluster.latitude.toFixed(2)}, {cluster.longitude.toFixed(2)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               <div className="surface-card space-y-2 rounded-panel border border-black/10 p-3">
                 <h2 className="text-lg font-semibold">Nearby</h2>
                 {(nearQuery.data?.items || []).length === 0 &&
@@ -263,10 +364,7 @@ export default function SearchPage() {
                     {biz.category ? <p className="text-xs text-muted">{biz.category}</p> : null}
                   </Link>
                 ))}
-                {(nearType === "all" || nearType === "events"
-                  ? nearEventsQuery.data?.items || []
-                  : []
-                ).map((event) => (
+                {(nearType === "all" || nearType === "events" ? visibleEventItems : []).map((event) => (
                   <Link
                     key={`event-${event.id}`}
                     href={`/events/${event.id}`}

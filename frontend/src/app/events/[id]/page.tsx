@@ -4,7 +4,17 @@ import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import { ApiError } from "@/lib/api";
-import { fetchEventChat, fetchEventDetail, sendEventChatMessage, setEventRsvp } from "@/lib/events";
+import { fetchSessionMe } from "@/lib/auth";
+import {
+  fetchEventChat,
+  fetchEventChatModeration,
+  fetchEventDetail,
+  muteEventChatUser,
+  removeEventAttendee,
+  reportEventChatUser,
+  sendEventChatMessage,
+  setEventRsvp
+} from "@/lib/events";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 
 export default function EventDetailPage() {
@@ -24,6 +34,15 @@ export default function EventDetailPage() {
     queryFn: () => fetchEventChat(eventId),
     enabled: Boolean(eventId && eventQuery.data?.canJoinChat)
   });
+  const meQuery = useQuery({
+    queryKey: ["event-me"],
+    queryFn: () => fetchSessionMe()
+  });
+  const moderationQuery = useQuery({
+    queryKey: ["event-moderation", eventId],
+    queryFn: () => fetchEventChatModeration(eventId),
+    enabled: Boolean(eventId && eventQuery.data?.hostUserId === meQuery.data?.id)
+  });
 
   const rsvpMutation = useMutation({
     mutationFn: (status: "interested" | "going" | "none") => setEventRsvp(eventId, status, "web_detail"),
@@ -38,6 +57,26 @@ export default function EventDetailPage() {
       setChatInput("");
       queryClient.invalidateQueries({ queryKey: ["event-chat", eventId] });
     }
+  });
+  const muteMutation = useMutation({
+    mutationFn: ({ userId, reason }: { userId: number; reason?: string }) =>
+      muteEventChatUser(eventId, userId, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["event-moderation", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["event-chat", eventId] });
+    }
+  });
+  const removeAttendeeMutation = useMutation({
+    mutationFn: ({ userId, reason }: { userId: number; reason?: string }) =>
+      removeEventAttendee(eventId, userId, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["event-moderation", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["event-chat", eventId] });
+    }
+  });
+  const reportMutation = useMutation({
+    mutationFn: ({ userId, reason, note }: { userId: number; reason: string; note?: string }) =>
+      reportEventChatUser(eventId, userId, reason, note)
   });
 
   const startsAtLabel = useMemo(() => {
@@ -65,6 +104,8 @@ export default function EventDetailPage() {
   if (!data) {
     return <EmptyState title="Event not found" />;
   }
+  const isHost = data.hostUserId === meQuery.data?.id;
+  const mutedUserIds = new Set((moderationQuery.data?.mutes || []).map((m) => m.user_id));
 
   return (
     <section className="space-y-4">
@@ -117,6 +158,42 @@ export default function EventDetailPage() {
                 <div key={msg.id} className="rounded-lg border border-black/10 bg-surface p-2">
                   <p className="text-xs text-muted">{msg.senderDisplayName || "Member"}</p>
                   <p className="text-sm">{msg.body}</p>
+                  {isHost && msg.senderUserId !== meQuery.data?.id ? (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="btn-secondary px-2 py-1 text-xs"
+                        onClick={() => {
+                          const reason = window.prompt("Mute reason (optional)", "Host moderation");
+                          muteMutation.mutate({ userId: msg.senderUserId, reason: reason || undefined });
+                        }}
+                      >
+                        {mutedUserIds.has(msg.senderUserId) ? "Muted" : "Mute"}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary px-2 py-1 text-xs"
+                        onClick={() => {
+                          const reason = window.prompt("Remove attendee reason (optional)", "Host moderation");
+                          removeAttendeeMutation.mutate({ userId: msg.senderUserId, reason: reason || undefined });
+                        }}
+                      >
+                        Remove attendee
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary px-2 py-1 text-xs"
+                        onClick={() => {
+                          const reason = window.prompt("Report reason", "Abusive behavior");
+                          if (!reason) return;
+                          const note = window.prompt("Extra note (optional)", "") || undefined;
+                          reportMutation.mutate({ userId: msg.senderUserId, reason, note });
+                        }}
+                      >
+                        Report
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -135,6 +212,32 @@ export default function EventDetailPage() {
           </>
         )}
       </div>
+      {isHost ? (
+        <div className="surface-card space-y-3">
+          <h2 className="text-lg font-semibold">Host moderation audit</h2>
+          {moderationQuery.isLoading ? <LoadingState label="Loading moderation logs..." /> : null}
+          {moderationQuery.error ? <ErrorState message={(moderationQuery.error as Error).message} /> : null}
+          {!moderationQuery.isLoading && !moderationQuery.error ? (
+            <>
+              <p className="text-xs text-muted">Muted attendees: {moderationQuery.data?.mutes.length || 0}</p>
+              <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border border-black/10 bg-surface/30 p-3">
+                {(moderationQuery.data?.actions || []).length === 0 ? (
+                  <p className="text-sm text-muted">No moderation actions yet.</p>
+                ) : null}
+                {(moderationQuery.data?.actions || []).map((action) => (
+                  <div key={action.id} className="rounded-lg border border-black/10 bg-surface p-2 text-xs">
+                    <p className="font-medium">
+                      {action.action_type} · {action.actor_display_name || "Host"} →{" "}
+                      {action.target_display_name || "User"}
+                    </p>
+                    {action.reason ? <p className="text-muted">{action.reason}</p> : null}
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }

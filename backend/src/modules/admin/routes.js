@@ -63,7 +63,11 @@ const TABLE_SQL = {
   ad_spend_ledger:
     "SELECT id, campaign_id, event_id, amount_minor, currency, note, created_at FROM ad_spend_ledger ORDER BY id DESC LIMIT $1 OFFSET $2",
   ad_creative_reviews:
-    "SELECT id, campaign_id, reviewer_user_id, status, notes, reviewed_at, created_at FROM ad_creative_reviews ORDER BY id DESC LIMIT $1 OFFSET $2"
+    "SELECT id, campaign_id, reviewer_user_id, status, notes, reviewed_at, created_at FROM ad_creative_reviews ORDER BY id DESC LIMIT $1 OFFSET $2",
+  event_chat_mutes:
+    "SELECT event_id, user_id, muted_by_user_id, reason, created_at FROM event_chat_mutes ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+  event_chat_moderation_actions:
+    "SELECT id, event_id, actor_user_id, target_user_id, action_type, reason, note, created_at FROM event_chat_moderation_actions ORDER BY id DESC LIMIT $1 OFFSET $2"
 };
 
 function createAdminRouter({ db, config }) {

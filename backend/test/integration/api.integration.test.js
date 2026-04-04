@@ -1660,5 +1660,184 @@ describeIfDatabase("integration api flows", () => {
     expect(chatList.statusCode).toBe(200);
     expect(Array.isArray(chatList.body.items)).toBe(true);
     expect(chatList.body.items.length).toBeGreaterThan(0);
+
+    const feedWithEvents = await request(app)
+      .get("/api/v1/feed?feedTab=for_you&includeEvents=true&limit=10")
+      .set("Authorization", `Bearer ${viewerToken}`);
+    expect(feedWithEvents.statusCode).toBe(200);
+    expect(Array.isArray(feedWithEvents.body.eventCandidates)).toBe(true);
+  });
+
+  it("enforces private event access, chat closure, and host attendee removal", async () => {
+    const ts = Date.now();
+    const hostReg = await request(app).post("/api/v1/auth/register").send({
+      email: `private-event-host-${ts}@example.com`,
+      username: `prvhost_${ts}`,
+      password: "StrongPass123",
+      displayName: "Private Event Host"
+    });
+    expect(hostReg.statusCode).toBe(201);
+    const viewerReg = await request(app).post("/api/v1/auth/register").send({
+      email: `private-event-viewer-${ts}@example.com`,
+      username: `prvview_${ts}`,
+      password: "StrongPass123",
+      displayName: "Private Event Viewer"
+    });
+    expect(viewerReg.statusCode).toBe(201);
+    const hostToken = hostReg.body.tokens.accessToken;
+    const viewerToken = viewerReg.body.tokens.accessToken;
+    const viewerId = viewerReg.body.user.id;
+
+    const createEvent = await request(app)
+      .post("/api/v1/events")
+      .set("Authorization", `Bearer ${hostToken}`)
+      .send({
+        title: "Private Event",
+        startsAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+        visibility: "private",
+        source: "integration_test"
+      });
+    expect(createEvent.statusCode).toBe(201);
+    const eventId = createEvent.body.id;
+
+    const viewerGetDenied = await request(app)
+      .get(`/api/v1/events/${eventId}`)
+      .set("Authorization", `Bearer ${viewerToken}`);
+    expect(viewerGetDenied.statusCode).toBe(404);
+
+    await db.query(
+      `INSERT INTO event_rsvps (event_id, user_id, status, updated_at)
+       VALUES ($1, $2, 'going', NOW())
+       ON CONFLICT (event_id, user_id) DO UPDATE SET status = 'going', updated_at = NOW()`,
+      [eventId, viewerId]
+    );
+
+    const viewerGetAllowed = await request(app)
+      .get(`/api/v1/events/${eventId}`)
+      .set("Authorization", `Bearer ${viewerToken}`);
+    expect(viewerGetAllowed.statusCode).toBe(200);
+
+    const hostRemove = await request(app)
+      .delete(`/api/v1/events/${eventId}/rsvps/${viewerId}`)
+      .set("Authorization", `Bearer ${hostToken}`);
+    expect(hostRemove.statusCode).toBe(200);
+
+    const viewerChatDeniedAfterRemove = await request(app)
+      .post(`/api/v1/events/${eventId}/chat`)
+      .set("Authorization", `Bearer ${viewerToken}`)
+      .send({ body: "Can I still post?" });
+    expect(viewerChatDeniedAfterRemove.statusCode).toBe(404);
+
+    const closeEvent = await request(app)
+      .patch(`/api/v1/events/${eventId}`)
+      .set("Authorization", `Bearer ${hostToken}`)
+      .send({ status: "completed" });
+    expect(closeEvent.statusCode).toBe(200);
+
+    const hostChatClosed = await request(app)
+      .post(`/api/v1/events/${eventId}/chat`)
+      .set("Authorization", `Bearer ${hostToken}`)
+      .send({ body: "Thanks for joining" });
+    expect(hostChatClosed.statusCode).toBe(409);
+  });
+
+  it("allows host mute/report controls and blocks muted attendee chat", async () => {
+    const ts = Date.now();
+    const hostReg = await request(app).post("/api/v1/auth/register").send({
+      email: `mod-event-host-${ts}@example.com`,
+      username: `modehost_${ts}`,
+      password: "StrongPass123",
+      displayName: "Moderation Host"
+    });
+    expect(hostReg.statusCode).toBe(201);
+    const userReg = await request(app).post("/api/v1/auth/register").send({
+      email: `mod-event-user-${ts}@example.com`,
+      username: `modeuser_${ts}`,
+      password: "StrongPass123",
+      displayName: "Moderation User"
+    });
+    expect(userReg.statusCode).toBe(201);
+    const hostToken = hostReg.body.tokens.accessToken;
+    const userToken = userReg.body.tokens.accessToken;
+    const userId = userReg.body.user.id;
+
+    const created = await request(app)
+      .post("/api/v1/events")
+      .set("Authorization", `Bearer ${hostToken}`)
+      .send({
+        title: "Moderation Event",
+        startsAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        visibility: "public"
+      });
+    expect(created.statusCode).toBe(201);
+    const eventId = created.body.id;
+
+    const rsvp = await request(app)
+      .post(`/api/v1/events/${eventId}/rsvp`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({ status: "going" });
+    expect(rsvp.statusCode).toBe(200);
+
+    const mute = await request(app)
+      .post(`/api/v1/events/${eventId}/chat/mute`)
+      .set("Authorization", `Bearer ${hostToken}`)
+      .send({ userId, reason: "spam" });
+    expect(mute.statusCode).toBe(200);
+
+    const mutedSend = await request(app)
+      .post(`/api/v1/events/${eventId}/chat`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({ body: "test muted" });
+    expect(mutedSend.statusCode).toBe(403);
+
+    const report = await request(app)
+      .post(`/api/v1/events/${eventId}/chat/report`)
+      .set("Authorization", `Bearer ${hostToken}`)
+      .send({ userId, reason: "abusive", note: "integration report" });
+    expect(report.statusCode).toBe(201);
+
+    const moderation = await request(app)
+      .get(`/api/v1/events/${eventId}/chat/moderation`)
+      .set("Authorization", `Bearer ${hostToken}`);
+    expect(moderation.statusCode).toBe(200);
+    expect(Array.isArray(moderation.body.mutes)).toBe(true);
+    expect(Array.isArray(moderation.body.actions)).toBe(true);
+  });
+
+  it("accepts client experiment analytics event ingestion for authenticated users", async () => {
+    const ts = Date.now();
+    const reg = await request(app).post("/api/v1/auth/register").send({
+      email: `analytics-client-${ts}@example.com`,
+      username: `analytics_client_${ts}`,
+      password: "StrongPass123",
+      displayName: "Analytics Client"
+    });
+    expect(reg.statusCode).toBe(201);
+    const token = reg.body.tokens.accessToken;
+
+    const ingest = await request(app)
+      .post("/api/v1/analytics/events/client")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        eventName: "quick_action_clicked",
+        source: "integration_test",
+        surface: "create_post",
+        platform: "web",
+        experimentId: "exp_time_copy_v1",
+        variantId: "value_copy",
+        properties: { action: "add_product" }
+      });
+    expect(ingest.statusCode).toBe(201);
+
+    const stored = await db.query(
+      `SELECT event_name, payload
+       FROM analytics_events
+       WHERE event_name = 'quick_action_clicked'
+       ORDER BY id DESC
+       LIMIT 1`
+    );
+    expect(stored.rowCount).toBe(1);
+    expect(stored.rows[0].payload.surface).toBe("create_post");
+    expect(stored.rows[0].payload.experimentId).toBe("exp_time_copy_v1");
   });
 });

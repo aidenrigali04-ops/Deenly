@@ -78,6 +78,19 @@ function rowToEvent(row) {
   };
 }
 
+async function trackAnalyticsEvent({ analytics, eventName, userId, source, surface, platform, properties = {} }) {
+  if (!analytics || typeof analytics.trackEvent !== "function") {
+    return;
+  }
+  await analytics.trackEvent(eventName, {
+    userId,
+    source: source || "unknown",
+    surface: surface || "events",
+    platform: platform || "unknown",
+    ...properties
+  });
+}
+
 async function getOptionalViewerId({ db, config, authorization }) {
   if (!authorization || !authorization.startsWith("Bearer ")) {
     return null;
@@ -101,7 +114,7 @@ async function getOptionalViewerId({ db, config, authorization }) {
 
 async function loadEventAccess({ db, eventId, viewerId }) {
   const access = await db.query(
-    `SELECT e.id, e.host_user_id, e.visibility, e.status,
+    `SELECT e.id, e.host_user_id, e.visibility, e.status, e.starts_at, e.ends_at,
             (
               SELECT r.status
               FROM event_rsvps r
@@ -133,13 +146,107 @@ async function loadEventAccess({ db, eventId, viewerId }) {
   };
 }
 
+function isEventChatClosed({ row, graceHours }) {
+  if (row.status === "canceled" || row.status === "completed") {
+    return true;
+  }
+  const baseEnd = row.ends_at || row.starts_at;
+  const baseTime = new Date(baseEnd).getTime();
+  if (!Number.isFinite(baseTime)) {
+    return false;
+  }
+  const graceMs = Math.max(Number(graceHours) || 0, 0) * 60 * 60 * 1000;
+  return Date.now() > baseTime + graceMs;
+}
+
+function buildEventModerationReason({ eventId, kind, reason }) {
+  const cleanReason = String(reason || "").trim();
+  const suffix = cleanReason || kind;
+  return `[event:${eventId}][kind:${kind}] ${suffix}`.slice(0, 300);
+}
+
+async function appendModerationAudit({
+  db,
+  eventId,
+  actorUserId,
+  targetUserId = null,
+  actionType,
+  reason = null,
+  note = null
+}) {
+  await db.query(
+    `INSERT INTO event_chat_moderation_actions (
+       event_id, actor_user_id, target_user_id, action_type, reason, note
+     )
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [eventId, actorUserId, targetUserId, actionType, reason, note]
+  );
+}
+
 function createEventsRouter({ db, config, analytics }) {
   const router = express.Router();
   const authMiddleware = authenticate({ db, config });
+  let moderationStorageModeCache = null;
+
+  async function getModerationStorageMode() {
+    if (moderationStorageModeCache) {
+      return moderationStorageModeCache;
+    }
+    try {
+      const check = await db.query(
+        `SELECT
+           to_regclass('public.event_chat_mutes')::text AS mutes_table,
+           to_regclass('public.event_chat_moderation_actions')::text AS actions_table`
+      );
+      const row = check.rows[0] || {};
+      moderationStorageModeCache =
+        row.mutes_table && row.actions_table ? "event_chat_tables" : "reports_fallback";
+      return moderationStorageModeCache;
+    } catch {
+      moderationStorageModeCache = "reports_fallback";
+      return moderationStorageModeCache;
+    }
+  }
+
+  async function isUserMutedInEventChat(eventId, userId) {
+    const storageMode = await getModerationStorageMode();
+    if (storageMode === "event_chat_tables") {
+      const muted = await db.query(
+        `SELECT 1 FROM event_chat_mutes WHERE event_id = $1 AND user_id = $2 LIMIT 1`,
+        [eventId, userId]
+      );
+      return muted.rowCount > 0;
+    }
+    const muted = await db.query(
+      `SELECT 1
+       FROM reports
+       WHERE target_type = 'user'
+         AND target_id = $1
+         AND reason LIKE $2
+         AND status IN ('open', 'reviewing')
+       LIMIT 1`,
+      [String(userId), `[event:${eventId}][kind:mute]%`]
+    );
+    return muted.rowCount > 0;
+  }
 
   function assertEventsEnabled() {
     if (!config.eventsFeatureEnabled) {
       throw httpError(404, "Events are not enabled");
+    }
+  }
+
+  function assertReadEnabled() {
+    assertEventsEnabled();
+    if (!config.eventsReadEnabled) {
+      throw httpError(404, "Event discovery is not enabled");
+    }
+  }
+
+  function assertCreateEnabled() {
+    assertEventsEnabled();
+    if (!config.eventsCreateEnabled) {
+      throw httpError(404, "Event creation is not enabled");
     }
   }
 
@@ -153,6 +260,7 @@ function createEventsRouter({ db, config, analytics }) {
     "/near",
     asyncHandler(async (req, res) => {
       assertEventsEnabled();
+      assertReadEnabled();
       const viewerId = await getOptionalViewerId({
         db,
         config,
@@ -250,6 +358,7 @@ function createEventsRouter({ db, config, analytics }) {
     "/",
     asyncHandler(async (req, res) => {
       assertEventsEnabled();
+      assertReadEnabled();
       const viewerId = await getOptionalViewerId({
         db,
         config,
@@ -319,13 +428,14 @@ function createEventsRouter({ db, config, analytics }) {
         [viewerId || 0, hostUserId, limit, offset]
       );
 
-      if (analytics && typeof analytics.trackEvent === "function") {
-        analytics.trackEvent({
-          userId: viewerId,
-          eventName: "event_viewed",
-          properties: { source: source || "events_list", action: "list" }
-        });
-      }
+      await trackAnalyticsEvent({
+        analytics,
+        eventName: "event_viewed",
+        userId: viewerId,
+        source: source || "events_list",
+        surface: "events_list",
+        properties: { action: "list" }
+      });
 
       res.status(200).json({ items: result.rows.map((row) => rowToEvent({ ...row, can_join_chat: row.viewer_rsvp_status === "going" })) });
     })
@@ -336,6 +446,7 @@ function createEventsRouter({ db, config, analytics }) {
     authMiddleware,
     asyncHandler(async (req, res) => {
       assertEventsEnabled();
+      assertCreateEnabled();
       const title = requireString(req.body?.title, "title", 3, 180);
       const description = optionalString(req.body?.description, "description", 4000);
       const startsAt = parseIsoDate(req.body?.startsAt, "startsAt");
@@ -388,17 +499,14 @@ function createEventsRouter({ db, config, analytics }) {
         ]
       );
 
-      if (analytics && typeof analytics.trackEvent === "function") {
-        analytics.trackEvent({
-          userId: req.user.id,
-          eventName: "event_created",
-          properties: {
-            source: optionalString(req.body?.source, "source", 64) || "unknown",
-            visibility,
-            isOnline
-          }
-        });
-      }
+      await trackAnalyticsEvent({
+        analytics,
+        eventName: "event_created",
+        userId: req.user.id,
+        source: optionalString(req.body?.source, "source", 64) || "unknown",
+        surface: "events_create",
+        properties: { visibility, isOnline }
+      });
 
       res.status(201).json(rowToEvent({ ...inserted.rows[0], can_join_chat: false }));
     })
@@ -408,6 +516,7 @@ function createEventsRouter({ db, config, analytics }) {
     "/:id",
     asyncHandler(async (req, res) => {
       assertEventsEnabled();
+      assertReadEnabled();
       const eventId = Number(req.params.id);
       if (!eventId) {
         throw httpError(400, "id must be a number");
@@ -459,13 +568,14 @@ function createEventsRouter({ db, config, analytics }) {
       );
       const row = result.rows[0];
 
-      if (analytics && typeof analytics.trackEvent === "function") {
-        analytics.trackEvent({
-          userId: viewerId,
-          eventName: "event_viewed",
-          properties: { source: source || "events_detail", eventId }
-        });
-      }
+      await trackAnalyticsEvent({
+        analytics,
+        eventName: "event_viewed",
+        userId: viewerId,
+        source: source || "events_detail",
+        surface: "events_detail",
+        properties: { eventId }
+      });
 
       res.status(200).json(
         rowToEvent({
@@ -482,6 +592,7 @@ function createEventsRouter({ db, config, analytics }) {
     authMiddleware,
     asyncHandler(async (req, res) => {
       assertEventsEnabled();
+      assertCreateEnabled();
       const eventId = Number(req.params.id);
       if (!eventId) {
         throw httpError(400, "id must be a number");
@@ -589,6 +700,7 @@ function createEventsRouter({ db, config, analytics }) {
     authMiddleware,
     asyncHandler(async (req, res) => {
       assertEventsEnabled();
+      assertCreateEnabled();
       const eventId = Number(req.params.id);
       if (!eventId) {
         throw httpError(400, "id must be a number");
@@ -602,13 +714,14 @@ function createEventsRouter({ db, config, analytics }) {
 
       if (!status || status === "none") {
         await db.query("DELETE FROM event_rsvps WHERE event_id = $1 AND user_id = $2", [eventId, req.user.id]);
-        if (analytics && typeof analytics.trackEvent === "function") {
-          analytics.trackEvent({
-            userId: req.user.id,
-            eventName: "event_rsvp_changed",
-            properties: { eventId, status: "none", source: source || "unknown" }
-          });
-        }
+        await trackAnalyticsEvent({
+          analytics,
+          eventName: "event_rsvp_changed",
+          userId: req.user.id,
+          source: source || "unknown",
+          surface: "events_detail",
+          properties: { eventId, status: "none" }
+        });
         return res.status(200).json({ eventId, status: null });
       }
       if (!RSVP_STATUSES.has(status)) {
@@ -623,13 +736,14 @@ function createEventsRouter({ db, config, analytics }) {
         [eventId, req.user.id, status]
       );
 
-      if (analytics && typeof analytics.trackEvent === "function") {
-        analytics.trackEvent({
-          userId: req.user.id,
-          eventName: "event_rsvp_changed",
-          properties: { eventId, status, source: source || "unknown" }
-        });
-      }
+      await trackAnalyticsEvent({
+        analytics,
+        eventName: "event_rsvp_changed",
+        userId: req.user.id,
+        source: source || "unknown",
+        surface: "events_detail",
+        properties: { eventId, status }
+      });
 
       res.status(200).json({ eventId, status });
     })
@@ -640,6 +754,7 @@ function createEventsRouter({ db, config, analytics }) {
     authMiddleware,
     asyncHandler(async (req, res) => {
       assertEventsEnabled();
+      assertReadEnabled();
       const eventId = Number(req.params.id);
       if (!eventId) {
         throw httpError(400, "id must be a number");
@@ -665,6 +780,7 @@ function createEventsRouter({ db, config, analytics }) {
     authMiddleware,
     asyncHandler(async (req, res) => {
       assertEventsEnabled();
+      assertCreateEnabled();
       const eventId = Number(req.params.id);
       const targetUserId = Number(req.params.userId);
       if (!eventId || !targetUserId) {
@@ -678,7 +794,240 @@ function createEventsRouter({ db, config, analytics }) {
         throw httpError(403, "Not allowed to modify attendees for this event");
       }
       await db.query("DELETE FROM event_rsvps WHERE event_id = $1 AND user_id = $2", [eventId, targetUserId]);
+      const reason = optionalString(req.body?.reason, "reason", 300);
+      const storageMode = await getModerationStorageMode();
+      if (storageMode === "event_chat_tables") {
+        await appendModerationAudit({
+          db,
+          eventId,
+          actorUserId: req.user.id,
+          targetUserId,
+          actionType: "remove_attendee",
+          reason
+        });
+      } else {
+        await db.query(
+          `INSERT INTO reports (reporter_user_id, target_type, target_id, reason, status)
+           VALUES ($1, 'user', $2, $3, 'open')`,
+          [
+            req.user.id,
+            String(targetUserId),
+            buildEventModerationReason({ eventId, kind: "remove_attendee", reason })
+          ]
+        );
+      }
       res.status(200).json({ removed: true });
+    })
+  );
+
+  router.post(
+    "/:id/chat/mute",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      assertEventsEnabled();
+      assertCreateEnabled();
+      const eventId = Number(req.params.id);
+      const targetUserId = Number(req.body?.userId);
+      if (!eventId || !targetUserId) {
+        throw httpError(400, "id and userId must be numbers");
+      }
+      const event = await db.query("SELECT host_user_id FROM events WHERE id = $1 LIMIT 1", [eventId]);
+      if (event.rowCount === 0) {
+        throw httpError(404, "Event not found");
+      }
+      if (event.rows[0].host_user_id !== req.user.id) {
+        throw httpError(403, "Only event host can mute attendees");
+      }
+      const reason = optionalString(req.body?.reason, "reason", 300);
+      const storageMode = await getModerationStorageMode();
+      if (storageMode === "event_chat_tables") {
+        await db.query(
+          `INSERT INTO event_chat_mutes (event_id, user_id, muted_by_user_id, reason)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (event_id, user_id)
+           DO UPDATE SET muted_by_user_id = EXCLUDED.muted_by_user_id, reason = EXCLUDED.reason`,
+          [eventId, targetUserId, req.user.id, reason]
+        );
+        await appendModerationAudit({
+          db,
+          eventId,
+          actorUserId: req.user.id,
+          targetUserId,
+          actionType: "mute",
+          reason
+        });
+      } else {
+        await db.query(
+          `INSERT INTO reports (reporter_user_id, target_type, target_id, reason, status)
+           VALUES ($1, 'user', $2, $3, 'open')
+           ON CONFLICT DO NOTHING`,
+          [
+            req.user.id,
+            String(targetUserId),
+            buildEventModerationReason({ eventId, kind: "mute", reason: reason || "muted by host" })
+          ]
+        );
+      }
+      res.status(200).json({ muted: true });
+    })
+  );
+
+  router.delete(
+    "/:id/chat/mute/:userId",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      assertEventsEnabled();
+      assertCreateEnabled();
+      const eventId = Number(req.params.id);
+      const targetUserId = Number(req.params.userId);
+      if (!eventId || !targetUserId) {
+        throw httpError(400, "id and userId must be numbers");
+      }
+      const event = await db.query("SELECT host_user_id FROM events WHERE id = $1 LIMIT 1", [eventId]);
+      if (event.rowCount === 0) {
+        throw httpError(404, "Event not found");
+      }
+      if (event.rows[0].host_user_id !== req.user.id) {
+        throw httpError(403, "Only event host can unmute attendees");
+      }
+      const storageMode = await getModerationStorageMode();
+      if (storageMode === "event_chat_tables") {
+        await db.query("DELETE FROM event_chat_mutes WHERE event_id = $1 AND user_id = $2", [eventId, targetUserId]);
+        await appendModerationAudit({
+          db,
+          eventId,
+          actorUserId: req.user.id,
+          targetUserId,
+          actionType: "unmute"
+        });
+      } else {
+        await db.query(
+          `UPDATE reports
+           SET status = 'resolved'
+           WHERE target_type = 'user'
+             AND target_id = $1
+             AND reason LIKE $2
+             AND status IN ('open', 'reviewing')`,
+          [String(targetUserId), `[event:${eventId}][kind:mute]%`]
+        );
+      }
+      res.status(200).json({ muted: false });
+    })
+  );
+
+  router.post(
+    "/:id/chat/report",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      assertEventsEnabled();
+      assertReadEnabled();
+      const eventId = Number(req.params.id);
+      const targetUserId = Number(req.body?.userId);
+      if (!eventId || !targetUserId) {
+        throw httpError(400, "id and userId must be numbers");
+      }
+      const reason = requireString(req.body?.reason, "reason", 3, 300);
+      const note = optionalString(req.body?.note, "note", 2000);
+      const storageMode = await getModerationStorageMode();
+      if (storageMode === "event_chat_tables") {
+        await appendModerationAudit({
+          db,
+          eventId,
+          actorUserId: req.user.id,
+          targetUserId,
+          actionType: "report",
+          reason,
+          note
+        });
+      }
+      await db.query(
+        `INSERT INTO reports (reporter_user_id, target_type, target_id, reason, status)
+         VALUES ($1, 'user', $2, $3, 'open')`,
+        [
+          req.user.id,
+          String(targetUserId),
+          buildEventModerationReason({ eventId, kind: "report", reason })
+        ]
+      );
+      res.status(201).json({ reported: true });
+    })
+  );
+
+  router.get(
+    "/:id/chat/moderation",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      assertEventsEnabled();
+      assertReadEnabled();
+      const eventId = Number(req.params.id);
+      if (!eventId) {
+        throw httpError(400, "id must be a number");
+      }
+      const event = await db.query("SELECT host_user_id FROM events WHERE id = $1 LIMIT 1", [eventId]);
+      if (event.rowCount === 0) {
+        throw httpError(404, "Event not found");
+      }
+      if (event.rows[0].host_user_id !== req.user.id) {
+        throw httpError(403, "Only event host can view moderation logs");
+      }
+      const storageMode = await getModerationStorageMode();
+      if (storageMode === "event_chat_tables") {
+        const [mutes, actions] = await Promise.all([
+          db.query(
+            `SELECT m.event_id, m.user_id, m.muted_by_user_id, m.reason, m.created_at,
+                    p.display_name AS user_display_name
+             FROM event_chat_mutes m
+             LEFT JOIN profiles p ON p.user_id = m.user_id
+             WHERE m.event_id = $1
+             ORDER BY m.created_at DESC`,
+            [eventId]
+          ),
+          db.query(
+            `SELECT a.id, a.event_id, a.actor_user_id, a.target_user_id, a.action_type, a.reason, a.note, a.created_at,
+                    ap.display_name AS actor_display_name,
+                    tp.display_name AS target_display_name
+             FROM event_chat_moderation_actions a
+             LEFT JOIN profiles ap ON ap.user_id = a.actor_user_id
+             LEFT JOIN profiles tp ON tp.user_id = a.target_user_id
+             WHERE a.event_id = $1
+             ORDER BY a.created_at DESC
+             LIMIT 100`,
+            [eventId]
+          )
+        ]);
+        return res.status(200).json({ mutes: mutes.rows, actions: actions.rows });
+      }
+      const fallback = await db.query(
+        `SELECT id, target_type, target_id, reason, created_at
+         FROM reports
+         WHERE reporter_user_id = $1
+           AND target_type = 'user'
+           AND reason LIKE $2
+         ORDER BY created_at DESC
+         LIMIT 100`,
+        [req.user.id, `[event:${eventId}][kind:%`]
+      );
+      const mutes = fallback.rows
+        .filter((row) => String(row.reason || "").startsWith(`[event:${eventId}][kind:mute]`))
+        .map((row) => ({
+          event_id: eventId,
+          user_id: Number(row.target_id),
+          muted_by_user_id: req.user.id,
+          reason: row.reason,
+          created_at: row.created_at
+        }));
+      const actions = fallback.rows.map((row) => ({
+        id: row.id,
+        event_id: eventId,
+        action_type: String(row.reason || "").includes("[kind:remove_attendee]")
+          ? "remove_attendee"
+          : String(row.reason || "").includes("[kind:report]")
+            ? "report"
+            : "mute",
+        reason: row.reason,
+        created_at: row.created_at
+      }));
+      return res.status(200).json({ mutes, actions });
     })
   );
 
@@ -687,6 +1036,7 @@ function createEventsRouter({ db, config, analytics }) {
     authMiddleware,
     asyncHandler(async (req, res) => {
       assertEventsEnabled();
+      assertReadEnabled();
       assertChatEnabled();
       const eventId = Number(req.params.id);
       if (!eventId) {
@@ -695,6 +1045,12 @@ function createEventsRouter({ db, config, analytics }) {
       const access = await loadEventAccess({ db, eventId, viewerId: req.user.id });
       if (!access.canJoinChat) {
         throw httpError(403, "Join this event (Going) to access chat");
+      }
+      if (await isUserMutedInEventChat(eventId, req.user.id)) {
+        throw httpError(403, "You are muted in this event chat");
+      }
+      if (isEventChatClosed({ row: access.row, graceHours: config.eventsChatGraceHours })) {
+        throw httpError(409, "Event chat has closed for this event");
       }
       const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100);
       const beforeId = req.query.beforeId ? Number(req.query.beforeId) : null;
@@ -710,13 +1066,14 @@ function createEventsRouter({ db, config, analytics }) {
         [eventId, beforeId, limit]
       );
 
-      if (analytics && typeof analytics.trackEvent === "function") {
-        analytics.trackEvent({
-          userId: req.user.id,
-          eventName: "event_chat_joined",
-          properties: { eventId }
-        });
-      }
+      await trackAnalyticsEvent({
+        analytics,
+        eventName: "event_chat_joined",
+        userId: req.user.id,
+        source: "events_chat",
+        surface: "events_chat",
+        properties: { eventId }
+      });
 
       res.status(200).json({
         items: result.rows.reverse().map((row) => ({
@@ -736,6 +1093,7 @@ function createEventsRouter({ db, config, analytics }) {
     authMiddleware,
     asyncHandler(async (req, res) => {
       assertEventsEnabled();
+      assertCreateEnabled();
       assertChatEnabled();
       const eventId = Number(req.params.id);
       if (!eventId) {
@@ -744,6 +1102,12 @@ function createEventsRouter({ db, config, analytics }) {
       const access = await loadEventAccess({ db, eventId, viewerId: req.user.id });
       if (!access.canJoinChat) {
         throw httpError(403, "Join this event (Going) to send messages");
+      }
+      if (await isUserMutedInEventChat(eventId, req.user.id)) {
+        throw httpError(403, "You are muted in this event chat");
+      }
+      if (isEventChatClosed({ row: access.row, graceHours: config.eventsChatGraceHours })) {
+        throw httpError(409, "Event chat has closed for this event");
       }
       const body = requireString(req.body?.body, "body", 1, 4000);
       const blockedTerms = Array.isArray(config.commentBlockedTerms) ? config.commentBlockedTerms : [];
@@ -758,16 +1122,14 @@ function createEventsRouter({ db, config, analytics }) {
          RETURNING id, event_id, sender_user_id, body, created_at`,
         [eventId, req.user.id, body]
       );
-      if (analytics && typeof analytics.trackEvent === "function") {
-        analytics.trackEvent({
-          userId: req.user.id,
-          eventName: "event_chat_message_sent",
-          properties: {
-            eventId,
-            source: optionalString(req.body?.source, "source", 64) || "unknown"
-          }
-        });
-      }
+      await trackAnalyticsEvent({
+        analytics,
+        eventName: "event_chat_message_sent",
+        userId: req.user.id,
+        source: optionalString(req.body?.source, "source", 64) || "unknown",
+        surface: "events_chat",
+        properties: { eventId }
+      });
       res.status(201).json({
         id: inserted.rows[0].id,
         eventId: inserted.rows[0].event_id,

@@ -40,6 +40,33 @@ type Props = CompositeScreenProps<
 
 type Mode = "search" | "near";
 type NearKind = "all" | "businesses" | "events";
+type NearTimeWindow = "upcoming" | "today" | "this_week";
+type EventCluster = {
+  id: string;
+  latitude: number;
+  longitude: number;
+  count: number;
+};
+
+function clusterNearbyEvents(
+  items: { latitude: number | null; longitude: number | null }[],
+  precision = 2
+) {
+  const map = new Map<string, EventCluster>();
+  for (const item of items) {
+    if (item.latitude == null || item.longitude == null) continue;
+    const lat = Number(item.latitude.toFixed(precision));
+    const lng = Number(item.longitude.toFixed(precision));
+    const key = `${lat},${lng}`;
+    const existing = map.get(key);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      map.set(key, { id: key, latitude: lat, longitude: lng, count: 1 });
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => b.count - a.count);
+}
 
 const FALLBACK = { lat: 40.7128, lng: -74.006 };
 
@@ -51,6 +78,8 @@ export function SearchScreen({ navigation }: Props) {
   const [geoNote, setGeoNote] = useState<string | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
   const [nearKind, setNearKind] = useState<NearKind>("all");
+  const [nearTimeWindow, setNearTimeWindow] = useState<NearTimeWindow>("upcoming");
+  const [selectedCluster, setSelectedCluster] = useState<string | null>(null);
 
   useEffect(() => {
     if (mode !== "near") return;
@@ -88,18 +117,14 @@ export function SearchScreen({ navigation }: Props) {
   const usersQuery = useQuery({
     queryKey: ["mobile-search-users", submittedQ],
     queryFn: () =>
-      apiRequest<{ items: UserItem[] }>(`/search/users?q=${encodeURIComponent(submittedQ)}&limit=10`, {
-        auth: true
-      }),
+      apiRequest<{ items: UserItem[] }>(`/search/users?q=${encodeURIComponent(submittedQ)}&limit=10`),
     enabled: mode === "search" && submittedQ.length > 0
   });
 
   const postsQuery = useQuery({
     queryKey: ["mobile-search-posts", submittedQ],
     queryFn: () =>
-      apiRequest<{ items: PostItem[] }>(`/search/posts?q=${encodeURIComponent(submittedQ)}&limit=10`, {
-        auth: true
-      }),
+      apiRequest<{ items: PostItem[] }>(`/search/posts?q=${encodeURIComponent(submittedQ)}&limit=10`),
     enabled: mode === "search" && submittedQ.length > 0
   });
 
@@ -109,8 +134,8 @@ export function SearchScreen({ navigation }: Props) {
     enabled: mode === "near" && Boolean(geo)
   });
   const nearEventsQuery = useQuery({
-    queryKey: ["mobile-events-near", geo?.lat, geo?.lng],
-    queryFn: () => fetchEventsNear({ lat: geo!.lat, lng: geo!.lng }),
+    queryKey: ["mobile-events-near", geo?.lat, geo?.lng, nearTimeWindow],
+    queryFn: () => fetchEventsNear({ lat: geo!.lat, lng: geo!.lng, timeWindow: nearTimeWindow }),
     enabled: mode === "near" && Boolean(geo)
   });
   const profileQuery = useQuery({
@@ -123,6 +148,18 @@ export function SearchScreen({ navigation }: Props) {
       }>("/users/me", { auth: true })
   });
   const canUseBusinessDirectoryTools = Boolean(profileQuery.data?.persona_capabilities?.can_use_business_directory_tools);
+  const clusterPrecision = nearTimeWindow === "today" ? 2 : 1;
+  const eventClusters = clusterNearbyEvents(nearEventsQuery.data?.items || [], clusterPrecision);
+  const visibleEvents =
+    selectedCluster && nearKind !== "businesses"
+      ? (nearEventsQuery.data?.items || []).filter((event) => {
+          if (event.latitude == null || event.longitude == null) return false;
+          const key = `${Number(event.latitude.toFixed(clusterPrecision))},${Number(
+            event.longitude.toFixed(clusterPrecision)
+          )}`;
+          return key === selectedCluster;
+        })
+      : nearEventsQuery.data?.items || [];
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -217,6 +254,46 @@ export function SearchScreen({ navigation }: Props) {
                   </Pressable>
                 ))}
               </View>
+              {(nearKind === "all" || nearKind === "events") ? (
+                <View style={styles.modeRow}>
+                  {(["upcoming", "today", "this_week"] as const).map((windowKey) => (
+                    <Pressable
+                      key={windowKey}
+                      style={[styles.modeChip, nearTimeWindow === windowKey ? styles.modeChipOn : null]}
+                      onPress={() => setNearTimeWindow(windowKey)}
+                    >
+                      <Text style={[styles.modeChipText, nearTimeWindow === windowKey ? styles.modeChipTextOn : null]}>
+                        {windowKey === "upcoming" ? "Upcoming" : windowKey === "today" ? "Today" : "This week"}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+              {(nearKind === "all" || nearKind === "events") && eventClusters.length > 0 ? (
+                <View style={styles.clusterCard}>
+                  <View style={styles.clusterHeader}>
+                    <Text style={styles.title}>Event clusters</Text>
+                    {selectedCluster ? (
+                      <Pressable onPress={() => setSelectedCluster(null)}>
+                        <Text style={styles.linkText}>Clear</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                  <View style={styles.modeRow}>
+                    {eventClusters.map((cluster) => (
+                      <Pressable
+                        key={cluster.id}
+                        style={[styles.modeChip, selectedCluster === cluster.id ? styles.modeChipOn : null]}
+                        onPress={() => setSelectedCluster(cluster.id)}
+                      >
+                        <Text style={[styles.modeChipText, selectedCluster === cluster.id ? styles.modeChipTextOn : null]}>
+                          {cluster.count} near {cluster.latitude.toFixed(2)},{cluster.longitude.toFixed(2)}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              ) : null}
               <Text style={styles.title}>Nearby</Text>
               {(nearQuery.data?.items || []).length === 0 &&
               (nearEventsQuery.data?.items || []).length === 0 &&
@@ -240,7 +317,7 @@ export function SearchScreen({ navigation }: Props) {
                   ) : null}
                 </Pressable>
               ))}
-              {(nearKind === "all" || nearKind === "events" ? nearEventsQuery.data?.items || [] : []).map((event) => (
+              {(nearKind === "all" || nearKind === "events" ? visibleEvents : []).map((event) => (
                 <Pressable
                   key={`event-${event.id}`}
                   style={styles.bizRow}
@@ -277,6 +354,16 @@ const styles = StyleSheet.create({
   modeChipOn: { backgroundColor: colors.accent, borderColor: colors.accent },
   modeChipText: { color: colors.text, fontWeight: "600", fontSize: 13 },
   modeChipTextOn: { color: colors.onAccent },
+  clusterCard: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.control,
+    padding: 10,
+    gap: 8
+  },
+  clusterHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  linkText: { color: colors.accent, fontSize: 12, fontWeight: "700" },
   addBiz: { marginLeft: "auto", paddingHorizontal: 12, paddingVertical: 8 },
   addBizText: { color: colors.accent, fontWeight: "700", fontSize: 13 },
   searchRow: { flexDirection: "row", gap: 8 },

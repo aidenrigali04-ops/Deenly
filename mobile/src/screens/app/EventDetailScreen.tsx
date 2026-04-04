@@ -1,9 +1,19 @@
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../../lib/api";
-import { fetchEventChat, fetchEventDetail, sendEventChatMessage, setEventRsvp } from "../../lib/events";
+import { fetchSessionMe } from "../../lib/auth";
+import {
+  fetchEventChat,
+  fetchEventChatModeration,
+  fetchEventDetail,
+  muteEventChatUser,
+  removeEventAttendee,
+  reportEventChatUser,
+  sendEventChatMessage,
+  setEventRsvp
+} from "../../lib/events";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { colors, radii } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
@@ -25,6 +35,15 @@ export function EventDetailScreen({ route }: Props) {
     queryFn: () => fetchEventChat(eventId),
     enabled: Boolean(eventQuery.data?.canJoinChat)
   });
+  const meQuery = useQuery({
+    queryKey: ["mobile-event-me"],
+    queryFn: () => fetchSessionMe()
+  });
+  const moderationQuery = useQuery({
+    queryKey: ["mobile-event-moderation", eventId],
+    queryFn: () => fetchEventChatModeration(eventId),
+    enabled: Boolean(eventQuery.data?.hostUserId === meQuery.data?.id)
+  });
 
   const rsvpMutation = useMutation({
     mutationFn: (status: "interested" | "going" | "none") => setEventRsvp(eventId, status, "mobile_detail"),
@@ -41,6 +60,24 @@ export function EventDetailScreen({ route }: Props) {
       queryClient.invalidateQueries({ queryKey: ["mobile-event-chat", eventId] });
     }
   });
+  const muteMutation = useMutation({
+    mutationFn: (userId: number) => muteEventChatUser(eventId, userId, "Host moderation"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["mobile-event-chat", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["mobile-event-moderation", eventId] });
+    }
+  });
+  const removeMutation = useMutation({
+    mutationFn: (userId: number) => removeEventAttendee(eventId, userId, "Host moderation"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["mobile-event-chat", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["mobile-event-moderation", eventId] });
+    }
+  });
+  const reportMutation = useMutation({
+    mutationFn: (userId: number) =>
+      reportEventChatUser(eventId, userId, "Abusive behavior", "Reported from mobile event detail")
+  });
 
   const startsLabel = useMemo(() => {
     if (!eventQuery.data?.startsAt) return "";
@@ -51,6 +88,8 @@ export function EventDetailScreen({ route }: Props) {
   if (eventQuery.error) return <ErrorState message={(eventQuery.error as Error).message} />;
   const event = eventQuery.data;
   if (!event) return <EmptyState title="Event not found" />;
+  const isHost = event.hostUserId === meQuery.data?.id;
+  const mutedUserIds = new Set((moderationQuery.data?.mutes || []).map((m) => m.user_id));
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -93,6 +132,29 @@ export function EventDetailScreen({ route }: Props) {
                 <View key={msg.id} style={styles.chatMessage}>
                   <Text style={styles.chatAuthor}>{msg.senderDisplayName || "Member"}</Text>
                   <Text style={styles.chatBody}>{msg.body}</Text>
+                  {isHost && msg.senderUserId !== meQuery.data?.id ? (
+                    <View style={styles.hostRow}>
+                      <Pressable style={styles.secondaryBtn} onPress={() => muteMutation.mutate(msg.senderUserId)}>
+                        <Text style={styles.secondaryBtnText}>
+                          {mutedUserIds.has(msg.senderUserId) ? "Muted" : "Mute"}
+                        </Text>
+                      </Pressable>
+                      <Pressable style={styles.secondaryBtn} onPress={() => removeMutation.mutate(msg.senderUserId)}>
+                        <Text style={styles.secondaryBtnText}>Remove</Text>
+                      </Pressable>
+                      <Pressable
+                        style={styles.secondaryBtn}
+                        onPress={() =>
+                          Alert.alert("Report user", "Report this attendee for moderation?", [
+                            { text: "Cancel", style: "cancel" },
+                            { text: "Report", style: "destructive", onPress: () => reportMutation.mutate(msg.senderUserId) }
+                          ])
+                        }
+                      >
+                        <Text style={styles.secondaryBtnText}>Report</Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
                 </View>
               ))}
             </View>
@@ -116,6 +178,27 @@ export function EventDetailScreen({ route }: Props) {
           </>
         )}
       </View>
+      {isHost ? (
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Host moderation audit</Text>
+          {moderationQuery.isLoading ? <LoadingState label="Loading moderation logs..." /> : null}
+          {moderationQuery.error ? <ErrorState message={(moderationQuery.error as Error).message} /> : null}
+          {!moderationQuery.isLoading && !moderationQuery.error ? (
+            <>
+              <Text style={styles.subtle}>Muted attendees: {moderationQuery.data?.mutes.length || 0}</Text>
+              {(moderationQuery.data?.actions || []).slice(0, 8).map((action) => (
+                <View key={action.id} style={styles.chatMessage}>
+                  <Text style={styles.chatAuthor}>
+                    {action.action_type} · {action.actor_display_name || "Host"} {"->"}{" "}
+                    {action.target_display_name || "User"}
+                  </Text>
+                  {action.reason ? <Text style={styles.chatBody}>{action.reason}</Text> : null}
+                </View>
+              ))}
+            </>
+          ) : null}
+        </View>
+      ) : null}
     </ScrollView>
   );
 }
@@ -182,5 +265,6 @@ const styles = StyleSheet.create({
   chatAuthor: { color: colors.muted, fontSize: 11, marginBottom: 2 },
   chatBody: { color: colors.text, fontSize: 13 },
   chatInputRow: { flexDirection: "row", gap: 8, alignItems: "center" },
-  chatInput: { flex: 1 }
+  chatInput: { flex: 1 },
+  hostRow: { marginTop: 6, flexDirection: "row", gap: 6, flexWrap: "wrap" }
 });

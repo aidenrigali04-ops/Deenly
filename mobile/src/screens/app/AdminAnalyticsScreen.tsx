@@ -17,11 +17,37 @@ export function AdminAnalyticsScreen() {
     queryKey: ["mobile-admin-feed-health"],
     queryFn: () => apiRequest("/analytics/dashboard/feed-health", { auth: true })
   });
+  const experimentsQuery = useQuery({
+    queryKey: ["mobile-admin-experiments"],
+    queryFn: () => apiRequest("/analytics/dashboard/experiments", { auth: true })
+  });
+  const rolloutStatusQuery = useQuery({
+    queryKey: ["mobile-admin-rollout-status"],
+    queryFn: () => apiRequest("/analytics/dashboard/rollout-status", { auth: true })
+  });
+  const rolloutRunbookQuery = useQuery({
+    queryKey: ["mobile-admin-rollout-runbook"],
+    queryFn: () => apiRequest("/analytics/dashboard/rollout-runbook", { auth: true })
+  });
 
-  if (funnelQuery.isLoading || retentionQuery.isLoading || feedHealthQuery.isLoading) {
+  if (
+    funnelQuery.isLoading ||
+    retentionQuery.isLoading ||
+    feedHealthQuery.isLoading ||
+    experimentsQuery.isLoading ||
+    rolloutStatusQuery.isLoading ||
+    rolloutRunbookQuery.isLoading
+  ) {
     return <LoadingState label="Loading admin analytics..." />;
   }
-  if (funnelQuery.error || retentionQuery.error || feedHealthQuery.error) {
+  if (
+    funnelQuery.error ||
+    retentionQuery.error ||
+    feedHealthQuery.error ||
+    experimentsQuery.error ||
+    rolloutStatusQuery.error ||
+    rolloutRunbookQuery.error
+  ) {
     return (
       <ErrorState
         message={
@@ -43,6 +69,18 @@ export function AdminAnalyticsScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.heading}>Admin Analytics</Text>
+      <View style={styles.card}>
+        <Text style={styles.title}>Rollout Status</Text>
+        <Text style={styles.muted}>{JSON.stringify(rolloutStatusQuery.data, null, 2)}</Text>
+      </View>
+      <View style={styles.card}>
+        <Text style={styles.title}>Rollback Runbook</Text>
+        <Text style={styles.muted}>{JSON.stringify(rolloutRunbookQuery.data, null, 2)}</Text>
+      </View>
+      <View style={styles.card}>
+        <Text style={styles.title}>Experiment Outcomes</Text>
+        <Text style={styles.muted}>{JSON.stringify(experimentsQuery.data, null, 2)}</Text>
+      </View>
       {sections.map((section) => (
         <View key={section.title} style={styles.card}>
           <Text style={styles.title}>{section.title}</Text>

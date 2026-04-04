@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, apiRequest } from "@/lib/api";
 import { assistPostText } from "@/lib/ai-assist";
@@ -19,6 +19,12 @@ import {
   type ProductImportDraft,
   type StripeProductImportRow
 } from "@/lib/monetization";
+import {
+  growthExperiments,
+  resolveVariant,
+  shouldShowExperimentPrompt,
+  trackClientExperimentEvent
+} from "@/lib/experiments";
 
 type UploadSignatureResponse = {
   uploadUrl: string;
@@ -142,6 +148,9 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
     queryFn: () => apiRequest<MePersonaProfile>("/users/me", { auth: true })
   });
   const canCreateProducts = Boolean(meProfileQuery.data?.persona_capabilities?.can_create_products);
+  const persona = meProfileQuery.data?.profile_kind || null;
+  const financialVariant = resolveVariant(`${variant}:${persona || "anon"}`, growthExperiments.financialPrompt);
+  const timeVariant = resolveVariant(`${variant}:${persona || "anon"}`, growthExperiments.timeCopy);
   const boostTierBps: Record<BoostTier, number> = {
     standard: 350,
     boosted: 2000,
@@ -214,6 +223,24 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
     setStripeImportItems([]);
     setImportError("");
   };
+
+  useEffect(() => {
+    if (!canCreateProducts) {
+      return;
+    }
+    if (!shouldShowExperimentPrompt({ experimentId: growthExperiments.financialPrompt, persona })) {
+      return;
+    }
+    void trackClientExperimentEvent({
+      eventName: "offer_attach_prompt_shown",
+      persona,
+      source: "web",
+      surface: "create_product",
+      experimentId: growthExperiments.financialPrompt,
+      variantId: financialVariant,
+      properties: { variant: financialVariant }
+    });
+  }, [canCreateProducts, persona, financialVariant]);
 
   const onCreateProductSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -302,6 +329,18 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
       } else {
         resetForm();
       }
+      void trackClientExperimentEvent({
+        eventName: "task_completed",
+        persona,
+        source: "web",
+        surface: "create_product",
+        experimentId: growthExperiments.timeCopy,
+        variantId: timeVariant,
+        properties: {
+          productId: product.id,
+          productType: newProductType
+        }
+      });
     } catch (err) {
       setNewProductFormError((err as Error).message || "Could not create product.");
     }
@@ -798,7 +837,13 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
         </p>
       ) : null}
       <button className="btn-primary" type="submit" disabled={createProductMutation.isPending}>
-        {createProductMutation.isPending ? "Saving..." : "Save product (draft)"}
+        {createProductMutation.isPending
+          ? "Saving..."
+          : timeVariant === "value_copy"
+            ? "Save draft and start earning"
+            : timeVariant === "fast_path"
+              ? "Save draft (fast)"
+              : "Save product (draft)"}
       </button>
     </form>
   );

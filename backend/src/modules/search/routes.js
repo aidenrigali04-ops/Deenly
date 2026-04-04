@@ -1,16 +1,13 @@
 const express = require("express");
-const { authenticate } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
 const { httpError } = require("../../utils/http-error");
 const { parseSearchKeywords } = require("../../utils/search-keywords");
 
-function createSearchRouter({ db, config }) {
+function createSearchRouter({ db }) {
   const router = express.Router();
-  const authMiddleware = authenticate({ config, db });
 
   router.get(
     "/users",
-    authMiddleware,
     asyncHandler(async (req, res) => {
       const query = String(req.query.q || "").trim();
       const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 50);
@@ -70,7 +67,6 @@ function createSearchRouter({ db, config }) {
 
   router.get(
     "/posts",
-    authMiddleware,
     asyncHandler(async (req, res) => {
       const query = String(req.query.q || "").trim();
       const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 50);
