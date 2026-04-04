@@ -123,6 +123,13 @@ Production-focused Node/Express backend for the Deenly Muslim social platform.
 - `POST /api/v1/support/tickets`
 - `GET /api/v1/support/my-tickets` (auth)
 
+### Events (feature-flagged; see `EVENTS_*` in `.env.example` and `RELEASE_GATES.md`)
+
+- `GET /api/v1/events/near` — geo discovery (optional auth for RSVP-aware fields)
+- `GET /api/v1/events`, `POST /api/v1/events` (auth), `GET/PATCH /api/v1/events/:id`
+- `POST /api/v1/events/:id/rsvp`, `GET /api/v1/events/:id/rsvp/me`, host `DELETE /api/v1/events/:id/rsvps/:userId`
+- `GET/POST /api/v1/events/:id/chat` and moderation routes under `/api/v1/events/:id/chat/*` when chat is enabled
+
 ### Admin Console APIs (moderator/admin)
 
 - `GET /api/v1/admin/tables/:table` (full DB table coverage)
@@ -150,6 +157,7 @@ Production-focused Node/Express backend for the Deenly Muslim social platform.
    - `/ready`
    - register/login/session-me
    - post create + feed read
+   - events near/list (if enabled)
 
 Rollback policy:
 

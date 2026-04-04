@@ -21,6 +21,33 @@ components:
           type: string
         requestId:
           type: string
+    Event:
+      type: object
+      description: Public event surface (subset of fields may be null when disabled by feature flags).
+      properties:
+        id: { type: integer }
+        hostUserId: { type: integer }
+        hostDisplayName: { type: string, nullable: true }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time, nullable: true }
+        timezone: { type: string }
+        isOnline: { type: boolean }
+        onlineUrl: { type: string, nullable: true }
+        addressDisplay: { type: string, nullable: true }
+        latitude: { type: number, nullable: true }
+        longitude: { type: number, nullable: true }
+        visibility: { type: string, enum: [public, private, invite] }
+        capacity: { type: integer, nullable: true }
+        status: { type: string, enum: [scheduled, canceled, completed] }
+        rsvpInterestedCount: { type: integer }
+        rsvpGoingCount: { type: integer }
+        viewerRsvpStatus: { type: string, enum: [interested, going], nullable: true }
+        canJoinChat: { type: boolean }
+        distanceM: { type: number, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
 paths:
   /auth/register:
     post:
@@ -448,3 +475,155 @@ paths:
       responses:
         "200":
           description: Post search results
+  /events/near:
+    get:
+      summary: List events near a point (discovery)
+      description: Returns 404 when events feature or read path is disabled via env.
+      parameters:
+        - in: query
+          name: lat
+          required: true
+          schema: { type: number }
+        - in: query
+          name: lng
+          required: true
+          schema: { type: number }
+        - in: query
+          name: radiusM
+          schema: { type: integer, minimum: 100, maximum: 100000 }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100 }
+        - in: query
+          name: timeWindow
+          schema:
+            type: string
+            enum: [upcoming, today, this_week]
+      responses:
+        "200":
+          description: Events near the given coordinates
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Event"
+        "404":
+          description: Events not enabled
+  /events:
+    get:
+      summary: List events (filters vary by query params)
+      description: Returns 404 when events feature or read path is disabled.
+      responses:
+        "200":
+          description: Event list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Event"
+    post:
+      summary: Create event (host)
+      security:
+        - bearerAuth: []
+      description: Returns 404 when events feature or create path is disabled.
+      responses:
+        "201":
+          description: Created event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+  /events/{id}:
+    get:
+      summary: Get event by id
+      description: Returns 404 when not found or not visible to caller.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+    patch:
+      summary: Update event (host)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Updated event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+  /events/{id}/rsvp:
+    post:
+      summary: Set RSVP status for current user
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: RSVP updated
+  /events/{id}/rsvp/me:
+    get:
+      summary: Get current user RSVP for event
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: RSVP state
+  /events/{id}/chat:
+    get:
+      summary: List event chat messages
+      security:
+        - bearerAuth: []
+      description: Returns 404 when event chat is disabled.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Chat messages page
+    post:
+      summary: Post event chat message
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "201":
+          description: Message created

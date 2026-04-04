@@ -22,6 +22,7 @@ Use this checklist for every production deploy.
   - [ ] `GET /ready`
   - [ ] signup/login/session
   - [ ] create post/feed load
+  - [ ] **Events (when `EVENTS_FEATURE_ENABLED=true`)**: `GET /api/v1/events/near?lat=…&lng=…` returns 200 with `{ "items": [] }` or populated events; authenticated `POST /api/v1/events` only when `EVENTS_CREATE_ENABLED=true`; `GET /api/v1/feed` For You may include event cards when `EVENTS_READ_ENABLED=true` and ranking inserts allow.
 
 ## Post-deploy
 
