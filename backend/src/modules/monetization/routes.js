@@ -1,7 +1,7 @@
 const express = require("express");
 const { setImmediate } = require("timers");
 const rateLimit = require("express-rate-limit");
-const { authenticate } = require("../../middleware/auth");
+const { authenticate, authenticateOptional } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
 const { httpError } = require("../../utils/http-error");
 const { requireString, optionalString } = require("../../utils/validators");
@@ -187,6 +187,7 @@ function parseProductBusinessCategory(rawValue) {
 function createMonetizationRouter({ db, config, logger, monetizationGateway, mediaStorage, analytics }) {
   const router = express.Router();
   const authMiddleware = authenticate({ config, db });
+  const optionalAuthMiddleware = authenticateOptional({ config, db });
   const log = logger || { info: () => {}, error: () => {}, warn: () => {} };
 
   if (!monetizationGateway) {
@@ -439,10 +440,14 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
 
   router.get(
     "/purchases/me",
-    authMiddleware,
+    optionalAuthMiddleware,
     asyncHandler(async (req, res) => {
       const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
       const offset = Math.max(Number(req.query.offset) || 0, 0);
+      if (!req.user) {
+        res.status(200).json({ limit, offset, items: [] });
+        return;
+      }
       const result = await db.query(
         `SELECT
            o.id AS order_id,
@@ -554,8 +559,15 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
 
   router.get(
     "/connect/status",
-    authMiddleware,
+    optionalAuthMiddleware,
     asyncHandler(async (req, res) => {
+      if (!req.user) {
+        return res.status(200).json({
+          connected: false,
+          feePolicy: getBoostTierPolicy(config),
+          personaCapabilities: resolvePersonaCapabilities({ profile_kind: "consumer" })
+        });
+      }
       const personaCapabilities = await loadActorPersonaCapabilities(req.user.id);
       const accountResult = await db.query(
         `SELECT id, stripe_account_id, charges_enabled, payouts_enabled, details_submitted
@@ -832,11 +844,15 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
 
   router.get(
     "/products/me",
-    authMiddleware,
+    optionalAuthMiddleware,
     asyncHandler(async (req, res) => {
-      await requireCreatorOperationsCapability(req.user.id);
       const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
       const offset = Math.max(Number(req.query.offset) || 0, 0);
+      if (!req.user) {
+        res.status(200).json({ limit, offset, items: [] });
+        return;
+      }
+      await requireCreatorOperationsCapability(req.user.id);
       const products = await db.query(
         `SELECT *
          FROM creator_products
@@ -1173,11 +1189,15 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
 
   router.get(
     "/tiers/me",
-    authMiddleware,
+    optionalAuthMiddleware,
     asyncHandler(async (req, res) => {
-      await requireBusinessOperationsCapability(req.user.id);
       const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
       const offset = Math.max(Number(req.query.offset) || 0, 0);
+      if (!req.user) {
+        res.status(200).json({ limit, offset, items: [] });
+        return;
+      }
+      await requireBusinessOperationsCapability(req.user.id);
       const rows = await db.query(
         `SELECT *
          FROM creator_subscription_tiers
@@ -2234,8 +2254,12 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
 
   router.get(
     "/affiliate/codes/me",
-    authMiddleware,
+    optionalAuthMiddleware,
     asyncHandler(async (req, res) => {
+      if (!req.user) {
+        res.status(200).json({ items: [] });
+        return;
+      }
       await requireBusinessOperationsCapability(req.user.id);
       const rows = await db.query(
         `SELECT id, affiliate_user_id, code, is_active, uses_count, created_at, updated_at
@@ -2327,11 +2351,24 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
 
   router.get(
     "/earnings/me",
-    authMiddleware,
+    optionalAuthMiddleware,
     asyncHandler(async (req, res) => {
-      await requireCreatorOperationsCapability(req.user.id);
       const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
       const offset = Math.max(Number(req.query.offset) || 0, 0);
+      if (!req.user) {
+        res.status(200).json({
+          limit,
+          offset,
+          totals: {
+            credits_minor: 0,
+            debits_minor: 0,
+            balance_minor: 0
+          },
+          items: []
+        });
+        return;
+      }
+      await requireCreatorOperationsCapability(req.user.id);
       const rows = await db.query(
         `SELECT id, user_id, order_id, entry_type, amount_minor, currency, note, created_at
          FROM earnings_ledger

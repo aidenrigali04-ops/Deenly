@@ -122,6 +122,34 @@ describeIfDatabase("integration api flows", () => {
     await db.close();
   });
 
+  it("returns guest-shaped users/me and empty personal read endpoints without auth", async () => {
+    const me = await request(app).get("/api/v1/users/me");
+    expect(me.statusCode).toBe(200);
+    expect(me.body.display_name).toBe("");
+    expect(me.body.posts_count).toBe(0);
+    expect(me.body.persona_capabilities?.can_create_products).toBe(false);
+
+    const interests = await request(app).get("/api/v1/users/me/interests");
+    expect(interests.statusCode).toBe(200);
+    expect(interests.body.items).toEqual([]);
+
+    const sessions = await request(app).get("/api/v1/users/me/sessions");
+    expect(sessions.statusCode).toBe(200);
+    expect(sessions.body.items).toEqual([]);
+
+    const notes = await request(app).get("/api/v1/notifications");
+    expect(notes.statusCode).toBe(200);
+    expect(notes.body.items).toEqual([]);
+
+    const purchases = await request(app).get("/api/v1/monetization/purchases/me");
+    expect(purchases.statusCode).toBe(200);
+    expect(purchases.body.items).toEqual([]);
+
+    const connect = await request(app).get("/api/v1/monetization/connect/status");
+    expect(connect.statusCode).toBe(200);
+    expect(connect.body.connected).toBe(false);
+  });
+
   it("registers, logs in, and fetches session user", async () => {
     const register = await request(app).post("/api/v1/auth/register").send({
       email: "tester@example.com",

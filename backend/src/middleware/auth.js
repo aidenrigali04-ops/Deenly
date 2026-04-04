@@ -39,6 +39,34 @@ function authenticate({ config, db }) {
   };
 }
 
+/**
+ * Sets req.user when a valid Bearer token is present; otherwise req.user is null.
+ * Use for read endpoints that should degrade gracefully without authentication.
+ */
+function authenticateOptional({ config, db }) {
+  return async (req, _res, next) => {
+    req.user = null;
+    const authHeader = req.headers.authorization || "";
+    const token = authHeader.startsWith("Bearer ") ? authHeader.slice("Bearer ".length) : "";
+    if (!token) {
+      return next();
+    }
+    try {
+      const payload = jwt.verify(token, requireAccessSecret(config));
+      const result = await db.query(
+        "SELECT id, email, username, role, is_active, created_at FROM users WHERE id = $1 LIMIT 1",
+        [payload.sub]
+      );
+      if (result.rowCount > 0 && result.rows[0].is_active) {
+        req.user = result.rows[0];
+      }
+    } catch {
+      req.user = null;
+    }
+    return next();
+  };
+}
+
 function authorize(allowedRoles) {
   return (req, _res, next) => {
     if (!req.user || !allowedRoles.includes(req.user.role)) {
@@ -50,6 +78,7 @@ function authorize(allowedRoles) {
 
 module.exports = {
   authenticate,
+  authenticateOptional,
   authorize,
   requireAccessSecret
 };

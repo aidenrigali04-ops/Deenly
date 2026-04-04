@@ -41,8 +41,7 @@ export function SettingsScreen({ navigation }: Props) {
           can_create_products?: boolean;
           can_use_business_directory_tools?: boolean;
         };
-      }>("/users/me", { auth: true }),
-    enabled: Boolean(sessionQuery.data?.id)
+      }>("/users/me", { auth: true })
   });
   const instagramQuery = useQuery({
     queryKey: ["mobile-instagram-status"],

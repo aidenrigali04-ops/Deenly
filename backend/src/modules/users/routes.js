@@ -1,6 +1,6 @@
 const express = require("express");
 const jwt = require("jsonwebtoken");
-const { authenticate } = require("../../middleware/auth");
+const { authenticate, authenticateOptional } = require("../../middleware/auth");
 const { requireAccessSecret } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
 const { httpError } = require("../../utils/http-error");
@@ -56,6 +56,42 @@ const PROFILE_BASE_SELECT = `SELECT p.user_id, u.username, p.display_name, p.bio
 function createUsersRouter({ db, config, analytics }) {
   const router = express.Router();
   const authMiddleware = authenticate({ config, db });
+  const optionalAuthMiddleware = authenticateOptional({ config, db });
+
+  function buildAnonymousMePayload() {
+    const profile = {
+      user_id: null,
+      username: "",
+      display_name: "",
+      bio: null,
+      avatar_url: null,
+      business_offering: null,
+      website_url: null,
+      is_verified: false,
+      show_business_on_profile: false,
+      default_feed_tab: "for_you",
+      app_landing: "home",
+      onboarding_intents: [],
+      seller_checklist_completed_at: null,
+      profile_kind: "consumer",
+      business_onboarding_step: 0,
+      business_onboarding_dismissed_at: null,
+      professional_setup_completed_at: null,
+      business_tools_unlocked_at: null,
+      created_at: null,
+      updated_at: null
+    };
+    return {
+      ...profile,
+      persona_capabilities: resolvePersonaCapabilities(profile),
+      posts_count: 0,
+      followers_count: 0,
+      following_count: 0,
+      likes_received_count: 0,
+      likes_given_count: 0,
+      is_following: false
+    };
+  }
 
   async function getViewerIdFromAuthHeader(authorization) {
     if (!authorization || !authorization.startsWith("Bearer ")) {
@@ -139,8 +175,12 @@ function createUsersRouter({ db, config, analytics }) {
 
   router.get(
     "/me",
-    authMiddleware,
+    optionalAuthMiddleware,
     asyncHandler(async (req, res) => {
+      if (!req.user) {
+        res.status(200).json(buildAnonymousMePayload());
+        return;
+      }
       const payload = await buildMePayload(req.user.id);
       res.status(200).json(payload);
     })
@@ -340,8 +380,12 @@ function createUsersRouter({ db, config, analytics }) {
 
   router.get(
     "/me/interests",
-    authMiddleware,
+    optionalAuthMiddleware,
     asyncHandler(async (req, res) => {
+      if (!req.user) {
+        res.status(200).json({ items: [] });
+        return;
+      }
       const result = await db.query(
         `SELECT interest_key, created_at
          FROM user_interests
@@ -383,8 +427,12 @@ function createUsersRouter({ db, config, analytics }) {
 
   router.get(
     "/me/sessions",
-    authMiddleware,
+    optionalAuthMiddleware,
     asyncHandler(async (req, res) => {
+      if (!req.user) {
+        res.status(200).json({ items: [] });
+        return;
+      }
       const result = await db.query(
         `SELECT id, user_id, expires_at, revoked_at, created_at
          FROM refresh_tokens

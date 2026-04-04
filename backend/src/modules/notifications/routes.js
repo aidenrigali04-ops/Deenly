@@ -1,5 +1,5 @@
 const express = require("express");
-const { authenticate } = require("../../middleware/auth");
+const { authenticate, authenticateOptional } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
 const { httpError } = require("../../utils/http-error");
 const {
@@ -12,13 +12,18 @@ const { evaluatePrayerStatus } = require("../../services/prayer-times");
 function createNotificationsRouter({ db, config, pushNotifications }) {
   const router = express.Router();
   const authMiddleware = authenticate({ config, db });
+  const optionalAuthMiddleware = authenticateOptional({ config, db });
 
   router.get(
     "/",
-    authMiddleware,
+    optionalAuthMiddleware,
     asyncHandler(async (req, res) => {
       const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
       const offset = Math.max(Number(req.query.offset) || 0, 0);
+      if (!req.user) {
+        res.status(200).json({ limit, offset, items: [] });
+        return;
+      }
 
       const result = await db.query(
         `SELECT n.id,
