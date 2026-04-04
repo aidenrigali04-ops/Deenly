@@ -28,6 +28,7 @@ import {
   shouldShowExperimentPrompt,
   trackClientExperimentEvent
 } from "@/lib/experiments";
+import { isPayoutSetupComplete } from "@/lib/payout-setup";
 
 const CREATE_DRAFT_VERSION = 1 as const;
 
@@ -861,11 +862,11 @@ export function CreatePostComposer({
 
         {!reelMode && sellThis ? (
           <div className="space-y-3 border-t border-black/10 pt-3">
-            {!profileQuery.data?.seller_checklist_completed_at && !connectQuery.data?.chargesEnabled ? (
+            {!profileQuery.data?.seller_checklist_completed_at && !isPayoutSetupComplete(connectQuery.data) ? (
               <div className="rounded-control border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-text">
-                <p className="font-medium">Seller checklist</p>
+                <p className="font-medium">Before your first sale</p>
                 <p className="mt-1 text-muted">
-                  Review payouts in Creator hub and publish your product before expecting checkout. When you are ready, confirm
+                  Open Creator hub to finish payout setup and publish your product. When you&apos;ve reviewed everything, confirm
                   below.
                 </p>
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -881,32 +882,41 @@ export function CreatePostComposer({
                     disabled={checklistMutation.isPending}
                     onClick={() => checklistMutation.mutate()}
                   >
-                    {checklistMutation.isPending ? "…" : "I have reviewed seller setup"}
+                    {checklistMutation.isPending ? "…" : "I’ve reviewed seller setup"}
                   </button>
                 </div>
               </div>
             ) : null}
-            <div className="rounded-control border border-black/10 bg-surface px-3 py-2 text-xs text-muted">
-              <p className="font-medium text-text">Payouts</p>
+            <div
+              className={`rounded-control px-3 py-2 text-xs ${
+                isPayoutSetupComplete(connectQuery.data)
+                  ? "border border-emerald-500/30 bg-emerald-500/10 text-text"
+                  : "border border-black/10 bg-surface text-muted"
+              }`}
+            >
+              <p className="font-medium text-text">Payout status</p>
               {connectQuery.isLoading ? (
-                <p className="mt-1">Checking Stripe Connect…</p>
+                <p className="mt-1 text-muted">Checking…</p>
               ) : connectQuery.error ? (
-                <p className="mt-1">Could not load Connect status.</p>
-              ) : (
-                <p className="mt-1">
-                  {connectQuery.data?.connected
-                    ? "Stripe Connect: linked."
-                    : "Connect your Stripe account in Creator hub to get paid."}{" "}
-                  {connectQuery.data?.chargesEnabled
-                    ? "Charges on."
-                    : connectQuery.data?.connected
-                      ? "Finish setup in Stripe if charges are still pending."
-                      : null}{" "}
+                <p className="mt-1 text-muted">Could not load payout status.</p>
+              ) : isPayoutSetupComplete(connectQuery.data) ? (
+                <p className="mt-1 text-muted">
+                  Ready — you can earn when buyers check out.{" "}
                   <Link
                     href="/account/creator?tab=payouts"
                     className="text-sky-600 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
                   >
-                    {profileQuery.data?.profile_kind === "professional" ? "Pro payouts" : "Stripe Connect"}
+                    View details
+                  </Link>
+                </p>
+              ) : (
+                <p className="mt-1 text-muted">
+                  Finish one-time payout setup (~5 min) so buyers can pay you.{" "}
+                  <Link
+                    href="/account/creator?tab=payouts"
+                    className="font-medium text-sky-600 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
+                  >
+                    Set up payouts
                   </Link>
                 </p>
               )}

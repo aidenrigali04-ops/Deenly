@@ -149,7 +149,10 @@ export default function AccountSettingsPage() {
                       {
                         href: "/account/creator",
                         label: activePersona === "business" ? "Creator hub" : "Pro tools",
-                        hint: activePersona === "business" ? "Stripe, products, growth tools" : "Services, payouts, and products"
+                        hint:
+                          activePersona === "business"
+                            ? "Payouts, products, growth tools"
+                            : "Services, payouts, and products"
                       }
                     ]
                   : []),

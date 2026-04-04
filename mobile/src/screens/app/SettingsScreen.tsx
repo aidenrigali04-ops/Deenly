@@ -141,7 +141,7 @@ export function SettingsScreen({ navigation }: Props) {
             subtitle={
               creatorConnectQuery.data?.connected
                 ? `Payouts · ${formatMinorCurrency(creatorEarningsQuery.data?.totals?.balance_minor || 0, "usd")} available`
-                : "Stripe Connect and your catalog."
+                : "Payout setup, catalog, and earnings."
             }
             onPress={() => navigation.navigate("CreatorEconomy")}
           />

@@ -16,6 +16,7 @@ import {
   formatMinorCurrency
 } from "../../lib/monetization";
 import { apiRequest } from "../../lib/api";
+import { getPayoutSetupCopy, isPayoutSetupComplete } from "../../lib/payout-setup";
 import { colors, radii } from "../../theme";
 
 function triState(value: boolean | undefined) {
@@ -85,16 +86,14 @@ export function CreatorEconomyScreen() {
   }
 
   const connected = Boolean(connectStatusQuery.data?.connected);
-  const detailsSubmitted = Boolean(connectStatusQuery.data?.detailsSubmitted);
-  const chargesEnabled = Boolean(connectStatusQuery.data?.chargesEnabled);
-  const payoutsEnabled = Boolean(connectStatusQuery.data?.payoutsEnabled);
-  const stripeSetupComplete = connected && detailsSubmitted && chargesEnabled;
+  const stripeSetupComplete = isPayoutSetupComplete(connectStatusQuery.data);
+  const payoutCopy = getPayoutSetupCopy(connectStatusQuery.data);
   const showConnectGuide = !stripeSetupComplete;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.lede}>
-        Payouts and a quick read on your catalog. Add products below; use the web hub for advanced controls.
+        Get paid, manage your catalog, and see earnings. For full controls, use Creator hub on the web.
       </Text>
 
       <Pressable style={styles.addProductBtn} onPress={() => navigation.navigate("CreateProduct")}>
@@ -102,30 +101,34 @@ export function CreatorEconomyScreen() {
       </Pressable>
 
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Payouts</Text>
+        <Text style={styles.sectionTitle}>Get paid</Text>
         <Text style={styles.muted}>
-          Stripe {connected ? "connected" : "not connected yet"} — link your account to receive earnings.
+          {stripeSetupComplete
+            ? payoutCopy.subline
+            : "Two quick steps, one time — secured by Stripe."}
         </Text>
         {showConnectGuide ? (
           <View style={styles.guideCard}>
-            <Text style={styles.guideTitle}>Steps to connect Stripe</Text>
+            <Text style={styles.guideTitle}>{payoutCopy.headline}</Text>
+            <Text style={[styles.muted, styles.guideSub]}>{payoutCopy.subline}</Text>
             <View style={styles.guideList}>
               <Text style={[styles.guideItem, !connected && styles.guideItemActive]}>
-                1. <Text style={styles.guideItemStrong}>Connect Stripe account</Text> — Deenly links your Stripe Express
-                account for payouts.
+                1. <Text style={styles.guideItemStrong}>{payoutCopy.step1Label}</Text> — {payoutCopy.step1Body}
               </Text>
-              <Text style={[styles.guideItem, connected && !chargesEnabled && styles.guideItemActive]}>
-                2. <Text style={styles.guideItemStrong}>Finish in Stripe</Text> — add business details, identity, and bank
-                info.
-              </Text>
-              <Text style={styles.guideItem}>
-                3. <Text style={styles.guideItemStrong}>Return to Deenly</Text> — status below updates when charges and
-                payouts are enabled.
+              <Text style={[styles.guideItem, connected && !stripeSetupComplete && styles.guideItemActive]}>
+                2. <Text style={styles.guideItemStrong}>{payoutCopy.step2Label}</Text> — {payoutCopy.step2Body}
               </Text>
             </View>
+            <Text style={[styles.muted, styles.guideSub]}>
+              Back from the form? Pull to refresh or reopen this screen if status looks outdated.
+            </Text>
           </View>
         ) : null}
         <View style={styles.statusList}>
+          <View style={styles.statusRow}>
+            <Text style={styles.statusLabel}>Profile linked</Text>
+            <Text style={styles.statusValue}>{triState(connectStatusQuery.data?.connected)}</Text>
+          </View>
           <View style={styles.statusRow}>
             <Text style={styles.statusLabel}>Details submitted</Text>
             <Text style={styles.statusValue}>{triState(connectStatusQuery.data?.detailsSubmitted)}</Text>
@@ -147,7 +150,7 @@ export function CreatorEconomyScreen() {
               disabled={connectAccountMutation.isPending}
             >
               <Text style={styles.buttonText}>
-                {connectAccountMutation.isPending ? "Connecting…" : "Connect Stripe account"}
+                {connectAccountMutation.isPending ? "Starting…" : "Start getting paid"}
               </Text>
             </Pressable>
           ) : null}
@@ -157,7 +160,7 @@ export function CreatorEconomyScreen() {
             disabled={onboardingMutation.isPending || !connected}
           >
             <Text style={styles.buttonText}>
-              {onboardingMutation.isPending ? "Opening…" : "Continue setup in Stripe"}
+              {onboardingMutation.isPending ? "Opening…" : "Continue secure setup (~5 min)"}
             </Text>
           </Pressable>
           {connectStatusQuery.data?.dashboardUrl ? (
@@ -165,7 +168,7 @@ export function CreatorEconomyScreen() {
               style={styles.buttonSecondary}
               onPress={() => void Linking.openURL(connectStatusQuery.data?.dashboardUrl || "")}
             >
-              <Text style={styles.buttonText}>Open Stripe dashboard</Text>
+              <Text style={styles.buttonText}>Update bank or tax info</Text>
             </Pressable>
           ) : null}
         </View>
@@ -288,6 +291,9 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 12,
     fontWeight: "700"
+  },
+  guideSub: {
+    marginTop: 4
   },
   guideList: {
     gap: 6

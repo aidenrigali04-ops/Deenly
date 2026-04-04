@@ -13,7 +13,7 @@ export function parseCreatorHubTab(raw: string | null): CreatorHubTab {
 
 export const CREATOR_HUB_TAB_LABELS: Record<CreatorHubTab, string> = {
   overview: "Overview",
-  payouts: "Payouts",
+  payouts: "Get paid",
   products: "Products",
   grow: "Grow"
 };

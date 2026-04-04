@@ -632,7 +632,7 @@ export function CreateProductScreen({ navigation, route }: Props) {
 
         <SectionLabel>Import</SectionLabel>
         <Text style={styles.importHint}>
-          Stripe needs Connect complete. Import by Stripe Product ID and auto-fill available fields.
+          After payout setup is complete, you can import from your Stripe catalog by Product ID to auto-fill fields.
         </Text>
         <Pressable
           style={[styles.btnSecondary, stripeBusy && styles.btnDisabled]}

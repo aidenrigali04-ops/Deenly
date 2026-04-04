@@ -452,7 +452,8 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
       <div className="space-y-3 rounded-control border border-black/10 bg-black/[0.02] px-4 py-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">Import</p>
         <p className="text-xs text-muted">
-          Requires completed Stripe Connect. Import by Stripe Product ID and auto-fill product fields.
+          After payout setup is complete, you can pull prices from your linked Stripe catalog by Product ID and auto-fill
+          fields here.
         </p>
         <div className="flex flex-wrap gap-2">
           <button

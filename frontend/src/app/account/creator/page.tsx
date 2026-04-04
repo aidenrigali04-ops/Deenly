@@ -35,6 +35,7 @@ import {
   type ConnectStatus
 } from "@/lib/monetization";
 import { ErrorState, LoadingState } from "@/components/states";
+import { getPayoutSetupCopy, isPayoutSetupComplete } from "@/lib/payout-setup";
 
 function parseUsdToMinor(raw: string): number | null {
   const cleaned = raw.replace(/[^0-9.]/g, "");
@@ -186,7 +187,7 @@ function AccountCreatorPageInner() {
       setStripeNotice({
         variant: "success",
         message:
-          "Stripe account linked. Next, click “Continue setup in Stripe” (Payouts tab or checklist) to add bank and business details—you will leave Deenly briefly and return when done."
+          "Payout profile created. Next: open “Continue secure setup” to add your bank and verify your identity (~5 min). You’ll leave Deenly briefly, then return here."
       });
     },
     onError: (err: unknown) => {
@@ -216,7 +217,7 @@ function AccountCreatorPageInner() {
           ? err.message
           : err instanceof Error
             ? err.message
-            : "Could not open Stripe setup.";
+            : "Could not open secure payout form.";
       setStripeNotice({ variant: "error", message });
     }
   });
@@ -256,47 +257,61 @@ function AccountCreatorPageInner() {
     ];
 
   const payoutsPanel = (c: ConnectStatus | undefined) => {
-    const stripeSetupComplete = Boolean(c?.detailsSubmitted) && Boolean(c?.chargesEnabled);
+    const payoutCopy = getPayoutSetupCopy(c);
+    const setupComplete = isPayoutSetupComplete(c);
     return (
     <div className="space-y-6">
       <section>
-        <h2 className="section-title text-sm">Stripe Connect</h2>
-        {!connectLoading && c && !stripeSetupComplete ? (
+        <h2 className="section-title text-sm">Get paid</h2>
+        <p className="mt-1 max-w-xl text-xs text-muted">
+          Secured by Stripe. You only do this once; after that, sales can reach your bank.
+        </p>
+        {!connectLoading && c && !setupComplete ? (
           <div className="mt-3 rounded-control border border-sky-200/80 bg-sky-50/60 px-3 py-3 text-xs text-muted">
-            <p className="font-semibold text-text">Steps to connect</p>
+            <p className="font-semibold text-text">{payoutCopy.headline}</p>
+            <p className="mt-1">{payoutCopy.subline}</p>
             <ol className="mt-2 list-decimal space-y-2 pl-4">
               <li className={!c.connected ? "font-medium text-text" : ""}>
-                <span className="text-text">Connect Stripe account</span> — Creates your linked Express account for payouts.
+                <span className="text-text">{payoutCopy.step1Label}</span> — {payoutCopy.step1Body}
               </li>
-              <li className={c.connected && !c.chargesEnabled ? "font-medium text-text" : ""}>
-                <span className="text-text">Continue setup in Stripe</span> — Add business details and bank info on
-                Stripe&apos;s secure page.
-              </li>
-              <li>
-                <span className="text-text">Return to Deenly</span> — Status below updates when Stripe enables charges and
-                payouts.
+              <li className={c.connected && !setupComplete ? "font-medium text-text" : ""}>
+                <span className="text-text">{payoutCopy.step2Label}</span> — {payoutCopy.step2Body}
               </li>
             </ol>
+            <p className="mt-2 text-muted">
+              Returned from the form? Give it a few seconds, then refresh if your status looks outdated.
+            </p>
           </div>
         ) : null}
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           <div className="rounded-control border border-black/10 bg-surface px-3 py-2">
-            <p className="text-xs uppercase tracking-wide text-muted">Account</p>
-            <p className="mt-1 text-sm text-text">{c?.connected ? "Connected" : "Not connected"}</p>
-            <dl className="mt-2 space-y-1 text-xs text-muted">
-              <div className="flex justify-between gap-2">
-                <dt>Details submitted</dt>
-                <dd className="text-text">{triState(c?.detailsSubmitted, connectLoading)}</dd>
-              </div>
-              <div className="flex justify-between gap-2">
-                <dt>Charges enabled</dt>
-                <dd className="text-text">{triState(c?.chargesEnabled, connectLoading)}</dd>
-              </div>
-              <div className="flex justify-between gap-2">
-                <dt>Payouts enabled</dt>
-                <dd className="text-text">{triState(c?.payoutsEnabled, connectLoading)}</dd>
-              </div>
-            </dl>
+            <p className="text-xs uppercase tracking-wide text-muted">Payout status</p>
+            <p className="mt-1 text-sm font-medium text-text">
+              {connectLoading ? "Checking…" : setupComplete ? "Ready to receive payouts" : "Setup not finished yet"}
+            </p>
+            <details className="mt-2 text-xs text-muted">
+              <summary className="cursor-pointer text-text underline-offset-2 hover:underline">
+                Technical details
+              </summary>
+              <dl className="mt-2 space-y-1 border-t border-black/10 pt-2">
+                <div className="flex justify-between gap-2">
+                  <dt>Profile linked</dt>
+                  <dd className="text-text">{triState(c?.connected, connectLoading)}</dd>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <dt>Details submitted</dt>
+                  <dd className="text-text">{triState(c?.detailsSubmitted, connectLoading)}</dd>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <dt>Charges enabled</dt>
+                  <dd className="text-text">{triState(c?.chargesEnabled, connectLoading)}</dd>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <dt>Payouts enabled</dt>
+                  <dd className="text-text">{triState(c?.payoutsEnabled, connectLoading)}</dd>
+                </div>
+              </dl>
+            </details>
             <div className="mt-2 flex flex-wrap gap-2">
               <button
                 className="btn-primary px-3 py-1.5 text-xs"
@@ -304,16 +319,16 @@ function AccountCreatorPageInner() {
                 onClick={() => connectAccountMutation.mutate()}
                 disabled={connectAccountMutation.isPending}
               >
-                {connectAccountMutation.isPending ? "Connecting…" : "Connect Stripe account"}
+                {connectAccountMutation.isPending ? "Starting…" : "Start getting paid"}
               </button>
               <button
                 className="btn-secondary px-3 py-1.5 text-xs"
                 type="button"
                 onClick={() => onboardingMutation.mutate()}
                 disabled={onboardingMutation.isPending || !c?.connected}
-                title={!c?.connected ? "Connect your Stripe account first" : undefined}
+                title={!c?.connected ? "Start payout setup first" : undefined}
               >
-                {onboardingMutation.isPending ? "Opening…" : "Continue setup in Stripe"}
+                {onboardingMutation.isPending ? "Opening…" : "Continue secure setup (~5 min)"}
               </button>
               {c?.dashboardUrl ? (
                 <a
@@ -322,7 +337,7 @@ function AccountCreatorPageInner() {
                   rel="noopener noreferrer"
                   className="btn-secondary inline-flex items-center px-3 py-1.5 text-xs"
                 >
-                  Open Stripe dashboard
+                  Update bank or tax info
                 </a>
               ) : null}
             </div>

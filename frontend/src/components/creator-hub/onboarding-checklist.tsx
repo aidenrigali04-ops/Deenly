@@ -2,34 +2,32 @@
 
 import type { ReactNode } from "react";
 import type { ConnectStatus } from "@/lib/monetization";
+import { getPayoutSetupCopy, isPayoutSetupComplete } from "@/lib/payout-setup";
 import type { CreatorHubTab } from "./creator-hub-constants";
 
-function StripeConnectStepsGuide({ connect }: { connect: ConnectStatus | undefined }) {
-  const connected = Boolean(connect?.connected);
-  const chargesOk = Boolean(connect?.chargesEnabled);
-  const detailsOk = Boolean(connect?.detailsSubmitted);
-  const fullyReady = detailsOk && chargesOk;
-  if (fullyReady) {
+function PayoutSetupStepsGuide({ connect }: { connect: ConnectStatus | undefined }) {
+  if (isPayoutSetupComplete(connect)) {
     return null;
   }
+  const copy = getPayoutSetupCopy(connect);
+  const connected = Boolean(connect?.connected);
+  const step2Active = connected && !isPayoutSetupComplete(connect);
 
   return (
     <div className="rounded-control border border-sky-200/80 bg-sky-50/60 px-3 py-3">
-      <p className="text-xs font-semibold text-text">Steps to connect Stripe</p>
-      <ol className="mt-2 list-decimal space-y-2 pl-4 text-xs text-muted">
+      <p className="text-xs font-semibold text-text">{copy.headline}</p>
+      <p className="mt-1 text-xs text-muted">{copy.subline}</p>
+      <ol className="mt-3 list-decimal space-y-2 pl-4 text-xs text-muted">
         <li className={!connected ? "font-medium text-text" : ""}>
-          <span className="text-text">Connect Stripe account</span> — Press the button below. Deenly links a Stripe Express
-          account so you can receive payouts (no separate Stripe signup before this step).
+          <span className="text-text">{copy.step1Label}</span> — {copy.step1Body}
         </li>
-        <li className={connected && !chargesOk ? "font-medium text-text" : ""}>
-          <span className="text-text">Finish in Stripe</span> — Stripe will ask for business details, identity, and bank
-          information. Use &quot;Continue setup in Stripe&quot; when you are ready.
-        </li>
-        <li>
-          <span className="text-text">Come back here</span> — When Stripe enables charges and payouts, your status below
-          will update. You can reopen setup anytime until it is complete.
+        <li className={step2Active ? "font-medium text-text" : ""}>
+          <span className="text-text">{copy.step2Label}</span> — {copy.step2Body}
         </li>
       </ol>
+      <p className="mt-2 text-xs text-muted">
+        Back from the form? Status updates in a few seconds—refresh this page if it still looks old.
+      </p>
     </div>
   );
 }
@@ -96,12 +94,12 @@ export function OnboardingChecklist({
       <p className="text-xs text-muted">
         Complete these steps to accept payments and attach offers to posts.
       </p>
-      <StripeConnectStepsGuide connect={connect} />
+      <PayoutSetupStepsGuide connect={connect} />
       <ul className="space-y-2">
         <CheckRow
           done={connected}
-          title="Connect Stripe account"
-          description="Link Stripe Express with Deenly so checkout payouts reach your bank."
+          title="Start payout setup"
+          description="One tap creates your secure payout profile so money from sales can reach you."
         >
           {!connected ? (
             <button
@@ -110,14 +108,14 @@ export function OnboardingChecklist({
               onClick={onConnectStripe}
               disabled={connectStripePending}
             >
-              {connectStripePending ? "Connecting…" : "Connect Stripe account"}
+              {connectStripePending ? "Starting…" : "Start getting paid"}
             </button>
           ) : null}
         </CheckRow>
         <CheckRow
           done={onboardingComplete}
-          title="Complete setup in Stripe"
-          description="Verify your details and enable charges so buyers can pay you."
+          title="Bank account & verify"
+          description="Finish on a short secure form (identity + bank). Required once for card payments."
         >
           {connected && !onboardingComplete ? (
             <button
@@ -126,12 +124,12 @@ export function OnboardingChecklist({
               onClick={onOpenOnboarding}
               disabled={onboardingPending}
             >
-              {onboardingPending ? "Opening…" : "Continue setup in Stripe"}
+              {onboardingPending ? "Opening…" : "Continue secure setup (~5 min)"}
             </button>
           ) : null}
           {connected && onboardingComplete ? (
             <button type="button" className="btn-secondary px-3 py-1.5 text-xs" onClick={() => onNavigateTab("payouts")}>
-              View payout status
+              Payout details
             </button>
           ) : null}
         </CheckRow>
