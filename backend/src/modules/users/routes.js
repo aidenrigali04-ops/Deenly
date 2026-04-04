@@ -5,7 +5,9 @@ const { requireAccessSecret } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
 const { httpError } = require("../../utils/http-error");
 const { resolveProfilePutFields } = require("../../utils/profile-put");
+const { optionalString } = require("../../utils/validators");
 const { getPrayerSettings, updatePrayerSettings } = require("../../services/prayer-settings");
+const { resolvePersonaCapabilities } = require("../../services/persona-capabilities");
 const INTEREST_KEYS = new Set(["post", "marketplace", "reel"]);
 const FEED_TAB_PREFS = new Set(["for_you", "opportunities", "marketplace"]);
 const APP_LANDING_PREFS = new Set(["home", "marketplace"]);
@@ -43,8 +45,15 @@ const USAGE_PERSONA_BUNDLES = {
     businessOnboardingStep: 2
   }
 };
+const PROFILE_BASE_SELECT = `SELECT p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.business_offering, p.website_url, p.is_verified,
+                p.show_business_on_profile, p.default_feed_tab, p.app_landing, p.onboarding_intents, p.seller_checklist_completed_at,
+                p.profile_kind, p.business_onboarding_step, p.business_onboarding_dismissed_at,
+                p.professional_setup_completed_at, p.business_tools_unlocked_at,
+                p.created_at, p.updated_at
+         FROM profiles p
+         JOIN users u ON u.id = p.user_id`;
 
-function createUsersRouter({ db, config }) {
+function createUsersRouter({ db, config, analytics }) {
   const router = express.Router();
   const authMiddleware = authenticate({ config, db });
 
@@ -105,29 +114,35 @@ function createUsersRouter({ db, config }) {
     return result.rows[0];
   }
 
+  async function getMeProfileRow(userId) {
+    const result = await db.query(
+      `${PROFILE_BASE_SELECT}
+         WHERE p.user_id = $1
+         LIMIT 1`,
+      [userId]
+    );
+    if (result.rowCount === 0) {
+      throw httpError(404, "User profile not found");
+    }
+    return result.rows[0];
+  }
+
+  async function buildMePayload(userId) {
+    const profile = await getMeProfileRow(userId);
+    const stats = await getProfileStats({ userId, viewerId: userId });
+    return {
+      ...profile,
+      persona_capabilities: resolvePersonaCapabilities(profile),
+      ...stats
+    };
+  }
+
   router.get(
     "/me",
     authMiddleware,
     asyncHandler(async (req, res) => {
-      const result = await db.query(
-        `SELECT p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.business_offering, p.website_url, p.is_verified,
-                p.show_business_on_profile, p.default_feed_tab, p.app_landing, p.onboarding_intents, p.seller_checklist_completed_at,
-                p.profile_kind, p.business_onboarding_step, p.business_onboarding_dismissed_at,
-                p.created_at, p.updated_at
-         FROM profiles p
-         JOIN users u ON u.id = p.user_id
-         WHERE p.user_id = $1
-         LIMIT 1`,
-        [req.user.id]
-      );
-      if (result.rowCount === 0) {
-        throw httpError(404, "User profile not found");
-      }
-      const stats = await getProfileStats({ userId: req.user.id, viewerId: req.user.id });
-      res.status(200).json({
-        ...result.rows[0],
-        ...stats
-      });
+      const payload = await buildMePayload(req.user.id);
+      res.status(200).json(payload);
     })
   );
 
@@ -136,9 +151,12 @@ function createUsersRouter({ db, config }) {
     authMiddleware,
     asyncHandler(async (req, res) => {
       const body = req.body || {};
+      const previousProfile = await getMeProfileRow(req.user.id);
       const sets = [];
       const vals = [];
       let i = 1;
+      const preferenceSource = optionalString(body.preferenceSource, "preferenceSource", 40) || "unknown";
+      let usagePersonaSelected = null;
 
       if (Object.prototype.hasOwnProperty.call(body, "usagePersona")) {
         const persona = String(body.usagePersona || "").trim();
@@ -155,6 +173,7 @@ function createUsersRouter({ db, config }) {
           );
         }
         const bundle = USAGE_PERSONA_BUNDLES[persona];
+        usagePersonaSelected = persona;
         sets.push(`profile_kind = $${i}`);
         vals.push(bundle.profileKind);
         i += 1;
@@ -171,6 +190,12 @@ function createUsersRouter({ db, config }) {
         vals.push(bundle.businessOnboardingStep);
         i += 1;
         sets.push("business_onboarding_dismissed_at = COALESCE(business_onboarding_dismissed_at, NOW())");
+        if (persona === "professional") {
+          sets.push("professional_setup_completed_at = COALESCE(professional_setup_completed_at, NOW())");
+        }
+        if (persona === "business") {
+          sets.push("business_tools_unlocked_at = COALESCE(business_tools_unlocked_at, NOW())");
+        }
       }
 
       if (Object.prototype.hasOwnProperty.call(body, "defaultFeedTab")) {
@@ -226,6 +251,7 @@ function createUsersRouter({ db, config }) {
 
       if (body.sellerChecklistCompleted === true) {
         sets.push("seller_checklist_completed_at = COALESCE(seller_checklist_completed_at, NOW())");
+        sets.push("business_tools_unlocked_at = COALESCE(business_tools_unlocked_at, NOW())");
       }
 
       if (Object.prototype.hasOwnProperty.call(body, "profileKind")) {
@@ -236,6 +262,12 @@ function createUsersRouter({ db, config }) {
         sets.push(`profile_kind = $${i}`);
         vals.push(t);
         i += 1;
+        if (t === "professional") {
+          sets.push("professional_setup_completed_at = COALESCE(professional_setup_completed_at, NOW())");
+        }
+        if (t === "business_interest") {
+          sets.push("business_tools_unlocked_at = COALESCE(business_tools_unlocked_at, NOW())");
+        }
       }
 
       if (Object.prototype.hasOwnProperty.call(body, "businessOnboardingStep")) {
@@ -267,22 +299,42 @@ function createUsersRouter({ db, config }) {
         throw httpError(404, "User profile not found");
       }
 
-      const result = await db.query(
-        `SELECT p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.business_offering, p.website_url, p.is_verified,
-                p.show_business_on_profile, p.default_feed_tab, p.app_landing, p.onboarding_intents, p.seller_checklist_completed_at,
-                p.profile_kind, p.business_onboarding_step, p.business_onboarding_dismissed_at,
-                p.created_at, p.updated_at
-         FROM profiles p
-         JOIN users u ON u.id = p.user_id
-         WHERE p.user_id = $1
-         LIMIT 1`,
-        [req.user.id]
-      );
-      const stats = await getProfileStats({ userId: req.user.id, viewerId: req.user.id });
-      res.status(200).json({
-        ...result.rows[0],
-        ...stats
-      });
+      const payload = await buildMePayload(req.user.id);
+      if (analytics) {
+        if (usagePersonaSelected) {
+          await analytics.trackEvent("usage_persona_selected", {
+            userId: req.user.id,
+            usagePersona: usagePersonaSelected,
+            source: preferenceSource
+          });
+        }
+        if (previousProfile.profile_kind !== payload.profile_kind) {
+          await analytics.trackEvent("profile_kind_changed", {
+            userId: req.user.id,
+            from: previousProfile.profile_kind,
+            to: payload.profile_kind,
+            source: preferenceSource
+          });
+        }
+        if (
+          !previousProfile.professional_setup_completed_at &&
+          payload.professional_setup_completed_at &&
+          payload.profile_kind === "professional"
+        ) {
+          await analytics.trackEvent("professional_setup_completed", {
+            userId: req.user.id,
+            source: preferenceSource
+          });
+        }
+        if (!previousProfile.business_tools_unlocked_at && payload.business_tools_unlocked_at) {
+          await analytics.trackEvent("business_tools_unlocked", {
+            userId: req.user.id,
+            source: preferenceSource,
+            profileKind: payload.profile_kind
+          });
+        }
+      }
+      res.status(200).json(payload);
     })
   );
 
@@ -399,22 +451,8 @@ function createUsersRouter({ db, config }) {
         throw httpError(404, "User profile not found");
       }
 
-      const result = await db.query(
-        `SELECT p.user_id, u.username, p.display_name, p.bio, p.avatar_url, p.business_offering, p.website_url, p.is_verified,
-                p.show_business_on_profile, p.default_feed_tab, p.app_landing, p.onboarding_intents, p.seller_checklist_completed_at,
-                p.profile_kind, p.business_onboarding_step, p.business_onboarding_dismissed_at,
-                p.created_at, p.updated_at
-         FROM profiles p
-         JOIN users u ON u.id = p.user_id
-         WHERE p.user_id = $1
-         LIMIT 1`,
-        [req.user.id]
-      );
-      const stats = await getProfileStats({ userId: req.user.id, viewerId: req.user.id });
-      res.status(200).json({
-        ...result.rows[0],
-        ...stats
-      });
+      const payload = await buildMePayload(req.user.id);
+      res.status(200).json(payload);
     })
   );
 

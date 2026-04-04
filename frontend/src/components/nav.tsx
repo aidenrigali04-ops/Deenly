@@ -179,6 +179,11 @@ const youRailLinks: RailLink[] = [
 type MeNavProfile = {
   profile_kind?: "consumer" | "professional" | "business_interest" | null;
   seller_checklist_completed_at?: string | null;
+  persona_capabilities?: {
+    can_access_creator_hub?: boolean;
+    can_create_products?: boolean;
+    can_use_business_directory_tools?: boolean;
+  };
 };
 
 export function Nav() {
@@ -200,14 +205,24 @@ export function Nav() {
     enabled: Boolean(user),
     staleTime: 60_000
   });
-  const isSellerFocused = Boolean(
-    meProfileQuery.data?.profile_kind === "business_interest" || meProfileQuery.data?.seller_checklist_completed_at
+  const caps = meProfileQuery.data?.persona_capabilities;
+  const showProductTools = Boolean(
+    caps?.can_create_products || pathname.startsWith("/create/product") || pathname.startsWith("/account/creator")
   );
-  const shouldShowSellingLinks =
-    isSellerFocused || pathname.startsWith("/create/product") || pathname.startsWith("/account/creator");
-  const visibleYouLinks = shouldShowSellingLinks
-    ? youRailLinks
-    : youRailLinks.filter((link) => link.href !== "/create/product" && link.href !== "/account/creator");
+  const showCreatorHub = Boolean(caps?.can_access_creator_hub || pathname.startsWith("/account/creator"));
+  const visibleYouLinks = youRailLinks
+    .filter((link) => (link.href === "/create/product" ? showProductTools : true))
+    .filter((link) => (link.href === "/account/creator" ? showCreatorHub : true))
+    .map((link) =>
+      link.href === "/account/creator" && meProfileQuery.data?.profile_kind === "professional"
+        ? {
+            ...link,
+            label: "Pro tools",
+            title: "Professional tools — products, payouts, and client-ready offers",
+            subLabel: "Pro"
+          }
+        : link
+    );
 
   return (
     <aside className="w-full shrink-0 rounded-panel border border-black/10 bg-card p-3 md:sticky md:top-6 md:w-[76px] md:self-start">

@@ -105,6 +105,16 @@ export function SearchScreen({ navigation }: Props) {
     queryFn: () => fetchBusinessesNear({ lat: geo!.lat, lng: geo!.lng }),
     enabled: mode === "near" && Boolean(geo)
   });
+  const profileQuery = useQuery({
+    queryKey: ["mobile-search-profile-capabilities"],
+    queryFn: () =>
+      apiRequest<{
+        persona_capabilities?: {
+          can_use_business_directory_tools?: boolean;
+        };
+      }>("/users/me", { auth: true })
+  });
+  const canUseBusinessDirectoryTools = Boolean(profileQuery.data?.persona_capabilities?.can_use_business_directory_tools);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -116,9 +126,11 @@ export function SearchScreen({ navigation }: Props) {
         <Pressable style={[styles.modeChip, mode === "near" ? styles.modeChipOn : null]} onPress={() => setMode("near")}>
           <Text style={[styles.modeChipText, mode === "near" ? styles.modeChipTextOn : null]}>Near me</Text>
         </Pressable>
-        <Pressable style={styles.addBiz} onPress={() => navigation.navigate("AddBusiness")}>
-          <Text style={styles.addBizText}>Add business</Text>
-        </Pressable>
+        {canUseBusinessDirectoryTools ? (
+          <Pressable style={styles.addBiz} onPress={() => navigation.navigate("AddBusiness")}>
+            <Text style={styles.addBizText}>Add business</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       {mode === "search" ? (
@@ -184,7 +196,10 @@ export function SearchScreen({ navigation }: Props) {
               {nearQuery.error ? <ErrorState message={(nearQuery.error as Error).message} /> : null}
               <Text style={styles.title}>Nearby businesses</Text>
               {(nearQuery.data?.items || []).length === 0 && !nearQuery.isLoading ? (
-                <EmptyState title="No businesses yet" subtitle="Add yours from the button above." />
+                <EmptyState
+                  title="No businesses yet"
+                  subtitle={canUseBusinessDirectoryTools ? "Add yours from the button above." : "Business directory listing is available in Business mode."}
+                />
               ) : null}
               {(nearQuery.data?.items || []).map((biz) => (
                 <Pressable

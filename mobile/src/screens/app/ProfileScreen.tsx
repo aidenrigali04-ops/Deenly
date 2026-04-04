@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as DocumentPicker from "expo-document-picker";
 import {
@@ -75,6 +75,10 @@ export function ProfileScreen({ navigation }: Props) {
         following_count: number;
         likes_received_count: number;
         likes_given_count: number;
+        persona_capabilities?: {
+          can_create_products?: boolean;
+          can_use_business_directory_tools?: boolean;
+        };
       }>("/users/me", { auth: true }),
     enabled: Boolean(sessionQuery.data?.id)
   });
@@ -103,7 +107,15 @@ export function ProfileScreen({ navigation }: Props) {
   const avatarUri = resolveMediaUrl(profileQuery.data?.avatar_url);
   const tileSize = Math.floor((width - 2) / 3);
   const p = profileQuery.data;
+  const canCreateProducts = Boolean(p?.persona_capabilities?.can_create_products);
+  const canUseBusinessDirectoryTools = Boolean(p?.persona_capabilities?.can_use_business_directory_tools);
   const username = sessionQuery.data?.username || "user";
+
+  useEffect(() => {
+    if (!canCreateProducts && activeTab === "products") {
+      setActiveTab("posts");
+    }
+  }, [activeTab, canCreateProducts]);
 
   const shareProfile = useCallback(async () => {
     try {
@@ -285,7 +297,7 @@ export function ProfileScreen({ navigation }: Props) {
               </Pressable>
             </View>
 
-            {!hasBusinessListing ? (
+            {canUseBusinessDirectoryTools && !hasBusinessListing ? (
               <Pressable style={styles.addBusinessBtn} onPress={() => navigation.navigate("AddBusiness")}>
                 <Text style={styles.addBusinessText}>List your business</Text>
               </Pressable>
@@ -304,15 +316,17 @@ export function ProfileScreen({ navigation }: Props) {
               <Text style={[styles.tabLabel, compact && styles.tabLabelCompact, activeTab === "posts" ? styles.tabLabelActive : null]}>Posts</Text>
             </View>
           </Pressable>
-          <Pressable
-            style={[styles.tabItem, compact && styles.tabItemCompact, activeTab === "products" ? styles.tabItemActive : null]}
-            onPress={() => setActiveTab("products")}
-          >
-            <View style={styles.tabInner}>
-              <IconShoppingBag color={activeTab === "products" ? colors.text : colors.muted} size={20} />
-              <Text style={[styles.tabLabel, compact && styles.tabLabelCompact, activeTab === "products" ? styles.tabLabelActive : null]}>Shop</Text>
-            </View>
-          </Pressable>
+          {canCreateProducts ? (
+            <Pressable
+              style={[styles.tabItem, compact && styles.tabItemCompact, activeTab === "products" ? styles.tabItemActive : null]}
+              onPress={() => setActiveTab("products")}
+            >
+              <View style={styles.tabInner}>
+                <IconShoppingBag color={activeTab === "products" ? colors.text : colors.muted} size={20} />
+                <Text style={[styles.tabLabel, compact && styles.tabLabelCompact, activeTab === "products" ? styles.tabLabelActive : null]}>Shop</Text>
+              </View>
+            </Pressable>
+          ) : null}
         </View>
 
         {activeTab === "posts" ? (
@@ -363,7 +377,7 @@ export function ProfileScreen({ navigation }: Props) {
               <View style={styles.emptyGrid}>
                 <IconShoppingBag color={colors.muted} size={48} />
                 <Text style={styles.emptyGridTitle}>No products yet</Text>
-                <Text style={styles.emptyGridSub}>Add a product under Settings → Creator hub.</Text>
+                <Text style={styles.emptyGridSub}>Add a product under Settings → Pro tools.</Text>
               </View>
             ) : null}
             <View style={styles.grid}>

@@ -55,6 +55,13 @@ export type CreateProductComposerProps = {
   onCreated?: (product: CreatorProduct) => void;
 };
 
+type MePersonaProfile = {
+  profile_kind?: "consumer" | "professional" | "business_interest" | null;
+  persona_capabilities?: {
+    can_create_products?: boolean;
+  };
+};
+
 function applyImportedDraft(
   draft: ProductImportDraft,
   setters: {
@@ -121,6 +128,11 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
     queryKey: ["creator-product-composer-connect-status"],
     queryFn: () => fetchConnectStatus()
   });
+  const meProfileQuery = useQuery({
+    queryKey: ["creator-product-composer-me-profile"],
+    queryFn: () => apiRequest<MePersonaProfile>("/users/me", { auth: true })
+  });
+  const canCreateProducts = Boolean(meProfileQuery.data?.persona_capabilities?.can_create_products);
   const boostTierBps: Record<BoostTier, number> = {
     standard: 350,
     boosted: 2000,
@@ -197,6 +209,10 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
 
   const onCreateProductSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!canCreateProducts) {
+      setNewProductFormError("Switch to Professional or Business in Account settings to create product listings.");
+      return;
+    }
     setNewProductFormError("");
     const title = newProductTitle.trim();
     if (title.length < 3) {
@@ -365,6 +381,21 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
             {publishError}
           </p>
         ) : null}
+      </div>
+    );
+  }
+
+  if (!meProfileQuery.isLoading && !canCreateProducts) {
+    return (
+      <div className="rounded-control border border-black/10 bg-surface px-4 py-3 text-sm text-muted">
+        Product creation is available for Professional and Business profiles.{" "}
+        <Link
+          href="/account/settings"
+          className="text-sky-600 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
+        >
+          Change your profile mode
+        </Link>
+        .
       </div>
     );
   }

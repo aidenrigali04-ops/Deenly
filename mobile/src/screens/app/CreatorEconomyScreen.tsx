@@ -15,6 +15,7 @@ import {
   fetchMyTiers,
   formatMinorCurrency
 } from "../../lib/monetization";
+import { apiRequest } from "../../lib/api";
 import { colors, radii } from "../../theme";
 
 function triState(value: boolean | undefined) {
@@ -45,6 +46,19 @@ export function CreatorEconomyScreen() {
     queryKey: ["mobile-creator-affiliate-codes"],
     queryFn: () => fetchAffiliateCodes()
   });
+  const profileQuery = useQuery({
+    queryKey: ["mobile-creator-profile-capabilities"],
+    queryFn: () =>
+      apiRequest<{
+        profile_kind?: "consumer" | "professional" | "business_interest" | null;
+        persona_capabilities?: {
+          can_manage_memberships?: boolean;
+          can_use_affiliate_tools?: boolean;
+        };
+      }>("/users/me", { auth: true })
+  });
+  const canManageMemberships = Boolean(profileQuery.data?.persona_capabilities?.can_manage_memberships);
+  const canUseAffiliateTools = Boolean(profileQuery.data?.persona_capabilities?.can_use_affiliate_tools);
 
   const connectAccountMutation = useMutation({
     mutationFn: () => createConnectAccount(),
@@ -80,7 +94,7 @@ export function CreatorEconomyScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.lede}>
-        Payouts and a quick read on your catalog. Add products below; use the web Creator hub for bulk edits and tiers.
+        Payouts and a quick read on your catalog. Add products below; use the web hub for advanced controls.
       </Text>
 
       <Pressable style={styles.addProductBtn} onPress={() => navigation.navigate("CreateProduct")}>
@@ -179,46 +193,50 @@ export function CreatorEconomyScreen() {
         )}
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Membership plans</Text>
-        {(tiersQuery.data?.items || []).length ? (
-          tiersQuery.data?.items.slice(0, 8).map((tier) => (
-            <Text key={tier.id} style={styles.listLine}>
-              {tier.title}
-              <Text style={styles.muted}>
-                {" "}
-                · {formatMinorCurrency(tier.monthly_price_minor, tier.currency)}/mo
-              </Text>
-            </Text>
-          ))
-        ) : (
-          <EmptyState title="No plans yet" subtitle="Create membership plans from web Creator hub -> Grow." />
-        )}
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Affiliate codes</Text>
-        <Pressable
-          style={styles.buttonSecondary}
-          onPress={() => affiliateCodeMutation.mutate()}
-          disabled={affiliateCodeMutation.isPending}
-        >
-          <Text style={styles.buttonText}>{affiliateCodeMutation.isPending ? "Creating…" : "New code"}</Text>
-        </Pressable>
-        {(affiliateCodesQuery.data?.items || []).length ? (
-          <View style={styles.badgeWrap}>
-            {(affiliateCodesQuery.data?.items || []).map((code) => (
-              <View key={code.id} style={styles.badge}>
-                <Text style={styles.badgeText}>
-                  {code.code} ({code.uses_count})
+      {canManageMemberships ? (
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Membership plans</Text>
+          {(tiersQuery.data?.items || []).length ? (
+            tiersQuery.data?.items.slice(0, 8).map((tier) => (
+              <Text key={tier.id} style={styles.listLine}>
+                {tier.title}
+                <Text style={styles.muted}>
+                  {" "}
+                  · {formatMinorCurrency(tier.monthly_price_minor, tier.currency)}/mo
                 </Text>
-              </View>
-            ))}
-          </View>
-        ) : (
-          <Text style={styles.muted}>No codes yet.</Text>
-        )}
-      </View>
+              </Text>
+            ))
+          ) : (
+            <EmptyState title="No plans yet" subtitle="Create membership plans from web Creator hub -> Grow." />
+          )}
+        </View>
+      ) : null}
+
+      {canUseAffiliateTools ? (
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Affiliate codes</Text>
+          <Pressable
+            style={styles.buttonSecondary}
+            onPress={() => affiliateCodeMutation.mutate()}
+            disabled={affiliateCodeMutation.isPending}
+          >
+            <Text style={styles.buttonText}>{affiliateCodeMutation.isPending ? "Creating…" : "New code"}</Text>
+          </Pressable>
+          {(affiliateCodesQuery.data?.items || []).length ? (
+            <View style={styles.badgeWrap}>
+              {(affiliateCodesQuery.data?.items || []).map((code) => (
+                <View key={code.id} style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                    {code.code} ({code.uses_count})
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.muted}>No codes yet.</Text>
+          )}
+        </View>
+      ) : null}
     </ScrollView>
   );
 }

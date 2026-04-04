@@ -101,6 +101,11 @@ type MeProfile = {
   username: string;
   avatar_url: string | null;
   seller_checklist_completed_at?: string | null;
+  profile_kind?: "consumer" | "professional" | "business_interest" | null;
+  persona_capabilities?: {
+    can_create_products?: boolean;
+    can_promote_products_in_posts?: boolean;
+  };
 };
 
 function deriveMediaType(mimeType: string): "image" | "video" | null {
@@ -218,6 +223,7 @@ export function CreatePostComposer({
   const [assistError, setAssistError] = useState("");
 
   const userId = sessionQuery.data?.id;
+  const canPromoteProducts = Boolean(profileQuery.data?.persona_capabilities?.can_promote_products_in_posts);
   const draftStorageKey = userId
     ? reelMode
       ? `deenly-create-draft-${userId}-reel`
@@ -327,6 +333,12 @@ export function CreatePostComposer({
       setSelectedProductId("");
     }
   }, [sellThis]);
+
+  useEffect(() => {
+    if (!canPromoteProducts && sellThis) {
+      setSellThis(false);
+    }
+  }, [canPromoteProducts, sellThis]);
 
   useEffect(() => {
     if (reelMode) {
@@ -727,7 +739,7 @@ export function CreatePostComposer({
           aria-label="Tags"
         />
 
-        {!reelMode ? (
+        {!reelMode && canPromoteProducts ? (
           <div className="border-t border-black/10 pt-3">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -757,6 +769,10 @@ export function CreatePostComposer({
               </label>
             </div>
           </div>
+        ) : !reelMode ? (
+          <div className="rounded-control border border-black/10 bg-surface px-3 py-2 text-xs text-muted">
+            Switch to Professional or Business in Account settings to attach products to posts.
+          </div>
         ) : null}
 
         {!reelMode && sellThis ? (
@@ -773,7 +789,7 @@ export function CreatePostComposer({
                     href="/account/creator?tab=payouts"
                     className="btn-secondary px-2 py-1 text-xs"
                   >
-                    Creator hub
+                    {profileQuery.data?.profile_kind === "professional" ? "Pro tools" : "Creator hub"}
                   </Link>
                   <button
                     type="button"
@@ -806,7 +822,7 @@ export function CreatePostComposer({
                     href="/account/creator?tab=payouts"
                     className="text-sky-600 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
                   >
-                    Stripe Connect
+                    {profileQuery.data?.profile_kind === "professional" ? "Pro payouts" : "Stripe Connect"}
                   </Link>
                 </p>
               )}
@@ -818,7 +834,7 @@ export function CreatePostComposer({
                 href="/account/creator?tab=products"
                 className="text-sky-600 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
               >
-                Creator hub
+                {profileQuery.data?.profile_kind === "professional" ? "Pro tools" : "Creator hub"}
               </Link>
               . Publish there before buyers can check out.
             </p>

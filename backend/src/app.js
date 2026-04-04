@@ -195,7 +195,7 @@ function createApp({
 
   const apiRouter = express.Router();
   apiRouter.use("/auth", createAuthRouter({ config, db, analytics: app.locals.analytics }));
-  apiRouter.use("/users", createUsersRouter({ db, config }));
+  apiRouter.use("/users", createUsersRouter({ db, config, analytics: app.locals.analytics }));
   apiRouter.use("/profiles", createProfileRouter({ db, config }));
   apiRouter.use(
     "/posts",

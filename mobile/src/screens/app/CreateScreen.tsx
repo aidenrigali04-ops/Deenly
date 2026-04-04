@@ -129,9 +129,16 @@ export function CreateScreen({ navigation }: Props) {
       apiRequest<{
         display_name: string;
         avatar_url?: string | null;
+        profile_kind?: "consumer" | "professional" | "business_interest" | null;
+        persona_capabilities?: {
+          can_create_products?: boolean;
+          can_promote_products_in_posts?: boolean;
+        };
       }>("/users/me", { auth: true }),
     enabled: Boolean(sessionQuery.data?.id)
   });
+  const canCreateProducts = Boolean(profileQuery.data?.persona_capabilities?.can_create_products);
+  const canPromoteProducts = Boolean(profileQuery.data?.persona_capabilities?.can_promote_products_in_posts);
 
   const composerName = useMemo(() => {
     const p = profileQuery.data;
@@ -183,6 +190,12 @@ export function CreateScreen({ navigation }: Props) {
       setSellThis(false);
     }
   }, [postType]);
+
+  useEffect(() => {
+    if (!canPromoteProducts && sellThis) {
+      setSellThis(false);
+    }
+  }, [canPromoteProducts, sellThis]);
 
   const pickMedia = async () => {
     const result = await DocumentPicker.getDocumentAsync({
@@ -415,14 +428,16 @@ export function CreateScreen({ navigation }: Props) {
         ]}
       >
         <Text style={styles.headerTitle}>Create New Post</Text>
-        <Pressable
-          onPress={() => navigation.navigate("CreateProduct")}
-          style={({ pressed }) => [styles.headerProductLink, pressed && styles.pressableSoft]}
-          accessibilityRole="button"
-          accessibilityLabel="Add product without a post"
-        >
-          <Text style={styles.headerProductLinkText}>Add product</Text>
-        </Pressable>
+        {canCreateProducts ? (
+          <Pressable
+            onPress={() => navigation.navigate("CreateProduct")}
+            style={({ pressed }) => [styles.headerProductLink, pressed && styles.pressableSoft]}
+            accessibilityRole="button"
+            accessibilityLabel="Add product without a post"
+          >
+            <Text style={styles.headerProductLinkText}>Add product</Text>
+          </Pressable>
+        ) : null}
       </View>
       <KeyboardAvoidingView
         style={styles.flex}
@@ -508,7 +523,7 @@ export function CreateScreen({ navigation }: Props) {
               onChangeText={setTagsInput}
             />
             <View style={styles.divider} />
-            {postType !== "reel" ? (
+            {postType !== "reel" && canPromoteProducts ? (
               <>
                 <View style={[styles.promoteRow, compact && styles.promoteRowCompact]}>
                   <View style={styles.promoteTextBlock}>
@@ -612,8 +627,8 @@ export function CreateScreen({ navigation }: Props) {
                       </Pressable>
                     ) : null}
                     <View style={styles.dividerThin} />
-                  </>
-                ) : null}
+              </>
+            ) : null}
                 <SectionTitle>Pricing and type</SectionTitle>
                 <TextInput
                   style={[styles.inputComposerSingle, compact && styles.inputComposerSingleCompact]}
@@ -809,9 +824,13 @@ export function CreateScreen({ navigation }: Props) {
               </View>
             ) : null}
               </>
-            ) : (
+            ) : postType === "reel" ? (
               <Text style={styles.muted}>
                 Reels use one video only. Open the Reels tab to watch full-screen reels.
+              </Text>
+            ) : (
+              <Text style={[styles.promoteHint, compact && styles.promoteHintCompact]}>
+                Switch to Professional or Business in Settings to promote posts with products.
               </Text>
             )}
           </View>

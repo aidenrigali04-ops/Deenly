@@ -19,12 +19,13 @@ export function BusinessPersonalizerOverlay({ visible, onDismiss }: Props) {
   const [selectedPersona, setSelectedPersona] = useState<UsagePersonaKey>("personal");
 
   const completeMutation = useMutation({
-    mutationFn: (body: { usagePersona: UsagePersonaKey; navigate?: "CreatorEconomy" }) =>
+    mutationFn: (body: { usagePersona: UsagePersonaKey; navigate?: "CreatorEconomy" | "Onboarding" }) =>
       apiRequest("/users/me/preferences", {
         method: "PATCH",
         auth: true,
         body: {
-          usagePersona: body.usagePersona
+          usagePersona: body.usagePersona,
+          preferenceSource: "mobile_overlay"
         }
       }).then(() => body),
     onSuccess: async (body) => {
@@ -33,6 +34,8 @@ export function BusinessPersonalizerOverlay({ visible, onDismiss }: Props) {
       onDismiss();
       if (body.navigate === "CreatorEconomy") {
         navigation.navigate("CreatorEconomy");
+      } else if (body.navigate === "Onboarding") {
+        navigation.navigate("Onboarding");
       }
     }
   });
@@ -70,7 +73,12 @@ export function BusinessPersonalizerOverlay({ visible, onDismiss }: Props) {
             onPress={() =>
               completeMutation.mutate({
                 usagePersona: selectedPersona,
-                navigate: selectedPersona === "business" ? "CreatorEconomy" : undefined
+                navigate:
+                  selectedPersona === "business"
+                    ? "CreatorEconomy"
+                    : selectedPersona === "professional"
+                      ? "Onboarding"
+                      : undefined
               })
             }
           >

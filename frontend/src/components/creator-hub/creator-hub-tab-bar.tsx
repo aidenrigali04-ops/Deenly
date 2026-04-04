@@ -7,11 +7,13 @@ import { CREATOR_HUB_TABS, CREATOR_HUB_TAB_LABELS } from "./creator-hub-constant
 export function CreatorHubTabBar({
   activeTab,
   onTabChange,
-  idPrefix = "creator-hub"
+  idPrefix = "creator-hub",
+  tabs = CREATOR_HUB_TABS
 }: {
   activeTab: CreatorHubTab;
   onTabChange: (tab: CreatorHubTab) => void;
   idPrefix?: string;
+  tabs?: readonly CreatorHubTab[];
 }) {
   const tabRefs = useRef<Partial<Record<CreatorHubTab, HTMLButtonElement | null>>>({});
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -49,7 +51,7 @@ export function CreatorHubTabBar({
           style={{ left: indicator.left, width: indicator.width }}
           aria-hidden
         />
-        {CREATOR_HUB_TABS.map((tab) => {
+        {tabs.map((tab) => {
           const selected = activeTab === tab;
           return (
             <button

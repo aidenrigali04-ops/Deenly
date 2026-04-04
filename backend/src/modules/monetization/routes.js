@@ -9,6 +9,7 @@ const { mapStripeProductPriceToDraft } = require("../../services/product-import-
 const { importProductDraftFromUrl } = require("../../services/product-import-url");
 const { fulfillProductOrderAfterPayment, parseSmsOptIn } = require("../../services/purchase-fulfillment");
 const { hashToken } = require("../../services/purchase-access-token");
+const { resolvePersonaCapabilities } = require("../../services/persona-capabilities");
 
 function extractCheckoutCustomerContact(sessionObj) {
   const d = sessionObj?.customer_details || {};
@@ -216,6 +217,36 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
     }
   });
 
+  async function loadActorPersonaCapabilities(userId) {
+    const profileResult = await db.query(
+      `SELECT profile_kind, seller_checklist_completed_at
+       FROM profiles
+       WHERE user_id = $1
+       LIMIT 1`,
+      [userId]
+    );
+    if (profileResult.rowCount === 0) {
+      throw httpError(404, "User profile not found");
+    }
+    return resolvePersonaCapabilities(profileResult.rows[0]);
+  }
+
+  async function requireCreatorOperationsCapability(userId) {
+    const caps = await loadActorPersonaCapabilities(userId);
+    if (!caps.can_create_products) {
+      throw httpError(403, "Enable Professional or Business profile to use creator tools");
+    }
+    return caps;
+  }
+
+  async function requireBusinessOperationsCapability(userId) {
+    const caps = await loadActorPersonaCapabilities(userId);
+    if (!caps.can_manage_memberships) {
+      throw httpError(403, "This action is available to Business profiles");
+    }
+    return caps;
+  }
+
   async function loadPurchaseTokenEntitlementRow(rawToken, { enforceUseLimit = true } = {}) {
     const trimmed = String(rawToken || "").trim();
     if (trimmed.length < 20) {
@@ -421,6 +452,7 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
     "/connect/account",
     authMiddleware,
     asyncHandler(async (req, res) => {
+      await requireCreatorOperationsCapability(req.user.id);
       const existing = await db.query(
         `SELECT id, user_id, stripe_account_id, charges_enabled, payouts_enabled, details_submitted
          FROM creator_payout_accounts
@@ -466,6 +498,7 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
     "/connect/onboarding-link",
     authMiddleware,
     asyncHandler(async (req, res) => {
+      await requireCreatorOperationsCapability(req.user.id);
       const accountResult = await db.query(
         `SELECT stripe_account_id
          FROM creator_payout_accounts
@@ -491,6 +524,7 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
     "/connect/status",
     authMiddleware,
     asyncHandler(async (req, res) => {
+      const personaCapabilities = await loadActorPersonaCapabilities(req.user.id);
       const accountResult = await db.query(
         `SELECT id, stripe_account_id, charges_enabled, payouts_enabled, details_submitted
          FROM creator_payout_accounts
@@ -501,7 +535,8 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
       if (accountResult.rowCount === 0) {
         return res.status(200).json({
           connected: false,
-          feePolicy: getBoostTierPolicy(config)
+          feePolicy: getBoostTierPolicy(config),
+          personaCapabilities
         });
       }
       const accountRow = accountResult.rows[0];
@@ -536,7 +571,8 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
         payoutsEnabled: Boolean(stripeAccount.payouts_enabled),
         detailsSubmitted: Boolean(stripeAccount.details_submitted),
         dashboardUrl,
-        feePolicy: getBoostTierPolicy(config)
+        feePolicy: getBoostTierPolicy(config),
+        personaCapabilities
       });
     })
   );
@@ -552,6 +588,7 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
     "/products",
     authMiddleware,
     asyncHandler(async (req, res) => {
+      await requireCreatorOperationsCapability(req.user.id);
       const title = requireString(req.body?.title, "title", 3, 180);
       const description = optionalString(req.body?.description, "description", 2000) || null;
       const priceMinor = Number(req.body?.priceMinor);
@@ -633,6 +670,7 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
     authMiddleware,
     productImportLimiter,
     asyncHandler(async (req, res) => {
+      await requireCreatorOperationsCapability(req.user.id);
       const stripeAccountId = await requireSellerStripeAccountId(req.user.id);
       const limit = Math.min(Math.max(Number(req.query.limit) || 30, 1), 100);
       const startingAfter =
@@ -689,6 +727,7 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
     authMiddleware,
     productImportLimiter,
     asyncHandler(async (req, res) => {
+      await requireCreatorOperationsCapability(req.user.id);
       const stripeAccountId = await requireSellerStripeAccountId(req.user.id);
       const stripeProductId = requireString(req.body?.stripeProductId, "stripeProductId", 3, 128);
       const stripePriceId = requireString(req.body?.stripePriceId, "stripePriceId", 3, 128);
@@ -728,6 +767,7 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
     authMiddleware,
     productImportLimiter,
     asyncHandler(async (req, res) => {
+      await requireCreatorOperationsCapability(req.user.id);
       const url = requireString(req.body?.url, "url", 8, 2000);
       const result = await importProductDraftFromUrl(url);
       res.status(200).json(result);
@@ -738,6 +778,7 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
     "/products/me",
     authMiddleware,
     asyncHandler(async (req, res) => {
+      await requireCreatorOperationsCapability(req.user.id);
       const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
       const offset = Math.max(Number(req.query.offset) || 0, 0);
       const products = await db.query(
@@ -853,6 +894,7 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
     "/products/:productId",
     authMiddleware,
     asyncHandler(async (req, res) => {
+      await requireCreatorOperationsCapability(req.user.id);
       const productId = Number(req.params.productId);
       if (!productId) {
         throw httpError(400, "productId must be a number");
@@ -1002,6 +1044,7 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
     "/products/:productId/publish",
     authMiddleware,
     asyncHandler(async (req, res) => {
+      await requireCreatorOperationsCapability(req.user.id);
       const productId = Number(req.params.productId);
       if (!productId) {
         throw httpError(400, "productId must be a number");
@@ -1044,6 +1087,7 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
     "/tiers",
     authMiddleware,
     asyncHandler(async (req, res) => {
+      await requireBusinessOperationsCapability(req.user.id);
       const title = requireString(req.body?.title, "title", 2, 120);
       const description = optionalString(req.body?.description, "description", 2000) || null;
       const monthlyPriceMinor = Number(req.body?.monthlyPriceMinor);
@@ -1075,6 +1119,7 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
     "/tiers/me",
     authMiddleware,
     asyncHandler(async (req, res) => {
+      await requireBusinessOperationsCapability(req.user.id);
       const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
       const offset = Math.max(Number(req.query.offset) || 0, 0);
       const rows = await db.query(
@@ -1112,6 +1157,7 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
     "/tiers/:tierId",
     authMiddleware,
     asyncHandler(async (req, res) => {
+      await requireBusinessOperationsCapability(req.user.id);
       const tierId = Number(req.params.tierId);
       if (!tierId) {
         throw httpError(400, "tierId must be a number");
@@ -1178,6 +1224,7 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
     "/tiers/:tierId/publish",
     authMiddleware,
     asyncHandler(async (req, res) => {
+      await requireBusinessOperationsCapability(req.user.id);
       const tierId = Number(req.params.tierId);
       if (!tierId) {
         throw httpError(400, "tierId must be a number");
@@ -2107,6 +2154,7 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
     "/affiliate/codes",
     authMiddleware,
     asyncHandler(async (req, res) => {
+      await requireBusinessOperationsCapability(req.user.id);
       const desiredCode = optionalString(req.body?.code, "code", 64);
       const generatedCode = `AFF${req.user.id}${Date.now().toString(36)}`.toUpperCase();
       const code = normalizeAffiliateCode(desiredCode || generatedCode);
@@ -2132,6 +2180,7 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
     "/affiliate/codes/me",
     authMiddleware,
     asyncHandler(async (req, res) => {
+      await requireBusinessOperationsCapability(req.user.id);
       const rows = await db.query(
         `SELECT id, affiliate_user_id, code, is_active, uses_count, created_at, updated_at
          FROM affiliate_codes
@@ -2147,6 +2196,7 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
     "/affiliate/performance/me",
     authMiddleware,
     asyncHandler(async (req, res) => {
+      await requireBusinessOperationsCapability(req.user.id);
       const summary = await db.query(
         `SELECT
            COALESCE(SUM(ac.amount_minor), 0)::int AS gross_referred_minor,
@@ -2223,6 +2273,7 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
     "/earnings/me",
     authMiddleware,
     asyncHandler(async (req, res) => {
+      await requireCreatorOperationsCapability(req.user.id);
       const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
       const offset = Math.max(Number(req.query.offset) || 0, 0);
       const rows = await db.query(

@@ -25,18 +25,21 @@ export function BusinessPersonalizerDialog() {
   });
 
   const completeMutation = useMutation({
-    mutationFn: (body: { usagePersona: UsagePersonaKey; navigate?: "creator" }) =>
+    mutationFn: (body: { usagePersona: UsagePersonaKey; navigate?: "creator" | "onboarding" }) =>
       apiRequest("/users/me/preferences", {
         method: "PATCH",
         auth: true,
         body: {
-          usagePersona: body.usagePersona
+          usagePersona: body.usagePersona,
+          preferenceSource: "web_overlay"
         }
       }).then(() => body),
     onSuccess: async (body) => {
       await queryClient.invalidateQueries({ queryKey: ["web-user-me-onboarding"] });
       if (body.navigate === "creator") {
         router.push("/account/creator");
+      } else if (body.navigate === "onboarding") {
+        router.push("/onboarding");
       }
     }
   });
@@ -87,7 +90,12 @@ export function BusinessPersonalizerDialog() {
             onClick={() => {
               completeMutation.mutate({
                 usagePersona: selectedPersona,
-                navigate: selectedPersona === "business" ? "creator" : undefined
+                navigate:
+                  selectedPersona === "business"
+                    ? "creator"
+                    : selectedPersona === "professional"
+                      ? "onboarding"
+                      : undefined
               });
             }}
           >

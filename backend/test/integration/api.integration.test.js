@@ -934,6 +934,8 @@ describeIfDatabase("integration api flows", () => {
       .send({ usagePersona: "professional" });
     expect(applyProfessionalPersona.statusCode).toBe(200);
     expect(applyProfessionalPersona.body.profile_kind).toBe("professional");
+    expect(applyProfessionalPersona.body.persona_capabilities?.can_create_products).toBe(true);
+    expect(applyProfessionalPersona.body.persona_capabilities?.can_manage_memberships).toBe(false);
     expect(applyProfessionalPersona.body.default_feed_tab).toBe("opportunities");
     expect(applyProfessionalPersona.body.app_landing).toBe("home");
     expect(applyProfessionalPersona.body.business_onboarding_dismissed_at).toBeTruthy();
@@ -1062,6 +1064,12 @@ describeIfDatabase("integration api flows", () => {
     });
     const creatorToken = creator.body.tokens.accessToken;
     const buyerToken = buyer.body.tokens.accessToken;
+    const creatorPersona = await request(app)
+      .patch("/api/v1/users/me/preferences")
+      .set("Authorization", `Bearer ${creatorToken}`)
+      .send({ usagePersona: "professional", preferenceSource: "test" });
+    expect(creatorPersona.statusCode).toBe(200);
+    expect(creatorPersona.body.persona_capabilities?.can_create_products).toBe(true);
 
     const post = await request(app)
       .post("/api/v1/posts")
@@ -1141,6 +1149,36 @@ describeIfDatabase("integration api flows", () => {
     expect(catalogMissing.statusCode).toBe(404);
   });
 
+  it("blocks personal profiles from creator-only monetization operations", async () => {
+    const user = await request(app).post("/api/v1/auth/register").send({
+      email: "personal-blocked@example.com",
+      username: "personal_blocked",
+      password: "StrongPass123",
+      displayName: "Personal Blocked"
+    });
+    expect(user.statusCode).toBe(201);
+    const token = user.body.tokens.accessToken;
+
+    const createProduct = await request(app)
+      .post("/api/v1/monetization/products")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        title: "Should be blocked",
+        description: "Personal mode",
+        priceMinor: 500,
+        currency: "usd",
+        productType: "digital",
+        deliveryMediaKey: "uploads/products/blocked.pdf"
+      });
+    expect(createProduct.statusCode).toBe(403);
+
+    const createAffiliate = await request(app)
+      .post("/api/v1/monetization/affiliate/codes")
+      .set("Authorization", `Bearer ${token}`)
+      .send({});
+    expect(createAffiliate.statusCode).toBe(403);
+  });
+
   it("rejects product import from URL when not https or host is blocked", async () => {
     const u = await request(app).post("/api/v1/auth/register").send({
       email: "import-url@example.com",
@@ -1150,6 +1188,11 @@ describeIfDatabase("integration api flows", () => {
     });
     expect(u.statusCode).toBe(201);
     const token = u.body.tokens.accessToken;
+    const persona = await request(app)
+      .patch("/api/v1/users/me/preferences")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ usagePersona: "professional", preferenceSource: "test" });
+    expect(persona.statusCode).toBe(200);
 
     const httpUrl = await request(app)
       .post("/api/v1/monetization/products/import/url")
@@ -1247,7 +1290,15 @@ describeIfDatabase("integration api flows", () => {
       [sellerReg.body.user.id]
     );
 
-    const productRes = await request(testApp)
+    expect(
+      (
+        await request(testApp)
+          .patch("/api/v1/users/me/preferences")
+          .set("Authorization", `Bearer ${sellerReg.body.tokens.accessToken}`)
+          .send({ usagePersona: "professional", preferenceSource: "test" })
+      ).statusCode
+    ).toBe(200);
+    const productResAfterPersona = await request(testApp)
       .post("/api/v1/monetization/products")
       .set("Authorization", `Bearer ${sellerReg.body.tokens.accessToken}`)
       .send({
@@ -1258,15 +1309,15 @@ describeIfDatabase("integration api flows", () => {
         deliveryMediaKey: "uploads/test/key.pdf",
         platformFeeBps: 1000
       });
-    expect(productRes.statusCode).toBe(201);
-    expect(productRes.body.platform_fee_bps).toBe(1000);
+    expect(productResAfterPersona.statusCode).toBe(201);
+    expect(productResAfterPersona.body.platform_fee_bps).toBe(1000);
 
     await request(testApp)
-      .post(`/api/v1/monetization/products/${productRes.body.id}/publish`)
+      .post(`/api/v1/monetization/products/${productResAfterPersona.body.id}/publish`)
       .set("Authorization", `Bearer ${sellerReg.body.tokens.accessToken}`);
 
     const checkout = await request(testApp)
-      .post(`/api/v1/monetization/checkout/product/${productRes.body.id}`)
+      .post(`/api/v1/monetization/checkout/product/${productResAfterPersona.body.id}`)
       .set("Authorization", `Bearer ${buyerReg.body.tokens.accessToken}`)
       .send({});
 

@@ -36,6 +36,11 @@ export function SettingsScreen({ navigation }: Props) {
         likes_received_count: number;
         likes_given_count: number;
         profile_kind?: "consumer" | "professional" | "business_interest" | null;
+        persona_capabilities?: {
+          can_access_creator_hub?: boolean;
+          can_create_products?: boolean;
+          can_use_business_directory_tools?: boolean;
+        };
       }>("/users/me", { auth: true }),
     enabled: Boolean(sessionQuery.data?.id)
   });
@@ -66,7 +71,7 @@ export function SettingsScreen({ navigation }: Props) {
       apiRequest("/users/me/preferences", {
         method: "PATCH",
         auth: true,
-        body: { usagePersona }
+        body: { usagePersona, preferenceSource: "mobile_settings" }
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["mobile-account-profile"] });
@@ -85,6 +90,7 @@ export function SettingsScreen({ navigation }: Props) {
     String(sessionQuery.data.email || "").toLowerCase() === adminOwnerEmail;
 
   const p = profileQuery.data;
+  const caps = p?.persona_capabilities;
   const activePersona: UsagePersonaKey =
     p?.profile_kind === "business_interest"
       ? "business"
@@ -130,20 +136,24 @@ export function SettingsScreen({ navigation }: Props) {
           subtitle="Order history and digital access."
           onPress={() => navigation.navigate("Purchases")}
         />
-        <SettingsRow
-          title="Creator hub"
-          subtitle={
-            creatorConnectQuery.data?.connected
-              ? `Payouts · ${formatMinorCurrency(creatorEarningsQuery.data?.totals?.balance_minor || 0, "usd")} available`
-              : "Stripe Connect and your catalog."
-          }
-          onPress={() => navigation.navigate("CreatorEconomy")}
-        />
-        <SettingsRow
-          title="New listing"
-          subtitle="Add a product without a post."
-          onPress={() => navigation.navigate("CreateProduct")}
-        />
+        {caps?.can_access_creator_hub ? (
+          <SettingsRow
+            title={activePersona === "business" ? "Creator hub" : "Pro tools"}
+            subtitle={
+              creatorConnectQuery.data?.connected
+                ? `Payouts · ${formatMinorCurrency(creatorEarningsQuery.data?.totals?.balance_minor || 0, "usd")} available`
+                : "Stripe Connect and your catalog."
+            }
+            onPress={() => navigation.navigate("CreatorEconomy")}
+          />
+        ) : null}
+        {caps?.can_create_products ? (
+          <SettingsRow
+            title="New listing"
+            subtitle="Add a product without a post."
+            onPress={() => navigation.navigate("CreateProduct")}
+          />
+        ) : null}
         <SettingsRow
           title="Feed & defaults"
           subtitle="Interests and how the app opens."

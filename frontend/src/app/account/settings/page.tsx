@@ -11,6 +11,11 @@ type MeProfile = {
   likes_received_count: number;
   likes_given_count: number;
   profile_kind?: "consumer" | "professional" | "business_interest" | null;
+  persona_capabilities?: {
+    can_access_creator_hub?: boolean;
+    can_create_products?: boolean;
+    can_use_business_directory_tools?: boolean;
+  };
 };
 
 export default function AccountSettingsPage() {
@@ -29,7 +34,7 @@ export default function AccountSettingsPage() {
       apiRequest("/users/me/preferences", {
         method: "PATCH",
         auth: true,
-        body: { usagePersona }
+        body: { usagePersona, preferenceSource: "web_settings" }
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["account-profile-me"] });
@@ -47,6 +52,7 @@ export default function AccountSettingsPage() {
 
   const user = sessionQuery.data;
   const likes = profileQuery.data;
+  const caps = likes?.persona_capabilities;
   const activePersona: UsagePersonaKey =
     likes?.profile_kind === "business_interest"
       ? "business"
@@ -131,7 +137,21 @@ export default function AccountSettingsPage() {
               [
                 { href: "/account/edit", label: "Edit profile", hint: "Name, bio, business details" },
                 { href: "/account/purchases", label: "Purchases", hint: "Orders & access" },
-                { href: "/account/creator", label: "Creator hub", hint: "Stripe & products" },
+                ...(caps?.can_access_creator_hub
+                  ? [
+                      {
+                        href: "/account/creator",
+                        label: activePersona === "business" ? "Creator hub" : "Pro tools",
+                        hint: activePersona === "business" ? "Stripe, products, growth tools" : "Services, payouts, and products"
+                      }
+                    ]
+                  : []),
+                ...(caps?.can_create_products
+                  ? [{ href: "/create/product", label: "New listing", hint: "Create an offer without a post" }]
+                  : []),
+                ...(caps?.can_use_business_directory_tools
+                  ? [{ href: "/businesses/new", label: "Business profile", hint: "Directory and map visibility" }]
+                  : []),
                 { href: "/onboarding", label: "Setup & feed", hint: "Interests & defaults" },
                 { href: "/sessions", label: "Sessions", hint: "Signed-in devices" },
                 { href: "/notifications", label: "Inbox", hint: "Notifications" }

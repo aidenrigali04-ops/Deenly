@@ -4,11 +4,12 @@ import Link from "next/link";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ApiError } from "@/lib/api";
+import { ApiError, apiRequest } from "@/lib/api";
 import { fetchSessionMe } from "@/lib/auth";
 import { CreateProductComposer } from "@/components/create-product-composer";
 import { CreatorHubTabBar } from "@/components/creator-hub/creator-hub-tab-bar";
 import {
+  CREATOR_HUB_TABS,
   parseCreatorHubTab,
   type CreatorHubTab
 } from "@/components/creator-hub/creator-hub-constants";
@@ -65,7 +66,7 @@ function AccountCreatorPageInner() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const tab = useMemo(() => parseCreatorHubTab(searchParams.get("tab")), [searchParams]);
+  const requestedTab = useMemo(() => parseCreatorHubTab(searchParams.get("tab")), [searchParams]);
 
   const setTab = useCallback(
     (next: CreatorHubTab) => {
@@ -94,6 +95,18 @@ function AccountCreatorPageInner() {
   const sessionQuery = useQuery({
     queryKey: ["creator-hub-session-me"],
     queryFn: () => fetchSessionMe()
+  });
+  const profileQuery = useQuery({
+    queryKey: ["creator-hub-profile-me"],
+    queryFn: () =>
+      apiRequest<{
+        profile_kind?: "consumer" | "professional" | "business_interest" | null;
+        persona_capabilities?: {
+          can_access_creator_hub?: boolean;
+          can_manage_memberships?: boolean;
+        };
+      }>("/users/me", { auth: true }),
+    enabled: Boolean(sessionQuery.data?.id)
   });
   const connectStatusQuery = useQuery({
     queryKey: ["account-monetization-connect"],
@@ -149,6 +162,14 @@ function AccountCreatorPageInner() {
 
   const connectLoading = connectStatusQuery.isLoading || connectStatusQuery.isFetching;
   const connect = connectStatusQuery.data;
+  const profileKind = profileQuery.data?.profile_kind || "consumer";
+  const canAccessCreatorHub = Boolean(profileQuery.data?.persona_capabilities?.can_access_creator_hub);
+  const canManageMemberships = Boolean(profileQuery.data?.persona_capabilities?.can_manage_memberships);
+  const visibleTabs = useMemo<CreatorHubTab[]>(
+    () => (canManageMemberships ? [...CREATOR_HUB_TABS] : ["overview", "payouts", "products"]),
+    [canManageMemberships]
+  );
+  const activeTab: CreatorHubTab = visibleTabs.includes(requestedTab) ? requestedTab : "overview";
 
   const [stripeNotice, setStripeNotice] = useState<{
     variant: "success" | "error";
@@ -541,9 +562,12 @@ function AccountCreatorPageInner() {
             Account settings
           </Link>
         </p>
-        <h1 className="page-header-title mt-4">Creator hub</h1>
+        <h1 className="page-header-title mt-4">{profileKind === "business_interest" ? "Creator hub" : "Pro tools"}</h1>
         <p className="page-header-subtitle">
-          Payouts, catalog, and growth tools — separate from your public profile. Attach published products from{" "}
+          {profileKind === "business_interest"
+            ? "Payouts, catalog, and growth tools — separate from your public profile."
+            : "Payouts and product offers for your professional profile."}{" "}
+          Attach published products from{" "}
           <Link href="/create" className="text-sky-600 underline-offset-2 hover:underline">
             Create post
           </Link>
@@ -552,7 +576,16 @@ function AccountCreatorPageInner() {
       </header>
 
       <article className="surface-card section-stack px-6 py-6">
-        <CreatorHubTabBar activeTab={tab} onTabChange={setTab} />
+        {!canAccessCreatorHub ? (
+          <div className="rounded-control border border-black/10 bg-surface px-4 py-3 text-sm text-muted">
+            Creator tools are available for Professional and Business profiles. Switch mode in{" "}
+            <Link href="/account/settings" className="text-sky-600 underline-offset-2 hover:underline">
+              Account settings
+            </Link>
+            .
+          </div>
+        ) : null}
+        {canAccessCreatorHub ? <CreatorHubTabBar activeTab={activeTab} onTabChange={setTab} tabs={visibleTabs} /> : null}
 
         {stripeNotice ? (
           <div
@@ -576,8 +609,9 @@ function AccountCreatorPageInner() {
           </div>
         ) : null}
 
-        <div role="tabpanel" id={`creator-hub-panel-${tab}`} aria-labelledby={`creator-hub-tab-${tab}`}>
-          {tab === "overview" ? (
+        {canAccessCreatorHub ? (
+        <div role="tabpanel" id={`creator-hub-panel-${activeTab}`} aria-labelledby={`creator-hub-tab-${activeTab}`}>
+          {activeTab === "overview" ? (
             <div className="space-y-8">
               <OnboardingChecklist
                 connect={connect}
@@ -615,10 +649,11 @@ function AccountCreatorPageInner() {
             </div>
           ) : null}
 
-          {tab === "payouts" ? payoutsPanel(connect) : null}
-          {tab === "products" ? productFormAndCatalog : null}
-          {tab === "grow" ? growPanel : null}
+          {activeTab === "payouts" ? payoutsPanel(connect) : null}
+          {activeTab === "products" ? productFormAndCatalog : null}
+          {activeTab === "grow" && canManageMemberships ? growPanel : null}
         </div>
+        ) : null}
       </article>
     </div>
   );
