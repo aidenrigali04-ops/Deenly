@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { FormEvent, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
@@ -7,6 +8,16 @@ import { apiRequest } from "@/lib/api";
 import { fetchBusinessesNear } from "@/lib/businesses";
 import { fetchEventsNear } from "@/lib/events";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import type { NearMapSelection } from "@/components/near-me-map";
+
+const NearMeMap = dynamic(() => import("@/components/near-me-map").then((m) => m.NearMeMap), {
+  ssr: false,
+  loading: () => (
+    <div className="flex min-h-[280px] w-full items-center justify-center bg-slate-100 text-sm text-slate-500">
+      Loading map…
+    </div>
+  )
+});
 
 type UserResult = {
   user_id: number;
@@ -88,6 +99,7 @@ export default function SearchPage() {
   const [nearType, setNearType] = useState<NearType>("all");
   const [nearTimeWindow, setNearTimeWindow] = useState<NearTimeWindow>("upcoming");
   const [selectedCluster, setSelectedCluster] = useState<string | null>(null);
+  const [mapSelection, setMapSelection] = useState<NearMapSelection>(null);
   const [geoError, setGeoError] = useState<string | null>(null);
   const [geoPending, setGeoPending] = useState(false);
 
@@ -165,6 +177,13 @@ export default function SearchPage() {
           return key === selectedCluster;
         })
       : nearEventsQuery.data?.items || [];
+
+  const businessesForMap = nearType === "all" || nearType === "businesses" ? nearQuery.data?.items || [] : [];
+  const eventsForMap = nearType === "all" || nearType === "events" ? visibleEventItems : [];
+
+  useEffect(() => {
+    setMapSelection(null);
+  }, [nearType, nearTimeWindow, selectedCluster, geo?.lat, geo?.lng]);
 
   return (
     <section className="space-y-4">
@@ -265,17 +284,93 @@ export default function SearchPage() {
           {!geoPending && geo ? (
             <>
               <div className="surface-card overflow-hidden rounded-panel border border-black/10">
-                <div className="aspect-[16/10] w-full bg-muted/20">
-                  <iframe
-                    title="Map preview"
-                    className="h-full w-full border-0"
-                    loading="lazy"
-                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${geo.lng - 0.06}%2C${geo.lat - 0.04}%2C${geo.lng + 0.06}%2C${geo.lat + 0.04}&layer=mapnik&marker=${geo.lat}%2C${geo.lng}`}
-                  />
+                <div className="relative aspect-[16/10] min-h-[280px] w-full bg-slate-100">
+                  <div className="absolute inset-0 z-0 overflow-hidden rounded-t-xl">
+                    <NearMeMap
+                      center={geo}
+                      businesses={businessesForMap}
+                      events={eventsForMap}
+                      onSelect={setMapSelection}
+                    />
+                  </div>
+                  {mapSelection ? (
+                    <div className="absolute bottom-0 left-0 right-0 z-[800] border-t border-black/10 bg-white/95 px-4 py-3 shadow-[0_-8px_30px_rgba(15,23,42,0.12)] backdrop-blur-md supports-[backdrop-filter]:bg-white/90">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          {mapSelection.kind === "business" ? (
+                            <>
+                              <p className="text-xs font-semibold uppercase tracking-wide text-teal-700">Business</p>
+                              <p className="truncate font-semibold text-text">{mapSelection.item.name}</p>
+                              {mapSelection.item.category ? (
+                                <p className="text-xs text-muted">{mapSelection.item.category}</p>
+                              ) : null}
+                              {typeof mapSelection.item.distanceM === "number" ? (
+                                <p className="mt-1 text-xs text-muted">
+                                  {(mapSelection.item.distanceM / 1000).toFixed(1)} km away
+                                </p>
+                              ) : null}
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">Event</p>
+                              <p className="line-clamp-2 font-semibold text-text">{mapSelection.item.title}</p>
+                              <p className="text-xs text-muted">
+                                {new Date(mapSelection.item.startsAt).toLocaleString()}
+                              </p>
+                              {typeof mapSelection.item.distanceM === "number" ? (
+                                <p className="mt-1 text-xs text-muted">
+                                  {(mapSelection.item.distanceM / 1000).toFixed(1)} km away
+                                </p>
+                              ) : null}
+                            </>
+                          )}
+                        </div>
+                        <div className="flex shrink-0 flex-col gap-2">
+                          <Link
+                            href={
+                              mapSelection.kind === "business"
+                                ? `/businesses/${mapSelection.item.id}`
+                                : `/events/${mapSelection.item.id}`
+                            }
+                            className="btn-primary whitespace-nowrap px-3 py-1.5 text-xs"
+                          >
+                            Open
+                          </Link>
+                          <button
+                            type="button"
+                            className="text-xs font-medium text-muted underline-offset-2 hover:text-text hover:underline"
+                            onClick={() => setMapSelection(null)}
+                          >
+                            Close
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
-                <p className="border-t border-black/10 p-2 text-center text-xs text-muted">
-                  Preview map centered on your area. Open a listing for directions.
-                </p>
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-black/10 px-3 py-2">
+                  <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="inline-block size-2.5 shrink-0 rounded-full border-2 border-white bg-[#1a73e8] shadow-sm" />
+                      You
+                    </span>
+                    {(nearType === "all" || nearType === "businesses") && businessesForMap.length > 0 ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-block size-2.5 shrink-0 rounded-full border-2 border-white bg-teal-600 shadow-sm" />
+                        Business
+                      </span>
+                    ) : null}
+                    {(nearType === "all" || nearType === "events") && eventsForMap.length > 0 ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-block size-2.5 shrink-0 rounded-full border-2 border-white bg-violet-600 shadow-sm" />
+                        Event
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="text-center text-xs text-muted sm:text-right">
+                    Tap a pin for details · scroll or pinch to move the map
+                  </p>
+                </div>
               </div>
               {nearQuery.isLoading ? <LoadingState label="Loading nearby businesses…" /> : null}
               {nearQuery.error ? <ErrorState message={(nearQuery.error as Error).message} /> : null}
