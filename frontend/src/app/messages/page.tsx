@@ -8,6 +8,7 @@ import { createOrOpenConversation, markConversationRead } from "@/lib/messages";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { UserSearchInput } from "@/components/UserSearchInput";
 import { useSessionStore } from "@/store/session-store";
+import { usePageVisibility } from "@/hooks/use-page-visibility";
 
 type ConversationItem = {
   conversation_id: number;
@@ -55,6 +56,7 @@ function MessagesPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentUserId = useSessionStore((state) => state.user?.id || null);
+  const pageVisible = usePageVisibility();
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
   const [messageBody, setMessageBody] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -93,7 +95,8 @@ function MessagesPageInner() {
 
   const conversationsQuery = useQuery({
     queryKey: ["messages-conversations"],
-    queryFn: () => apiRequest<{ items: ConversationItem[] }>("/messages/conversations?limit=25", { auth: true })
+    queryFn: () => apiRequest<{ items: ConversationItem[] }>("/messages/conversations?limit=25", { auth: true }),
+    refetchInterval: pageVisible ? 10_000 : false,
   });
 
   const selectedConversation = useMemo(
@@ -120,7 +123,8 @@ function MessagesPageInner() {
         `/messages/conversations/${selectedConversationId}/messages?limit=50`,
         { auth: true }
       ),
-    enabled: Boolean(selectedConversationId)
+    enabled: Boolean(selectedConversationId),
+    refetchInterval: pageVisible && selectedConversationId ? 3_000 : false,
   });
 
   const orderedMessages = useMemo(() => {

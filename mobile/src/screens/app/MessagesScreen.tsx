@@ -6,6 +6,7 @@ import { apiRequest } from "../../lib/api";
 import { createOrOpenConversation, markConversationRead } from "../../lib/messages";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { UserSearchInput } from "../../components/UserSearchInput";
+import { useAppActive } from "../../hooks/use-app-active";
 import { colors, radii } from "../../theme";
 import type { AppTabParamList } from "../../navigation/AppNavigator";
 import { useSessionStore } from "../../store/session-store";
@@ -61,6 +62,7 @@ export function MessagesScreen() {
   const route = useRoute<MessagesRoute>();
   const queryClient = useQueryClient();
   const sessionUserId = useSessionStore((s) => s.user?.id ?? null);
+  const appActive = useAppActive();
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
   const [body, setBody] = useState("");
   const scrollRef = useRef<ScrollView>(null);
@@ -86,7 +88,8 @@ export function MessagesScreen() {
 
   const conversationsQuery = useQuery({
     queryKey: ["mobile-messages-conversations"],
-    queryFn: () => apiRequest<{ items: ConversationItem[] }>("/messages/conversations?limit=25", { auth: true })
+    queryFn: () => apiRequest<{ items: ConversationItem[] }>("/messages/conversations?limit=25", { auth: true }),
+    refetchInterval: appActive ? 10_000 : false,
   });
 
   const selectedConversation = useMemo(
@@ -101,7 +104,8 @@ export function MessagesScreen() {
         `/messages/conversations/${selectedConversationId}/messages?limit=50`,
         { auth: true }
       ),
-    enabled: Boolean(selectedConversationId)
+    enabled: Boolean(selectedConversationId),
+    refetchInterval: appActive && selectedConversationId ? 3_000 : false,
   });
 
   const orderedMessages = useMemo(() => {

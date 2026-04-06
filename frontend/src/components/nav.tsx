@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { logout } from "@/lib/auth";
 import { apiRequest } from "@/lib/api";
 import { useSessionStore } from "@/store/session-store";
+import { useUnreadMessageCount } from "@/hooks/use-unread-message-count";
 
 function Icon({
   kind
@@ -117,7 +118,8 @@ function NavLink({
   active,
   icon,
   title: titleAttr,
-  subLabel
+  subLabel,
+  badge
 }: {
   href: string;
   label: string;
@@ -125,22 +127,28 @@ function NavLink({
   icon: RailIcon;
   title?: string;
   subLabel?: string;
+  badge?: number;
 }) {
   return (
     <Link
       href={href}
-      aria-label={label}
+      aria-label={badge ? `${label} (${badge} unread)` : label}
       title={titleAttr ?? label}
       className="group flex min-h-[44px] min-w-[44px] flex-col items-center justify-center gap-0.5 rounded-pill p-1 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25 focus-visible:ring-offset-2 focus-visible:ring-offset-card"
     >
       <span
-        className={`nav-rail-hit grid h-11 w-11 place-items-center rounded-full border ${
+        className={`nav-rail-hit relative grid h-11 w-11 place-items-center rounded-full border ${
           active
             ? "border-black bg-black text-white"
             : "border-black/15 bg-surface text-muted group-hover:bg-black/[0.04] group-hover:text-text"
         }`}
       >
         <Icon kind={icon} />
+        {badge && badge > 0 ? (
+          <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-black px-1 text-[10px] font-bold leading-none text-white">
+            {badge > 9 ? "9+" : badge}
+          </span>
+        ) : null}
       </span>
       {subLabel ? (
         <span className="hidden max-w-[76px] text-center text-[9px] leading-tight text-muted md:block">{subLabel}</span>
@@ -190,6 +198,7 @@ export function Nav() {
   const pathname = usePathname();
   const router = useRouter();
   const user = useSessionStore((state) => state.user);
+  const unreadMessageCount = useUnreadMessageCount();
   const setUser = useSessionStore((state) => state.setUser);
   const adminOwnerEmail = (process.env.NEXT_PUBLIC_ADMIN_OWNER_EMAIL || "")
     .trim()
@@ -256,6 +265,7 @@ export function Nav() {
                 active={active}
                 title={link.title}
                 subLabel={link.subLabel}
+                badge={link.href === "/messages" ? unreadMessageCount : undefined}
               />
             );
           })}

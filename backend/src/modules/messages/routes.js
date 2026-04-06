@@ -301,6 +301,24 @@ function createMessagesRouter({ db, config, pushNotifications = null }) {
     })
   );
 
+  router.get(
+    "/unread-count",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const result = await db.query(
+        `SELECT COUNT(DISTINCT cp.conversation_id)::int AS cnt
+         FROM conversation_participants cp
+         JOIN messages m
+           ON m.conversation_id = cp.conversation_id
+          AND m.sender_id <> $1
+          AND (cp.last_read_message_id IS NULL OR m.id > cp.last_read_message_id)
+         WHERE cp.user_id = $1`,
+        [req.user.id]
+      );
+      res.status(200).json({ unreadConversationCount: result.rows[0]?.cnt || 0 });
+    })
+  );
+
   return router;
 }
 

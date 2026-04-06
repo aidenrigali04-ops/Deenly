@@ -52,6 +52,7 @@ import { CreateEventScreen } from "../screens/app/CreateEventScreen";
 import { EventDetailScreen } from "../screens/app/EventDetailScreen";
 import { NavTabIcon } from "../components/icons/NavTabIcon";
 import { BusinessPersonalizerOverlay } from "../components/BusinessPersonalizerOverlay";
+import { useUnreadMessageCount } from "../hooks/use-unread-message-count";
 
 export type AppTabParamList = {
   HomeTab: undefined;
@@ -106,6 +107,7 @@ const RootStack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<AppTabParamList>();
 
 function AppTabs() {
+  const unreadMessageCount = useUnreadMessageCount();
   return (
     <View style={{ flex: 1 }}>
       <AtmosphereBackdrop />
@@ -188,7 +190,9 @@ function AppTabs() {
           title: "Messages",
           tabBarIcon: ({ color, size, focused }) => (
             <NavTabIcon kind="send" color={color} size={size ?? 22} focused={focused} />
-          )
+          ),
+          tabBarBadge: unreadMessageCount > 0 ? (unreadMessageCount > 9 ? "9+" : unreadMessageCount) : undefined,
+          tabBarBadgeStyle: { backgroundColor: colors.accent, color: colors.onAccent, fontSize: 10, fontWeight: "700" },
         }}
       />
       <Tab.Screen
