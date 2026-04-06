@@ -10,7 +10,9 @@ const INTENTS = new Set([
   "polish",
   "marketplace_listing",
   "product_listing",
-  "service_details_generate"
+  "service_details_generate",
+  "event_listing",
+  "business_listing"
 ]);
 
 function systemPromptForIntent(intent) {
@@ -45,6 +47,20 @@ function systemPromptForIntent(intent) {
       base +
       " Rewrite the user's draft as a concise product description in 3-5 short lines: what buyer gets, who it is for, and one calm next step. " +
       "Keep the same language as the user. Do not use hype or repeated wording. Max about 420 characters."
+    );
+  }
+  if (intent === "event_listing") {
+    return (
+      base +
+      " Rewrite the user's notes as a concise public event description in 4-6 short lines: what the event is, who it is for, timing (only if the user stated it), location or online access (only if stated), and one calm next step (e.g. RSVP). " +
+      "Do not invent dates, times, venues, links, prices, or capacity. Same language as the user. Max about 520 characters."
+    );
+  }
+  if (intent === "business_listing") {
+    return (
+      base +
+      " Rewrite the user's notes as a concise business profile description in 3-5 short lines: what they offer, who it helps, and one calm next step. " +
+      "Use only what the user implied; do not invent hours, prices, or contact details not given. Same language as the user. Max about 480 characters."
     );
   }
   return (

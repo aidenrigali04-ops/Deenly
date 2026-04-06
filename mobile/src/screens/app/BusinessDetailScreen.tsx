@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { apiRequest } from "../../lib/api";
+import { fetchCreatorProducts, formatMinorCurrency } from "../../lib/monetization";
 import { colors, radii } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 
@@ -23,11 +24,12 @@ type Business = {
   category?: string | null;
   latitude: number;
   longitude: number;
+  ownerUserId: number;
 };
 
 type Props = NativeStackScreenProps<RootStackParamList, "BusinessDetail">;
 
-export function BusinessDetailScreen({ route }: Props) {
+export function BusinessDetailScreen({ route, navigation }: Props) {
   const id = route.params.id;
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
@@ -35,6 +37,13 @@ export function BusinessDetailScreen({ route }: Props) {
   const detailQuery = useQuery({
     queryKey: ["mobile-business", id],
     queryFn: () => apiRequest<Business>(`/businesses/${id}`, { auth: true })
+  });
+
+  const ownerId = detailQuery.data?.ownerUserId;
+  const productsQuery = useQuery({
+    queryKey: ["mobile-creator-catalog", ownerId],
+    queryFn: () => fetchCreatorProducts(ownerId!),
+    enabled: typeof ownerId === "number" && ownerId > 0
   });
 
   const chatMutation = useMutation({
@@ -85,6 +94,37 @@ export function BusinessDetailScreen({ route }: Props) {
       <Pressable style={styles.secondary} onPress={() => Linking.openURL(mapsUrl)}>
         <Text style={styles.secondaryText}>Directions</Text>
       </Pressable>
+      {productsQuery.isLoading ? (
+        <Text style={styles.muted}>Loading offers…</Text>
+      ) : null}
+      {productsQuery.error ? (
+        <Text style={styles.err}>Could not load offers.</Text>
+      ) : null}
+      {(productsQuery.data?.items || []).length > 0 ? (
+        <>
+          <Text style={styles.section}>Offers</Text>
+          <Text style={styles.hint}>Published listings from this business on Deenly.</Text>
+          {(productsQuery.data?.items || []).map((p) => (
+            <Pressable
+              key={p.id}
+              style={styles.offerRow}
+              onPress={() => navigation.navigate("ProductDetail", { productId: p.id })}
+            >
+              <View style={styles.offerTextCol}>
+                <Text style={styles.offerTitle} numberOfLines={2}>
+                  {p.title}
+                </Text>
+                {p.description ? (
+                  <Text style={styles.offerDesc} numberOfLines={2}>
+                    {p.description}
+                  </Text>
+                ) : null}
+              </View>
+              <Text style={styles.offerPrice}>{formatMinorCurrency(p.price_minor, p.currency)}</Text>
+            </Pressable>
+          ))}
+        </>
+      ) : null}
       <Text style={styles.section}>Ask about this business</Text>
       <Text style={styles.hint}>Answers use only the details shown here. For hours or pricing, contact the business.</Text>
       <TextInput
@@ -117,6 +157,21 @@ const styles = StyleSheet.create({
   link: { color: colors.accent, fontWeight: "600", textDecorationLine: "underline" },
   section: { marginTop: 16, fontSize: 16, fontWeight: "700", color: colors.text },
   hint: { color: colors.muted, fontSize: 13 },
+  offerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: radii.control,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.card
+  },
+  offerTextCol: { flex: 1, minWidth: 0 },
+  offerTitle: { fontWeight: "700", color: colors.text, fontSize: 15 },
+  offerDesc: { color: colors.muted, fontSize: 13, marginTop: 2 },
+  offerPrice: { fontWeight: "700", color: colors.accent, fontSize: 14 },
   input: {
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,

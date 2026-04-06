@@ -4,9 +4,33 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { PostPublishSuccessOverlay } from "../../components/PostPublishSuccessOverlay";
 import { ApiError } from "../../lib/api";
+import { assistPostText } from "../../lib/ai-assist";
 import { createEvent } from "../../lib/events";
 import { colors, radii } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
+
+function buildEventAssistDraft(
+  title: string,
+  description: string,
+  startsAtInput: string,
+  addressDisplay: string,
+  onlineUrl: string
+) {
+  const lines = [`Title: ${title.trim()}`];
+  if (startsAtInput.trim()) {
+    lines.push(`Start time (as entered): ${startsAtInput.trim()}`);
+  }
+  if (addressDisplay.trim()) {
+    lines.push(`Location: ${addressDisplay.trim()}`);
+  }
+  if (onlineUrl.trim()) {
+    lines.push(`Online: ${onlineUrl.trim()}`);
+  }
+  if (description.trim()) {
+    lines.push(`Notes: ${description.trim()}`);
+  }
+  return lines.join("\n");
+}
 
 type Props = NativeStackScreenProps<RootStackParamList, "CreateEvent">;
 
@@ -27,6 +51,26 @@ export function CreateEventScreen({ navigation }: Props) {
       return null;
     });
   }, [navigation]);
+
+  const assistMutation = useMutation({
+    mutationFn: async () => {
+      const draft = buildEventAssistDraft(title, description, startsAtInput, addressDisplay, onlineUrl);
+      const res = await assistPostText(draft, "event_listing");
+      return res.suggestion;
+    },
+    onSuccess: (suggestion) => {
+      setDescription(suggestion);
+    }
+  });
+
+  const canPolishDescription =
+    title.trim().length >= 3 &&
+    Boolean(
+      description.trim() ||
+        startsAtInput.trim() ||
+        addressDisplay.trim() ||
+        onlineUrl.trim()
+    );
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -79,6 +123,28 @@ export function CreateEventScreen({ navigation }: Props) {
           onChangeText={setDescription}
           maxLength={4000}
         />
+        <Pressable
+          style={[
+            styles.secondaryBtn,
+            (!canPolishDescription || assistMutation.isPending) && styles.secondaryBtnDisabled
+          ]}
+          disabled={!canPolishDescription || assistMutation.isPending}
+          onPress={() => assistMutation.mutate()}
+        >
+          <Text style={styles.secondaryBtnText}>
+            {assistMutation.isPending ? "Polishing…" : "Polish description"}
+          </Text>
+        </Pressable>
+        {assistMutation.isError ? (
+          <Text style={styles.error}>
+            {assistMutation.error instanceof ApiError
+              ? assistMutation.error.message
+              : "Could not polish. Try again."}
+          </Text>
+        ) : null}
+        <Text style={styles.microHint}>
+          Add title plus time, place, link, or rough notes—then polish into a clear description.
+        </Text>
         <TextInput
           style={styles.input}
           placeholder="Starts at (example: 2026-04-18 18:30)"
@@ -150,6 +216,17 @@ const styles = StyleSheet.create({
     padding: 10
   },
   description: { minHeight: 96, textAlignVertical: "top" },
+  secondaryBtn: {
+    borderRadius: radii.control,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingVertical: 10,
+    alignItems: "center"
+  },
+  secondaryBtnDisabled: { opacity: 0.45 },
+  secondaryBtnText: { fontWeight: "600", color: colors.text },
+  microHint: { color: colors.muted, fontSize: 12 },
   error: { color: colors.danger, fontSize: 12 },
   primaryBtn: {
     borderRadius: radii.control,

@@ -11,11 +11,35 @@ import {
   View
 } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { apiRequest } from "../../lib/api";
+import { ApiError, apiRequest } from "../../lib/api";
+import { assistPostText } from "../../lib/ai-assist";
 import { colors, radii } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 
 type Props = NativeStackScreenProps<RootStackParamList, "AddBusiness">;
+
+function buildBusinessAssistDraft(
+  name: string,
+  description: string,
+  category: string,
+  addressDisplay: string,
+  websiteUrl: string
+) {
+  const parts = [`Name: ${name.trim()}`];
+  if (category.trim()) {
+    parts.push(`Category: ${category.trim()}`);
+  }
+  if (addressDisplay.trim()) {
+    parts.push(`Address: ${addressDisplay.trim()}`);
+  }
+  if (websiteUrl.trim()) {
+    parts.push(`Website: ${websiteUrl.trim()}`);
+  }
+  if (description.trim()) {
+    parts.push(`What we offer (notes): ${description.trim()}`);
+  }
+  return parts.join("\n");
+}
 
 function buildBusinessOffering(
   name: string,
@@ -44,6 +68,24 @@ export function AddBusinessScreen({ navigation }: Props) {
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
   const [locating, setLocating] = useState(false);
+
+  const assistMutation = useMutation({
+    mutationFn: async () => {
+      const draft = buildBusinessAssistDraft(name, description, category, addressDisplay, websiteUrl);
+      const res = await assistPostText(draft, "business_listing");
+      return res.suggestion;
+    },
+    onSuccess: (suggestion) => {
+      setDescription(suggestion);
+    },
+    onError: (e: Error) => {
+      const msg = e instanceof ApiError ? e.message : e.message || "Try again.";
+      Alert.alert("Could not polish", msg);
+    }
+  });
+
+  const canPolishDescription =
+    name.trim().length >= 2 && (description.trim().length >= 3 || category.trim().length >= 1);
 
   const profileMutation = useMutation({
     mutationFn: async () => {
@@ -176,13 +218,28 @@ export function AddBusinessScreen({ navigation }: Props) {
       />
 
       {phase === "profile" ? (
-        <Pressable
-          style={[styles.primary, !canAddProfile ? styles.primaryDisabled : null]}
-          disabled={!canAddProfile}
-          onPress={() => profileMutation.mutate()}
-        >
-          <Text style={styles.primaryText}>{profileMutation.isPending ? "Saving…" : "Add to profile"}</Text>
-        </Pressable>
+        <>
+          <Pressable
+            style={[
+              styles.secondary,
+              (!canPolishDescription || assistMutation.isPending) && styles.primaryDisabled
+            ]}
+            disabled={!canPolishDescription || assistMutation.isPending}
+            onPress={() => assistMutation.mutate()}
+          >
+            <Text style={styles.secondaryText}>
+              {assistMutation.isPending ? "Polishing…" : "Polish description"}
+            </Text>
+          </Pressable>
+          <Text style={styles.polishHint}>Uses your name, category, address, and notes—edit the result before saving.</Text>
+          <Pressable
+            style={[styles.primary, !canAddProfile ? styles.primaryDisabled : null]}
+            disabled={!canAddProfile}
+            onPress={() => profileMutation.mutate()}
+          >
+            <Text style={styles.primaryText}>{profileMutation.isPending ? "Saving…" : "Add to profile"}</Text>
+          </Pressable>
+        </>
       ) : (
         <>
           <Text style={[styles.label, styles.mapSectionLabel]}>Map pin</Text>
@@ -236,6 +293,7 @@ const styles = StyleSheet.create({
     color: colors.text
   },
   multiline: { minHeight: 80, textAlignVertical: "top" },
+  polishHint: { color: colors.muted, fontSize: 12, marginTop: 4 },
   secondary: {
     marginTop: 8,
     padding: 12,

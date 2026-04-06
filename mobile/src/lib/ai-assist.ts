@@ -9,7 +9,9 @@ export type PostAssistIntent =
   | "polish"
   | "marketplace_listing"
   | "product_listing"
-  | "service_details_generate";
+  | "service_details_generate"
+  | "event_listing"
+  | "business_listing";
 
 export type PostAssistResponse = {
   suggestion: string;
