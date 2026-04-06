@@ -1,3 +1,4 @@
+const crypto = require("node:crypto");
 const express = require("express");
 const jwt = require("jsonwebtoken");
 const { authenticate, authenticateOptional } = require("../../middleware/auth");
@@ -6,7 +7,7 @@ const { asyncHandler } = require("../../utils/async-handler");
 const { httpError } = require("../../utils/http-error");
 const { resolveProfilePutFields } = require("../../utils/profile-put");
 const { throwIfAnyUserFacingPolicyViolation } = require("../../utils/content-safety");
-const { optionalString } = require("../../utils/validators");
+const { optionalString, requireString } = require("../../utils/validators");
 const { getPrayerSettings, updatePrayerSettings } = require("../../services/prayer-settings");
 const { resolvePersonaCapabilities } = require("../../services/persona-capabilities");
 const { resolvePostAuthorUserId } = require("../../services/anonymous-posting-user");
@@ -574,6 +575,119 @@ function createUsersRouter({ db, config, analytics }) {
     asyncHandler(async (req, res) => {
       const settings = await updatePrayerSettings(db, req.user.id, req.body || {});
       res.status(200).json(settings);
+    })
+  );
+
+  router.get(
+    "/me/data-export",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const userId = req.user.id;
+      const userRow = await db.query(
+        `SELECT id, email, username, role, is_active, created_at, updated_at
+         FROM users WHERE id = $1 LIMIT 1`,
+        [userId]
+      );
+      if (userRow.rowCount === 0) {
+        throw httpError(404, "User not found");
+      }
+      const profileRow = await db.query(
+        `SELECT display_name, bio, avatar_url, business_offering, website_url, profile_kind,
+                default_feed_tab, app_landing, onboarding_intents, created_at, updated_at
+         FROM profiles WHERE user_id = $1 LIMIT 1`,
+        [userId]
+      );
+      const postsRow = await db.query(
+        `SELECT id, post_type, content, visibility_status, created_at, updated_at
+         FROM posts
+         WHERE author_id = $1
+         ORDER BY created_at DESC, id DESC
+         LIMIT 200`,
+        [userId]
+      );
+      const ordersRow = await db.query(
+        `SELECT id AS order_id, kind, status, amount_minor, currency, seller_user_id, product_id, created_at
+         FROM orders
+         WHERE buyer_user_id = $1
+         ORDER BY created_at DESC, id DESC
+         LIMIT 200`,
+        [userId]
+      );
+      res.status(200).json({
+        exportedAt: new Date().toISOString(),
+        user: userRow.rows[0],
+        profile: profileRow.rows[0] || null,
+        posts: postsRow.rows,
+        purchases: ordersRow.rows,
+        disclaimer:
+          "This export contains the personal data we store for your account at export time. It may not include every derived or operational log; contact support for additional requests."
+      });
+    })
+  );
+
+  router.delete(
+    "/me",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const userId = req.user.id;
+      const confirm = requireString(req.body?.confirm, "confirm", 6, 32);
+      if (confirm !== "DELETE") {
+        throw httpError(400, 'To delete your account, send JSON body { "confirm": "DELETE" }.');
+      }
+      const roleResult = await db.query(`SELECT role FROM users WHERE id = $1 LIMIT 1`, [userId]);
+      if (roleResult.rowCount === 0) {
+        throw httpError(404, "User not found");
+      }
+      const role = roleResult.rows[0].role;
+      if (role !== "user") {
+        throw httpError(403, "Staff accounts cannot be closed from the app. Contact operations.");
+      }
+
+      const pool = db.pool;
+      if (!pool) {
+        throw httpError(503, "Database is not configured");
+      }
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query(`DELETE FROM refresh_tokens WHERE user_id = $1`, [userId]);
+        await client.query(`DELETE FROM notification_device_tokens WHERE user_id = $1`, [userId]);
+        const anonEmail = `deleted.${userId}.${Date.now()}@users.deleted.local`.slice(0, 254);
+        const placeholderHash = crypto.createHash("sha256").update(crypto.randomBytes(32)).digest("hex");
+        const newUsername = `del_${userId}`;
+        await client.query(
+          `UPDATE users
+           SET email = $2,
+               username = $3,
+               password_hash = $4,
+               is_active = false,
+               updated_at = NOW()
+           WHERE id = $1`,
+          [userId, anonEmail, newUsername, placeholderHash]
+        );
+        await client.query(
+          `UPDATE profiles
+           SET display_name = $2,
+               bio = NULL,
+               avatar_url = NULL,
+               business_offering = NULL,
+               website_url = NULL,
+               updated_at = NOW()
+           WHERE user_id = $1`,
+          [userId, "Former user"]
+        );
+        await client.query("COMMIT");
+      } catch (err) {
+        await client.query("ROLLBACK");
+        throw err;
+      } finally {
+        client.release();
+      }
+
+      if (analytics) {
+        await analytics.trackEvent("account_closed_self_serve", { userId });
+      }
+      res.status(204).end();
     })
   );
 

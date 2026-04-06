@@ -25,9 +25,12 @@ Production-oriented React Native mobile app for Deenly with parity-focused archi
 ## Release scaffolding (iOS + Android)
 
 - EAS profiles are defined in `eas.json` for both `preview` and `production`.
+- Store and crash-reporting steps: [docs/STORE_RELEASE_CHECKLIST.md](docs/STORE_RELEASE_CHECKLIST.md).
 - Ensure these env vars are set in EAS/CI:
   - `EXPO_PUBLIC_API_BASE_URL`
+  - `EXPO_PUBLIC_WEB_APP_URL` (Terms/Privacy links in Settings)
   - `EXPO_PUBLIC_ADMIN_OWNER_EMAIL`
+  - Optional: `EXPO_PUBLIC_SENTRY_DSN` after wiring [src/lib/crash-reporting.ts](src/lib/crash-reporting.ts)
 - CI workflows:
   - `.github/workflows/mobile-ci.yml`
   - `.github/workflows/mobile-release-gates.yml`

@@ -122,6 +122,36 @@ paths:
       responses:
         "200":
           description: Updated profile
+    delete:
+      summary: Close account (anonymize profile; standard users only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirm]
+              properties:
+                confirm:
+                  type: string
+                  enum: [DELETE]
+      responses:
+        "204":
+          description: Account closed
+        "400":
+          description: Missing or invalid confirm
+        "403":
+          description: Staff accounts must use operations process
+  /users/me/data-export:
+    get:
+      summary: Download a JSON snapshot of account-held personal data
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Export payload (user, profile, posts, purchases)
   /users/{userId}:
     get:
       summary: Get user profile by id

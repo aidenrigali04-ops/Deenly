@@ -5,6 +5,7 @@ import { StatusBar } from "expo-status-bar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 import { ReliabilityBanner } from "./src/components/ReliabilityBanner";
+import { initCrashReporting } from "./src/lib/crash-reporting";
 import { flushQueuedMutations, getQueuedMutationCount } from "./src/lib/mutation-queue";
 
 const queryClient = new QueryClient();
@@ -12,6 +13,10 @@ const queryClient = new QueryClient();
 export default function App() {
   const [isOffline, setIsOffline] = useState(false);
   const [queuedMutations, setQueuedMutations] = useState(0);
+
+  useEffect(() => {
+    initCrashReporting();
+  }, []);
 
   useEffect(() => {
     let mounted = true;

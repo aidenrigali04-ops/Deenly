@@ -1,8 +1,13 @@
+import { useState } from "react";
+import { CommonActions } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { fetchSessionMe, logout } from "../../lib/auth";
+import { deleteMyAccount, fetchAccountDataExport } from "../../lib/account-data";
 import { apiRequest } from "../../lib/api";
+import { clearTokens } from "../../lib/storage";
+import { webPrivacyUrl, webTermsUrl } from "../../lib/web-app";
 import { useSessionStore } from "../../store/session-store";
 import { SettingsRow, SettingsSection } from "../../components/SettingsSection";
 import { colors, radii, shadows, spacing } from "../../theme";
@@ -21,6 +26,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "Settings">;
 export function SettingsScreen({ navigation }: Props) {
   const setUser = useSessionStore((s) => s.setUser);
   const queryClient = useQueryClient();
+  const [deleteConfirm, setDeleteConfirm] = useState("");
   const adminOwnerEmail = String(process.env.EXPO_PUBLIC_ADMIN_OWNER_EMAIL || "").toLowerCase();
 
   const sessionQuery = useQuery({
@@ -66,6 +72,41 @@ export function SettingsScreen({ navigation }: Props) {
       await queryClient.invalidateQueries({ queryKey: ["mobile-instagram-status"] });
     }
   });
+  const exportMutation = useMutation({
+    mutationFn: fetchAccountDataExport,
+    onSuccess: async (data) => {
+      const text = JSON.stringify(data, null, 2);
+      if (text.length > 800_000) {
+        Alert.alert(
+          "Large export",
+          "This account export is very large. Use Account settings on the website to download the JSON file."
+        );
+        return;
+      }
+      try {
+        await Share.share({ message: text, title: "Deenly account export" });
+      } catch {
+        Alert.alert("Export", "Could not open the share sheet. Try the website account settings.");
+      }
+    },
+    onError: (e: Error) => {
+      Alert.alert("Export failed", e.message || "Try again.");
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteMyAccount,
+    onSuccess: async () => {
+      await clearTokens();
+      setUser(null);
+      await queryClient.clear();
+      navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: "Welcome" }] }));
+    },
+    onError: (e: Error) => {
+      Alert.alert("Could not close account", e.message || "Try again.");
+    }
+  });
+
   const usagePersonaMutation = useMutation({
     mutationFn: (usagePersona: UsagePersonaKey) =>
       apiRequest("/users/me/preferences", {
@@ -243,6 +284,70 @@ export function SettingsScreen({ navigation }: Props) {
         <SettingsRow title="Salah" subtitle="Prayer notifications and method." onPress={() => navigation.navigate("SalahSettings")} />
       </SettingsSection>
 
+      <SettingsSection title="Legal">
+        <SettingsRow
+          title="Terms of Service"
+          subtitle="Opens in your browser."
+          onPress={() => Linking.openURL(webTermsUrl())}
+        />
+        <SettingsRow
+          title="Privacy Policy"
+          subtitle="Opens in your browser."
+          onPress={() => Linking.openURL(webPrivacyUrl())}
+        />
+      </SettingsSection>
+
+      <SettingsSection title="Your data">
+        <SettingsRow
+          title="Export my data"
+          subtitle={exportMutation.isPending ? "Preparing…" : "JSON via share sheet (use web if very large)."}
+          onPress={() => {
+            if (!exportMutation.isPending) {
+              exportMutation.mutate();
+            }
+          }}
+        />
+        {sessionQuery.data?.role === "user" ? (
+          <View style={styles.dataBlock}>
+            <Text style={styles.dataHint}>
+              Close account: type DELETE, then tap the button. Your profile is anonymized; some content may remain with a
+              generic label.
+            </Text>
+            <TextInput
+              style={styles.dataInput}
+              value={deleteConfirm}
+              onChangeText={setDeleteConfirm}
+              placeholder="Type DELETE"
+              placeholderTextColor={colors.muted}
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
+            <Pressable
+              style={[styles.dangerBtn, deleteConfirm !== "DELETE" || deleteMutation.isPending ? styles.dangerBtnOff : null]}
+              disabled={deleteConfirm !== "DELETE" || deleteMutation.isPending}
+              onPress={() => {
+                Alert.alert(
+                  "Close account?",
+                  "You will be signed out immediately. This cannot be undone from the app.",
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Close account",
+                      style: "destructive",
+                      onPress: () => deleteMutation.mutate()
+                    }
+                  ]
+                );
+              }}
+            >
+              <Text style={styles.dangerBtnText}>{deleteMutation.isPending ? "Closing…" : "Close my account"}</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <Text style={styles.dataHint}>Moderator and admin accounts must be closed by operations.</Text>
+        )}
+      </SettingsSection>
+
       <SettingsSection title="Support">
         <SettingsRow title="Beta" subtitle="Early access and feedback." onPress={() => navigation.navigate("Beta")} />
         <SettingsRow title="Help center" subtitle="Contact and questions." onPress={() => navigation.navigate("Support")} />
@@ -308,6 +413,24 @@ const styles = StyleSheet.create({
   },
   personaTitle: { color: colors.text, fontSize: 14, fontWeight: "700" },
   personaSub: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 2 },
+  dataBlock: { gap: 10, paddingVertical: 4 },
+  dataHint: { color: colors.muted, fontSize: 12, lineHeight: 17 },
+  dataInput: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: radii.control,
+    padding: 10,
+    backgroundColor: colors.card,
+    color: colors.text
+  },
+  dangerBtn: {
+    alignItems: "center",
+    paddingVertical: 12,
+    borderRadius: radii.control,
+    backgroundColor: colors.danger
+  },
+  dangerBtnOff: { opacity: 0.45 },
+  dangerBtnText: { color: colors.onAccent, fontWeight: "700" },
   igCard: {
     borderRadius: radii.panel,
     borderWidth: StyleSheet.hairlineWidth,

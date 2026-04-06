@@ -215,6 +215,21 @@ function SignupPageContent() {
       <p className="auth-footer">
         Already have an account? <Link href="/auth/login">Log in</Link>
       </p>
+      <p className="mt-4 text-center text-xs text-muted">
+        By signing up you agree to our{" "}
+        <Link href="/terms" className="underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20">
+          Terms
+        </Link>
+        ,{" "}
+        <Link href="/privacy" className="underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20">
+          Privacy Policy
+        </Link>
+        , and{" "}
+        <Link href="/guidelines" className="underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20">
+          Community Guidelines
+        </Link>
+        .
+      </p>
     </section>
   );
 }

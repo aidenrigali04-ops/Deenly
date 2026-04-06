@@ -1,9 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchSessionMe } from "@/lib/auth";
+import { deleteMyAccount, fetchAccountDataExport } from "@/lib/account-data";
 import { apiRequest } from "@/lib/api";
+import { clearTokens } from "@/lib/storage";
+import { useSessionStore } from "@/store/session-store";
 import { ErrorState, LoadingState } from "@/components/states";
 import { USAGE_PERSONA_OPTIONS, type UsagePersonaKey } from "../../../../../shared/onboarding-options";
 import { applyWebMeProfileAfterPreferencesPatch } from "@/lib/apply-me-profile-preferences-response";
@@ -20,7 +25,10 @@ type MeProfile = {
 };
 
 export default function AccountSettingsPage() {
+  const router = useRouter();
   const queryClient = useQueryClient();
+  const setUser = useSessionStore((s) => s.setUser);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
   const sessionQuery = useQuery({
     queryKey: ["account-settings-session-me"],
     queryFn: () => fetchSessionMe()
@@ -40,6 +48,29 @@ export default function AccountSettingsPage() {
     onSuccess: async (me) => {
       await applyWebMeProfileAfterPreferencesPatch(queryClient, me);
       await queryClient.invalidateQueries({ queryKey: ["account-settings-session-me"] });
+    }
+  });
+
+  const exportMutation = useMutation({
+    mutationFn: fetchAccountDataExport,
+    onSuccess: (data) => {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `deenly-account-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteMyAccount,
+    onSuccess: async () => {
+      clearTokens();
+      setUser(null);
+      await queryClient.clear();
+      router.replace("/");
     }
   });
 
@@ -98,6 +129,70 @@ export default function AccountSettingsPage() {
               <p className="text-xs uppercase tracking-wide text-muted">Role</p>
               <p className="mt-1 font-medium text-text">{user.role}</p>
             </div>
+          </div>
+        </div>
+
+        <div className="surface-card px-6 py-6">
+          <h2 className="text-sm font-semibold text-text">Data &amp; privacy</h2>
+          <p className="mt-1 text-xs text-muted">
+            <Link href="/privacy" className="text-sky-700 underline-offset-2 hover:underline">
+              Privacy Policy
+            </Link>
+            {" · "}
+            <Link href="/terms" className="text-sky-700 underline-offset-2 hover:underline">
+              Terms
+            </Link>
+          </p>
+          <div className="mt-4 space-y-3">
+            <button
+              type="button"
+              className="btn-secondary w-full text-sm"
+              disabled={exportMutation.isPending}
+              onClick={() => exportMutation.mutate()}
+            >
+              {exportMutation.isPending ? "Preparing export…" : "Download my data (JSON)"}
+            </button>
+            {exportMutation.error ? (
+              <p className="text-xs text-rose-700">
+                {exportMutation.error instanceof Error ? exportMutation.error.message : "Export failed."}
+              </p>
+            ) : null}
+            {user.role !== "user" ? (
+              <p className="text-xs text-muted">
+                Staff accounts cannot be closed from the app. Contact operations to deactivate moderator or admin
+                access.
+              </p>
+            ) : (
+              <>
+                <p className="text-xs text-muted">
+                  Closing your account anonymizes your profile and signs you out. Posts you published may remain with a
+                  generic author label, per retention policy.
+                </p>
+                <label className="block text-xs font-semibold text-muted" htmlFor="delete-confirm">
+                  Type DELETE to confirm account closure
+                </label>
+                <input
+                  id="delete-confirm"
+                  className="input w-full max-w-xs"
+                  value={deleteConfirm}
+                  onChange={(e) => setDeleteConfirm(e.target.value)}
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  className="rounded-control border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-900 hover:bg-rose-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 disabled:opacity-50"
+                  disabled={deleteConfirm !== "DELETE" || deleteMutation.isPending}
+                  onClick={() => deleteMutation.mutate()}
+                >
+                  {deleteMutation.isPending ? "Closing…" : "Close my account"}
+                </button>
+                {deleteMutation.error ? (
+                  <p className="text-xs text-rose-700">
+                    {deleteMutation.error instanceof Error ? deleteMutation.error.message : "Could not close account."}
+                  </p>
+                ) : null}
+              </>
+            )}
           </div>
         </div>
 

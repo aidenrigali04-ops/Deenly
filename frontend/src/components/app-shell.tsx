@@ -10,7 +10,7 @@ import { Nav } from "@/components/nav";
 import { BusinessPersonalizerDialog } from "@/components/business-personalizer-dialog";
 import { ackPrayerReminder, fetchPrayerStatus, type PrayerStatus } from "@/lib/prayer";
 
-const PUBLIC_PATHS = new Set(["/", "/auth/login", "/auth/signup"]);
+const PUBLIC_PATHS = new Set(["/", "/auth/login", "/auth/signup", "/terms", "/privacy", "/guidelines"]);
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -126,16 +126,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   if (isAuthPath) {
-    return <main className="min-h-screen">{children}</main>;
+    return (
+      <main id="main-content" className="min-h-screen">
+        {children}
+      </main>
+    );
   }
 
   if (isPublicPath) {
-    return <main className="container-shell py-6">{children}</main>;
+    return (
+      <main id="main-content" className="container-shell py-6">
+        {children}
+      </main>
+    );
   }
 
   return (
     <div className="relative min-h-screen">
       <div className="app-shell-atmosphere" aria-hidden />
+      <a
+        href="#main-content"
+        className="absolute left-[-9999px] top-0 z-[100] whitespace-nowrap rounded-control bg-card px-4 py-2 text-sm font-semibold text-text shadow-lg outline-none ring-2 ring-transparent transition focus:left-4 focus:top-4 focus:ring-black/25"
+      >
+        Skip to main content
+      </a>
       <div className="container-shell flex min-h-screen flex-col gap-4 py-4 md:flex-row md:items-start md:gap-6 md:py-6">
       {prayerReminder ? (
         <div className="fixed left-1/2 top-4 z-30 w-[min(92vw,480px)] -translate-x-1/2 glass-panel-subtle px-4 py-3">
@@ -160,7 +174,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       ) : null}
       <BusinessPersonalizerDialog />
       <Nav />
-      <main className="min-w-0 flex-1 px-1 pb-12 pt-2 sm:px-3 md:px-4 md:pb-14 md:pt-1">{children}</main>
+      <main
+        id="main-content"
+        className="min-w-0 flex-1 px-1 pb-12 pt-2 sm:px-3 md:px-4 md:pb-14 md:pt-1"
+        tabIndex={-1}
+      >
+        {children}
+      </main>
       </div>
     </div>
   );

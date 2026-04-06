@@ -122,6 +122,19 @@ function LoginPageContent() {
       <p className="auth-footer">
         Don&apos;t have an account? <Link href="/auth/signup">Sign Up</Link>
       </p>
+      <p className="mt-4 text-center text-xs text-muted">
+        <Link href="/terms" className="underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20">
+          Terms
+        </Link>
+        {" · "}
+        <Link href="/privacy" className="underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20">
+          Privacy
+        </Link>
+        {" · "}
+        <Link href="/guidelines" className="underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20">
+          Guidelines
+        </Link>
+      </p>
     </section>
   );
 }

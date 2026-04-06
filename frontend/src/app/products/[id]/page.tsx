@@ -234,6 +234,18 @@ export default function PublicProductPage() {
               </a>
             </section>
           ) : null}
+
+          <p className="border-t border-black/10 pt-4 text-xs text-muted">
+            Purchases are processed by our payment partner. See{" "}
+            <Link href="/terms" className="text-sky-700 underline-offset-2 hover:underline">
+              Terms
+            </Link>{" "}
+            and{" "}
+            <Link href="/privacy" className="text-sky-700 underline-offset-2 hover:underline">
+              Privacy
+            </Link>
+            .
+          </p>
         </div>
       </article>
     </div>

@@ -246,6 +246,44 @@ describeIfDatabase("integration api flows", () => {
     expect(userMe.body.is_verified).toBe(false);
   });
 
+  it("exports account data and self-deletes (anonymizes) a standard user", async () => {
+    const register = await request(app).post("/api/v1/auth/register").send({
+      email: "exportdel@example.com",
+      username: "export_del_u",
+      password: "StrongPass123",
+      displayName: "Export Del"
+    });
+    expect(register.statusCode).toBe(201);
+    const token = register.body.tokens.accessToken;
+
+    const exp = await request(app)
+      .get("/api/v1/users/me/data-export")
+      .set("Authorization", `Bearer ${token}`);
+    expect(exp.statusCode).toBe(200);
+    expect(exp.body.user.email).toBe("exportdel@example.com");
+    expect(exp.body.profile.display_name).toBe("Export Del");
+    expect(Array.isArray(exp.body.posts)).toBe(true);
+    expect(Array.isArray(exp.body.purchases)).toBe(true);
+
+    const bad = await request(app)
+      .delete("/api/v1/users/me")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ confirm: "NOPE" });
+    expect(bad.statusCode).toBe(400);
+
+    const del = await request(app)
+      .delete("/api/v1/users/me")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ confirm: "DELETE" });
+    expect(del.statusCode).toBe(204);
+
+    const loginAgain = await request(app).post("/api/v1/auth/login").send({
+      email: "exportdel@example.com",
+      password: "StrongPass123"
+    });
+    expect(loginAgain.statusCode).toBe(401);
+  });
+
   it("register stores optional business offering and website on profile", async () => {
     const register = await request(app).post("/api/v1/auth/register").send({
       email: "biz@example.com",

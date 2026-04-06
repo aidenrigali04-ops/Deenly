@@ -2,6 +2,8 @@
 
 This pack defines how to run a safe 20-50 user beta after launch hardening.
 
+**Daily operator checklist:** [docs/BETA_DAILY_CHECKLIST.md](../docs/BETA_DAILY_CHECKLIST.md)
+
 ## Entry Criteria
 
 - Week-1 hardening checks are complete:
