@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/api";
 import { createOrOpenConversation, markConversationRead } from "@/lib/messages";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { UserSearchInput } from "@/components/UserSearchInput";
 import { useSessionStore } from "@/store/session-store";
 
 type ConversationItem = {
@@ -13,6 +14,7 @@ type ConversationItem = {
   other_user_id: number;
   other_display_name: string;
   other_username: string;
+  other_avatar_url: string | null;
   last_message_body: string | null;
   unread_count: number;
 };
@@ -25,13 +27,35 @@ type MessageItem = {
   created_at: string;
 };
 
+function formatMessageTime(dateStr: string): string {
+  const date = new Date(dateStr);
+  return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+function formatDateSeparator(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const messageDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffMs = today.getTime() - messageDay.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  return date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined });
+}
+
+function getDateKey(dateStr: string): string {
+  const d = new Date(dateStr);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
 function MessagesPageInner() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentUserId = useSessionStore((state) => state.user?.id || null);
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
-  const [newParticipantUserId, setNewParticipantUserId] = useState("");
   const [messageBody, setMessageBody] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -121,23 +145,58 @@ function MessagesPageInner() {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["messages-conversations"] });
       setSelectedConversationId(result.conversationId);
-      setNewParticipantUserId("");
     }
   });
 
   const sendMessage = useMutation({
     mutationFn: (payload: { conversationId: number; body: string }) =>
-      apiRequest(`/messages/conversations/${payload.conversationId}/messages`, {
+      apiRequest<MessageItem>(`/messages/conversations/${payload.conversationId}/messages`, {
         method: "POST",
         auth: true,
         body: { body: payload.body }
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["messages-thread", selectedConversationId] });
-      queryClient.invalidateQueries({ queryKey: ["messages-conversations"] });
+    onMutate: async (payload) => {
+      const queryKey = ["messages-thread", payload.conversationId] as const;
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<{ items: MessageItem[] }>(queryKey);
+      const optimisticMessage: MessageItem = {
+        id: -Date.now(),
+        sender_id: currentUserId!,
+        sender_display_name: "You",
+        body: payload.body,
+        created_at: new Date().toISOString()
+      };
+      queryClient.setQueryData<{ items: MessageItem[] }>(queryKey, (old) => ({
+        items: [...(old?.items || []), optimisticMessage]
+      }));
       setMessageBody("");
+      return { previous, queryKey };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(context.queryKey, context.previous);
+      }
+    },
+    onSettled: (_data, _error, payload) => {
+      queryClient.invalidateQueries({ queryKey: ["messages-thread", payload.conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["messages-conversations"] });
     }
   });
+
+  // Build messages with date separators interspersed
+  const messagesWithSeparators = useMemo(() => {
+    const result: Array<{ type: "message"; message: MessageItem } | { type: "date"; label: string; key: string }> = [];
+    let lastDateKey = "";
+    for (const msg of orderedMessages) {
+      const dk = getDateKey(msg.created_at);
+      if (dk !== lastDateKey) {
+        result.push({ type: "date", label: formatDateSeparator(msg.created_at), key: dk });
+        lastDateKey = dk;
+      }
+      result.push({ type: "message", message: msg });
+    }
+    return result;
+  }, [orderedMessages]);
 
   return (
     <section className="messages-shell">
@@ -149,31 +208,15 @@ function MessagesPageInner() {
           <p className="text-xs text-muted">Direct messages with other members.</p>
           <input
             className="messages-search"
-            placeholder="Search"
+            placeholder="Search conversations"
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
             aria-label="Search conversations"
           />
-          <form
-            className="flex gap-2"
-            onSubmit={(event: FormEvent) => {
-              event.preventDefault();
-              const participantUserId = Number(newParticipantUserId);
-              if (!participantUserId) return;
-              createConversation.mutate(participantUserId);
-            }}
-          >
-            <input
-              className="messages-search"
-              placeholder="Start chat by User ID"
-              value={newParticipantUserId}
-              onChange={(event) => setNewParticipantUserId(event.target.value)}
-              aria-label="Participant user ID"
-            />
-            <button className="messages-icon-btn shrink-0" type="submit" aria-label="Start conversation">
-              {createConversation.isPending ? "..." : "+"}
-            </button>
-          </form>
+          <UserSearchInput
+            onSelectUser={(userId) => createConversation.mutate(userId)}
+            isPending={createConversation.isPending}
+          />
         </header>
 
         <div className="messages-conversation-list">
@@ -197,7 +240,15 @@ function MessagesPageInner() {
                 }`}
                 onClick={() => setSelectedConversationId(conversation.conversation_id)}
               >
-                <span className="messages-avatar">{initials}</span>
+                {conversation.other_avatar_url ? (
+                  <img
+                    src={conversation.other_avatar_url}
+                    alt=""
+                    className="messages-avatar rounded-full object-cover"
+                  />
+                ) : (
+                  <span className="messages-avatar">{initials}</span>
+                )}
                 <span className="min-w-0 flex-1 text-left">
                   <span className="messages-conversation-name">{conversation.other_display_name}</span>
                   <span className="messages-conversation-preview">
@@ -229,16 +280,26 @@ function MessagesPageInner() {
             <div className="messages-thread-body">
               {messagesQuery.isLoading ? <LoadingState label="Loading messages..." /> : null}
               {messagesQuery.error ? <ErrorState message={(messagesQuery.error as Error).message} /> : null}
-              {orderedMessages.map((message) => {
+              {messagesWithSeparators.map((entry) => {
+                if (entry.type === "date") {
+                  return (
+                    <div key={`date-${entry.key}`} className="messages-date-separator">
+                      <span>{entry.label}</span>
+                    </div>
+                  );
+                }
+                const message = entry.message;
                 const isMine = currentUserId ? message.sender_id === currentUserId : false;
+                const isOptimistic = message.id < 0;
                 return (
                   <div
                     key={message.id}
                     className={`messages-bubble-wrap ${isMine ? "messages-bubble-wrap-mine" : ""}`}
                   >
-                    <div className={`messages-bubble ${isMine ? "messages-bubble-mine" : ""}`}>
+                    <div className={`messages-bubble ${isMine ? "messages-bubble-mine" : ""} ${isOptimistic ? "opacity-70" : ""}`}>
                       <p className="messages-bubble-author">{message.sender_display_name}</p>
                       <p className="messages-bubble-text">{message.body}</p>
+                      <p className="messages-bubble-time">{formatMessageTime(message.created_at)}</p>
                     </div>
                   </div>
                 );
@@ -266,14 +327,14 @@ function MessagesPageInner() {
                   aria-label="Type message"
                 />
                 <button className="messages-icon-btn" type="submit" disabled={sendMessage.isPending}>
-                  {sendMessage.isPending ? "..." : "Send"}
+                  Send
                 </button>
               </form>
             </footer>
           </>
         ) : (
           <div className="messages-thread-empty">
-            <EmptyState title="Select a conversation" subtitle="Choose one from the left or open a chat from a profile." />
+            <EmptyState title="Select a conversation" subtitle="Choose one from the left or search for someone to message." />
           </div>
         )}
       </article>

@@ -509,6 +509,32 @@ a {
   @apply grid min-h-full place-items-center px-6;
 }
 
+.messages-date-separator {
+  @apply flex items-center gap-3 py-2 text-[11px] font-medium text-muted select-none;
+}
+
+.messages-date-separator::before,
+.messages-date-separator::after {
+  content: "";
+  @apply h-px flex-1 bg-black/10;
+}
+
+.messages-bubble-time {
+  @apply mt-1 text-[10px] text-muted leading-none;
+}
+
+.messages-bubble-mine .messages-bubble-time {
+  @apply text-white/50;
+}
+
+.messages-user-search-dropdown {
+  @apply absolute left-0 right-0 top-full z-20 mt-1 max-h-[280px] overflow-y-auto rounded-control border border-black/10 bg-card shadow-soft;
+}
+
+.messages-user-search-item {
+  @apply flex w-full items-center gap-3 px-3 py-2.5 transition hover:bg-black/[0.04];
+}
+
 /* Profile hero (web) — sized avatar + tight post grid */
 .profile-hero-avatar {
   @apply h-24 w-24 text-2xl md:h-[120px] md:w-[120px];

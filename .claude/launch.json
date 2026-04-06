@@ -1,0 +1,25 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Backend API",
+      "runtimeExecutable": "/Users/macbookpro/.nvm/versions/node/v24.8.0/bin/node",
+      "runtimeArgs": ["--watch", "src/index.js"],
+      "cwd": "backend",
+      "port": 3000
+    },
+    {
+      "name": "Frontend (Next.js)",
+      "runtimeExecutable": "/bin/bash",
+      "runtimeArgs": [".claude/start-frontend.sh"],
+      "port": 3001
+    },
+    {
+      "name": "Mobile (Expo)",
+      "runtimeExecutable": "/bin/bash",
+      "runtimeArgs": [".claude/start-mobile.sh"],
+      "port": 8082,
+      "autoPort": true
+    }
+  ]
+}

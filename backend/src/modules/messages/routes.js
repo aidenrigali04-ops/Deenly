@@ -107,6 +107,7 @@ function createMessagesRouter({ db, config, pushNotifications = null }) {
                 p.user_id AS other_user_id,
                 pr.display_name AS other_display_name,
                 u.username AS other_username,
+                pr.avatar_url AS other_avatar_url,
                 lm.id AS last_message_id,
                 lm.body AS last_message_body,
                 lm.created_at AS last_message_at,
