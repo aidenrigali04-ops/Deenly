@@ -22,20 +22,6 @@ export default function HomePage() {
           </Link>
         </div>
       </div>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="surface-card space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Financial benefit</p>
-          <p className="text-sm text-text">Attach offers to posts and move buyers into fast checkout flows.</p>
-        </div>
-        <div className="surface-card space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Save time</p>
-          <p className="text-sm text-text">Use concise AI drafts and reusable setup defaults to publish faster.</p>
-        </div>
-        <div className="surface-card space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Convenience</p>
-          <p className="text-sm text-text">Resume drafts and launch quick actions from existing surfaces.</p>
-        </div>
-      </div>
     </section>
   );
 }

@@ -4,7 +4,35 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { ApiError } from "@/lib/api";
+import { assistPostText } from "@/lib/ai-assist";
 import { createEvent } from "@/lib/events";
+
+function buildEventAssistDraft(
+  title: string,
+  description: string,
+  startsAt: string,
+  endsAt: string,
+  addressDisplay: string,
+  onlineUrl: string
+) {
+  const lines = [`Title: ${title.trim()}`];
+  if (startsAt.trim()) {
+    lines.push(`Start (as entered): ${startsAt.trim()}`);
+  }
+  if (endsAt.trim()) {
+    lines.push(`End (as entered): ${endsAt.trim()}`);
+  }
+  if (addressDisplay.trim()) {
+    lines.push(`Location: ${addressDisplay.trim()}`);
+  }
+  if (onlineUrl.trim()) {
+    lines.push(`Online: ${onlineUrl.trim()}`);
+  }
+  if (description.trim()) {
+    lines.push(`Notes: ${description.trim()}`);
+  }
+  return lines.join("\n");
+}
 
 export default function CreateEventPage() {
   const [title, setTitle] = useState("");
@@ -14,6 +42,21 @@ export default function CreateEventPage() {
   const [addressDisplay, setAddressDisplay] = useState("");
   const [onlineUrl, setOnlineUrl] = useState("");
   const [visibility, setVisibility] = useState<"public" | "private" | "invite">("public");
+
+  const assistMutation = useMutation({
+    mutationFn: async () => {
+      const draft = buildEventAssistDraft(title, description, startsAt, endsAt, addressDisplay, onlineUrl);
+      const res = await assistPostText(draft, "event_listing");
+      return res.suggestion;
+    },
+    onSuccess: (suggestion) => {
+      setDescription(suggestion);
+    }
+  });
+
+  const canPolishDescription =
+    title.trim().length >= 3 &&
+    Boolean(description.trim() || startsAt.trim() || endsAt.trim() || addressDisplay.trim() || onlineUrl.trim());
 
   const createMutation = useMutation({
     mutationFn: async () =>
@@ -73,6 +116,22 @@ export default function CreateEventPage() {
           onChange={(e) => setDescription(e.target.value)}
           maxLength={4000}
         />
+        <button
+          type="button"
+          className="btn-secondary w-full text-sm"
+          disabled={!canPolishDescription || assistMutation.isPending}
+          onClick={() => assistMutation.mutate()}
+        >
+          {assistMutation.isPending ? "Polishing…" : "Polish description"}
+        </button>
+        {assistMutation.error ? (
+          <p className="text-sm text-rose-700">
+            {assistMutation.error instanceof ApiError ? assistMutation.error.message : "Could not polish. Try again."}
+          </p>
+        ) : null}
+        <p className="text-xs text-muted">
+          Add title plus time, place, link, or rough notes—then polish into a clear description.
+        </p>
         <div className="grid gap-3 md:grid-cols-2">
           <label className="space-y-1 text-sm">
             <span className="text-muted">Starts</span>

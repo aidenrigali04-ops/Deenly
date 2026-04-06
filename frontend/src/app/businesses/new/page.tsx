@@ -4,9 +4,33 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { apiRequest } from "@/lib/api";
+import { ApiError, apiRequest } from "@/lib/api";
+import { assistPostText } from "@/lib/ai-assist";
 import { createBusiness } from "@/lib/businesses";
 import { ErrorState } from "@/components/states";
+
+function buildBusinessAssistDraft(
+  name: string,
+  description: string,
+  category: string,
+  addressDisplay: string,
+  websiteUrl: string
+) {
+  const parts = [`Name: ${name.trim()}`];
+  if (category.trim()) {
+    parts.push(`Category: ${category.trim()}`);
+  }
+  if (addressDisplay.trim()) {
+    parts.push(`Address: ${addressDisplay.trim()}`);
+  }
+  if (websiteUrl.trim()) {
+    parts.push(`Website: ${websiteUrl.trim()}`);
+  }
+  if (description.trim()) {
+    parts.push(`What we offer (notes): ${description.trim()}`);
+  }
+  return parts.join("\n");
+}
 
 function buildBusinessOffering(
   name: string,
@@ -36,6 +60,20 @@ export default function NewBusinessPage() {
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
   const [locating, setLocating] = useState(false);
+
+  const assistMutation = useMutation({
+    mutationFn: async () => {
+      const draft = buildBusinessAssistDraft(name, description, category, addressDisplay, websiteUrl);
+      const res = await assistPostText(draft, "business_listing");
+      return res.suggestion;
+    },
+    onSuccess: (suggestion) => {
+      setDescription(suggestion);
+    }
+  });
+
+  const canPolishDescription =
+    name.trim().length >= 2 && (description.trim().length >= 3 || category.trim().length >= 1);
 
   const profileMutation = useMutation({
     mutationFn: async () => {
@@ -174,6 +212,24 @@ export default function NewBusinessPage() {
         {phase === "profile" ? (
           <>
             {profileError ? <ErrorState message={(profileError as Error).message} /> : null}
+            <button
+              type="button"
+              className="btn-secondary w-full text-sm"
+              disabled={!canPolishDescription || assistMutation.isPending}
+              onClick={() => assistMutation.mutate()}
+            >
+              {assistMutation.isPending ? "Polishing…" : "Polish description"}
+            </button>
+            {assistMutation.error ? (
+              <p className="text-sm text-rose-700">
+                {assistMutation.error instanceof ApiError
+                  ? assistMutation.error.message
+                  : "Could not polish. Try again."}
+              </p>
+            ) : null}
+            <p className="text-xs text-muted">
+              Uses your name, category, address, and notes—edit the result before saving.
+            </p>
             <button
               type="button"
               className="btn-primary w-full"

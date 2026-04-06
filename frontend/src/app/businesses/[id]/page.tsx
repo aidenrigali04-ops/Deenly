@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { businessChatAsk, fetchBusiness } from "@/lib/businesses";
 import { ErrorState, LoadingState } from "@/components/states";
+import { fetchCreatorProducts, formatMinorCurrency } from "@/lib/monetization";
 
 export default function BusinessDetailPage() {
   const params = useParams();
@@ -17,6 +18,13 @@ export default function BusinessDetailPage() {
     queryKey: ["business", id],
     queryFn: () => fetchBusiness(id),
     enabled: Number.isFinite(id) && id > 0
+  });
+
+  const ownerId = detailQuery.data?.ownerUserId;
+  const productsQuery = useQuery({
+    queryKey: ["business-owner-products", ownerId],
+    queryFn: () => fetchCreatorProducts(ownerId!),
+    enabled: typeof ownerId === "number" && ownerId > 0
   });
 
   const chatMutation = useMutation({
@@ -56,6 +64,36 @@ export default function BusinessDetailPage() {
           Directions
         </a>
       </div>
+      {productsQuery.isLoading ? <p className="text-sm text-muted">Loading offers…</p> : null}
+      {productsQuery.error ? (
+        <p className="text-sm text-rose-700">Could not load offers.</p>
+      ) : null}
+      {(productsQuery.data?.items || []).length > 0 ? (
+        <div className="surface-card space-y-3 rounded-panel border border-black/10 p-4">
+          <h2 className="text-lg font-semibold">Offers</h2>
+          <p className="text-xs text-muted">Published listings from this business on Deenly.</p>
+          <ul className="space-y-2">
+            {(productsQuery.data?.items || []).map((p) => (
+              <li key={p.id}>
+                <Link
+                  href={`/products/${p.id}`}
+                  className="flex items-start justify-between gap-3 rounded-control border border-black/10 bg-black/[0.02] p-3 hover:bg-black/[0.04]"
+                >
+                  <span className="min-w-0">
+                    <span className="block font-semibold text-text">{p.title}</span>
+                    {p.description ? (
+                      <span className="mt-0.5 line-clamp-2 block text-sm text-muted">{p.description}</span>
+                    ) : null}
+                  </span>
+                  <span className="shrink-0 font-semibold text-sky-800 dark:text-sky-300">
+                    {formatMinorCurrency(p.price_minor, p.currency)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       <div className="surface-card space-y-3 rounded-panel border border-black/10 p-4">
         <h2 className="text-lg font-semibold">Ask about this business</h2>
         <p className="text-xs text-muted">
