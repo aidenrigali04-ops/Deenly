@@ -1,5 +1,8 @@
 # Local editor / agent state
 .cursor/
 
+# Claude Code — nested worktrees are full copies with node_modules (hundreds of MB); keep local only
+.claude/worktrees/
+
 # OS
 .DS_Store
