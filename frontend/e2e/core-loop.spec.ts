@@ -44,6 +44,23 @@ async function loginViaUi(page: Page, baseURL: string, email: string, password: 
   await expect(page).toHaveURL(/\/home$/);
 }
 
+/** Dismiss “Personalize your experience” overlay without relying on UI (buttons navigate away). */
+async function dismissBusinessOnboardingViaApi(request: APIRequestContext, accessToken: string) {
+  const res = await request.patch(`${backendBaseUrl}/users/me/preferences`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    data: { businessOnboardingDismissed: true, preferenceSource: "e2e" }
+  });
+  expect(res.ok()).toBeTruthy();
+}
+
+async function dismissBizOverlayFromBrowserSession(request: APIRequestContext, page: Page) {
+  const token = await page.evaluate(() => localStorage.getItem("deenly_access_token") || "");
+  if (!token) {
+    return;
+  }
+  await dismissBusinessOnboardingViaApi(request, token);
+}
+
 test("core loop: signup/login, create+upload, feed pagination, interact/follow/report", async ({
   page,
   request,
@@ -59,6 +76,12 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
     displayName: "Creator"
   });
   const creatorToken = creator.tokens.accessToken as string;
+
+  const proRes = await request.patch(`${backendBaseUrl}/users/me/preferences`, {
+    headers: { Authorization: `Bearer ${creatorToken}` },
+    data: { usagePersona: "professional", preferenceSource: "e2e_core_loop" }
+  });
+  expect(proRes.ok()).toBeTruthy();
 
   for (let i = 0; i < 12; i += 1) {
     const response = await request.post(`${backendBaseUrl}/posts`, {
@@ -76,6 +99,7 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
     data: {
       title: `E2E Product ${timestamp}`,
       description: "E2E catalog product for public page and profile tab.",
+      productType: "digital",
       priceMinor: 499,
       currency: "usd",
       deliveryMediaKey: "uploads/e2e-delivery.bin"
@@ -100,6 +124,7 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign Up" }).click();
   await expect(page).toHaveURL(/\/home$/);
+  await dismissBizOverlayFromBrowserSession(request, page);
 
   await page.getByRole("button", { name: "Logout" }).click();
   await expect(page).toHaveURL(/\/auth\/login(\?.*)?$/);
@@ -108,6 +133,7 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Log In" }).click();
   await expect(page).toHaveURL(/\/home$/);
+  await dismissBizOverlayFromBrowserSession(request, page);
   await page.getByRole("link", { name: "Search" }).first().click();
   await expect(page).toHaveURL(/\/search/);
   await page.goto(`${baseURL}/home`);
@@ -224,12 +250,14 @@ test("admin feedback loop: owner access, tables, and operations form", async ({
     displayName: "Target User"
   });
 
-  await ensureUser(request, {
+  const adminSession = await ensureUser(request, {
     email: adminEmail,
     username: `admin_e2e_${timestamp}`,
     password,
     displayName: "Admin Owner"
   });
+  const adminToken = adminSession.tokens.accessToken as string;
+  await dismissBusinessOnboardingViaApi(request, adminToken);
 
   await loginViaUi(page, String(baseURL), adminEmail, password);
   await expect(page.getByRole("link", { name: "Admin" })).toBeVisible();

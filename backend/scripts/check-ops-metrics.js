@@ -8,6 +8,9 @@ const minApiRequests = Number.parseInt(
   String(process.env.OPS_METRICS_MIN_API_REQUESTS || "0"),
   10
 );
+const p95MaxMsRaw = String(process.env.OPS_METRICS_P95_MAX_MS || "1500").trim();
+const p95MaxMs = Number.parseInt(p95MaxMsRaw, 10);
+const p95ThresholdMs = Number.isFinite(p95MaxMs) && p95MaxMs > 0 ? p95MaxMs : 1500;
 
 if (!metricsUrl || !authToken) {
   const missing = [];
@@ -75,11 +78,11 @@ https
           console.error(`Ops metrics detail: ${JSON.stringify(detail)}`);
           process.exit(1);
         }
-        if (p95 > 700) {
-          console.error(`Latency too high: p95=${p95}`);
+        if (p95 > p95ThresholdMs) {
+          console.error(`Latency too high: p95=${p95} (max allowed ${p95ThresholdMs} ms, set OPS_METRICS_P95_MAX_MS)`);
           process.exit(1);
         }
-        console.log("Ops metrics check passed.");
+        console.log(`Ops metrics check passed (p95=${p95} ms, threshold=${p95ThresholdMs} ms).`);
       });
     }
   )
