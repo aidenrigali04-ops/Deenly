@@ -5,6 +5,7 @@ import { FormEvent, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@/lib/api";
 import { assistPostText } from "@/lib/ai-assist";
+import { datetimeLocalToIso } from "@/lib/datetime-local";
 import { createEvent } from "@/lib/events";
 
 function buildEventAssistDraft(
@@ -43,6 +44,7 @@ export default function CreateEventPage() {
   const [addressDisplay, setAddressDisplay] = useState("");
   const [onlineUrl, setOnlineUrl] = useState("");
   const [visibility, setVisibility] = useState<"public" | "private" | "invite">("public");
+  const [admissionDollars, setAdmissionDollars] = useState("");
 
   const assistMutation = useMutation({
     mutationFn: async () => {
@@ -60,34 +62,59 @@ export default function CreateEventPage() {
     Boolean(description.trim() || startsAt.trim() || endsAt.trim() || addressDisplay.trim() || onlineUrl.trim());
 
   const createMutation = useMutation({
-    mutationFn: async () =>
-      createEvent({
-        title,
-        description: description || null,
-        startsAt: new Date(startsAt).toISOString(),
-        endsAt: endsAt ? new Date(endsAt).toISOString() : null,
+    mutationFn: async () => {
+      const t = title.trim();
+      if (t.length < 3) {
+        throw new Error("Title must be at least 3 characters.");
+      }
+      const startsIso = datetimeLocalToIso(startsAt);
+      const endsIso = endsAt.trim() ? datetimeLocalToIso(endsAt) : null;
+      if (endsIso && new Date(endsIso).getTime() < new Date(startsIso).getTime()) {
+        throw new Error("End time must be after start time.");
+      }
+      const rawPrice = admissionDollars.trim();
+      let admissionPriceMinor: number | undefined;
+      if (rawPrice) {
+        const n = Number.parseFloat(rawPrice);
+        if (!Number.isFinite(n) || n < 0.5) {
+          throw new Error("Ticket price must be at least $0.50, or leave blank for a free event.");
+        }
+        admissionPriceMinor = Math.round(n * 100);
+      }
+      return createEvent({
+        title: t,
+        description: description.trim() || null,
+        startsAt: startsIso,
+        endsAt: endsIso,
         isOnline: Boolean(onlineUrl.trim()),
-        onlineUrl: onlineUrl || null,
-        addressDisplay: addressDisplay || null,
+        onlineUrl: onlineUrl.trim() || null,
+        addressDisplay: addressDisplay.trim() || null,
         visibility,
-        source: "web_create"
-      }),
+        source: "web_create",
+        ...(admissionPriceMinor != null ? { admissionPriceMinor, admissionCurrency: "usd" } : {})
+      });
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["account-hosted-events"] });
       void queryClient.invalidateQueries({ queryKey: ["user-profile-hosted-events"] });
+      setTitle("");
+      setDescription("");
+      setStartsAt("");
+      setEndsAt("");
+      setAddressDisplay("");
+      setOnlineUrl("");
+      setVisibility("public");
+      setAdmissionDollars("");
     }
   });
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    await createMutation.mutateAsync();
-    setTitle("");
-    setDescription("");
-    setStartsAt("");
-    setEndsAt("");
-    setAddressDisplay("");
-    setOnlineUrl("");
-    setVisibility("public");
+    try {
+      await createMutation.mutateAsync();
+    } catch {
+      /* error shown via createMutation.error */
+    }
   };
 
   return (
@@ -175,8 +202,30 @@ export default function CreateEventPage() {
             <option value="invite">Invite only</option>
           </select>
         </label>
+        <label className="space-y-1 text-sm">
+          <span className="text-muted">Ticket price (optional)</span>
+          <input
+            className="input"
+            type="number"
+            inputMode="decimal"
+            min={0.5}
+            step="0.01"
+            placeholder="Leave blank for free — e.g. 15.00 for $15 USD"
+            value={admissionDollars}
+            onChange={(e) => setAdmissionDollars(e.target.value)}
+          />
+          <span className="text-xs text-muted">
+            Requires the host&apos;s Stripe Connect account. Guests pay here before they can RSVP as Going.
+          </span>
+        </label>
         {createMutation.error ? (
-          <p className="text-sm text-rose-700">{createMutation.error instanceof ApiError ? createMutation.error.message : "Could not create event."}</p>
+          <p className="text-sm text-rose-700">
+            {createMutation.error instanceof ApiError
+              ? createMutation.error.message
+              : createMutation.error instanceof Error
+                ? createMutation.error.message
+                : "Could not create event."}
+          </p>
         ) : null}
         {createMutation.isSuccess ? (
           <p className="text-sm text-emerald-700">

@@ -28,8 +28,11 @@ export type EventRecord = {
   distanceM: number | null;
   createdAt: string;
   updatedAt: string;
+  admissionPriceMinor?: number | null;
+  admissionCurrency?: string | null;
   viewerInvited?: boolean;
   viewedWithInviteLink?: boolean;
+  viewerHasTicket?: boolean;
 };
 
 export type EventChatMessage = {
@@ -85,6 +88,8 @@ export async function updateEvent(
     visibility: EventVisibility;
     capacity: number | null;
     status: EventStatus;
+    admissionPriceMinor: number | null;
+    admissionCurrency?: string | null;
   }>
 ) {
   return apiRequest<EventRecord>(`/events/${id}`, {
@@ -107,6 +112,8 @@ export async function createEvent(body: {
   longitude?: number | null;
   visibility?: EventVisibility;
   capacity?: number | null;
+  admissionPriceMinor?: number | null;
+  admissionCurrency?: string | null;
   source?: string;
 }) {
   return apiRequest<EventRecord>("/events", {

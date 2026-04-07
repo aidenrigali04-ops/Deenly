@@ -67,6 +67,7 @@ function createMonetizationGateway({ config }) {
     buyerUserId,
     sellerUserId,
     productId = null,
+    eventId = null,
     tierId = null,
     affiliateCodeId = null,
     title,
@@ -77,7 +78,9 @@ function createMonetizationGateway({ config }) {
     platformFeeBps = null,
     customerEmail = null,
     collectPhone = false,
-    metadataExtra = null
+    metadataExtra = null,
+    successUrl = null,
+    cancelUrl = null
   }) {
     const client = requireStripeClient();
     const base = requireAppBaseUrl();
@@ -100,10 +103,12 @@ function createMonetizationGateway({ config }) {
             Object.entries(metadataExtra).map(([k, v]) => [k, v == null ? "" : String(v).slice(0, 500)])
           )
         : {};
+    const defaultSuccess = `${base}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
+    const defaultCancel = `${base}/checkout/cancel`;
     return client.checkout.sessions.create({
       mode: normalizedMode,
-      success_url: `${base}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${base}/checkout/cancel`,
+      success_url: successUrl || defaultSuccess,
+      cancel_url: cancelUrl || defaultCancel,
       payment_method_types: ["card"],
       line_items: [
         {
@@ -135,6 +140,7 @@ function createMonetizationGateway({ config }) {
         buyerUserId: String(buyerUserId || ""),
         sellerUserId: String(sellerUserId),
         productId: productId ? String(productId) : "",
+        eventId: eventId != null ? String(eventId) : "",
         tierId: tierId ? String(tierId) : "",
         affiliateCodeId: affiliateCodeId ? String(affiliateCodeId) : "",
         platformFeeBps: platformFeeBps != null ? String(platformFeeBps) : "",

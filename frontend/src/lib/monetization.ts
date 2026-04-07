@@ -301,6 +301,13 @@ export async function createProductCheckout(
   );
 }
 
+export async function createEventTicketCheckout(eventId: number) {
+  return apiRequest<{ checkoutSessionId: string; checkoutUrl: string }>(
+    `/monetization/checkout/event/${eventId}`,
+    { method: "POST", auth: true, body: {} }
+  );
+}
+
 export type PurchaseAccessPayload = {
   orderId: number;
   productId: number;

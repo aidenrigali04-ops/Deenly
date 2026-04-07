@@ -23,6 +23,7 @@ type MeProfile = {
   bio: string | null;
   business_offering: string | null;
   website_url: string | null;
+  profile_kind?: string;
 };
 
 export function EditProfileScreen({ navigation }: Props) {
@@ -47,17 +48,23 @@ export function EditProfileScreen({ navigation }: Props) {
   }, [profileQuery.data]);
 
   const saveMutation = useMutation({
-    mutationFn: () =>
-      apiRequest("/users/me", {
+    mutationFn: () => {
+      const p = profileQuery.data;
+      const isConsumer = p?.profile_kind === "consumer";
+      const body: Record<string, unknown> = {
+        displayName: displayName.trim(),
+        bio: bio.trim() || null
+      };
+      if (!isConsumer) {
+        body.businessOffering = businessOffering.trim() || null;
+        body.websiteUrl = websiteUrl.trim() || null;
+      }
+      return apiRequest("/users/me", {
         method: "PUT",
         auth: true,
-        body: {
-          displayName: displayName.trim(),
-          bio: bio.trim() || null,
-          businessOffering: businessOffering.trim() || null,
-          websiteUrl: websiteUrl.trim() || null
-        }
-      }),
+        body
+      });
+    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["mobile-edit-profile"] });
       await queryClient.invalidateQueries({ queryKey: ["mobile-account-profile"] });
@@ -74,13 +81,19 @@ export function EditProfileScreen({ navigation }: Props) {
     );
   }
 
+  const isConsumer = profileQuery.data?.profile_kind === "consumer";
+
   return (
     <KeyboardAvoidingView
       style={styles.root}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <Text style={styles.lede}>This is what others see on your profile and in search.</Text>
+        <Text style={styles.lede}>
+          {isConsumer
+            ? "This is what others see on your profile and in search."
+            : "This is what others see on your profile, including optional business details."}
+        </Text>
         <View style={[styles.formCard, shadows.card]}>
           <Text style={[styles.label, styles.labelFirst]}>Display name</Text>
           <TextInput
@@ -100,26 +113,30 @@ export function EditProfileScreen({ navigation }: Props) {
             multiline
             textAlignVertical="top"
           />
-          <Text style={styles.label}>Business line</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            value={businessOffering}
-            onChangeText={setBusinessOffering}
-            placeholder="One line: what you offer"
-            placeholderTextColor={colors.muted}
-            multiline
-            textAlignVertical="top"
-          />
-          <Text style={styles.label}>Website</Text>
-          <TextInput
-            style={styles.input}
-            value={websiteUrl}
-            onChangeText={setWebsiteUrl}
-            placeholder="https://"
-            placeholderTextColor={colors.muted}
-            autoCapitalize="none"
-            keyboardType="url"
-          />
+          {!isConsumer ? (
+            <>
+              <Text style={styles.label}>Business line</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={businessOffering}
+                onChangeText={setBusinessOffering}
+                placeholder="One line: what you offer"
+                placeholderTextColor={colors.muted}
+                multiline
+                textAlignVertical="top"
+              />
+              <Text style={styles.label}>Website</Text>
+              <TextInput
+                style={styles.input}
+                value={websiteUrl}
+                onChangeText={setWebsiteUrl}
+                placeholder="https://"
+                placeholderTextColor={colors.muted}
+                autoCapitalize="none"
+                keyboardType="url"
+              />
+            </>
+          ) : null}
         </View>
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <Pressable

@@ -60,6 +60,31 @@ function parseOptionalIsoDate(input, fieldName) {
   return date.toISOString();
 }
 
+async function hasCompletedEventTicketPurchase(db, buyerUserId, eventId) {
+  if (!buyerUserId || !eventId) {
+    return false;
+  }
+  const r = await db.query(
+    `SELECT 1
+     FROM orders o
+     JOIN checkout_sessions cs ON cs.id = o.checkout_session_id
+     WHERE o.kind = 'event_ticket'
+       AND o.buyer_user_id = $1
+       AND o.status = 'completed'
+       AND (cs.metadata->>'eventId')::int = $2
+     LIMIT 1`,
+    [buyerUserId, eventId]
+  );
+  return r.rowCount > 0;
+}
+
+function normalizeEventCurrency(value) {
+  return String(value || "usd")
+    .trim()
+    .toLowerCase()
+    .slice(0, 3);
+}
+
 function parseLatLng(latRaw, lngRaw) {
   if (
     (latRaw === undefined || latRaw === null || latRaw === "") &&
@@ -96,6 +121,8 @@ function rowToEvent(row) {
     visibility: row.visibility,
     capacity: row.capacity != null ? Number(row.capacity) : null,
     status: row.status,
+    admissionPriceMinor: row.admission_price_minor != null ? Number(row.admission_price_minor) : null,
+    admissionCurrency: row.admission_currency || null,
     rsvpInterestedCount: Number(row.rsvp_interested_count || 0),
     rsvpGoingCount: Number(row.rsvp_going_count || 0),
     viewerRsvpStatus: row.viewer_rsvp_status || null,
@@ -143,6 +170,7 @@ async function getOptionalViewerId({ db, config, authorization }) {
 async function loadEventAccess({ db, eventId, viewerId, inviteToken }) {
   const access = await db.query(
     `SELECT e.id, e.host_user_id, e.visibility, e.status, e.starts_at, e.ends_at,
+            e.admission_price_minor, e.admission_currency,
             (
               SELECT r.status
               FROM event_rsvps r
@@ -360,6 +388,8 @@ function createEventsRouter({ db, config, analytics, pushNotifications }) {
                   e.visibility,
                   e.capacity,
                   e.status,
+                  e.admission_price_minor,
+                  e.admission_currency,
                   e.created_at,
                   e.updated_at,
                   p.display_name AS host_display_name,
@@ -450,6 +480,8 @@ function createEventsRouter({ db, config, analytics, pushNotifications }) {
                 e.visibility,
                 e.capacity,
                 e.status,
+                e.admission_price_minor,
+                e.admission_currency,
                 e.created_at,
                 e.updated_at,
                 p.display_name AS host_display_name,
@@ -538,6 +570,18 @@ function createEventsRouter({ db, config, analytics, pushNotifications }) {
       if (capacity != null && (!Number.isInteger(capacity) || capacity <= 0)) {
         throw httpError(400, "capacity must be a positive integer");
       }
+      let admission_price_minor = null;
+      let admission_currency = null;
+      if (req.body?.admissionPriceMinor != null && req.body.admissionPriceMinor !== "") {
+        const p = Number(req.body.admissionPriceMinor);
+        if (!Number.isInteger(p) || p < 50) {
+          throw httpError(400, "admissionPriceMinor must be at least 50 (cents) for paid events");
+        }
+        admission_price_minor = p;
+        admission_currency = normalizeEventCurrency(req.body?.admissionCurrency || "usd");
+      } else if (req.body?.admissionCurrency != null && String(req.body.admissionCurrency).trim() !== "") {
+        throw httpError(400, "admissionCurrency cannot be set without admissionPriceMinor");
+      }
       const { latitude, longitude } = parseLatLng(req.body?.latitude, req.body?.longitude);
 
       throwIfAnyUserFacingPolicyViolation(
@@ -549,12 +593,13 @@ function createEventsRouter({ db, config, analytics, pushNotifications }) {
       const inserted = await db.query(
         `INSERT INTO events (
            host_user_id, title, description, starts_at, ends_at, timezone, is_online, online_url,
-           address_display, latitude, longitude, visibility, capacity, status, updated_at
+           address_display, latitude, longitude, visibility, capacity, status,
+           admission_price_minor, admission_currency, updated_at
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW())
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW())
          RETURNING id, host_user_id, title, description, starts_at, ends_at, timezone, is_online,
                    online_url, address_display, latitude, longitude, visibility, capacity, status,
-                   created_at, updated_at`,
+                   admission_price_minor, admission_currency, created_at, updated_at`,
         [
           req.user.id,
           title,
@@ -569,7 +614,9 @@ function createEventsRouter({ db, config, analytics, pushNotifications }) {
           longitude,
           visibility,
           capacity,
-          status
+          status,
+          admission_price_minor,
+          admission_currency
         ]
       );
 
@@ -620,6 +667,8 @@ function createEventsRouter({ db, config, analytics, pushNotifications }) {
                 e.visibility,
                 e.capacity,
                 e.status,
+                e.admission_price_minor,
+                e.admission_currency,
                 e.created_at,
                 e.updated_at,
                 p.display_name AS host_display_name,
@@ -657,10 +706,16 @@ function createEventsRouter({ db, config, analytics, pushNotifications }) {
         viewer_rsvp_status: access.viewerRsvpStatus,
         can_join_chat: access.canJoinChat
       });
+      let viewerHasTicket = false;
+      const adm = row.admission_price_minor != null ? Number(row.admission_price_minor) : 0;
+      if (viewerId && adm >= 50) {
+        viewerHasTicket = await hasCompletedEventTicketPurchase(db, viewerId, eventId);
+      }
       res.status(200).json({
         ...base,
         viewerInvited: Boolean(access.hasUserInvite),
-        viewedWithInviteLink: Boolean(access.inviteLinkGrantedAccess)
+        viewedWithInviteLink: Boolean(access.inviteLinkGrantedAccess),
+        viewerHasTicket
       });
     })
   );
@@ -753,6 +808,26 @@ function createEventsRouter({ db, config, analytics, pushNotifications }) {
         sets.push(`capacity = $${i++}`);
         values.push(capacity);
       }
+      if (Object.prototype.hasOwnProperty.call(body, "admissionPriceMinor")) {
+        const raw = body.admissionPriceMinor;
+        if (raw === null || raw === "") {
+          sets.push(`admission_price_minor = $${i++}`);
+          values.push(null);
+          sets.push(`admission_currency = $${i++}`);
+          values.push(null);
+        } else {
+          const p = Number(raw);
+          if (!Number.isInteger(p) || p < 50) {
+            throw httpError(400, "admissionPriceMinor must be at least 50 (cents) or null for free events");
+          }
+          sets.push(`admission_price_minor = $${i++}`);
+          values.push(p);
+          sets.push(`admission_currency = $${i++}`);
+          values.push(normalizeEventCurrency(body.admissionCurrency || "usd"));
+        }
+      } else if (Object.prototype.hasOwnProperty.call(body, "admissionCurrency")) {
+        throw httpError(400, "admissionCurrency cannot be set without admissionPriceMinor");
+      }
       if (Object.prototype.hasOwnProperty.call(body, "status")) {
         const status = String(body.status || "").trim().toLowerCase();
         if (!EVENT_STATUS.has(status)) {
@@ -774,7 +849,7 @@ function createEventsRouter({ db, config, analytics, pushNotifications }) {
          WHERE id = $${i}
          RETURNING id, host_user_id, title, description, starts_at, ends_at, timezone, is_online,
                    online_url, address_display, latitude, longitude, visibility, capacity, status,
-                   created_at, updated_at`,
+                   admission_price_minor, admission_currency, created_at, updated_at`,
         values
       );
       res.status(200).json(rowToEvent({ ...result.rows[0], can_join_chat: false }));
@@ -813,6 +888,18 @@ function createEventsRouter({ db, config, analytics, pushNotifications }) {
       }
       if (!RSVP_STATUSES.has(status)) {
         throw httpError(400, "status must be interested, going, or none");
+      }
+
+      if (status === "going") {
+        const hostId = access.row.host_user_id;
+        const priceMinor =
+          access.row.admission_price_minor != null ? Number(access.row.admission_price_minor) : 0;
+        if (hostId !== req.user.id && priceMinor >= 50) {
+          const paid = await hasCompletedEventTicketPurchase(db, req.user.id, eventId);
+          if (!paid) {
+            throw httpError(402, "Complete ticket checkout before RSVPing as Going.");
+          }
+        }
       }
 
       await db.query(

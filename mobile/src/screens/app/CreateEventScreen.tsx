@@ -74,12 +74,16 @@ export function CreateEventScreen({ navigation }: Props) {
 
   const createMutation = useMutation({
     mutationFn: async () => {
+      const t = title.trim();
+      if (t.length < 3) {
+        throw new Error("Title must be at least 3 characters.");
+      }
       const startsAt = startsAtInput.trim() ? new Date(startsAtInput) : new Date(Date.now() + 60 * 60 * 1000);
       if (Number.isNaN(startsAt.getTime())) {
         throw new Error("Use a valid start date/time");
       }
       return createEvent({
-        title: title.trim(),
+        title: t,
         description: description.trim() || null,
         startsAt: startsAt.toISOString(),
         addressDisplay: addressDisplay.trim() || null,

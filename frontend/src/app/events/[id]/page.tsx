@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { ApiError } from "@/lib/api";
 import { fetchSessionMe } from "@/lib/auth";
+import { createEventTicketCheckout } from "@/lib/monetization";
 import {
   createEventInviteLink,
   fetchEventAttendees,
@@ -33,11 +34,24 @@ function formatChatTime(iso: string) {
   }
 }
 
+function formatAdmissionPrice(minor: number, currency: string | null | undefined) {
+  const code = String(currency || "usd")
+    .trim()
+    .toUpperCase()
+    .slice(0, 3);
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency: code }).format(minor / 100);
+  } catch {
+    return `${(minor / 100).toFixed(2)} ${code}`;
+  }
+}
+
 export default function EventDetailPage() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const eventId = Number(params?.id);
   const inviteToken = searchParams.get("inviteToken")?.trim() || undefined;
+  const checkoutFlag = searchParams.get("checkout");
   const queryClient = useQueryClient();
   const [chatInput, setChatInput] = useState("");
   const [inviteSearch, setInviteSearch] = useState("");
@@ -54,6 +68,12 @@ export default function EventDetailPage() {
     const t = setTimeout(() => setDebouncedInviteSearch(inviteSearch.trim()), 350);
     return () => clearTimeout(t);
   }, [inviteSearch]);
+
+  useEffect(() => {
+    if (checkoutFlag === "success" && eventId) {
+      void queryClient.invalidateQueries({ queryKey: ["event-detail", eventId] });
+    }
+  }, [checkoutFlag, eventId, queryClient]);
 
   const eventQuery = useQuery({
     queryKey: ["event-detail", eventId, inviteToken ?? null],
@@ -97,6 +117,15 @@ export default function EventDetailPage() {
     enabled: Boolean(
       eventId && eventQuery.data?.hostUserId === meQuery.data?.id && debouncedInviteSearch.length >= 2
     )
+  });
+
+  const payMutation = useMutation({
+    mutationFn: () => createEventTicketCheckout(eventId),
+    onSuccess: (res) => {
+      if (typeof window !== "undefined" && res.checkoutUrl) {
+        window.location.href = res.checkoutUrl;
+      }
+    }
   });
 
   const rsvpMutation = useMutation({
@@ -208,6 +237,14 @@ export default function EventDetailPage() {
   }
   const myId = meQuery.data?.id;
   const mutedUserIds = new Set((moderationQuery.data?.mutes || []).map((m) => m.user_id));
+  const admissionMinor = data.admissionPriceMinor != null ? Number(data.admissionPriceMinor) : null;
+  const isPaidEvent = Boolean(admissionMinor != null && admissionMinor >= 50);
+  const needsPayToGo =
+    isPaidEvent &&
+    !isHost &&
+    Boolean(myId) &&
+    !data.viewerHasTicket &&
+    data.viewerRsvpStatus !== "going";
 
   return (
     <section className="space-y-4">
@@ -223,6 +260,16 @@ export default function EventDetailPage() {
             You were invited to this event.
           </p>
         ) : null}
+        {checkoutFlag === "success" ? (
+          <p className="rounded-control border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-950">
+            Payment received. Your RSVP should update in a moment — pull to refresh if needed.
+          </p>
+        ) : null}
+        {checkoutFlag === "cancel" ? (
+          <p className="rounded-control border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+            Checkout canceled. You can try again when you&apos;re ready.
+          </p>
+        ) : null}
         <h1 className="text-2xl font-semibold leading-tight">{data.title}</h1>
         <p className="text-sm text-muted">Hosted by {data.hostDisplayName || "Creator"} · {startsAtLabel}</p>
         {data.description ? <p className="text-sm leading-relaxed text-text/90">{data.description}</p> : null}
@@ -235,8 +282,49 @@ export default function EventDetailPage() {
         <p className="text-xs text-muted">
           {data.rsvpGoingCount} going · {data.rsvpInterestedCount} interested
         </p>
+        {isPaidEvent ? (
+          <p className="text-sm font-medium text-text">
+            Admission: {formatAdmissionPrice(admissionMinor!, data.admissionCurrency)}
+            {isHost ? (
+              <span className="mt-1 block text-xs font-normal text-muted">
+                Payouts go to your connected Stripe account (platform fee applies).
+              </span>
+            ) : null}
+          </p>
+        ) : null}
+        {needsPayToGo ? (
+          <div className="space-y-2 rounded-control border border-black/10 bg-black/[0.03] p-3">
+            <p className="text-sm text-text">Pay admission to RSVP as Going and unlock event chat.</p>
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={payMutation.isPending}
+              onClick={() => payMutation.mutate()}
+            >
+              {payMutation.isPending ? "Redirecting…" : "Pay & register"}
+            </button>
+            {payMutation.error ? (
+              <p className="text-sm text-rose-700">
+                {payMutation.error instanceof ApiError ? payMutation.error.message : "Could not start checkout."}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+        {isPaidEvent && !isHost && !myId ? (
+          <p className="text-sm text-muted">
+            <Link href={`/auth/login?next=/events/${eventId}`} className="text-sky-600 hover:underline">
+              Sign in
+            </Link>{" "}
+            to purchase a ticket and RSVP as Going.
+          </p>
+        ) : null}
         <div className="flex flex-wrap gap-2">
-          <button className="btn-primary" onClick={() => rsvpMutation.mutate("going")} disabled={rsvpMutation.isPending}>
+          <button
+            className="btn-primary"
+            onClick={() => rsvpMutation.mutate("going")}
+            disabled={rsvpMutation.isPending || Boolean(needsPayToGo)}
+            title={needsPayToGo ? "Complete payment first" : undefined}
+          >
             Going
           </button>
           <button className="btn-secondary" onClick={() => rsvpMutation.mutate("interested")} disabled={rsvpMutation.isPending}>

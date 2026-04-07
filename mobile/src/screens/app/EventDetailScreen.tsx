@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -18,6 +19,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../../lib/api";
 import { fetchSessionMe } from "../../lib/auth";
 import { useSessionStore } from "../../store/session-store";
+import { createEventTicketCheckout } from "../../lib/monetization";
 import type { EventChatMessage } from "../../lib/events";
 import {
   fetchEventChat,
@@ -76,6 +78,18 @@ export function EventDetailScreen({ route }: Props) {
     queryKey: ["mobile-event-moderation", eventId],
     queryFn: () => fetchEventChatModeration(eventId),
     enabled: Boolean(eventQuery.data?.hostUserId === meQuery.data?.id)
+  });
+
+  const payMutation = useMutation({
+    mutationFn: () => createEventTicketCheckout(eventId),
+    onSuccess: async (res) => {
+      if (res.checkoutUrl) {
+        const ok = await Linking.canOpenURL(res.checkoutUrl);
+        if (ok) {
+          await Linking.openURL(res.checkoutUrl);
+        }
+      }
+    }
   });
 
   const rsvpMutation = useMutation({
@@ -148,6 +162,14 @@ export function EventDetailScreen({ route }: Props) {
   const isHost = event.hostUserId === meQuery.data?.id;
   const myId = meQuery.data?.id;
   const mutedUserIds = new Set((moderationQuery.data?.mutes || []).map((m) => m.user_id));
+  const admissionMinor = event.admissionPriceMinor != null ? Number(event.admissionPriceMinor) : null;
+  const isPaidEvent = Boolean(admissionMinor != null && admissionMinor >= 50);
+  const needsPayToGo =
+    isPaidEvent &&
+    !isHost &&
+    Boolean(myId) &&
+    !event.viewerHasTicket &&
+    event.viewerRsvpStatus !== "going";
 
   const hostMenuForMessage = (msg: EventChatMessage) => {
     const name = msg.senderDisplayName || "Member";
@@ -223,10 +245,36 @@ export function EventDetailScreen({ route }: Props) {
           <Text style={styles.subtle}>
             {event.rsvpGoingCount} going · {event.rsvpInterestedCount} interested
           </Text>
+          {isPaidEvent ? (
+            <Text style={styles.body}>
+              Admission:{" "}
+              {((admissionMinor || 0) / 100).toFixed(2)} {String(event.admissionCurrency || "usd").toUpperCase()}
+            </Text>
+          ) : null}
+          {needsPayToGo ? (
+            <View style={{ gap: 8, marginTop: 4 }}>
+              <Text style={styles.subtle}>Pay admission to RSVP as Going and unlock chat.</Text>
+              <Pressable
+                style={styles.primaryBtn}
+                onPress={() => payMutation.mutate()}
+                disabled={payMutation.isPending}
+                accessibilityRole="button"
+                accessibilityLabel="Pay for event ticket"
+              >
+                <Text style={styles.primaryBtnText}>{payMutation.isPending ? "Opening checkout…" : "Pay & register"}</Text>
+              </Pressable>
+              {payMutation.error ? (
+                <Text style={styles.error}>
+                  {payMutation.error instanceof ApiError ? payMutation.error.message : "Could not start checkout."}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
           <View style={styles.rsvpRow}>
             <Pressable
-              style={styles.primaryBtn}
+              style={[styles.primaryBtn, needsPayToGo ? { opacity: 0.45 } : null]}
               onPress={() => rsvpMutation.mutate("going")}
+              disabled={Boolean(needsPayToGo)}
               accessibilityRole="button"
               accessibilityLabel="RSVP going"
             >

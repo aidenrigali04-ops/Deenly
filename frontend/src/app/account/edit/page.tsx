@@ -14,6 +14,7 @@ type AccountProfile = {
   business_offering: string | null;
   website_url: string | null;
   show_business_on_profile?: boolean;
+  profile_kind?: string;
 };
 
 export default function AccountEditProfilePage() {
@@ -57,6 +58,7 @@ export default function AccountEditProfilePage() {
   }
 
   const profile = profileQuery.data;
+  const isConsumer = profile.profile_kind === "consumer";
 
   return (
     <div className="page-stack mx-auto w-full max-w-lg">
@@ -71,7 +73,9 @@ export default function AccountEditProfilePage() {
         </p>
         <h1 className="page-header-title mt-4 text-xl sm:text-2xl">Edit profile</h1>
         <p className="page-header-subtitle text-xs sm:text-sm">
-          How your name, bio, and business details appear on Deenly.
+          {isConsumer
+            ? "How your name and bio appear on Deenly."
+            : "How your name, bio, and business details appear on Deenly."}
         </p>
       </header>
       <div className="surface-card px-6 py-6">
@@ -86,22 +90,27 @@ export default function AccountEditProfilePage() {
                 if (dn.length < 2) {
                   throw new Error("Display name must be at least 2 characters.");
                 }
+                const putBody: Record<string, unknown> = {
+                  displayName: dn,
+                  bio: bio.trim() || null,
+                  avatarUrl: profile.avatar_url ?? null
+                };
+                if (!isConsumer) {
+                  putBody.businessOffering = businessOffering.trim() || null;
+                  putBody.websiteUrl = websiteUrl.trim() || null;
+                }
                 await apiRequest("/users/me", {
                   method: "PUT",
                   auth: true,
-                  body: {
-                    displayName: dn,
-                    bio: bio.trim() || null,
-                    avatarUrl: profile.avatar_url ?? null,
-                    businessOffering: businessOffering.trim() || null,
-                    websiteUrl: websiteUrl.trim() || null
-                  }
+                  body: putBody
                 });
-                await apiRequest("/users/me/preferences", {
-                  method: "PATCH",
-                  auth: true,
-                  body: { showBusinessOnProfile }
-                });
+                if (!isConsumer) {
+                  await apiRequest("/users/me/preferences", {
+                    method: "PATCH",
+                    auth: true,
+                    body: { showBusinessOnProfile }
+                  });
+                }
                 await queryClient.invalidateQueries({ queryKey: ["account-profile-me"] });
                 setMessage("Saved.");
               } catch (err) {
@@ -125,41 +134,45 @@ export default function AccountEditProfilePage() {
               <span className="text-muted">Bio</span>
               <textarea className="input min-h-24" value={bio} onChange={(e) => setBio(e.target.value)} maxLength={240} />
             </label>
-            <label className="space-y-1 text-sm">
-              <span className="text-muted">Your business, product, or service</span>
-              <textarea
-                className="input min-h-24"
-                value={businessOffering}
-                onChange={(e) => setBusinessOffering(e.target.value)}
-                maxLength={2000}
-              />
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="text-muted">Website</span>
-              <input
-                className="input"
-                type="text"
-                inputMode="url"
-                value={websiteUrl}
-                onChange={(e) => setWebsiteUrl(e.target.value)}
-                maxLength={2048}
-                placeholder="https://"
-              />
-            </label>
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={showBusinessOnProfile}
-                onChange={(e) => setShowBusinessOnProfile(e.target.checked)}
-                className="mt-1"
-              />
-              <span>
-                <span className="font-medium text-text">Show business details on my public profile</span>
-                <span className="mt-0.5 block text-xs text-muted">
-                  When off, visitors only see your name and bio; offering and website stay private.
-                </span>
-              </span>
-            </label>
+            {!isConsumer ? (
+              <>
+                <label className="space-y-1 text-sm">
+                  <span className="text-muted">Your business, product, or service</span>
+                  <textarea
+                    className="input min-h-24"
+                    value={businessOffering}
+                    onChange={(e) => setBusinessOffering(e.target.value)}
+                    maxLength={2000}
+                  />
+                </label>
+                <label className="space-y-1 text-sm">
+                  <span className="text-muted">Website</span>
+                  <input
+                    className="input"
+                    type="text"
+                    inputMode="url"
+                    value={websiteUrl}
+                    onChange={(e) => setWebsiteUrl(e.target.value)}
+                    maxLength={2048}
+                    placeholder="https://"
+                  />
+                </label>
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={showBusinessOnProfile}
+                    onChange={(e) => setShowBusinessOnProfile(e.target.checked)}
+                    className="mt-1"
+                  />
+                  <span>
+                    <span className="font-medium text-text">Show business details on my public profile</span>
+                    <span className="mt-0.5 block text-xs text-muted">
+                      When off, visitors only see your name and bio; offering and website stay private.
+                    </span>
+                  </span>
+                </label>
+              </>
+            ) : null}
             {message ? <p className="text-xs text-muted">{message}</p> : null}
             <button type="submit" className="btn-primary w-fit" disabled={saving}>
               {saving ? "Saving..." : "Save profile"}

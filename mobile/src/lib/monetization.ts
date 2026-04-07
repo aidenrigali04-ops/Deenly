@@ -79,6 +79,14 @@ export async function createProductCheckout(productId: number, opts?: { smsOptIn
   });
 }
 
+export async function createEventTicketCheckout(eventId: number) {
+  return apiRequest<{ checkoutUrl: string }>(`/monetization/checkout/event/${eventId}`, {
+    method: "POST",
+    auth: true,
+    body: {}
+  });
+}
+
 export async function createTierCheckout(tierId: number, opts?: { checkoutVariant?: string }) {
   return apiRequest<{ checkoutUrl: string }>(`/monetization/checkout/tier/${tierId}`, {
     method: "POST",

@@ -1611,6 +1611,109 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
   );
 
   router.post(
+    "/checkout/event/:eventId",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const eventId = Number(req.params.eventId);
+      if (!eventId) {
+        throw httpError(400, "eventId must be a number");
+      }
+      const ev = await db.query(
+        `SELECT id, host_user_id, title, admission_price_minor, admission_currency, status
+         FROM events
+         WHERE id = $1
+         LIMIT 1`,
+        [eventId]
+      );
+      if (ev.rowCount === 0) {
+        throw httpError(404, "Event not found");
+      }
+      const event = ev.rows[0];
+      if (event.status !== "scheduled") {
+        throw httpError(409, "This event is not accepting registrations");
+      }
+      const price = event.admission_price_minor != null ? Number(event.admission_price_minor) : null;
+      const currency = normalizeCurrency(event.admission_currency || "usd");
+      if (!price || price < 50) {
+        throw httpError(400, "This event does not require paid admission");
+      }
+      if (event.host_user_id === req.user.id) {
+        throw httpError(400, "You cannot purchase a ticket to your own event");
+      }
+      const existingTicket = await db.query(
+        `SELECT 1
+         FROM orders o
+         JOIN checkout_sessions cs ON cs.id = o.checkout_session_id
+         WHERE o.kind = 'event_ticket'
+           AND o.buyer_user_id = $1
+           AND o.status = 'completed'
+           AND (cs.metadata->>'eventId')::int = $2
+         LIMIT 1`,
+        [req.user.id, eventId]
+      );
+      if (existingTicket.rowCount > 0) {
+        throw httpError(400, "You already have a ticket for this event");
+      }
+      const connectedAccountId = await requireSellerStripeAccountId(event.host_user_id);
+      const platformFeeBps = clampSessionPlatformFeeBps(config.monetizationPlatformFeeBps, config);
+      const applicationFeeAmountMinor = Math.max(0, Math.round((price * platformFeeBps) / 10000));
+      const appBase = String(config.appBaseUrl || "").replace(/\/+$/, "");
+      if (!appBase) {
+        throw httpError(503, "APP_BASE_URL is not configured");
+      }
+      const successUrl = `${appBase}/events/${eventId}?checkout=success&session_id={CHECKOUT_SESSION_ID}`;
+      const cancelUrl = `${appBase}/events/${eventId}?checkout=cancel`;
+      const session = await monetizationGateway.createCheckoutSession({
+        kind: "event_ticket",
+        amountMinor: price,
+        currency,
+        buyerUserId: req.user.id,
+        sellerUserId: event.host_user_id,
+        productId: null,
+        eventId,
+        title: `Event: ${String(event.title || "Ticket").slice(0, 120)}`,
+        description: "Paid event admission (Deenly)",
+        connectedAccountId,
+        applicationFeeAmountMinor,
+        platformFeeBps,
+        metadataExtra: { checkoutVariant: "event_ticket" },
+        successUrl,
+        cancelUrl
+      });
+      await ensureCheckoutSessionRecord({
+        sessionId: session.id,
+        kind: "event_ticket",
+        buyerUserId: req.user.id,
+        sellerUserId: event.host_user_id,
+        productId: null,
+        amountMinor: price,
+        currency,
+        metadata: {
+          eventId,
+          platformFeeBps,
+          stripeApplicationFeeMinor: applicationFeeAmountMinor,
+          checkoutVariant: "event_ticket"
+        }
+      });
+      if (analytics) {
+        await analytics.trackEvent("checkout_started", {
+          kind: "event_ticket",
+          eventId,
+          sellerUserId: event.host_user_id,
+          buyerUserId: req.user.id,
+          amountMinor: price,
+          currency,
+          platformFeeBps
+        });
+      }
+      res.status(200).json({
+        checkoutSessionId: session.id,
+        checkoutUrl: session.url
+      });
+    })
+  );
+
+  router.post(
     "/checkout/support/:creatorUserId",
     authMiddleware,
     asyncHandler(async (req, res) => {
@@ -1866,7 +1969,11 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
       const platformFeeBps = clampSessionPlatformFeeBps(sessionMetadata.platformFeeBps, config);
       const recordedAppFee = Number(sessionMetadata.stripeApplicationFeeMinor);
       let platformFeeMinor;
-      if (sessionRow.kind === "product" && Number.isInteger(recordedAppFee) && recordedAppFee >= 0) {
+      if (
+        (sessionRow.kind === "product" || sessionRow.kind === "event_ticket") &&
+        Number.isInteger(recordedAppFee) &&
+        recordedAppFee >= 0
+      ) {
         platformFeeMinor = Math.min(amountMinor, recordedAppFee);
       } else {
         platformFeeMinor = Math.max(0, Math.round((amountMinor * platformFeeBps) / 10000));
@@ -1943,7 +2050,9 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
               ? "Product purchase credit"
               : sessionRow.kind === "subscription"
                 ? "Membership payment credit"
-                : "Support payment credit"
+                : sessionRow.kind === "event_ticket"
+                  ? "Event ticket credit"
+                  : "Support payment credit"
           ]
         );
         if (sessionRow.kind === "subscription" && tierId) {
@@ -2029,6 +2138,18 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
            WHERE id = $1`,
           [sessionRow.id]
         );
+        if (sessionRow.kind === "event_ticket") {
+          const ticketEventId = Number(sessionMetadata.eventId || 0);
+          if (ticketEventId && sessionRow.buyer_user_id) {
+            await db.query(
+              `INSERT INTO event_rsvps (event_id, user_id, status, updated_at)
+               VALUES ($1, $2, 'going', NOW())
+               ON CONFLICT (event_id, user_id)
+               DO UPDATE SET status = 'going', updated_at = NOW()`,
+              [ticketEventId, sessionRow.buyer_user_id]
+            );
+          }
+        }
         if (sessionRow.kind === "product") {
           productFulfillmentOrderId = order.rows[0].id;
         }
