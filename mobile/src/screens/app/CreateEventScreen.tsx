@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { PostPublishSuccessOverlay } from "../../components/PostPublishSuccessOverlay";
 import { ApiError } from "../../lib/api";
 import { assistPostText } from "../../lib/ai-assist";
+import { parseEventStartsAtInput } from "../../lib/event-starts-at";
 import { createEvent } from "../../lib/events";
 import { colors, radii } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
@@ -78,10 +79,7 @@ export function CreateEventScreen({ navigation }: Props) {
       if (t.length < 3) {
         throw new Error("Title must be at least 3 characters.");
       }
-      const startsAt = startsAtInput.trim() ? new Date(startsAtInput) : new Date(Date.now() + 60 * 60 * 1000);
-      if (Number.isNaN(startsAt.getTime())) {
-        throw new Error("Use a valid start date/time");
-      }
+      const startsAt = parseEventStartsAtInput(startsAtInput);
       return createEvent({
         title: t,
         description: description.trim() || null,
@@ -151,7 +149,7 @@ export function CreateEventScreen({ navigation }: Props) {
         </Text>
         <TextInput
           style={styles.input}
-          placeholder="Starts at (example: 2026-04-18 18:30)"
+          placeholder="Starts at (e.g. 2026-04-18 18:30 or 12:30)"
           placeholderTextColor={colors.muted}
           value={startsAtInput}
           onChangeText={setStartsAtInput}
@@ -176,7 +174,9 @@ export function CreateEventScreen({ navigation }: Props) {
         />
         {createMutation.error ? (
           <Text style={styles.error}>
-            {createMutation.error instanceof ApiError ? createMutation.error.message : "Could not create event."}
+            {createMutation.error instanceof Error
+              ? createMutation.error.message
+              : "Could not create event."}
           </Text>
         ) : null}
         <Pressable
