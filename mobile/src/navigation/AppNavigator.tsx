@@ -282,14 +282,6 @@ export function AppNavigator() {
     };
   }, [sessionQuery, setUser]);
 
-  if (bootstrapping) {
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background }}>
-        <ActivityIndicator color={colors.accent} />
-      </View>
-    );
-  }
-
   const navTheme = {
     ...DefaultTheme,
     colors: {
@@ -340,6 +332,14 @@ export function AppNavigator() {
       }
     };
   }, [user]);
+
+  if (bootstrapping) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background }}>
+        <ActivityIndicator color={colors.accent} />
+      </View>
+    );
+  }
 
   return (
     <NavigationContainer theme={navTheme} linking={linking}>
