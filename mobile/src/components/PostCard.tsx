@@ -7,7 +7,7 @@ import type { FeedItem } from "../types";
 import { formatMinorCurrency } from "../lib/monetization";
 import { hapticPrimary, hapticTap } from "../lib/haptics";
 
-function isImageMedia(item: FeedItem) {
+export function isImageMedia(item: FeedItem) {
   if (item.media_mime_type?.startsWith("image/")) {
     return true;
   }
@@ -27,7 +27,9 @@ export function PostCard({
   liking = false,
   layout = "default",
   onToggleFollow,
-  followBusy = false
+  followBusy = false,
+  /** When false, video is paused and muted (e.g. off-screen in feed). Default true. */
+  mediaPlaybackActive = true
 }: {
   item: FeedItem;
   onLike?: () => void;
@@ -39,6 +41,7 @@ export function PostCard({
   layout?: "default" | "home";
   onToggleFollow?: (authorId: number, currentlyFollowing: boolean) => void;
   followBusy?: boolean;
+  mediaPlaybackActive?: boolean;
 }) {
   const { height: viewportHeight } = useWindowDimensions();
   const compact = viewportHeight <= 700;
@@ -119,6 +122,8 @@ export function PostCard({
               contentFit="contain"
               nativeControls
               loop={false}
+              play={mediaPlaybackActive}
+              muted={!mediaPlaybackActive}
               onError={() => setMediaFailed(true)}
             />
           )
@@ -236,6 +241,8 @@ export function PostCard({
             contentFit="contain"
             nativeControls
             loop={false}
+            play={mediaPlaybackActive}
+            muted={!mediaPlaybackActive}
             onError={() => setMediaFailed(true)}
           />
         )

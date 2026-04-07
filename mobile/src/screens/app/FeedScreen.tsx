@@ -10,7 +10,8 @@ import {
   StyleSheet,
   Text,
   View,
-  useWindowDimensions
+  useWindowDimensions,
+  type ViewToken
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { BottomTabScreenProps, useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -21,7 +22,7 @@ import { apiRequest } from "../../lib/api";
 import { ackPrayerReminder, fetchPrayerStatus } from "../../lib/prayer";
 import { followUser, unfollowUser } from "../../lib/follows";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
-import { PostCard } from "../../components/PostCard";
+import { isImageMedia, PostCard } from "../../components/PostCard";
 import { HomeTopBar } from "../../components/HomeTopBar";
 import { HomeStoriesRow } from "../../components/HomeStoriesRow";
 import { colors, radii } from "../../theme";
@@ -133,6 +134,40 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
   }, [prayerStatusQuery.data?.reminderKey]);
 
   const items = feedQuery.data?.pages.flatMap((page) => page.items) || [];
+
+  const [activeVideoPostId, setActiveVideoPostId] = useState<number | null>(null);
+  const activeVideoPostIdRef = useRef<number | null>(null);
+
+  const onViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+      const ordered = [...viewableItems]
+        .filter((v) => v.isViewable && v.item != null && typeof (v.item as FeedItem).id === "number")
+        .sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+
+      let next: number | null = null;
+      for (const v of ordered) {
+        const row = v.item as FeedItem;
+        if (row.media_url && !isImageMedia(row)) {
+          next = row.id;
+          break;
+        }
+      }
+
+      if (activeVideoPostIdRef.current !== next) {
+        activeVideoPostIdRef.current = next;
+        setActiveVideoPostId(next);
+      }
+    }
+  );
+
+  const viewabilityConfig = useMemo(
+    () => ({
+      itemVisiblePercentThreshold: 55,
+      minimumViewTime: 160,
+      waitForInteraction: false
+    }),
+    []
+  );
 
   useEffect(() => {
     const sponsoredCampaignIds = items
@@ -284,28 +319,41 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
   ]);
 
   const renderItem: ListRenderItem<FeedItem> = useCallback(
-    ({ item }) => (
-      <View style={[styles.cardWrap, compact && styles.cardWrapCompact]}>
-        <PostCard
-          item={item}
-          layout="home"
-          onViewOffer={(productId) => navigation.navigate("ProductDetail", { productId })}
-          onBuyNow={(productId) => buyProductMutation.mutate(productId)}
-          buyBusy={buyProductMutation.isPending}
-          buyHandoffProductId={buyHandoffProductId}
-          onLike={() => likeMutation.mutate({ postId: item.id, nextLiked: !item.liked_by_viewer })}
-          liking={likeMutation.isPending}
-          onToggleFollow={(authorId, currentlyFollowing) =>
-            followMutation.mutate({ authorId, currentlyFollowing })
-          }
-          followBusy={
-            followMutation.isPending &&
-            followMutation.variables?.authorId === item.author_id
-          }
-        />
-      </View>
-    ),
-    [buyHandoffProductId, buyProductMutation, followMutation, likeMutation, navigation, compact]
+    ({ item }) => {
+      const isVideoPost = Boolean(item.media_url) && !isImageMedia(item);
+      const mediaPlaybackActive = !isVideoPost || item.id === activeVideoPostId;
+      return (
+        <View style={[styles.cardWrap, compact && styles.cardWrapCompact]}>
+          <PostCard
+            item={item}
+            layout="home"
+            mediaPlaybackActive={mediaPlaybackActive}
+            onViewOffer={(productId) => navigation.navigate("ProductDetail", { productId })}
+            onBuyNow={(productId) => buyProductMutation.mutate(productId)}
+            buyBusy={buyProductMutation.isPending}
+            buyHandoffProductId={buyHandoffProductId}
+            onLike={() => likeMutation.mutate({ postId: item.id, nextLiked: !item.liked_by_viewer })}
+            liking={likeMutation.isPending}
+            onToggleFollow={(authorId, currentlyFollowing) =>
+              followMutation.mutate({ authorId, currentlyFollowing })
+            }
+            followBusy={
+              followMutation.isPending &&
+              followMutation.variables?.authorId === item.author_id
+            }
+          />
+        </View>
+      );
+    },
+    [
+      activeVideoPostId,
+      buyHandoffProductId,
+      buyProductMutation,
+      followMutation,
+      likeMutation,
+      navigation,
+      compact
+    ]
   );
 
   const onEndReached = useCallback(() => {
@@ -359,6 +407,8 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
         onEndReached={onEndReached}
         onEndReachedThreshold={0.35}
         keyboardShouldPersistTaps="handled"
+        onViewableItemsChanged={onViewableItemsChanged.current}
+        viewabilityConfig={viewabilityConfig}
       />
     </View>
   );
