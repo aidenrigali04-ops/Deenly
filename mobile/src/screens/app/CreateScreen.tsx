@@ -19,6 +19,7 @@ import {
   type PostPublishVariant
 } from "../../components/PostPublishSuccessOverlay";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTabSceneBottomPadding } from "../../hooks/useTabSceneInsets";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { CompositeScreenProps } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -106,6 +107,7 @@ export function CreateScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { height: viewportHeight } = useWindowDimensions();
   const compact = viewportHeight <= 700;
+  const tabSceneBottomPad = useTabSceneBottomPadding(compact ? 12 : 18);
   const [postType, setPostType] = useState<"post" | "marketplace" | "reel">("post");
   const [content, setContent] = useState("");
   const [tagsInput, setTagsInput] = useState("");
@@ -574,7 +576,7 @@ export function CreateScreen({ navigation }: Props) {
           contentContainerStyle={[
             styles.scrollContent,
             compact && styles.scrollContentCompact,
-            { paddingBottom: insets.bottom + (compact ? 16 : 24) }
+            { paddingBottom: tabSceneBottomPad }
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}

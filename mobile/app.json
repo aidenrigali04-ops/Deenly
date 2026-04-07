@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.deenly.deenly",
+      "bundleIdentifier": "com.rizqly.app",
       "associatedDomains": ["applinks:deenly.app"],
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Deenly uses your location to show small businesses near you and to place your listing on the map.",
@@ -46,7 +46,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.deenly.deenly"
+      "package": "com.rizqly.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"

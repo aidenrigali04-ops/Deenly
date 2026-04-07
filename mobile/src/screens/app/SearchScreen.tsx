@@ -18,6 +18,7 @@ import { fetchBusinessesNear } from "../../lib/businesses";
 import { fetchEventsNear } from "../../lib/events";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { colors, radii } from "../../theme";
+import { useTabSceneBottomPadding, useTabSceneTopPadding } from "../../hooks/useTabSceneInsets";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 
 type UserItem = {
@@ -71,6 +72,8 @@ function clusterNearbyEvents(
 const FALLBACK = { lat: 40.7128, lng: -74.006 };
 
 export function SearchScreen({ navigation }: Props) {
+  const topPad = useTabSceneTopPadding(12);
+  const bottomPad = useTabSceneBottomPadding(20);
   const [mode, setMode] = useState<Mode>("search");
   const [q, setQ] = useState("");
   const [submittedQ, setSubmittedQ] = useState("");
@@ -162,7 +165,10 @@ export function SearchScreen({ navigation }: Props) {
       : nearEventsQuery.data?.items || [];
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingTop: topPad, paddingBottom: bottomPad }]}
+    >
       <Text style={styles.heading}>Search</Text>
       <View style={styles.modeRow}>
         <Pressable style={[styles.modeChip, mode === "search" ? styles.modeChipOn : null]} onPress={() => setMode("search")}>

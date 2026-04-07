@@ -13,7 +13,8 @@ import {
   useWindowDimensions
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
+import { BottomTabScreenProps, useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CompositeScreenProps } from "@react-navigation/native";
 import { NativeStackNavigationProp, NativeStackScreenProps } from "@react-navigation/native-stack";
 import { apiRequest } from "../../lib/api";
@@ -48,6 +49,8 @@ function resolveCheckoutVariant(seed: number): "trust_first" | "speed_first" {
 
 export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
   const { height: viewportHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
   const compact = viewportHeight <= 700;
   const sessionUser = useSessionStore((s) => s.user);
   const [buyHandoffProductId, setBuyHandoffProductId] = useState<number | null>(null);
@@ -339,7 +342,15 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
       ) : null}
       <FlatList
         style={styles.list}
-        contentContainerStyle={[styles.listContent, compact && styles.listContentCompact]}
+        contentContainerStyle={[
+          styles.listContent,
+          compact && styles.listContentCompact,
+          feedVariant === "marketplace" ? { paddingTop: insets.top + 10 } : null,
+          {
+            paddingBottom:
+              tabBarHeight + Math.max(insets.bottom, 8) + (compact ? 16 : 20)
+          }
+        ]}
         data={items}
         keyExtractor={(item) => String(item.id)}
         renderItem={renderItem}

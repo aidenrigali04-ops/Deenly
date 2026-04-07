@@ -13,7 +13,7 @@ export function HomeTopBar({ onPressCreate, onPressAlerts }: Props) {
   const insets = useSafeAreaInsets();
   const useBlur = supportsNativeBlur();
   return (
-    <View style={[styles.wrap, { paddingTop: insets.top + 6 }]} accessibilityRole="header">
+    <View style={[styles.wrap, { paddingTop: insets.top + 8 }]} accessibilityRole="header">
       {useBlur ? (
         <BlurView intensity={72} tint="light" style={StyleSheet.absoluteFill} />
       ) : (

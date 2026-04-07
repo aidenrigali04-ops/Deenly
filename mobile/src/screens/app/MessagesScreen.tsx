@@ -6,6 +6,7 @@ import { apiRequest } from "../../lib/api";
 import { createOrOpenConversation, markConversationRead } from "../../lib/messages";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { colors } from "../../theme";
+import { useTabSceneBottomPadding, useTabSceneTopPadding } from "../../hooks/useTabSceneInsets";
 import type { AppTabParamList } from "../../navigation/AppNavigator";
 import { useSessionStore } from "../../store/session-store";
 
@@ -28,6 +29,8 @@ type MessagesRoute = RouteProp<AppTabParamList, "MessagesTab">;
 
 export function MessagesScreen() {
   const route = useRoute<MessagesRoute>();
+  const topPad = useTabSceneTopPadding(12);
+  const bottomPad = useTabSceneBottomPadding(20);
   const queryClient = useQueryClient();
   const sessionUserId = useSessionStore((s) => s.user?.id ?? null);
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
@@ -112,7 +115,10 @@ export function MessagesScreen() {
   });
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingTop: topPad, paddingBottom: bottomPad }]}
+    >
       <Text style={styles.heading}>Messages</Text>
       <View style={styles.card}>
         <TextInput

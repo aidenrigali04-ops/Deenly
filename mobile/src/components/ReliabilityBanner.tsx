@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../theme";
 
 type ReliabilityBannerProps = {
@@ -7,12 +8,19 @@ type ReliabilityBannerProps = {
 };
 
 export function ReliabilityBanner({ isOffline, queuedMutations }: ReliabilityBannerProps) {
+  const insets = useSafeAreaInsets();
   if (!isOffline && queuedMutations === 0) {
     return null;
   }
 
   return (
-    <View style={[styles.banner, isOffline ? styles.offline : styles.queueing]}>
+    <View
+      style={[
+        styles.banner,
+        isOffline ? styles.offline : styles.queueing,
+        { paddingTop: insets.top + 6 }
+      ]}
+    >
       <Text style={[styles.text, isOffline ? styles.textOffline : styles.textQueueing]}>
         {isOffline
           ? "Offline mode: actions will sync when connected."

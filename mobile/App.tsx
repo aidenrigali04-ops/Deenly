@@ -2,6 +2,7 @@ import "react-native-gesture-handler";
 import { useEffect, useState } from "react";
 import NetInfo from "@react-native-community/netinfo";
 import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 import { ReliabilityBanner } from "./src/components/ReliabilityBanner";
@@ -48,10 +49,12 @@ export default function App() {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ReliabilityBanner isOffline={isOffline} queuedMutations={queuedMutations} />
-      <AppNavigator />
-      <StatusBar style="dark" />
-    </QueryClientProvider>
+    <SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
+        <ReliabilityBanner isOffline={isOffline} queuedMutations={queuedMutations} />
+        <AppNavigator />
+        <StatusBar style="dark" />
+      </QueryClientProvider>
+    </SafeAreaProvider>
   );
 }

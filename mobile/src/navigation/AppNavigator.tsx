@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Linking from "expo-linking";
 import { AtmosphereBackdrop } from "../components/AtmosphereBackdrop";
 import { TabBarGlassBackground } from "../components/TabBarGlassBackground";
@@ -113,6 +114,10 @@ const RootStack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<AppTabParamList>();
 
 function AppTabs() {
+  const insets = useSafeAreaInsets();
+  const tabPadBottom = Math.max(insets.bottom, 10);
+  const tabBarMinHeight = 52 + tabPadBottom;
+
   return (
     <View style={{ flex: 1 }}>
       <AtmosphereBackdrop />
@@ -123,8 +128,9 @@ function AppTabs() {
           tabBarStyle: {
             backgroundColor: colors.atmosphere,
             borderTopWidth: 0,
-            paddingTop: 8,
-            minHeight: 64,
+            paddingTop: 6,
+            paddingBottom: tabPadBottom,
+            minHeight: tabBarMinHeight,
             elevation: 0
           },
         tabBarActiveTintColor: colors.accent,
@@ -133,13 +139,16 @@ function AppTabs() {
         tabBarShowLabel: true,
         tabBarLabel: ({ focused, color, children }) => (
           <Text
+            numberOfLines={1}
+            ellipsizeMode="tail"
             style={{
               fontSize: 10,
               fontWeight: focused ? "700" : "600",
-              marginBottom: 2,
+              marginBottom: 0,
               letterSpacing: focused ? 0.2 : 0,
               color,
-              opacity: focused ? 1 : 0.86
+              opacity: focused ? 1 : 0.86,
+              textAlign: "center"
             }}
           >
             {children}
@@ -148,10 +157,10 @@ function AppTabs() {
         tabBarLabelStyle: {
           marginTop: 0
         },
-        tabBarIconStyle: { marginTop: 2 },
+        tabBarIconStyle: { marginTop: 0 },
         tabBarItemStyle: {
-          marginHorizontal: 4,
-          marginVertical: 5,
+          marginHorizontal: 2,
+          marginVertical: 4,
           borderRadius: radii.pill,
           paddingVertical: 2
         },

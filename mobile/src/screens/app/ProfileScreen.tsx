@@ -14,6 +14,7 @@ import {
   useWindowDimensions
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { CompositeScreenProps } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -53,6 +54,7 @@ export function ProfileScreen({ navigation }: Props) {
   const { width, height: viewportHeight } = useWindowDimensions();
   const compact = viewportHeight <= 700;
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
   const [activeTab, setActiveTab] = useState<"posts" | "products">("posts");
   const [avatarUploading, setAvatarUploading] = useState(false);
   const queryClient = useQueryClient();
@@ -212,7 +214,13 @@ export function ProfileScreen({ navigation }: Props) {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, compact && styles.scrollContentCompact]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          compact && styles.scrollContentCompact,
+          {
+            paddingBottom: tabBarHeight + Math.max(insets.bottom, 8) + (compact ? 20 : 28)
+          }
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {sessionQuery.isLoading ? <LoadingState label="Loading profile..." /> : null}
