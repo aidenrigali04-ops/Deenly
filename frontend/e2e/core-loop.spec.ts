@@ -59,6 +59,11 @@ async function dismissBizOverlayFromBrowserSession(request: APIRequestContext, p
     return;
   }
   await dismissBusinessOnboardingViaApi(request, token);
+  // PATCH updates the DB but the SPA keeps stale React Query data for /users/me; reload refetches so the overlay unmounts.
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.locator('[role="dialog"][aria-labelledby="biz-personalizer-title"]')).toHaveCount(0, {
+    timeout: 20_000
+  });
 }
 
 test("core loop: signup/login, create+upload, feed pagination, interact/follow/report", async ({
