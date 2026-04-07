@@ -15,67 +15,94 @@ const INTENTS = new Set([
   "business_listing"
 ]);
 
+const ASSIST_OUTPUT_MAX_CHARS = 380;
+const PRODUCT_OVERVIEW_MAX_CHARS = 320;
+
+/** Collapse extra newlines; trim to maxLen, preferring end at sentence boundary. */
+function clipAssistText(text, maxLen) {
+  let t = String(text || "")
+    .trim()
+    .replace(/\n{3,}/g, "\n\n");
+  if (t.length <= maxLen) {
+    return t;
+  }
+  const cut = t.slice(0, maxLen);
+  const lastSentence = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "));
+  if (lastSentence > Math.floor(maxLen * 0.45)) {
+    return cut.slice(0, lastSentence + 1).trim();
+  }
+  return `${cut.trimEnd()}…`;
+}
+
 function systemPromptForIntent(intent) {
   const base =
     "You are a writing assistant for Deenly, a respectful Muslim community and marketplace app. " +
     "Do not give religious rulings, fatwas, or medical/legal advice. " +
     "Do not invent prices, guarantees, refunds, or product facts the user did not state. " +
-    "Output plain text only: no markdown fences, no preamble or closing remarks. " +
-    "Keep wording concise and non-pushy. Avoid repeating points, adjectives, or calls to action. " +
-    "Use at most one calm call to action.";
+    "Output plain text only: no markdown, no bullets, no numbered lists, no preamble or sign-off. " +
+    "Tone: clear value proposition — who benefits, what they get, factual only. " +
+    "No hype, urgency, scarcity, superlatives, or pushy sales language. At most one calm next step.";
 
   if (intent === "service_details_generate") {
     return (
       base +
-      " The creator provided KEY POINTS (bullets or short notes) about a service offer. " +
-      "Write a concise listing description in exactly 4 short lines: (1) what is included, (2) who it is for, (3) how delivery works, (4) one calm next step. " +
-      "Expand only from what the key points imply; do not invent guarantees, timelines, credentials, urgency, or scarcity. " +
-      "Match the user's language. Max about 520 characters."
+      " Input: KEY POINTS about a service. " +
+      "Output exactly 4 lines separated by single newlines (no other formatting). " +
+      "Line 1: headline naming the offer (max 52 characters). " +
+      "Line 2: who it is for (max 78 characters). " +
+      "Line 3: what is included (max 78 characters). " +
+      "Line 4: how delivery works plus one soft next step (max 88 characters). " +
+      "Infer only from key points; do not invent credentials, timelines, or guarantees. " +
+      "Total under 300 characters. Match the user's language."
     );
   }
 
   if (intent === "marketplace_listing") {
     return (
       base +
-      " Rewrite the user's draft as a concise marketplace post body in 3-5 short lines: what it is, who it helps, what is included, and one calm next step. " +
-      "Keep the same language as the user (e.g. English if they wrote English). " +
-      "Do not use hype, pressure words, or repeated claims. Max about 420 characters."
+      " Rewrite the draft as exactly 3 lines separated by newlines. " +
+      "Line 1 headline what it is (max 52 chars). Line 2 who it helps (max 78). Line 3 what is included and one calm next step (max 88). " +
+      "Same language as the user. Under 220 characters total."
     );
   }
   if (intent === "product_listing") {
     return (
       base +
-      " Rewrite the user's draft as a concise product description in 3-5 short lines: what buyer gets, who it is for, and one calm next step. " +
-      "Keep the same language as the user. Do not use hype or repeated wording. Max about 420 characters."
+      " Rewrite as exactly 3 lines separated by newlines. " +
+      "Line 1 headline: what the buyer gets (max 52 chars). Line 2 who it is for (max 78). Line 3 essentials + one calm next step (max 88). " +
+      "Same language as the user. Under 220 characters total."
     );
   }
   if (intent === "event_listing") {
     return (
       base +
-      " Rewrite the user's notes as a concise public event description in 4-6 short lines: what the event is, who it is for, timing (only if the user stated it), location or online access (only if stated), and one calm next step (e.g. RSVP). " +
-      "Do not invent dates, times, venues, links, prices, or capacity. Same language as the user. Max about 520 characters."
+      " Rewrite notes as exactly 3 lines separated by newlines. " +
+      "Line 1 event name/what it is (max 52). Line 2 audience + timing or location only if user stated (max 88). " +
+      "Line 3 access or format + one calm next step e.g. RSVP (max 88). " +
+      "Do not invent dates, venues, prices, or links. Same language as user. Under 260 characters total."
     );
   }
   if (intent === "business_listing") {
     return (
       base +
-      " Rewrite the user's notes as a concise business profile description in 3-5 short lines: what they offer, who it helps, and one calm next step. " +
-      "Use only what the user implied; do not invent hours, prices, or contact details not given. Same language as the user. Max about 480 characters."
+      " Rewrite notes as exactly 3 lines separated by newlines: headline what they offer (max 52), who it serves (max 78), " +
+      "credibility or scope from notes only + one soft next step (max 88). " +
+      "Do not invent hours, prices, or contact details. Same language as user. Under 220 characters total."
     );
   }
   return (
     base +
-    " Polish the user's post for clarity and respectful tone. Keep their meaning and voice in 2-4 short lines. " +
-    "Same language as the user. Avoid repeated wording. Max about 380 characters."
+    " Polish for clarity and respectful tone in exactly 2 or 3 short lines separated by newlines (max 72 chars per line). " +
+    "Keep the user's meaning and language. Under 200 characters total."
   );
 }
 
 const productOverviewSystem =
   "You summarize a creator product for shoppers on Deenly. " +
-  "Use ONLY the facts given in PRODUCT FACTS. Do not invent price, delivery, refunds, guarantees, or features not stated. " +
-  "No religious rulings or legal/medical advice. Plain text only. " +
-  "Write exactly 3 concise sentences: (1) what it is, (2) what buyer gets, (3) who it fits best and one calm next step. " +
-  "No pressure language. No repeated phrasing. Max about 420 characters.";
+  "Use ONLY PRODUCT FACTS. Do not invent delivery, refunds, guarantees, or features not stated. " +
+  "No religious rulings or legal/medical advice. Plain text, two sentences only, separated by a space. " +
+  "Sentence 1: what it is and core outcome. Sentence 2: who it fits and one calm next step (e.g. see listing for details). " +
+  "No hype or repeated ideas. Under 240 characters total.";
 
 const commentSystem =
   "You help users comment respectfully on Deenly. " +
@@ -166,11 +193,11 @@ function createAiRouter({ config, db, logger }) {
           { role: "system", content: systemPromptForIntent(intent) },
           { role: "user", content: draft }
         ],
-        maxTokens: 260,
+        maxTokens: 140,
         logger
       });
 
-      const clipped = suggestion.length > 680 ? `${suggestion.slice(0, 677).trimEnd()}…` : suggestion;
+      const clipped = clipAssistText(suggestion, ASSIST_OUTPUT_MAX_CHARS);
       res.status(200).json({ suggestion: clipped, intent, disclaimer: "ai_generated" });
     })
   );
@@ -221,11 +248,11 @@ function createAiRouter({ config, db, logger }) {
           { role: "system", content: productOverviewSystem },
           { role: "user", content: `PRODUCT FACTS:\n${facts}` }
         ],
-        maxTokens: 220,
+        maxTokens: 100,
         timeoutMs: 60000,
         logger
       });
-      const clipped = summary.length > 520 ? `${summary.slice(0, 517).trimEnd()}…` : summary;
+      const clipped = clipAssistText(summary, PRODUCT_OVERVIEW_MAX_CHARS);
       res.status(200).json({ summary: clipped, disclaimer: "ai_generated" });
     })
   );

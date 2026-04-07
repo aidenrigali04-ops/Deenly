@@ -516,3 +516,60 @@ a {
 .profile-post-grid-tight {
   @apply gap-0.5 sm:gap-1;
 }
+
+/* Profile feed: card layout (not 3-up square mosaic) */
+.profile-feed-cards {
+  @apply grid grid-cols-1 gap-4 sm:grid-cols-2;
+}
+
+.profile-feed-card {
+  @apply flex flex-col overflow-hidden rounded-panel border border-black/10 bg-surface text-left shadow-sm;
+}
+
+.profile-feed-card-media-wrap {
+  @apply relative block w-full overflow-hidden bg-black/[0.04] text-left;
+}
+
+.profile-feed-card-media-inner {
+  @apply aspect-[4/3] w-full;
+}
+
+.profile-feed-card-img {
+  @apply h-full w-full object-cover;
+}
+
+.profile-feed-card-fallback {
+  @apply flex h-full w-full items-center justify-center bg-surface px-3 text-center text-xs font-medium text-muted;
+}
+
+.profile-feed-card-fallback-video {
+  @apply bg-black/80 text-white/80;
+}
+
+.profile-feed-card-badge {
+  @apply absolute right-2 top-2 rounded-pill border border-white/20 bg-black/70 px-2 py-0.5 text-[10px] font-semibold text-white;
+}
+
+.profile-feed-card-shop-badge {
+  @apply absolute bottom-2 right-2 rounded-pill border border-white/20 bg-emerald-700/90 px-2 py-0.5 text-[10px] font-semibold text-white;
+}
+
+.profile-feed-card-body {
+  @apply flex flex-col gap-1 border-t border-black/10 px-3 py-2;
+}
+
+.profile-feed-card-caption {
+  @apply line-clamp-2 text-xs leading-snug text-text/90;
+}
+
+.profile-feed-card-actions {
+  @apply flex items-center gap-2 text-[11px] text-muted;
+}
+
+.profile-feed-card-like-btn {
+  @apply rounded-pill border border-black/10 bg-transparent px-2 py-0.5 text-[11px] font-medium text-muted transition hover:border-black/20 hover:bg-black/[0.04] hover:text-text disabled:opacity-50;
+}
+
+.profile-feed-card-like-count {
+  @apply tabular-nums text-[11px] text-muted;
+}

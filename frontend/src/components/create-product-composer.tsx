@@ -132,6 +132,8 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
   const [newProductServiceKeyPoints, setNewProductServiceKeyPoints] = useState("");
   const [serviceAssistError, setServiceAssistError] = useState("");
   const [serviceAssistPending, setServiceAssistPending] = useState(false);
+  const [productAiPreview, setProductAiPreview] = useState<string | null>(null);
+  const [serviceAiPreview, setServiceAiPreview] = useState<string | null>(null);
   const [lastCreated, setLastCreated] = useState<CreatorProduct | null>(null);
   const [publishError, setPublishError] = useState("");
   const [stripeImportItems, setStripeImportItems] = useState<StripeProductImportRow[]>([]);
@@ -222,6 +224,9 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
     setNewProductFormError("");
     setStripeImportItems([]);
     setImportError("");
+    setProductAiPreview(null);
+    setServiceAiPreview(null);
+    setAssistError("");
   };
 
   useEffect(() => {
@@ -356,7 +361,7 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
     setAssistPending(true);
     try {
       const res = await assistPostText(draft, "product_listing");
-      setNewProductDescription(res.suggestion);
+      setProductAiPreview(res.suggestion);
     } catch (e) {
       setAssistError(e instanceof ApiError ? e.message : "Could not improve text.");
     } finally {
@@ -381,7 +386,7 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
         keyPoints
       ].filter(Boolean) as string[];
       const res = await assistPostText(lines.join("\n"), "service_details_generate");
-      setNewProductServiceDetails(res.suggestion);
+      setServiceAiPreview(res.suggestion);
     } catch (e) {
       setServiceAssistError(e instanceof ApiError ? e.message : "Could not generate service description.");
     } finally {
@@ -752,6 +757,27 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
           maxLength={180}
           aria-label="Product title"
         />
+        {productAiPreview ? (
+          <div className="rounded-control border border-sky-200/80 bg-sky-50/60 px-3 py-2 text-xs">
+            <p className="font-medium text-text">Suggested short blurb</p>
+            <p className="mt-1 whitespace-pre-line text-text/90">{productAiPreview}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn-primary px-3 py-1 text-xs"
+                onClick={() => {
+                  setNewProductDescription(productAiPreview);
+                  setProductAiPreview(null);
+                }}
+              >
+                Use this
+              </button>
+              <button type="button" className="btn-secondary px-3 py-1 text-xs" onClick={() => setProductAiPreview(null)}>
+                Dismiss
+              </button>
+            </div>
+          </div>
+        ) : null}
         <textarea
           className="input min-h-24 resize-y bg-white"
           placeholder="Product or offer details"
@@ -759,13 +785,14 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
           onChange={(e) => setNewProductDescription(e.target.value)}
           aria-label="Product description"
         />
+        <p className="text-[11px] text-muted">{newProductDescription.length} characters · keep it skimmable</p>
         <button
           type="button"
           className="btn-secondary px-3 py-1.5 text-xs"
           onClick={() => void onImproveDescription()}
           disabled={assistPending}
         >
-          {assistPending ? "Refining…" : "Refine description"}
+          {assistPending ? "Working…" : "Short value blurb"}
         </button>
         {assistError ? (
           <p className="text-xs text-red-600" role="alert">
@@ -799,21 +826,43 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
               onClick={() => void onGenerateServiceDescription()}
               disabled={serviceAssistPending}
             >
-              {serviceAssistPending ? "Generating…" : "Generate concise draft"}
+              {serviceAssistPending ? "Working…" : "Short value blurb from key points"}
             </button>
             {serviceAssistError ? (
               <p className="text-xs text-red-600" role="alert">
                 {serviceAssistError}
               </p>
             ) : null}
-            <p className="text-xs text-muted">Concise draft appears below — edit as needed.</p>
+            <p className="text-xs text-muted">You’ll get a short suggestion — use it only if it fits your offer.</p>
+            {serviceAiPreview ? (
+              <div className="rounded-control border border-sky-200/80 bg-sky-50/60 px-3 py-2 text-xs">
+                <p className="font-medium text-text">Suggested service blurb</p>
+                <p className="mt-1 whitespace-pre-line text-text/90">{serviceAiPreview}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="btn-primary px-3 py-1 text-xs"
+                    onClick={() => {
+                      setNewProductServiceDetails(serviceAiPreview);
+                      setServiceAiPreview(null);
+                    }}
+                  >
+                    Use this
+                  </button>
+                  <button type="button" className="btn-secondary px-3 py-1 text-xs" onClick={() => setServiceAiPreview(null)}>
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            ) : null}
             <textarea
               className="input min-h-28 resize-y bg-white"
-              placeholder="Service description & value proposition (generated or write your own)"
+              placeholder="Service description (write your own or use a suggestion above)"
               value={newProductServiceDetails}
               onChange={(e) => setNewProductServiceDetails(e.target.value)}
               aria-label="Service details"
             />
+            <p className="text-[11px] text-muted">{newProductServiceDetails.length} characters</p>
           </div>
         )}
         <input

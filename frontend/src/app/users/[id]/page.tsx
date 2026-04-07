@@ -2,12 +2,16 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useParams, usePathname, useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchProductOverview } from "@/lib/ai-assist";
 import { apiRequest } from "@/lib/api";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { resolveMediaUrl } from "@/lib/media-url";
+import { ProfileCompactStats } from "@/components/profile/profile-compact-stats";
+import { ProfileFeedCards } from "@/components/profile/profile-feed-cards";
+import { ProfileLayoutColumns, ProfilePageShell } from "@/components/profile/profile-page-shell";
+import { ProfilePillTabs } from "@/components/profile/profile-pill-tabs";
 import { followUser, unfollowUser } from "@/lib/follows";
 import {
   createProductCheckout,
@@ -39,6 +43,18 @@ function productTypeLabel(t: PublicCreatorProduct["product_type"]) {
   if (t === "digital") return "Digital";
   if (t === "service") return "Service";
   return "Subscription";
+}
+
+/** Split AI summary into short lines for scannable UI. */
+function splitAiSummaryLines(text: string): string[] {
+  const t = text.trim();
+  if (!t) return [];
+  const byNl = t.split(/\n+/).map((s) => s.trim()).filter(Boolean);
+  if (byNl.length > 1) return byNl;
+  return t
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 function ProfileProductAiOverview({
@@ -80,15 +96,19 @@ function ProfileProductAiOverview({
         {open ? "Hide quick summary" : "Quick summary"}
       </button>
       {open ? (
-        <div className="mt-2 text-xs leading-relaxed text-text/90">
+        <div className="mt-2 text-xs leading-snug text-text/90">
           {overviewMutation.isPending ? (
             <p className="text-muted">Generating quick summary…</p>
           ) : overviewMutation.isError ? (
             <p className="text-red-600">{(overviewMutation.error as Error).message}</p>
           ) : overviewMutation.data ? (
-            <p className="whitespace-pre-line">{overviewMutation.data.summary}</p>
+            <ul className="list-disc space-y-1 pl-4 marker:text-muted">
+              {splitAiSummaryLines(overviewMutation.data.summary).map((line, i) => (
+                <li key={`${i}-${line.slice(0, 24)}`}>{line}</li>
+              ))}
+            </ul>
           ) : null}
-          <p className="mt-2 text-[10px] text-muted">AI-generated from listing facts only. Use as a quick guide.</p>
+          <p className="mt-1.5 text-[10px] text-muted">From listing facts only — quick guide, not advice.</p>
         </div>
       ) : null}
     </div>
@@ -128,12 +148,18 @@ type FeedResponse = {
   items: ProfileFeedItem[];
 };
 
-type ProfileSectionTab = "grid" | "reels" | "saved" | "tagged" | "products" | "listings";
+type ProfileSectionTab = "grid" | "reels" | "products" | "listings";
+
+const PUBLIC_PROFILE_TABS = [
+  { id: "grid" as const, label: "Posts" },
+  { id: "products" as const, label: "Products" },
+  { id: "reels" as const, label: "Media" },
+  { id: "listings" as const, label: "Listings" }
+];
 
 export default function UserProfilePage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const pathname = usePathname();
   const sessionUser = useSessionStore((state) => state.user);
   const userId = Number(params.id);
   const [profileSectionTab, setProfileSectionTab] = useState<ProfileSectionTab>("grid");
@@ -289,7 +315,7 @@ export default function UserProfilePage() {
 
   const profileItems = postsQuery.data?.items || [];
   const visibleItems =
-    profileSectionTab === "saved" || profileSectionTab === "tagged" || profileSectionTab === "products"
+    profileSectionTab === "products"
       ? []
       : profileSectionTab === "reels"
         ? profileItems.filter((item) => Boolean(item.media_url))
@@ -299,32 +325,37 @@ export default function UserProfilePage() {
 
   const loginNext = encodeURIComponent(`/users/${userId}`);
 
+  const displayTitle = user.display_name?.trim() || `@${user.username || "user"}`;
+  const usernameLine = user.display_name?.trim() ? `@${user.username || "user"}` : null;
+
+  const avatarBlock =
+    avatarUrl ? (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={avatarUrl}
+        alt={`${user.display_name} avatar`}
+        className="profile-avatar profile-hero-avatar h-[96px] w-[96px] border-black/15 object-cover md:h-[120px] md:w-[120px]"
+      />
+    ) : (
+      <div className="profile-avatar profile-hero-avatar grid h-[96px] w-[96px] place-items-center border-black/15 md:h-[120px] md:w-[120px]">
+        {initials}
+      </div>
+    );
+
   return (
     <div className="page-stack">
-      <section className="mx-auto w-full max-w-4xl">
-        <article className="surface-card rounded-b-2xl border border-black/10 px-4 pb-6 pt-6 shadow-soft md:px-8">
-          <div className="flex flex-col gap-6 md:flex-row md:items-start">
-            <div className="flex shrink-0 justify-center md:block">
-              {avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={avatarUrl}
-                  alt={`${user.display_name} avatar`}
-                  className="profile-avatar profile-hero-avatar h-[96px] w-[96px] border-black/15 object-cover md:h-[120px] md:w-[120px]"
-                />
-              ) : (
-                <div className="profile-avatar profile-hero-avatar grid h-[96px] w-[96px] place-items-center border-black/15 md:h-[120px] md:w-[120px]">
-                  {initials}
-                </div>
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-xl font-semibold tracking-tight text-text md:text-2xl">
-                    @{user.username || "user"}
-                  </h1>
-                  {user.is_verified ? <ProfileVerifiedBadge /> : null}
+      <ProfilePageShell variant="compactFooter">
+        <ProfileLayoutColumns
+          avatar={avatarBlock}
+          main={
+            <>
+              <div className="flex flex-wrap items-start gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h1 className="text-xl font-semibold tracking-tight text-text md:text-2xl">{displayTitle}</h1>
+                    {user.is_verified ? <ProfileVerifiedBadge /> : null}
+                  </div>
+                  {usernameLine ? <p className="mt-0.5 text-sm text-muted">{usernameLine}</p> : null}
                 </div>
                 <button
                   type="button"
@@ -346,28 +377,20 @@ export default function UserProfilePage() {
                   </Link>
                 ) : null}
               </div>
-              <div className="mt-6 flex flex-wrap gap-8 text-sm">
-                <div>
-                  <p className="text-base font-semibold tabular-nums text-text">{user.posts_count.toLocaleString()}</p>
-                  <p className="text-xs text-muted">posts</p>
-                </div>
-                <div>
-                  <p className="text-base font-semibold tabular-nums text-text">{user.followers_count.toLocaleString()}</p>
-                  <p className="text-xs text-muted">followers</p>
-                </div>
-                <div>
-                  <p className="text-base font-semibold tabular-nums text-text">{user.following_count.toLocaleString()}</p>
-                  <p className="text-xs text-muted">following</p>
-                </div>
-              </div>
-              <p className="mt-4 text-xs text-muted">
+
+              <ProfileCompactStats
+                className="mt-4"
+                postsCount={user.posts_count}
+                followersCount={user.followers_count}
+                followingCount={user.following_count}
+              />
+              <p className="mt-3 text-xs text-muted">
                 Salah tracking stays on your own account — not shown on someone else&apos;s profile.
               </p>
-              <p className="mt-3 font-semibold text-text">{user.display_name}</p>
-              {user.bio ? <p className="mt-2 whitespace-pre-line text-sm text-text/90">{user.bio}</p> : null}
+              {user.bio ? <p className="mt-3 whitespace-pre-line text-sm text-text/90">{user.bio}</p> : null}
               {user.business_offering ? (
                 <div className="mt-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">Business / offering</p>
+                  <p className="text-xs font-semibold text-muted">Offering</p>
                   <p className="mt-1 whitespace-pre-line text-sm text-text/90">{user.business_offering}</p>
                 </div>
               ) : null}
@@ -385,34 +408,9 @@ export default function UserProfilePage() {
               ) : null}
               {followMutation.isSuccess ? <p className="mt-2 text-xs text-emerald-700">You&apos;re now following {user.display_name}.</p> : null}
               {unfollowMutation.isSuccess ? <p className="mt-2 text-xs text-muted">Unfollowed.</p> : null}
-              <div className="mt-6 border-t border-black/10 pt-4">
-                <div className="flex flex-wrap justify-center gap-6 md:gap-10">
-                  {(
-                    [
-                      { id: "grid" as const, label: "Posts" },
-                      { id: "products" as const, label: "Products" },
-                      { id: "reels" as const, label: "Media" },
-                      { id: "listings" as const, label: "Listings" },
-                      { id: "saved" as const, label: "Saved" },
-                      { id: "tagged" as const, label: "Tagged" }
-                    ] as const
-                  ).map((tab) => (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => setProfileSectionTab(tab.id)}
-                      className={`relative pb-3 text-xs font-semibold uppercase tracking-wide transition ${
-                        profileSectionTab === tab.id ? "text-text" : "text-muted hover:text-text"
-                      }`}
-                    >
-                      {tab.label}
-                      {profileSectionTab === tab.id ? (
-                        <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-text" />
-                      ) : null}
-                    </button>
-                  ))}
-                </div>
-              </div>
+
+              <ProfilePillTabs tabs={PUBLIC_PROFILE_TABS} active={profileSectionTab} onChange={setProfileSectionTab} />
+
               <div className="pt-6">
                 {profileSectionTab === "products" ? (
                   <>
@@ -511,14 +509,7 @@ export default function UserProfilePage() {
                   <>
                     {postsQuery.isLoading ? <LoadingState label="Loading posts..." /> : null}
                     {postsQuery.error ? <ErrorState message={(postsQuery.error as Error).message} /> : null}
-                    {!postsQuery.isLoading && !postsQuery.error && (profileSectionTab === "saved" || profileSectionTab === "tagged") ? (
-                      <div className="py-16 text-center text-sm text-muted">Coming soon.</div>
-                    ) : null}
-                    {!postsQuery.isLoading &&
-                    !postsQuery.error &&
-                    visibleItems.length === 0 &&
-                    profileSectionTab !== "saved" &&
-                    profileSectionTab !== "tagged" ? (
+                    {!postsQuery.isLoading && !postsQuery.error && visibleItems.length === 0 ? (
                       <div className="py-16 text-center text-sm text-muted">
                         {profileSectionTab === "listings"
                           ? "No marketplace listings from this member yet."
@@ -526,58 +517,20 @@ export default function UserProfilePage() {
                       </div>
                     ) : null}
                     {visibleItems.length > 0 ? (
-                  <div className="profile-post-grid profile-post-grid-tight">
-                    {visibleItems.map((item) => {
-                      const mediaUrl = resolveMediaUrl(item.media_url) || undefined;
-                      const isImage = item.media_mime_type?.startsWith("image/");
-                      const isVideo = item.media_mime_type?.startsWith("video/");
-                      const fallbackLabel = item.content?.trim().slice(0, 26) || "Post";
-                      return (
-                        <article key={item.id} className="profile-grid-tile">
-                          <button
-                            type="button"
-                            className="profile-grid-open"
-                            onClick={() => router.push(`/posts/${item.id}`)}
-                            aria-label={`Open post ${item.id}`}
-                          >
-                            {mediaUrl ? (
-                              isImage ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={mediaUrl} alt="post media" className="profile-grid-media" />
-                              ) : (
-                                <div className="profile-grid-fallback profile-grid-fallback-video">Video</div>
-                              )
-                            ) : (
-                              <div className="profile-grid-fallback">{fallbackLabel}</div>
-                            )}
-                            {isVideo ? <span className="profile-grid-badge">Video</span> : null}
-                            {item.post_type === "marketplace" ? (
-                              <span className="absolute bottom-2 right-2 rounded-pill border border-white/20 bg-emerald-700/90 px-2 py-0.5 text-[10px] font-semibold text-white">
-                                Shop
-                              </span>
-                            ) : null}
-                          </button>
-                          <button
-                            className="profile-grid-like"
-                            onClick={() => likeMutation.mutate(item.id)}
-                            disabled={likeMutation.isPending}
-                            type="button"
-                          >
-                            {likeMutation.isPending ? "..." : "Like"}
-                          </button>
-                          <span className="profile-grid-count">{item.benefited_count || 0}</span>
-                        </article>
-                      );
-                    })}
-                  </div>
-                ) : null}
+                      <ProfileFeedCards
+                        items={visibleItems}
+                        router={router}
+                        onLike={(id) => likeMutation.mutate(id)}
+                        likePending={likeMutation.isPending}
+                      />
+                    ) : null}
                   </>
                 )}
               </div>
-            </div>
-          </div>
-        </article>
-      </section>
+            </>
+          }
+        />
+      </ProfilePageShell>
       <section className="profile-shell mx-auto w-full max-w-4xl">
         <article className="surface-card px-6 py-6">
           <div className="grid grid-cols-2 gap-2 text-xs text-muted">

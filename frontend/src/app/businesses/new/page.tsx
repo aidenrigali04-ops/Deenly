@@ -60,6 +60,7 @@ export default function NewBusinessPage() {
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
   const [locating, setLocating] = useState(false);
+  const [descriptionAiPreview, setDescriptionAiPreview] = useState<string | null>(null);
 
   const assistMutation = useMutation({
     mutationFn: async () => {
@@ -68,7 +69,7 @@ export default function NewBusinessPage() {
       return res.suggestion;
     },
     onSuccess: (suggestion) => {
-      setDescription(suggestion);
+      setDescriptionAiPreview(suggestion);
     }
   });
 
@@ -173,13 +174,57 @@ export default function NewBusinessPage() {
         </label>
         <label className="block text-xs font-semibold uppercase tracking-wide text-muted">
           Description
+          {descriptionAiPreview ? (
+            <div className="mt-1 rounded-control border border-sky-200/80 bg-sky-50/60 px-3 py-2 text-xs text-text">
+              <p className="font-medium">Suggested short blurb</p>
+              <p className="mt-1 whitespace-pre-line text-text/90">{descriptionAiPreview}</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="btn-primary px-3 py-1 text-xs"
+                  onClick={() => {
+                    setDescription(descriptionAiPreview);
+                    setDescriptionAiPreview(null);
+                  }}
+                >
+                  Use this
+                </button>
+                <button type="button" className="btn-secondary px-3 py-1 text-xs" onClick={() => setDescriptionAiPreview(null)}>
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          ) : null}
           <textarea
             className="input mt-1 min-h-24 w-full"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             disabled={phase === "map"}
           />
+          <p className="mt-1 text-[11px] text-muted">{description.length} characters</p>
         </label>
+        {phase === "profile" ? (
+          <div className="space-y-2">
+            <button
+              type="button"
+              className="btn-secondary w-full text-sm"
+              disabled={!canPolishDescription || assistMutation.isPending}
+              onClick={() => assistMutation.mutate()}
+            >
+              {assistMutation.isPending ? "Working…" : "Suggest short value blurb"}
+            </button>
+            {assistMutation.error ? (
+              <p className="text-sm text-rose-700">
+                {assistMutation.error instanceof ApiError
+                  ? assistMutation.error.message
+                  : "Could not suggest text. Try again."}
+              </p>
+            ) : null}
+            <p className="text-xs text-muted">
+              Uses your name, category, address, and notes. Review the suggestion — only use it if it fits.
+            </p>
+          </div>
+        ) : null}
         <label className="block text-xs font-semibold uppercase tracking-wide text-muted">
           Category
           <input
@@ -212,24 +257,6 @@ export default function NewBusinessPage() {
         {phase === "profile" ? (
           <>
             {profileError ? <ErrorState message={(profileError as Error).message} /> : null}
-            <button
-              type="button"
-              className="btn-secondary w-full text-sm"
-              disabled={!canPolishDescription || assistMutation.isPending}
-              onClick={() => assistMutation.mutate()}
-            >
-              {assistMutation.isPending ? "Polishing…" : "Polish description"}
-            </button>
-            {assistMutation.error ? (
-              <p className="text-sm text-rose-700">
-                {assistMutation.error instanceof ApiError
-                  ? assistMutation.error.message
-                  : "Could not polish. Try again."}
-              </p>
-            ) : null}
-            <p className="text-xs text-muted">
-              Uses your name, category, address, and notes—edit the result before saving.
-            </p>
             <button
               type="button"
               className="btn-primary w-full"

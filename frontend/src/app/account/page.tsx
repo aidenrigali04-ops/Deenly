@@ -10,6 +10,10 @@ import { resolveMediaUrl } from "@/lib/media-url";
 import { CreatePostComposer } from "@/components/create-post-composer";
 import { ErrorState, LoadingState } from "@/components/states";
 import { DeenStrip } from "@/components/profile/deen-strip";
+import { ProfileCompactStats } from "@/components/profile/profile-compact-stats";
+import { ProfileFeedCards } from "@/components/profile/profile-feed-cards";
+import { ProfileLayoutColumns, ProfilePageShell } from "@/components/profile/profile-page-shell";
+import { ProfilePillTabs } from "@/components/profile/profile-pill-tabs";
 
 type AccountProfile = {
   user_id: number;
@@ -54,9 +58,14 @@ function deriveMediaType(mimeType: string): "image" | "video" | null {
   return null;
 }
 
+const ACCOUNT_TABS = [
+  { id: "grid" as const, label: "Posts" },
+  { id: "reels" as const, label: "Media" }
+];
+
 export default function AccountPage() {
   const router = useRouter();
-  const [profileSectionTab, setProfileSectionTab] = useState<"grid" | "reels" | "saved" | "tagged">("grid");
+  const [profileSectionTab, setProfileSectionTab] = useState<"grid" | "reels">("grid");
   const [showProfileComposer, setShowProfileComposer] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState("");
@@ -113,14 +122,16 @@ export default function AccountPage() {
       .map((part) => part[0]?.toUpperCase())
       .join("") || "U";
   const avatarUrl = resolveMediaUrl(profile?.avatar_url || null);
+  const displayTitle = profile?.display_name?.trim() || `@${user.username || "user"}`;
+  const usernameLine = profile?.display_name?.trim()
+    ? `@${user.username || "user"}`
+    : null;
 
   const profileItems = postsQuery.data?.items || [];
   const visibleItems =
-    profileSectionTab === "saved" || profileSectionTab === "tagged"
-      ? []
-      : profileSectionTab === "reels"
-        ? profileItems.filter((item) => Boolean(item.media_url))
-        : profileItems;
+    profileSectionTab === "reels"
+      ? profileItems.filter((item) => Boolean(item.media_url))
+      : profileItems;
 
   const onProfilePostPublished = () => {
     setShowProfileComposer(false);
@@ -201,54 +212,57 @@ export default function AccountPage() {
     }
   };
 
+  const avatarBlock = (
+    <div className="relative">
+      {avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={avatarUrl}
+          alt="Profile avatar"
+          className="profile-avatar profile-hero-avatar h-[96px] w-[96px] border-black/15 object-cover text-2xl md:h-[120px] md:w-[120px]"
+        />
+      ) : (
+        <div className="profile-avatar profile-hero-avatar grid h-[96px] w-[96px] place-items-center border-black/15 text-2xl md:h-[120px] md:w-[120px]">
+          {initials}
+        </div>
+      )}
+      <button
+        type="button"
+        className="btn-secondary mt-3 w-full px-3 py-2 text-xs md:hidden"
+        disabled={avatarUploading}
+        onClick={() => avatarInputRef.current?.click()}
+      >
+        {avatarUploading ? "Uploading..." : "Change photo"}
+      </button>
+    </div>
+  );
+
   return (
     <div className="page-stack">
-      <section className="mx-auto w-full max-w-4xl">
-        <article className="surface-card rounded-b-2xl border border-black/10 px-4 pb-10 pt-6 shadow-soft md:px-8">
-          <div className="flex flex-col gap-6 md:flex-row md:items-start">
-            <div className="flex shrink-0 justify-center md:block">
-              <div className="relative">
-                {avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={avatarUrl}
-                    alt="Profile avatar"
-                    className="profile-avatar profile-hero-avatar h-[96px] w-[96px] border-black/15 object-cover text-2xl md:h-[120px] md:w-[120px]"
-                  />
-                ) : (
-                  <div className="profile-avatar profile-hero-avatar grid h-[96px] w-[96px] place-items-center border-black/15 text-2xl md:h-[120px] md:w-[120px]">
-                    {initials}
-                  </div>
-                )}
-                <button
-                  type="button"
-                  className="btn-secondary mt-3 w-full px-3 py-2 text-xs md:hidden"
-                  disabled={avatarUploading}
-                  onClick={() => avatarInputRef.current?.click()}
-                >
-                  {avatarUploading ? "Uploading..." : "Change photo"}
-                </button>
-              </div>
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-xl font-semibold tracking-tight text-text md:text-2xl">
-                  @{user.username || "user"}
-                </h1>
-                <Link
-                  href="/account/settings"
-                  className="rounded-lg p-1.5 text-muted transition hover:bg-black/[0.04] hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25 focus-visible:ring-offset-2 focus-visible:ring-offset-card"
-                  aria-label="Account settings"
-                >
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                    <circle cx="12" cy="12" r="3" />
-                    <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-                  </svg>
-                </Link>
-                <div className="hidden md:block">
+      <ProfilePageShell>
+        <ProfileLayoutColumns
+          avatar={avatarBlock}
+          main={
+            <>
+              <div className="flex flex-wrap items-start gap-3">
+                <div className="min-w-0 flex-1">
+                  <h1 className="text-xl font-semibold tracking-tight text-text md:text-2xl">{displayTitle}</h1>
+                  {usernameLine ? <p className="mt-0.5 text-sm text-muted">{usernameLine}</p> : null}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link
+                    href="/account/settings"
+                    className="rounded-lg p-1.5 text-muted transition hover:bg-black/[0.04] hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25 focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+                    aria-label="Account settings"
+                  >
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                    </svg>
+                  </Link>
                   <button
                     type="button"
-                    className="btn-secondary px-4 py-2 text-sm"
+                    className="btn-secondary hidden px-4 py-2 text-sm md:inline-flex"
                     disabled={avatarUploading}
                     onClick={() => avatarInputRef.current?.click()}
                   >
@@ -275,44 +289,33 @@ export default function AccountPage() {
               </div>
               {avatarError ? <p className="mt-2 text-xs text-rose-600">{avatarError}</p> : null}
 
-              <div className="mt-4">
+              <div className="mt-3">
                 <Link
                   href="/businesses/new"
-                  className="text-sm font-semibold text-sky-700 underline-offset-2 hover:underline"
+                  className="text-sm font-medium text-sky-700 underline-offset-2 hover:underline"
                   title="List your business for Near me and Search"
                 >
                   Add your business
                 </Link>
               </div>
 
-              <div className="mt-6 flex flex-wrap gap-8 text-sm">
-                <div>
-                  <p className="text-base font-semibold tabular-nums text-text">{(profile?.posts_count ?? 0).toLocaleString()}</p>
-                  <p className="text-xs text-muted">posts</p>
-                </div>
-                <div>
-                  <p className="text-base font-semibold tabular-nums text-text">{(profile?.followers_count ?? 0).toLocaleString()}</p>
-                  <p className="text-xs text-muted">followers</p>
-                </div>
-                <div>
-                  <p className="text-base font-semibold tabular-nums text-text">{(profile?.following_count ?? 0).toLocaleString()}</p>
-                  <p className="text-xs text-muted">following</p>
-                </div>
-              </div>
+              <ProfileCompactStats
+                className="mt-4"
+                postsCount={profile?.posts_count ?? 0}
+                followersCount={profile?.followers_count ?? 0}
+                followingCount={profile?.following_count ?? 0}
+              />
 
               <DeenStrip />
 
-              {profile?.display_name ? (
-                <p className="mt-4 font-semibold text-text">{profile.display_name}</p>
-              ) : null}
               {profile?.bio ? (
-                <p className="mt-2 whitespace-pre-line text-sm text-text/90">{profile.bio}</p>
+                <p className="mt-4 whitespace-pre-line text-sm text-text/90">{profile.bio}</p>
               ) : (
-                <p className="mt-2 text-sm text-muted">Add a short bio so friends know you on Deenly.</p>
+                <p className="mt-4 text-sm text-muted">Add a short bio so friends know you on Deenly.</p>
               )}
               {profile?.business_offering ? (
                 <div className="mt-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">Business / offering</p>
+                  <p className="text-xs font-semibold text-muted">Offering</p>
                   <p className="mt-1 whitespace-pre-line text-sm text-text/90">{profile.business_offering}</p>
                 </div>
               ) : null}
@@ -341,48 +344,11 @@ export default function AccountPage() {
                 Purchases, Creator hub, sessions, and inbox live under Settings.
               </p>
 
-              <div className="mt-6 flex gap-6 overflow-x-auto pb-1">
-                <button type="button" className="story-chip min-w-[68px] text-muted">
-                  <span className="story-ring story-ring-own inline-flex rounded-full border border-dashed border-black/25 p-[2px]">
-                    <span className="grid h-14 w-14 place-items-center rounded-full bg-surface text-lg font-light text-muted">+</span>
-                  </span>
-                  <span className="text-[11px] text-muted">Add</span>
-                </button>
-              </div>
-
-              <div className="mt-2 border-t border-black/10 pt-2">
-                <div className="flex justify-center gap-10 md:gap-14">
-                  {(
-                    [
-                      { id: "grid" as const, label: "Posts" },
-                      { id: "reels" as const, label: "Media" },
-                      { id: "saved" as const, label: "Saved" },
-                      { id: "tagged" as const, label: "Tagged" }
-                    ] as const
-                  ).map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => setProfileSectionTab(t.id)}
-                      className={`relative pb-3 text-xs font-semibold uppercase tracking-wide transition ${
-                        profileSectionTab === t.id ? "text-text" : "text-muted hover:text-text"
-                      }`}
-                    >
-                      {t.label}
-                      {profileSectionTab === t.id ? (
-                        <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-text" />
-                      ) : null}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <ProfilePillTabs tabs={ACCOUNT_TABS} active={profileSectionTab} onChange={setProfileSectionTab} />
 
               <div className="pt-6">
                 {postsQuery.isLoading ? <LoadingState label="Loading your posts..." /> : null}
                 {postsQuery.error ? <ErrorState message={(postsQuery.error as Error).message} /> : null}
-                {!postsQuery.isLoading && !postsQuery.error && (profileSectionTab === "saved" || profileSectionTab === "tagged") ? (
-                  <div className="py-16 text-center text-sm text-muted">Coming soon.</div>
-                ) : null}
                 {!postsQuery.isLoading &&
                 !postsQuery.error &&
                 (profileSectionTab === "grid" || profileSectionTab === "reels") &&
@@ -407,9 +373,7 @@ export default function AccountPage() {
                   : null}
                 {!postsQuery.isLoading &&
                 !postsQuery.error &&
-                visibleItems.length === 0 &&
-                profileSectionTab !== "saved" &&
-                profileSectionTab !== "tagged" ? (
+                visibleItems.length === 0 ? (
                   showProfileComposer ? (
                     profileInlineComposer(false)
                   ) : (
@@ -433,51 +397,18 @@ export default function AccountPage() {
                   )
                 ) : null}
                 {visibleItems.length > 0 ? (
-                  <div className="profile-post-grid profile-post-grid-tight">
-                    {visibleItems.map((item) => {
-                      const mediaUrl = resolveMediaUrl(item.media_url) || undefined;
-                      const isImage = item.media_mime_type?.startsWith("image/");
-                      const isVideo = item.media_mime_type?.startsWith("video/");
-                      const fallbackLabel = item.content?.trim().slice(0, 26) || "Post";
-                      return (
-                        <article key={item.id} className="profile-grid-tile">
-                          <button
-                            type="button"
-                            className="profile-grid-open"
-                            onClick={() => router.push(`/posts/${item.id}`)}
-                            aria-label={`Open post ${item.id}`}
-                          >
-                            {mediaUrl ? (
-                              isImage ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={mediaUrl} alt="post media" className="profile-grid-media" />
-                              ) : (
-                                <div className="profile-grid-fallback profile-grid-fallback-video">Video</div>
-                              )
-                            ) : (
-                              <div className="profile-grid-fallback">{fallbackLabel}</div>
-                            )}
-                            {isVideo ? <span className="profile-grid-badge">Video</span> : null}
-                          </button>
-                          <button
-                            className="profile-grid-like"
-                            onClick={() => likeMutation.mutate(item.id)}
-                            disabled={likeMutation.isPending}
-                            type="button"
-                          >
-                            {likeMutation.isPending ? "..." : "Like"}
-                          </button>
-                          <span className="profile-grid-count">{item.benefited_count || 0}</span>
-                        </article>
-                      );
-                    })}
-                  </div>
+                  <ProfileFeedCards
+                    items={visibleItems}
+                    router={router}
+                    onLike={(id) => likeMutation.mutate(id)}
+                    likePending={likeMutation.isPending}
+                  />
                 ) : null}
               </div>
-            </div>
-          </div>
-        </article>
-      </section>
+            </>
+          }
+        />
+      </ProfilePageShell>
     </div>
   );
 }
