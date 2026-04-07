@@ -2,6 +2,7 @@
   "expo": {
     "name": "Deenly Mobile",
     "slug": "deenly",
+    "scheme": "deenly",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,6 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.deenly.deenly",
+      "associatedDomains": ["applinks:deenly.app"],
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Deenly uses your location to show small businesses near you and to place your listing on the map.",
         "ITSAppUsesNonExemptEncryption": false,
@@ -23,6 +25,20 @@
       }
     },
     "android": {
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "deenly.app",
+              "pathPrefix": "/events"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",

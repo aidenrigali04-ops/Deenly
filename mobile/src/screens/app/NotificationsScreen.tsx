@@ -1,7 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { apiRequest } from "../../lib/api";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
+import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { colors } from "../../theme";
 
 type NotificationItem = {
@@ -54,6 +57,10 @@ function notificationTitle(item: NotificationItem): string {
   if (item.type === "new_follower") {
     return `${who} started following you`;
   }
+  if (item.type === "event_invited") {
+    const hostName = payloadStr(p, "hostDisplayName");
+    return hostName ? `${hostName} invited you to an event` : `${who} invited you to an event`;
+  }
   return item.type.replace(/_/g, " ");
 }
 
@@ -68,10 +75,14 @@ function notificationDetail(item: NotificationItem): string | null {
   if (item.type === "post_comment") {
     return payloadStr(p, "commentPreview");
   }
+  if (item.type === "event_invited") {
+    return payloadStr(p, "title");
+  }
   return null;
 }
 
 export function NotificationsScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: ["mobile-notifications"],
@@ -99,14 +110,18 @@ export function NotificationsScreen() {
       <View style={styles.stack}>
         {query.data?.items.map((item) => {
           const detail = notificationDetail(item);
-          return (
-            <View key={item.id} style={styles.card}>
+          const eventIdNav = item.type === "event_invited" ? payloadNum(item.payload, "eventId") : null;
+          const inner = (
+            <>
               <Text style={styles.title}>
                 {notificationTitle(item)}
                 {!item.is_read ? <Text style={styles.newBadge}> · New</Text> : null}
               </Text>
               <Text style={styles.muted}>{new Date(item.created_at).toLocaleString()}</Text>
               {detail ? <Text style={styles.detail}>{detail}</Text> : null}
+              {eventIdNav != null ? (
+                <Text style={styles.openHint}>Tap to open event</Text>
+              ) : null}
               {!item.is_read ? (
                 <Pressable
                   style={styles.buttonSecondary}
@@ -115,6 +130,22 @@ export function NotificationsScreen() {
                   <Text style={styles.buttonText}>Mark read</Text>
                 </Pressable>
               ) : null}
+            </>
+          );
+          if (eventIdNav != null) {
+            return (
+              <Pressable
+                key={item.id}
+                style={({ pressed }) => [styles.card, pressed ? styles.cardPressed : null]}
+                onPress={() => navigation.navigate("EventDetail", { id: eventIdNav })}
+              >
+                {inner}
+              </Pressable>
+            );
+          }
+          return (
+            <View key={item.id} style={styles.card}>
+              {inner}
             </View>
           );
         })}
@@ -147,6 +178,15 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 14,
     gap: 6
+  },
+  cardPressed: {
+    opacity: 0.92
+  },
+  openHint: {
+    color: colors.accent,
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 2
   },
   title: {
     color: colors.text,

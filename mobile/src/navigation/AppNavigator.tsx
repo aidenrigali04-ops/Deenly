@@ -1,8 +1,14 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import * as Linking from "expo-linking";
 import { AtmosphereBackdrop } from "../components/AtmosphereBackdrop";
 import { TabBarGlassBackground } from "../components/TabBarGlassBackground";
-import { NavigationContainer, DefaultTheme, NavigatorScreenParams } from "@react-navigation/native";
+import {
+  NavigationContainer,
+  DefaultTheme,
+  NavigatorScreenParams,
+  type LinkingOptions
+} from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useQuery } from "@tanstack/react-query";
@@ -52,6 +58,7 @@ import { CreateEventScreen } from "../screens/app/CreateEventScreen";
 import { EventDetailScreen } from "../screens/app/EventDetailScreen";
 import { NavTabIcon } from "../components/icons/NavTabIcon";
 import { BusinessPersonalizerOverlay } from "../components/BusinessPersonalizerOverlay";
+import { getWebAppBaseUrl } from "../lib/web-app";
 
 export type AppTabParamList = {
   HomeTab: undefined;
@@ -99,7 +106,7 @@ export type RootStackParamList = {
   NavigateApp: undefined;
   AdminHub: undefined;
   CreateEvent: undefined;
-  EventDetail: { id: number };
+  EventDetail: { id: number; inviteToken?: string };
 };
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
@@ -295,8 +302,47 @@ export function AppNavigator() {
     }
   };
 
+  const linking = useMemo((): LinkingOptions<RootStackParamList> => {
+    const webOrigin = getWebAppBaseUrl().replace(/\/$/, "");
+    const prefixes = [Linking.createURL("/"), webOrigin, "deenly://"];
+    const eventDetail = {
+      EventDetail: {
+        path: "events/:id" as const,
+        parse: {
+          id: (id: string) => parseInt(id, 10),
+          inviteToken: (token?: string) =>
+            typeof token === "string" && token.trim() ? token.trim() : undefined
+        }
+      }
+    };
+    if (user) {
+      return {
+        prefixes,
+        config: {
+          screens: {
+            AppTabs: "",
+            PostDetail: "posts/:id",
+            UserProfile: "users/:id",
+            ...eventDetail
+          }
+        }
+      };
+    }
+    return {
+      prefixes,
+      config: {
+        screens: {
+          Welcome: "",
+          Login: "login",
+          Signup: "signup",
+          ...eventDetail
+        }
+      }
+    };
+  }, [user]);
+
   return (
-    <NavigationContainer theme={navTheme}>
+    <NavigationContainer theme={navTheme} linking={linking}>
       <Fragment>
         <RootStack.Navigator
           screenOptions={{
@@ -310,6 +356,7 @@ export function AppNavigator() {
               <RootStack.Screen name="Welcome" component={WelcomeScreen} options={{ headerShown: false }} />
               <RootStack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
               <RootStack.Screen name="Signup" component={SignupScreen} options={{ headerShown: false }} />
+              <RootStack.Screen name="EventDetail" component={EventDetailScreen} options={{ title: "Event" }} />
             </>
           ) : (
             <>

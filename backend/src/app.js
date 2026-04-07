@@ -272,7 +272,15 @@ function createApp({
   apiRouter.use("/ads", createAdsRouter({ db, config, analytics: app.locals.analytics }));
   apiRouter.use("/creator", createCreatorRouter({ db, config, mediaStorage: app.locals.mediaStorage }));
   apiRouter.use("/businesses", createBusinessesRouter({ db, config }));
-  apiRouter.use("/events", createEventsRouter({ db, config, analytics: app.locals.analytics }));
+    apiRouter.use(
+      "/events",
+      createEventsRouter({
+        db,
+        config,
+        analytics: app.locals.analytics,
+        pushNotifications: app.locals.pushNotifications
+      })
+    );
   apiRouter.use("/geocode", createGeocodeRouter());
   apiRouter.use("/ai", createAiRouter({ config, db, logger }));
 

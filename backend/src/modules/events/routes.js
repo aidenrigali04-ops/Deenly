@@ -1,4 +1,5 @@
 const express = require("express");
+const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const { authenticate, requireAccessSecret } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
@@ -8,6 +9,24 @@ const {
   throwIfUserFacingPolicyViolation,
   throwIfAnyUserFacingPolicyViolation
 } = require("../../utils/content-safety");
+const { createNotification } = require("../../services/notifications");
+
+function hashInviteToken(plain) {
+  return crypto.createHash("sha256").update(String(plain || "").trim(), "utf8").digest("hex");
+}
+
+function generateInviteToken() {
+  return crypto.randomBytes(24).toString("base64url");
+}
+
+function inviteTokenFromQuery(query) {
+  const raw = query?.inviteToken;
+  const s = typeof raw === "string" ? raw : Array.isArray(raw) && typeof raw[0] === "string" ? raw[0] : "";
+  if (!s) {
+    return null;
+  }
+  return optionalString(String(s), "inviteToken", 200);
+}
 
 const RSVP_STATUSES = new Set(["interested", "going"]);
 const EVENT_VISIBILITY = new Set(["public", "private", "invite"]);
@@ -121,7 +140,7 @@ async function getOptionalViewerId({ db, config, authorization }) {
   }
 }
 
-async function loadEventAccess({ db, eventId, viewerId }) {
+async function loadEventAccess({ db, eventId, viewerId, inviteToken }) {
   const access = await db.query(
     `SELECT e.id, e.host_user_id, e.visibility, e.status, e.starts_at, e.ends_at,
             (
@@ -142,8 +161,40 @@ async function loadEventAccess({ db, eventId, viewerId }) {
   const row = access.rows[0];
   const isHost = Boolean(viewerId && row.host_user_id === viewerId);
   const viewerRsvpStatus = row.viewer_rsvp_status || null;
+
+  let inviteLinkGrantedAccess = false;
+  const trimmedToken = inviteToken != null ? String(inviteToken).trim() : "";
+  if (trimmedToken) {
+    const tokenHash = hashInviteToken(trimmedToken);
+    const linkRow = await db.query(
+      `SELECT id
+       FROM event_invite_links
+       WHERE event_id = $1
+         AND token_hash = $2
+         AND revoked_at IS NULL
+         AND (expires_at IS NULL OR expires_at > NOW())
+       LIMIT 1`,
+      [eventId, tokenHash]
+    );
+    inviteLinkGrantedAccess = linkRow.rowCount > 0;
+  }
+
+  let hasUserInvite = false;
+  if (viewerId && !isHost) {
+    const inv = await db.query(
+      `SELECT 1
+       FROM event_user_invites
+       WHERE event_id = $1
+         AND invited_user_id = $2
+       LIMIT 1`,
+      [eventId, viewerId]
+    );
+    hasUserInvite = inv.rowCount > 0;
+  }
+
   const canViewPublic = row.visibility === "public" && row.status !== "canceled";
-  const canViewPrivate = isHost || Boolean(viewerRsvpStatus);
+  const canViewPrivate =
+    isHost || Boolean(viewerRsvpStatus) || hasUserInvite || inviteLinkGrantedAccess;
   if (!canViewPublic && !canViewPrivate) {
     throw httpError(404, "Event not found");
   }
@@ -151,6 +202,8 @@ async function loadEventAccess({ db, eventId, viewerId }) {
     row,
     isHost,
     viewerRsvpStatus,
+    hasUserInvite,
+    inviteLinkGrantedAccess,
     canJoinChat: isHost || viewerRsvpStatus === "going"
   };
 }
@@ -192,7 +245,7 @@ async function appendModerationAudit({
   );
 }
 
-function createEventsRouter({ db, config, analytics }) {
+function createEventsRouter({ db, config, analytics, pushNotifications }) {
   const router = express.Router();
   const authMiddleware = authenticate({ db, config });
   let moderationStorageModeCache = null;
@@ -430,6 +483,12 @@ function createEventsRouter({ db, config, analytics }) {
                WHERE my.event_id = e.id
                  AND my.user_id = $1
              )
+             OR EXISTS (
+               SELECT 1
+               FROM event_user_invites inv
+               WHERE inv.event_id = e.id
+                 AND inv.invited_user_id = $1
+             )
            )
            AND ($2::int IS NULL OR e.host_user_id = $2)
          ORDER BY e.starts_at ASC, e.id ASC
@@ -541,7 +600,8 @@ function createEventsRouter({ db, config, analytics }) {
         config,
         authorization: req.headers.authorization
       });
-      const access = await loadEventAccess({ db, eventId, viewerId });
+      const inviteToken = inviteTokenFromQuery(req.query);
+      const access = await loadEventAccess({ db, eventId, viewerId, inviteToken });
       const source = optionalString(req.query.source, "source", 64);
 
       const result = await db.query(
@@ -592,13 +652,16 @@ function createEventsRouter({ db, config, analytics }) {
         properties: { eventId }
       });
 
-      res.status(200).json(
-        rowToEvent({
-          ...row,
-          viewer_rsvp_status: access.viewerRsvpStatus,
-          can_join_chat: access.canJoinChat
-        })
-      );
+      const base = rowToEvent({
+        ...row,
+        viewer_rsvp_status: access.viewerRsvpStatus,
+        can_join_chat: access.canJoinChat
+      });
+      res.status(200).json({
+        ...base,
+        viewerInvited: Boolean(access.hasUserInvite),
+        viewedWithInviteLink: Boolean(access.inviteLinkGrantedAccess)
+      });
     })
   );
 
@@ -730,7 +793,8 @@ function createEventsRouter({ db, config, analytics }) {
       }
       const status = String(req.body?.status || "").trim().toLowerCase();
       const source = optionalString(req.body?.source, "source", 64);
-      const access = await loadEventAccess({ db, eventId, viewerId: req.user.id });
+      const inviteToken = optionalString(req.body?.inviteToken, "inviteToken", 200);
+      const access = await loadEventAccess({ db, eventId, viewerId: req.user.id, inviteToken });
       if (access.row.status !== "scheduled") {
         throw httpError(409, "RSVP is not available for this event");
       }
@@ -782,7 +846,8 @@ function createEventsRouter({ db, config, analytics }) {
       if (!eventId) {
         throw httpError(400, "id must be a number");
       }
-      await loadEventAccess({ db, eventId, viewerId: req.user.id });
+      const inviteToken = inviteTokenFromQuery(req.query);
+      await loadEventAccess({ db, eventId, viewerId: req.user.id, inviteToken });
       const result = await db.query(
         `SELECT status
          FROM event_rsvps
@@ -794,6 +859,241 @@ function createEventsRouter({ db, config, analytics }) {
       res.status(200).json({
         eventId,
         status: result.rows[0]?.status || null
+      });
+    })
+  );
+
+  router.get(
+    "/:id/invite-links",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      assertEventsEnabled();
+      assertReadEnabled();
+      const eventId = Number(req.params.id);
+      if (!eventId) {
+        throw httpError(400, "id must be a number");
+      }
+      const existing = await db.query(`SELECT host_user_id FROM events WHERE id = $1 LIMIT 1`, [eventId]);
+      if (existing.rowCount === 0) {
+        throw httpError(404, "Event not found");
+      }
+      if (existing.rows[0].host_user_id !== req.user.id) {
+        throw httpError(403, "Only the host can manage invite links");
+      }
+      const rows = await db.query(
+        `SELECT id, created_at, expires_at, revoked_at
+         FROM event_invite_links
+         WHERE event_id = $1
+         ORDER BY id DESC
+         LIMIT 50`,
+        [eventId]
+      );
+      res.status(200).json({
+        items: rows.rows.map((r) => ({
+          id: r.id,
+          createdAt: r.created_at,
+          expiresAt: r.expires_at,
+          revokedAt: r.revoked_at,
+          active: !r.revoked_at && (!r.expires_at || new Date(r.expires_at) > new Date())
+        }))
+      });
+    })
+  );
+
+  router.post(
+    "/:id/invite-links",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      assertEventsEnabled();
+      assertCreateEnabled();
+      const eventId = Number(req.params.id);
+      if (!eventId) {
+        throw httpError(400, "id must be a number");
+      }
+      const existing = await db.query(`SELECT host_user_id FROM events WHERE id = $1 LIMIT 1`, [eventId]);
+      if (existing.rowCount === 0) {
+        throw httpError(404, "Event not found");
+      }
+      if (existing.rows[0].host_user_id !== req.user.id) {
+        throw httpError(403, "Only the host can create invite links");
+      }
+      let expiresAt = null;
+      if (req.body?.expiresInDays != null && req.body.expiresInDays !== "") {
+        const days = Number(req.body.expiresInDays);
+        if (!Number.isFinite(days) || days < 1 || days > 365) {
+          throw httpError(400, "expiresInDays must be between 1 and 365");
+        }
+        expiresAt = new Date(Date.now() + days * 86400000).toISOString();
+      }
+      const plain = generateInviteToken();
+      const tokenHash = hashInviteToken(plain);
+      const ins = await db.query(
+        `INSERT INTO event_invite_links (event_id, token_hash, expires_at)
+         VALUES ($1, $2, $3)
+         RETURNING id, created_at, expires_at`,
+        [eventId, tokenHash, expiresAt]
+      );
+      const r = ins.rows[0];
+      res.status(201).json({
+        id: r.id,
+        inviteToken: plain,
+        createdAt: r.created_at,
+        expiresAt: r.expires_at,
+        message: "Copy this link token now — it cannot be shown again."
+      });
+    })
+  );
+
+  router.delete(
+    "/:id/invite-links/:linkId",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      assertEventsEnabled();
+      const eventId = Number(req.params.id);
+      const linkId = Number(req.params.linkId);
+      if (!eventId || !linkId) {
+        throw httpError(400, "id and linkId must be numbers");
+      }
+      const existing = await db.query(`SELECT host_user_id FROM events WHERE id = $1 LIMIT 1`, [eventId]);
+      if (existing.rowCount === 0) {
+        throw httpError(404, "Event not found");
+      }
+      if (existing.rows[0].host_user_id !== req.user.id) {
+        throw httpError(403, "Only the host can revoke invite links");
+      }
+      const upd = await db.query(
+        `UPDATE event_invite_links
+         SET revoked_at = NOW()
+         WHERE id = $1 AND event_id = $2 AND revoked_at IS NULL
+         RETURNING id`,
+        [linkId, eventId]
+      );
+      if (upd.rowCount === 0) {
+        throw httpError(404, "Invite link not found or already revoked");
+      }
+      res.status(200).json({ revoked: true });
+    })
+  );
+
+  router.post(
+    "/:id/invites/users",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      assertEventsEnabled();
+      assertCreateEnabled();
+      const eventId = Number(req.params.id);
+      if (!eventId) {
+        throw httpError(400, "id must be a number");
+      }
+      const ev = await db.query(
+        `SELECT e.id, e.host_user_id, e.title, p.display_name AS host_display_name
+         FROM events e
+         JOIN profiles p ON p.user_id = e.host_user_id
+         WHERE e.id = $1
+         LIMIT 1`,
+        [eventId]
+      );
+      if (ev.rowCount === 0) {
+        throw httpError(404, "Event not found");
+      }
+      const hostUserId = ev.rows[0].host_user_id;
+      if (hostUserId !== req.user.id) {
+        throw httpError(403, "Only the host can invite members");
+      }
+      const rawIds = Array.isArray(req.body?.userIds) ? req.body.userIds : [];
+      const userIds = [...new Set(rawIds.map((x) => Number(x)).filter((n) => Number.isInteger(n) && n > 0))].slice(
+        0,
+        50
+      );
+      if (userIds.length === 0) {
+        throw httpError(400, "userIds must be a non-empty array of user ids");
+      }
+      const title = String(ev.rows[0].title || "An event");
+      const hostName = String(ev.rows[0].host_display_name || "Host").trim() || "Host";
+      let invited = 0;
+      for (const uid of userIds) {
+        if (uid === hostUserId) {
+          continue;
+        }
+        const ucheck = await db.query(`SELECT id FROM users WHERE id = $1 AND is_active = true LIMIT 1`, [uid]);
+        if (ucheck.rowCount === 0) {
+          continue;
+        }
+        const ins = await db.query(
+          `INSERT INTO event_user_invites (event_id, invited_user_id, invited_by_user_id)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (event_id, invited_user_id) DO NOTHING
+           RETURNING event_id`,
+          [eventId, uid, req.user.id]
+        );
+        if (ins.rowCount > 0) {
+          invited += 1;
+          await createNotification(
+            db,
+            uid,
+            "event_invited",
+            {
+              eventId,
+              title,
+              hostUserId,
+              hostDisplayName: hostName
+            },
+            { pushNotifications }
+          );
+        }
+      }
+      res.status(200).json({ invited, requested: userIds.length });
+    })
+  );
+
+  router.get(
+    "/:id/attendees",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      assertEventsEnabled();
+      assertReadEnabled();
+      const eventId = Number(req.params.id);
+      if (!eventId) {
+        throw httpError(400, "id must be a number");
+      }
+      const existing = await db.query(`SELECT host_user_id FROM events WHERE id = $1 LIMIT 1`, [eventId]);
+      if (existing.rowCount === 0) {
+        throw httpError(404, "Event not found");
+      }
+      if (existing.rows[0].host_user_id !== req.user.id) {
+        throw httpError(403, "Only the host can view the guest list");
+      }
+      const rsvps = await db.query(
+        `SELECT r.user_id, r.status, r.updated_at, p.display_name
+         FROM event_rsvps r
+         JOIN profiles p ON p.user_id = r.user_id
+         WHERE r.event_id = $1
+         ORDER BY r.status ASC, p.display_name ASC NULLS LAST, r.user_id ASC`,
+        [eventId]
+      );
+      const pending = await db.query(
+        `SELECT i.invited_user_id, i.created_at, p.display_name
+         FROM event_user_invites i
+         JOIN profiles p ON p.user_id = i.invited_user_id
+         WHERE i.event_id = $1
+           AND NOT EXISTS (
+             SELECT 1 FROM event_rsvps r WHERE r.event_id = i.event_id AND r.user_id = i.invited_user_id
+           )
+         ORDER BY i.created_at DESC`,
+        [eventId]
+      );
+      res.status(200).json({
+        rsvps: rsvps.rows.map((r) => ({
+          userId: r.user_id,
+          displayName: r.display_name,
+          status: r.status,
+          updatedAt: r.updated_at
+        })),
+        pendingInvites: pending.rows.map((r) => ({
+          userId: r.invited_user_id,
+          displayName: r.display_name,
+          invitedAt: r.created_at
+        }))
       });
     })
   );
@@ -1065,7 +1365,8 @@ function createEventsRouter({ db, config, analytics }) {
       if (!eventId) {
         throw httpError(400, "id must be a number");
       }
-      const access = await loadEventAccess({ db, eventId, viewerId: req.user.id });
+      const inviteToken = inviteTokenFromQuery(req.query);
+      const access = await loadEventAccess({ db, eventId, viewerId: req.user.id, inviteToken });
       if (!access.canJoinChat) {
         throw httpError(403, "Join this event (Going) to access chat");
       }
@@ -1122,7 +1423,8 @@ function createEventsRouter({ db, config, analytics }) {
       if (!eventId) {
         throw httpError(400, "id must be a number");
       }
-      const access = await loadEventAccess({ db, eventId, viewerId: req.user.id });
+      const inviteToken = optionalString(req.body?.inviteToken, "inviteToken", 200);
+      const access = await loadEventAccess({ db, eventId, viewerId: req.user.id, inviteToken });
       if (!access.canJoinChat) {
         throw httpError(403, "Join this event (Going) to send messages");
       }

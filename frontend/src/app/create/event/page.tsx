@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@/lib/api";
 import { assistPostText } from "@/lib/ai-assist";
 import { createEvent } from "@/lib/events";
@@ -35,6 +35,7 @@ function buildEventAssistDraft(
 }
 
 export default function CreateEventPage() {
+  const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [startsAt, setStartsAt] = useState("");
@@ -70,7 +71,11 @@ export default function CreateEventPage() {
         addressDisplay: addressDisplay || null,
         visibility,
         source: "web_create"
-      })
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["account-hosted-events"] });
+      void queryClient.invalidateQueries({ queryKey: ["user-profile-hosted-events"] });
+    }
   });
 
   const onSubmit = async (event: FormEvent) => {

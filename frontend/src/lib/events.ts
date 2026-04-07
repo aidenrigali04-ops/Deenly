@@ -28,6 +28,8 @@ export type EventRecord = {
   distanceM: number | null;
   createdAt: string;
   updatedAt: string;
+  viewerInvited?: boolean;
+  viewedWithInviteLink?: boolean;
 };
 
 export type EventChatMessage = {
@@ -54,6 +56,17 @@ export async function fetchEventsNear(params: {
     timeWindow: params.timeWindow ?? "upcoming"
   });
   return apiRequest<{ items: EventRecord[] }>(`/events/near?${q.toString()}`);
+}
+
+/** Events hosted by a user (respects visibility: public, or viewer is host / RSVP'd). */
+export async function fetchEventsByHost(hostUserId: number, opts?: { limit?: number; offset?: number }) {
+  const q = new URLSearchParams({
+    hostUserId: String(hostUserId),
+    limit: String(opts?.limit ?? 40),
+    offset: String(opts?.offset ?? 0),
+    source: "web_profile"
+  });
+  return apiRequest<{ items: EventRecord[] }>(`/events?${q.toString()}`, { auth: true });
 }
 
 export async function updateEvent(
@@ -103,40 +116,147 @@ export async function createEvent(body: {
   });
 }
 
-export async function fetchEventDetail(id: number, source?: string) {
-  const q = new URLSearchParams();
-  if (source) {
-    q.set("source", source);
+function appendInviteToken(q: URLSearchParams, inviteToken?: string | null) {
+  if (inviteToken != null && inviteToken !== "") {
+    q.set("inviteToken", inviteToken);
   }
+}
+
+export type EventDetailFetchOpts = { source?: string; inviteToken?: string | null };
+
+export async function fetchEventDetail(id: number, opts?: EventDetailFetchOpts) {
+  const q = new URLSearchParams();
+  if (opts?.source) {
+    q.set("source", opts.source);
+  }
+  appendInviteToken(q, opts?.inviteToken);
   const suffix = q.toString() ? `?${q.toString()}` : "";
   return apiRequest<EventRecord>(`/events/${id}${suffix}`);
 }
 
-export async function setEventRsvp(id: number, status: "interested" | "going" | "none", source?: string) {
+export async function setEventRsvp(
+  id: number,
+  status: "interested" | "going" | "none",
+  opts?: { source?: string; inviteToken?: string | null }
+) {
+  const body: Record<string, unknown> = {
+    status,
+    source: opts?.source ?? "web_event_detail"
+  };
+  if (opts?.inviteToken != null && opts.inviteToken !== "") {
+    body.inviteToken = opts.inviteToken;
+  }
   return apiRequest<{ eventId: number; status: EventRsvpStatus }>(`/events/${id}/rsvp`, {
     method: "POST",
     auth: true,
-    body: { status, source: source ?? "web_event_detail" }
+    body
   });
 }
 
-export async function fetchEventChat(id: number, opts?: { limit?: number; beforeId?: number }) {
+export async function fetchEventChat(
+  id: number,
+  opts?: { limit?: number; beforeId?: number; inviteToken?: string | null }
+) {
   const limit = opts?.limit ?? 60;
   const q = new URLSearchParams({ limit: String(limit) });
   if (opts?.beforeId != null) {
     q.set("beforeId", String(opts.beforeId));
   }
+  appendInviteToken(q, opts?.inviteToken);
   return apiRequest<{ items: EventChatMessage[] }>(`/events/${id}/chat?${q.toString()}`, {
     auth: true
   });
 }
 
-export async function sendEventChatMessage(id: number, body: string, source?: string) {
+export async function sendEventChatMessage(
+  id: number,
+  body: string,
+  opts?: { source?: string; inviteToken?: string | null }
+) {
+  const payload: Record<string, unknown> = {
+    body,
+    source: opts?.source ?? "web_event_detail"
+  };
+  if (opts?.inviteToken != null && opts.inviteToken !== "") {
+    payload.inviteToken = opts.inviteToken;
+  }
   return apiRequest<EventChatMessage>(`/events/${id}/chat`, {
     method: "POST",
     auth: true,
-    body: { body, source: source ?? "web_event_detail" }
+    body: payload
   });
+}
+
+export type EventInviteLinkRow = {
+  id: number;
+  createdAt: string;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  active: boolean;
+};
+
+export async function fetchEventInviteLinks(eventId: number) {
+  return apiRequest<{ items: EventInviteLinkRow[] }>(`/events/${eventId}/invite-links`, { auth: true });
+}
+
+export async function createEventInviteLink(eventId: number, opts?: { expiresInDays?: number }) {
+  return apiRequest<{
+    id: number;
+    inviteToken: string;
+    createdAt: string;
+    expiresAt: string | null;
+    message: string;
+  }>(`/events/${eventId}/invite-links`, {
+    method: "POST",
+    auth: true,
+    body: opts?.expiresInDays != null ? { expiresInDays: opts.expiresInDays } : {}
+  });
+}
+
+export async function revokeEventInviteLink(eventId: number, linkId: number) {
+  return apiRequest<{ revoked: boolean }>(`/events/${eventId}/invite-links/${linkId}`, {
+    method: "DELETE",
+    auth: true
+  });
+}
+
+export async function inviteUsersToEvent(eventId: number, userIds: number[]) {
+  return apiRequest<{ invited: number; requested: number }>(`/events/${eventId}/invites/users`, {
+    method: "POST",
+    auth: true,
+    body: { userIds }
+  });
+}
+
+export type EventAttendeeRsvp = {
+  userId: number;
+  displayName: string | null;
+  status: string;
+  updatedAt: string;
+};
+
+export type EventPendingInvite = {
+  userId: number;
+  displayName: string | null;
+  invitedAt: string;
+};
+
+export async function fetchEventAttendees(eventId: number) {
+  return apiRequest<{ rsvps: EventAttendeeRsvp[]; pendingInvites: EventPendingInvite[] }>(
+    `/events/${eventId}/attendees`,
+    { auth: true }
+  );
+}
+
+export async function searchUsersForInvite(q: string, limit = 8) {
+  const trimmed = q.trim();
+  if (!trimmed) {
+    return { items: [] as Array<{ user_id: number; display_name: string; username: string }> };
+  }
+  return apiRequest<{ items: Array<{ user_id: number; display_name: string; username: string }> }>(
+    `/search/users?q=${encodeURIComponent(trimmed)}&limit=${String(limit)}`,
+    { auth: true }
+  );
 }
 
 export async function muteEventChatUser(eventId: number, userId: number, reason?: string) {

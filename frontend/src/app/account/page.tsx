@@ -12,8 +12,10 @@ import { ErrorState, LoadingState } from "@/components/states";
 import { DeenStrip } from "@/components/profile/deen-strip";
 import { ProfileCompactStats } from "@/components/profile/profile-compact-stats";
 import { ProfileFeedCards } from "@/components/profile/profile-feed-cards";
+import { ProfileEventsList } from "@/components/profile/profile-events-list";
 import { ProfileLayoutColumns, ProfilePageShell } from "@/components/profile/profile-page-shell";
 import { ProfilePillTabs } from "@/components/profile/profile-pill-tabs";
+import { fetchEventsByHost } from "@/lib/events";
 
 type AccountProfile = {
   user_id: number;
@@ -60,12 +62,13 @@ function deriveMediaType(mimeType: string): "image" | "video" | null {
 
 const ACCOUNT_TABS = [
   { id: "grid" as const, label: "Posts" },
+  { id: "events" as const, label: "Events" },
   { id: "reels" as const, label: "Media" }
 ];
 
 export default function AccountPage() {
   const router = useRouter();
-  const [profileSectionTab, setProfileSectionTab] = useState<"grid" | "reels">("grid");
+  const [profileSectionTab, setProfileSectionTab] = useState<"grid" | "reels" | "events">("grid");
   const [showProfileComposer, setShowProfileComposer] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState("");
@@ -84,6 +87,11 @@ export default function AccountPage() {
     queryKey: ["account-posts", sessionQuery.data?.id],
     queryFn: () => apiRequest<FeedResponse>(`/feed?authorId=${sessionQuery.data?.id}&limit=40`, { auth: true }),
     enabled: Boolean(sessionQuery.data?.id)
+  });
+  const hostedEventsQuery = useQuery({
+    queryKey: ["account-hosted-events", sessionQuery.data?.id],
+    queryFn: () => fetchEventsByHost(sessionQuery.data!.id, { limit: 40 }),
+    enabled: Boolean(sessionQuery.data?.id) && profileSectionTab === "events"
   });
   const likeMutation = useMutation({
     mutationFn: (postId: number) =>
@@ -131,7 +139,9 @@ export default function AccountPage() {
   const visibleItems =
     profileSectionTab === "reels"
       ? profileItems.filter((item) => Boolean(item.media_url))
-      : profileItems;
+      : profileSectionTab === "grid"
+        ? profileItems
+        : [];
 
   const onProfilePostPublished = () => {
     setShowProfileComposer(false);
@@ -347,63 +357,90 @@ export default function AccountPage() {
               <ProfilePillTabs tabs={ACCOUNT_TABS} active={profileSectionTab} onChange={setProfileSectionTab} />
 
               <div className="pt-6">
-                {postsQuery.isLoading ? <LoadingState label="Loading your posts..." /> : null}
-                {postsQuery.error ? <ErrorState message={(postsQuery.error as Error).message} /> : null}
-                {!postsQuery.isLoading &&
-                !postsQuery.error &&
-                (profileSectionTab === "grid" || profileSectionTab === "reels") &&
-                visibleItems.length > 0 &&
-                !showProfileComposer ? (
-                  <div className="mb-4 flex justify-end">
-                    <button
-                      type="button"
-                      className="btn-secondary px-3 py-1.5 text-sm"
-                      onClick={() => setShowProfileComposer(true)}
-                    >
-                      New post
-                    </button>
-                  </div>
-                ) : null}
-                {!postsQuery.isLoading &&
-                !postsQuery.error &&
-                showProfileComposer &&
-                (profileSectionTab === "grid" || profileSectionTab === "reels") &&
-                visibleItems.length > 0
-                  ? profileInlineComposer(true)
-                  : null}
-                {!postsQuery.isLoading &&
-                !postsQuery.error &&
-                visibleItems.length === 0 ? (
-                  showProfileComposer ? (
-                    profileInlineComposer(false)
-                  ) : (
-                    <div className="py-16 text-center">
-                      <div className="mx-auto mb-4 grid h-24 w-24 place-items-center rounded-full border-2 border-dashed border-black/15 bg-surface">
-                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="text-muted">
-                          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                          <circle cx="12" cy="13" r="4" />
-                        </svg>
+                {profileSectionTab === "events" ? (
+                  <>
+                    {hostedEventsQuery.isLoading ? <LoadingState label="Loading your events…" /> : null}
+                    {hostedEventsQuery.error ? (
+                      <ErrorState message={(hostedEventsQuery.error as Error).message} />
+                    ) : null}
+                    {!hostedEventsQuery.isLoading && !hostedEventsQuery.error ? (
+                      <>
+                        <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+                          <Link href="/create/event" className="btn-secondary px-3 py-1.5 text-sm">
+                            New event
+                          </Link>
+                        </div>
+                        <ProfileEventsList
+                          items={hostedEventsQuery.data?.items ?? []}
+                          emptyTitle="No events yet"
+                          emptyHint="Events you host appear here for your followers."
+                          createEventHref="/create/event"
+                          createEventLabel="Create an event"
+                        />
+                      </>
+                    ) : null}
+                  </>
+                ) : (
+                  <>
+                    {postsQuery.isLoading ? <LoadingState label="Loading your posts..." /> : null}
+                    {postsQuery.error ? <ErrorState message={(postsQuery.error as Error).message} /> : null}
+                    {!postsQuery.isLoading &&
+                    !postsQuery.error &&
+                    (profileSectionTab === "grid" || profileSectionTab === "reels") &&
+                    visibleItems.length > 0 &&
+                    !showProfileComposer ? (
+                      <div className="mb-4 flex justify-end">
+                        <button
+                          type="button"
+                          className="btn-secondary px-3 py-1.5 text-sm"
+                          onClick={() => setShowProfileComposer(true)}
+                        >
+                          New post
+                        </button>
                       </div>
-                      <p className="text-xl font-semibold text-text">Your posts live here</p>
-                      <p className="mt-2 text-sm text-muted">Share reminders, marketplace listings, or clips — they show up on your Deenly profile.</p>
-                      <button
-                        type="button"
-                        className="mt-4 inline-block text-sm font-semibold text-sky-600 underline-offset-2 hover:underline"
-                        onClick={() => setShowProfileComposer(true)}
-                      >
-                        Create a post
-                      </button>
-                    </div>
-                  )
-                ) : null}
-                {visibleItems.length > 0 ? (
-                  <ProfileFeedCards
-                    items={visibleItems}
-                    router={router}
-                    onLike={(id) => likeMutation.mutate(id)}
-                    likePending={likeMutation.isPending}
-                  />
-                ) : null}
+                    ) : null}
+                    {!postsQuery.isLoading &&
+                    !postsQuery.error &&
+                    showProfileComposer &&
+                    (profileSectionTab === "grid" || profileSectionTab === "reels") &&
+                    visibleItems.length > 0
+                      ? profileInlineComposer(true)
+                      : null}
+                    {!postsQuery.isLoading &&
+                    !postsQuery.error &&
+                    visibleItems.length === 0 ? (
+                      showProfileComposer ? (
+                        profileInlineComposer(false)
+                      ) : (
+                        <div className="py-16 text-center">
+                          <div className="mx-auto mb-4 grid h-24 w-24 place-items-center rounded-full border-2 border-dashed border-black/15 bg-surface">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="text-muted">
+                              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                              <circle cx="12" cy="13" r="4" />
+                            </svg>
+                          </div>
+                          <p className="text-xl font-semibold text-text">Your posts live here</p>
+                          <p className="mt-2 text-sm text-muted">Share reminders, marketplace listings, or clips — they show up on your Deenly profile.</p>
+                          <button
+                            type="button"
+                            className="mt-4 inline-block text-sm font-semibold text-sky-600 underline-offset-2 hover:underline"
+                            onClick={() => setShowProfileComposer(true)}
+                          >
+                            Create a post
+                          </button>
+                        </div>
+                      )
+                    ) : null}
+                    {visibleItems.length > 0 ? (
+                      <ProfileFeedCards
+                        items={visibleItems}
+                        router={router}
+                        onLike={(id) => likeMutation.mutate(id)}
+                        likePending={likeMutation.isPending}
+                      />
+                    ) : null}
+                  </>
+                )}
               </div>
             </>
           }

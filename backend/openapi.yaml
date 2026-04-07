@@ -48,6 +48,8 @@ components:
         distanceM: { type: number, nullable: true }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+        viewerInvited: { type: boolean, description: Present on GET detail when the authenticated user has an in-app invite row. }
+        viewedWithInviteLink: { type: boolean, description: Present on GET detail when access was granted via a valid invite link token. }
 paths:
   /auth/register:
     post:
@@ -547,7 +549,22 @@ paths:
   /events:
     get:
       summary: List events (filters vary by query params)
-      description: Returns 404 when events feature or read path is disabled.
+      description: Returns 404 when events feature or read path is disabled. Optional hostUserId returns events hosted by that user (visibility rules apply).
+      parameters:
+        - in: query
+          name: hostUserId
+          schema: { type: integer }
+          description: When set, only events with this host user id (still filtered by viewer access).
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20, minimum: 1, maximum: 100 }
+        - in: query
+          name: offset
+          schema: { type: integer, default: 0, minimum: 0 }
+        - in: query
+          name: source
+          schema: { type: string, maxLength: 64 }
+          description: Analytics surface hint (e.g. web_profile).
       responses:
         "200":
           description: Event list
@@ -576,12 +593,20 @@ paths:
   /events/{id}:
     get:
       summary: Get event by id
-      description: Returns 404 when not found or not visible to caller.
+      description: Returns 404 when not found or not visible to caller. Optional inviteToken grants access to private/invite-only events when the link is valid.
       parameters:
         - in: path
           name: id
           required: true
           schema: { type: integer }
+        - in: query
+          name: source
+          schema: { type: string, maxLength: 64 }
+          description: Analytics surface hint.
+        - in: query
+          name: inviteToken
+          schema: { type: string, maxLength: 200 }
+          description: Plaintext invite token from a host-generated link; omit when not using a share link.
       responses:
         "200":
           description: Event
@@ -615,6 +640,17 @@ paths:
           name: id
           required: true
           schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [interested, going, none] }
+                source: { type: string, maxLength: 64 }
+                inviteToken: { type: string, maxLength: 200, description: Same token as GET /events/{id} when opening from an invite link. }
       responses:
         "200":
           description: RSVP updated
@@ -628,6 +664,9 @@ paths:
           name: id
           required: true
           schema: { type: integer }
+        - in: query
+          name: inviteToken
+          schema: { type: string, maxLength: 200 }
       responses:
         "200":
           description: RSVP state
@@ -636,12 +675,21 @@ paths:
       summary: List event chat messages
       security:
         - bearerAuth: []
-      description: Returns 404 when event chat is disabled.
+      description: Returns 404 when event chat is disabled. Requires Going RSVP; inviteToken matches loadEventAccess when the user opened the event via a valid link.
       parameters:
         - in: path
           name: id
           required: true
           schema: { type: integer }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100 }
+        - in: query
+          name: beforeId
+          schema: { type: integer }
+        - in: query
+          name: inviteToken
+          schema: { type: string, maxLength: 200 }
       responses:
         "200":
           description: Chat messages page
@@ -654,6 +702,104 @@ paths:
           name: id
           required: true
           schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string, minLength: 1, maxLength: 4000 }
+                source: { type: string, maxLength: 64 }
+                inviteToken: { type: string, maxLength: 200 }
       responses:
         "201":
           description: Message created
+  /events/{id}/invite-links:
+    get:
+      summary: List invite links for an event (host)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Link rows without raw tokens
+    post:
+      summary: Create a new invite link (host)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                expiresInDays: { type: integer, minimum: 1, maximum: 365 }
+      responses:
+        "201":
+          description: inviteToken returned once in the response body
+  /events/{id}/invite-links/{linkId}:
+    delete:
+      summary: Revoke an invite link (host)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+        - in: path
+          name: linkId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Revoked
+  /events/{id}/invites/users:
+    post:
+      summary: Send in-app invites to users (host)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userIds]
+              properties:
+                userIds:
+                  type: array
+                  items: { type: integer }
+                  maxItems: 50
+      responses:
+        "200":
+          description: Counts of invites created
+  /events/{id}/attendees:
+    get:
+      summary: RSVPs and pending in-app invites (host)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: rsvps and pendingInvites arrays

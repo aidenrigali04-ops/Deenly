@@ -9,9 +9,11 @@ import { apiRequest } from "@/lib/api";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { resolveMediaUrl } from "@/lib/media-url";
 import { ProfileCompactStats } from "@/components/profile/profile-compact-stats";
+import { ProfileEventsList } from "@/components/profile/profile-events-list";
 import { ProfileFeedCards } from "@/components/profile/profile-feed-cards";
 import { ProfileLayoutColumns, ProfilePageShell } from "@/components/profile/profile-page-shell";
 import { ProfilePillTabs } from "@/components/profile/profile-pill-tabs";
+import { fetchEventsByHost } from "@/lib/events";
 import { followUser, unfollowUser } from "@/lib/follows";
 import {
   createProductCheckout,
@@ -148,11 +150,12 @@ type FeedResponse = {
   items: ProfileFeedItem[];
 };
 
-type ProfileSectionTab = "grid" | "reels" | "products" | "listings";
+type ProfileSectionTab = "grid" | "reels" | "products" | "listings" | "events";
 
 const PUBLIC_PROFILE_TABS = [
   { id: "grid" as const, label: "Posts" },
   { id: "products" as const, label: "Products" },
+  { id: "events" as const, label: "Events" },
   { id: "reels" as const, label: "Media" },
   { id: "listings" as const, label: "Listings" }
 ];
@@ -245,6 +248,11 @@ export default function UserProfilePage() {
     queryFn: () => fetchCreatorProducts(userId),
     enabled: Number.isFinite(userId) && profileSectionTab === "products"
   });
+  const hostedEventsQuery = useQuery({
+    queryKey: ["user-profile-hosted-events", userId],
+    queryFn: () => fetchEventsByHost(userId, { limit: 40 }),
+    enabled: Number.isFinite(userId) && profileSectionTab === "events"
+  });
 
   const likeMutation = useMutation({
     mutationFn: (postId: number) =>
@@ -315,7 +323,7 @@ export default function UserProfilePage() {
 
   const profileItems = postsQuery.data?.items || [];
   const visibleItems =
-    profileSectionTab === "products"
+    profileSectionTab === "products" || profileSectionTab === "events"
       ? []
       : profileSectionTab === "reels"
         ? profileItems.filter((item) => Boolean(item.media_url))
@@ -503,6 +511,22 @@ export default function UserProfilePage() {
                           );
                         })}
                       </ul>
+                    ) : null}
+                  </>
+                ) : profileSectionTab === "events" ? (
+                  <>
+                    {hostedEventsQuery.isLoading ? <LoadingState label="Loading events…" /> : null}
+                    {hostedEventsQuery.error ? (
+                      <ErrorState message={(hostedEventsQuery.error as Error).message} />
+                    ) : null}
+                    {!hostedEventsQuery.isLoading && !hostedEventsQuery.error ? (
+                      <ProfileEventsList
+                        items={hostedEventsQuery.data?.items ?? []}
+                        emptyTitle="No events to show"
+                        emptyHint="Public events they host appear here. Private events stay visible only to guests."
+                        createEventHref={sessionUser?.id === userId ? "/create/event" : undefined}
+                        createEventLabel="Create an event"
+                      />
                     ) : null}
                   </>
                 ) : (

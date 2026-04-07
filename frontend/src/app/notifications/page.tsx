@@ -93,6 +93,18 @@ function notificationPresentation(item: NotificationItem): {
     };
   }
 
+  if (item.type === "event_invited") {
+    const eventId = payloadNum(p, "eventId");
+    const title = payloadStr(p, "title");
+    const hostName = payloadStr(p, "hostDisplayName");
+    return {
+      title: hostName ? `${hostName} invited you to an event` : `${who} invited you to an event`,
+      detail: title || undefined,
+      href: eventId != null ? `/events/${eventId}` : undefined,
+      cta: eventId != null ? "View event" : undefined
+    };
+  }
+
   return {
     title: item.type.replace(/_/g, " "),
     detail: undefined

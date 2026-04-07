@@ -11,6 +11,14 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: path.resolve(process.cwd()),
   async redirects() {
     return [{ source: "/dhikr", destination: "/home", permanent: false }];
+  },
+  async headers() {
+    return [
+      {
+        source: "/.well-known/apple-app-site-association",
+        headers: [{ key: "Content-Type", value: "application/json" }]
+      }
+    ];
   }
 };
 

@@ -28,6 +28,8 @@ export type EventRecord = {
   distanceM: number | null;
   createdAt: string;
   updatedAt: string;
+  viewerInvited?: boolean;
+  viewedWithInviteLink?: boolean;
 };
 
 export type EventChatMessage = {
@@ -103,39 +105,74 @@ export async function createEvent(body: {
   });
 }
 
-export async function fetchEventDetail(id: number, source?: string) {
-  const q = new URLSearchParams();
-  if (source) {
-    q.set("source", source);
+function appendInviteToken(q: URLSearchParams, inviteToken?: string | null) {
+  if (inviteToken != null && inviteToken !== "") {
+    q.set("inviteToken", inviteToken);
   }
+}
+
+export type EventDetailFetchOpts = { source?: string; inviteToken?: string | null };
+
+export async function fetchEventDetail(id: number, opts?: EventDetailFetchOpts) {
+  const q = new URLSearchParams();
+  if (opts?.source) {
+    q.set("source", opts.source);
+  }
+  appendInviteToken(q, opts?.inviteToken);
   const suffix = q.toString() ? `?${q.toString()}` : "";
   return apiRequest<EventRecord>(`/events/${id}${suffix}`);
 }
 
-export async function setEventRsvp(id: number, status: "interested" | "going" | "none", source?: string) {
+export async function setEventRsvp(
+  id: number,
+  status: "interested" | "going" | "none",
+  opts?: { source?: string; inviteToken?: string | null }
+) {
+  const body: Record<string, unknown> = {
+    status,
+    source: opts?.source ?? "mobile_event_detail"
+  };
+  if (opts?.inviteToken != null && opts.inviteToken !== "") {
+    body.inviteToken = opts.inviteToken;
+  }
   return apiRequest<{ eventId: number; status: EventRsvpStatus }>(`/events/${id}/rsvp`, {
     method: "POST",
     auth: true,
-    body: { status, source: source ?? "mobile_event_detail" }
+    body
   });
 }
 
-export async function fetchEventChat(id: number, opts?: { limit?: number; beforeId?: number }) {
+export async function fetchEventChat(
+  id: number,
+  opts?: { limit?: number; beforeId?: number; inviteToken?: string | null }
+) {
   const limit = opts?.limit ?? 60;
   const q = new URLSearchParams({ limit: String(limit) });
   if (opts?.beforeId != null) {
     q.set("beforeId", String(opts.beforeId));
   }
+  appendInviteToken(q, opts?.inviteToken);
   return apiRequest<{ items: EventChatMessage[] }>(`/events/${id}/chat?${q.toString()}`, {
     auth: true
   });
 }
 
-export async function sendEventChatMessage(id: number, body: string, source?: string) {
+export async function sendEventChatMessage(
+  id: number,
+  body: string,
+  opts?: { source?: string; inviteToken?: string | null }
+) {
+  const payload: Record<string, unknown> = {
+    body,
+    source: opts?.source ?? "mobile_event_detail"
+  };
+  if (opts?.inviteToken != null && opts.inviteToken !== "") {
+    payload.inviteToken = opts.inviteToken;
+  }
   return apiRequest<EventChatMessage>(`/events/${id}/chat`, {
     method: "POST",
     auth: true,
-    body: { body, source: source ?? "mobile_event_detail" }
+    body: payload
   });
 }
 

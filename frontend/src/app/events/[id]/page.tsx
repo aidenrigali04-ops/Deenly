@@ -2,16 +2,23 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useParams } from "next/navigation";
+import Link from "next/link";
+import { useParams, useSearchParams } from "next/navigation";
 import { ApiError } from "@/lib/api";
 import { fetchSessionMe } from "@/lib/auth";
 import {
+  createEventInviteLink,
+  fetchEventAttendees,
   fetchEventChat,
   fetchEventChatModeration,
   fetchEventDetail,
+  fetchEventInviteLinks,
+  inviteUsersToEvent,
   muteEventChatUser,
   removeEventAttendee,
   reportEventChatUser,
+  revokeEventInviteLink,
+  searchUsersForInvite,
   sendEventChatMessage,
   setEventRsvp,
   unmuteEventChatUser
@@ -28,25 +35,43 @@ function formatChatTime(iso: string) {
 
 export default function EventDetailPage() {
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const eventId = Number(params?.id);
+  const inviteToken = searchParams.get("inviteToken")?.trim() || undefined;
   const queryClient = useQueryClient();
   const [chatInput, setChatInput] = useState("");
+  const [inviteSearch, setInviteSearch] = useState("");
+  const [debouncedInviteSearch, setDebouncedInviteSearch] = useState("");
+  const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  const detailFetchOpts = useMemo(
+    () => ({ source: "web_detail" as const, inviteToken }),
+    [inviteToken]
+  );
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedInviteSearch(inviteSearch.trim()), 350);
+    return () => clearTimeout(t);
+  }, [inviteSearch]);
+
   const eventQuery = useQuery({
-    queryKey: ["event-detail", eventId],
-    queryFn: () => fetchEventDetail(eventId, "web_detail"),
+    queryKey: ["event-detail", eventId, inviteToken ?? null],
+    queryFn: () => fetchEventDetail(eventId, detailFetchOpts),
     enabled: Boolean(eventId)
   });
 
-  const chatQuery = useQuery({
-    queryKey: ["event-chat", eventId],
-    queryFn: () => fetchEventChat(eventId),
-    enabled: Boolean(eventId && eventQuery.data?.canJoinChat)
-  });
   const meQuery = useQuery({
     queryKey: ["event-me"],
     queryFn: () => fetchSessionMe()
+  });
+
+  const isHost = Boolean(eventQuery.data?.hostUserId === meQuery.data?.id);
+
+  const chatQuery = useQuery({
+    queryKey: ["event-chat", eventId, inviteToken ?? null],
+    queryFn: () => fetchEventChat(eventId, { inviteToken }),
+    enabled: Boolean(eventId && eventQuery.data?.canJoinChat)
   });
   const moderationQuery = useQuery({
     queryKey: ["event-moderation", eventId],
@@ -54,16 +79,38 @@ export default function EventDetailPage() {
     enabled: Boolean(eventId && eventQuery.data?.hostUserId === meQuery.data?.id)
   });
 
+  const inviteLinksQuery = useQuery({
+    queryKey: ["event-invite-links", eventId],
+    queryFn: () => fetchEventInviteLinks(eventId),
+    enabled: Boolean(eventId && eventQuery.data?.hostUserId === meQuery.data?.id)
+  });
+
+  const attendeesQuery = useQuery({
+    queryKey: ["event-attendees", eventId],
+    queryFn: () => fetchEventAttendees(eventId),
+    enabled: Boolean(eventId && eventQuery.data?.hostUserId === meQuery.data?.id)
+  });
+
+  const userInviteSearchQuery = useQuery({
+    queryKey: ["event-invite-user-search", debouncedInviteSearch],
+    queryFn: () => searchUsersForInvite(debouncedInviteSearch, 10),
+    enabled: Boolean(
+      eventId && eventQuery.data?.hostUserId === meQuery.data?.id && debouncedInviteSearch.length >= 2
+    )
+  });
+
   const rsvpMutation = useMutation({
-    mutationFn: (status: "interested" | "going" | "none") => setEventRsvp(eventId, status, "web_detail"),
+    mutationFn: (status: "interested" | "going" | "none") =>
+      setEventRsvp(eventId, status, { source: "web_detail", inviteToken }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["event-detail", eventId] });
       queryClient.invalidateQueries({ queryKey: ["event-chat", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["event-attendees", eventId] });
     }
   });
 
   const chatMutation = useMutation({
-    mutationFn: (body: string) => sendEventChatMessage(eventId, body, "web_detail"),
+    mutationFn: (body: string) => sendEventChatMessage(eventId, body, { source: "web_detail", inviteToken }),
     onSuccess: () => {
       setChatInput("");
       queryClient.invalidateQueries({ queryKey: ["event-chat", eventId] });
@@ -90,11 +137,38 @@ export default function EventDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["event-moderation", eventId] });
       queryClient.invalidateQueries({ queryKey: ["event-chat", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["event-attendees", eventId] });
     }
   });
   const reportMutation = useMutation({
     mutationFn: ({ userId, reason, note }: { userId: number; reason: string; note?: string }) =>
       reportEventChatUser(eventId, userId, reason, note)
+  });
+
+  const createInviteLinkMutation = useMutation({
+    mutationFn: () => createEventInviteLink(eventId),
+    onSuccess: (res) => {
+      if (typeof window !== "undefined") {
+        const url = `${window.location.origin}/events/${eventId}?inviteToken=${encodeURIComponent(res.inviteToken)}`;
+        setLastInviteUrl(url);
+      }
+      queryClient.invalidateQueries({ queryKey: ["event-invite-links", eventId] });
+    }
+  });
+
+  const revokeInviteLinkMutation = useMutation({
+    mutationFn: (linkId: number) => revokeEventInviteLink(eventId, linkId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["event-invite-links", eventId] });
+    }
+  });
+
+  const inviteUsersMutation = useMutation({
+    mutationFn: (userIds: number[]) => inviteUsersToEvent(eventId, userIds),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["event-attendees", eventId] });
+      setInviteSearch("");
+    }
   });
 
   const items = chatQuery.data?.items ?? [];
@@ -132,7 +206,6 @@ export default function EventDetailPage() {
   if (!data) {
     return <EmptyState title="Event not found" />;
   }
-  const isHost = data.hostUserId === meQuery.data?.id;
   const myId = meQuery.data?.id;
   const mutedUserIds = new Set((moderationQuery.data?.mutes || []).map((m) => m.user_id));
 
@@ -140,6 +213,16 @@ export default function EventDetailPage() {
     <section className="space-y-4">
       <div className="surface-card space-y-3">
         <p className="text-xs uppercase tracking-wide text-muted">{data.visibility} event</p>
+        {data.viewedWithInviteLink ? (
+          <p className="rounded-control border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-950">
+            You opened this page with an invite link. Bookmark it if you need to return before you RSVP.
+          </p>
+        ) : null}
+        {data.viewerInvited ? (
+          <p className="rounded-control border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-950">
+            You were invited to this event.
+          </p>
+        ) : null}
         <h1 className="text-2xl font-semibold leading-tight">{data.title}</h1>
         <p className="text-sm text-muted">Hosted by {data.hostDisplayName || "Creator"} · {startsAtLabel}</p>
         {data.description ? <p className="text-sm leading-relaxed text-text/90">{data.description}</p> : null}
@@ -322,6 +405,159 @@ export default function EventDetailPage() {
           </>
         )}
       </div>
+      {isHost ? (
+        <div className="surface-card space-y-4">
+          <h2 className="text-lg font-semibold">Invites & guest list</h2>
+          {lastInviteUrl ? (
+            <div className="rounded-control border border-black/10 bg-black/[0.03] p-3 text-sm">
+              <p className="font-medium text-text">New invite link — copy now</p>
+              <p className="mt-1 break-all text-xs text-muted">{lastInviteUrl}</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="btn-primary px-3 py-1.5 text-xs"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(lastInviteUrl);
+                  }}
+                >
+                  Copy link
+                </button>
+                <button type="button" className="btn-secondary px-3 py-1.5 text-xs" onClick={() => setLastInviteUrl(null)}>
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="btn-secondary px-3 py-2 text-sm"
+              disabled={createInviteLinkMutation.isPending}
+              onClick={() => createInviteLinkMutation.mutate()}
+            >
+              {createInviteLinkMutation.isPending ? "Creating…" : "Create invite link"}
+            </button>
+          </div>
+          {createInviteLinkMutation.error ? (
+            <p className="text-sm text-rose-700">
+              {(createInviteLinkMutation.error as Error).message || "Could not create link."}
+            </p>
+          ) : null}
+          <div>
+            <h3 className="text-sm font-semibold text-text">Active & past links</h3>
+            {inviteLinksQuery.isLoading ? <LoadingState label="Loading links…" /> : null}
+            {inviteLinksQuery.error ? (
+              <ErrorState message={(inviteLinksQuery.error as Error).message} />
+            ) : null}
+            <ul className="mt-2 space-y-2 text-sm">
+              {(inviteLinksQuery.data?.items || []).length === 0 && !inviteLinksQuery.isLoading ? (
+                <li className="text-muted">No invite links yet.</li>
+              ) : null}
+              {(inviteLinksQuery.data?.items || []).map((link) => (
+                <li
+                  key={link.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-control border border-black/10 bg-surface px-3 py-2"
+                >
+                  <span className="text-xs text-muted">
+                    #{link.id}
+                    {link.active ? " · active" : link.revokedAt ? " · revoked" : " · expired"}
+                    {link.expiresAt ? ` · expires ${new Date(link.expiresAt).toLocaleString()}` : ""}
+                  </span>
+                  {link.active ? (
+                    <button
+                      type="button"
+                      className="btn-secondary px-2 py-1 text-xs"
+                      disabled={revokeInviteLinkMutation.isPending}
+                      onClick={() => {
+                        if (!window.confirm("Revoke this invite link? Shared URLs will stop working.")) return;
+                        revokeInviteLinkMutation.mutate(link.id);
+                      }}
+                    >
+                      Revoke
+                    </button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-text">RSVPs & pending invites</h3>
+            {attendeesQuery.isLoading ? <LoadingState label="Loading guests…" /> : null}
+            {attendeesQuery.error ? <ErrorState message={(attendeesQuery.error as Error).message} /> : null}
+            <p className="mt-1 text-xs text-muted">
+              Going / interested: {(attendeesQuery.data?.rsvps || []).length} · Pending invites:{" "}
+              {(attendeesQuery.data?.pendingInvites || []).length}
+            </p>
+            <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto text-sm">
+              {(attendeesQuery.data?.rsvps || []).map((a) => (
+                <li key={`r-${a.userId}`} className="flex justify-between gap-2 text-text/90">
+                  <Link href={`/users/${a.userId}`} className="hover:underline">
+                    {a.displayName || `User ${a.userId}`}
+                  </Link>
+                  <span className="shrink-0 text-xs text-muted">{a.status}</span>
+                </li>
+              ))}
+            </ul>
+            {(attendeesQuery.data?.pendingInvites || []).length > 0 ? (
+              <>
+                <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-muted">Invited, no RSVP yet</p>
+                <ul className="mt-1 space-y-1 text-sm">
+                  {(attendeesQuery.data?.pendingInvites || []).map((p) => (
+                    <li key={`p-${p.userId}`}>
+                      <Link href={`/users/${p.userId}`} className="hover:underline">
+                        {p.displayName || `User ${p.userId}`}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-text">Invite by search</h3>
+            <label className="sr-only" htmlFor="event-invite-search">
+              Search users to invite
+            </label>
+            <input
+              id="event-invite-search"
+              className="input mt-1 w-full max-w-md"
+              placeholder="Search by name or username…"
+              value={inviteSearch}
+              onChange={(e) => setInviteSearch(e.target.value)}
+              autoComplete="off"
+            />
+            {userInviteSearchQuery.isFetching ? <p className="mt-2 text-xs text-muted">Searching…</p> : null}
+            <ul className="mt-2 space-y-2">
+              {(userInviteSearchQuery.data?.items || []).map((u) => (
+                <li
+                  key={u.user_id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-control border border-black/10 bg-surface px-3 py-2"
+                >
+                  <div>
+                    <Link href={`/users/${u.user_id}`} className="font-medium hover:underline">
+                      {u.display_name || u.username}
+                    </Link>
+                    <p className="text-xs text-muted">@{u.username}</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-secondary px-2 py-1 text-xs"
+                    disabled={inviteUsersMutation.isPending || u.user_id === data.hostUserId}
+                    onClick={() => inviteUsersMutation.mutate([u.user_id])}
+                  >
+                    Invite
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {inviteUsersMutation.error ? (
+              <p className="mt-2 text-sm text-rose-700">
+                {(inviteUsersMutation.error as Error).message || "Invite failed."}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
       {isHost ? (
         <div className="surface-card space-y-3">
           <h2 className="text-lg font-semibold">Host moderation audit</h2>

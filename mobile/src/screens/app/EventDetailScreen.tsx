@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../../lib/api";
 import { fetchSessionMe } from "../../lib/auth";
+import { useSessionStore } from "../../store/session-store";
 import type { EventChatMessage } from "../../lib/events";
 import {
   fetchEventChat,
@@ -45,6 +46,8 @@ function formatChatTime(iso: string) {
 
 export function EventDetailScreen({ route }: Props) {
   const eventId = route.params.id;
+  const inviteToken = route.params.inviteToken?.trim() || undefined;
+  const sessionUser = useSessionStore((s) => s.user);
   const queryClient = useQueryClient();
   const [chatInput, setChatInput] = useState("");
   const headerHeight = useHeaderHeight();
@@ -55,18 +58,19 @@ export function EventDetailScreen({ route }: Props) {
   const prevMsgCount = useRef(0);
 
   const eventQuery = useQuery({
-    queryKey: ["mobile-event-detail", eventId],
-    queryFn: () => fetchEventDetail(eventId, "mobile_detail")
+    queryKey: ["mobile-event-detail", eventId, inviteToken ?? null],
+    queryFn: () => fetchEventDetail(eventId, { source: "mobile_detail", inviteToken })
   });
 
   const chatQuery = useQuery({
-    queryKey: ["mobile-event-chat", eventId],
-    queryFn: () => fetchEventChat(eventId),
+    queryKey: ["mobile-event-chat", eventId, inviteToken ?? null],
+    queryFn: () => fetchEventChat(eventId, { inviteToken }),
     enabled: Boolean(eventQuery.data?.canJoinChat)
   });
   const meQuery = useQuery({
     queryKey: ["mobile-event-me"],
-    queryFn: () => fetchSessionMe()
+    queryFn: () => fetchSessionMe(),
+    enabled: Boolean(sessionUser)
   });
   const moderationQuery = useQuery({
     queryKey: ["mobile-event-moderation", eventId],
@@ -75,7 +79,8 @@ export function EventDetailScreen({ route }: Props) {
   });
 
   const rsvpMutation = useMutation({
-    mutationFn: (status: "interested" | "going" | "none") => setEventRsvp(eventId, status, "mobile_detail"),
+    mutationFn: (status: "interested" | "going" | "none") =>
+      setEventRsvp(eventId, status, { source: "mobile_detail", inviteToken }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mobile-event-detail", eventId] });
       queryClient.invalidateQueries({ queryKey: ["mobile-event-chat", eventId] });
@@ -83,7 +88,7 @@ export function EventDetailScreen({ route }: Props) {
   });
 
   const sendChatMutation = useMutation({
-    mutationFn: (body: string) => sendEventChatMessage(eventId, body, "mobile_detail"),
+    mutationFn: (body: string) => sendEventChatMessage(eventId, body, { source: "mobile_detail", inviteToken }),
     onSuccess: () => {
       setChatInput("");
       queryClient.invalidateQueries({ queryKey: ["mobile-event-chat", eventId] });
@@ -205,6 +210,12 @@ export function EventDetailScreen({ route }: Props) {
       >
         <View style={styles.card}>
           <Text style={styles.meta}>{event.visibility.toUpperCase()} EVENT</Text>
+          {event.viewedWithInviteLink ? (
+            <Text style={styles.inviteBanner}>
+              You opened this with an invite link. Keep this screen or RSVP so you can return from your events list.
+            </Text>
+          ) : null}
+          {event.viewerInvited ? <Text style={styles.inviteBannerMuted}>You were invited to this event.</Text> : null}
           <Text style={styles.title}>{event.title}</Text>
           <Text style={styles.subtle}>Hosted by {event.hostDisplayName || "Creator"} · {startsLabel}</Text>
           {event.description ? <Text style={styles.body}>{event.description}</Text> : null}
@@ -390,6 +401,24 @@ const styles = StyleSheet.create({
   },
   chatCard: { gap: 10 },
   meta: { color: colors.muted, fontSize: 11, fontWeight: "700", letterSpacing: 0.4 },
+  inviteBanner: {
+    marginTop: 8,
+    padding: 10,
+    borderRadius: radii.control,
+    backgroundColor: "rgba(14, 165, 233, 0.12)",
+    color: colors.text,
+    fontSize: 12,
+    lineHeight: 16
+  },
+  inviteBannerMuted: {
+    marginTop: 6,
+    padding: 8,
+    borderRadius: radii.control,
+    backgroundColor: "rgba(16, 185, 129, 0.1)",
+    color: colors.muted,
+    fontSize: 12,
+    lineHeight: 16
+  },
   title: { color: colors.text, fontSize: 22, fontWeight: "700" },
   subtle: { color: colors.muted, fontSize: 12 },
   body: { color: colors.text, fontSize: 14, lineHeight: 20 },
