@@ -64,6 +64,13 @@
           "locationWhenInUsePermission": "Deenly uses your location to show small businesses near you and to place your listing on the map."
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Deenly uses your photo library so you can attach images and videos to posts and products.",
+          "cameraPermission": "Deenly uses the camera when you choose to take a photo or record a video."
+        }
+      ],
       "expo-video",
       [
         "expo-build-properties",

@@ -13,6 +13,7 @@ import {
   View
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
+import { pickVisualMedia } from "../../lib/pick-visual-media";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -421,15 +422,13 @@ export function CreateProductScreen({ navigation, route }: Props) {
     }
   };
 
-  const pickDeliveryFile = async () => {
-    const result = await DocumentPicker.getDocumentAsync({
-      type: ["image/*", "video/*"],
-      copyToCacheDirectory: true
+  const pickDeliveryFile = () => {
+    pickVisualMedia({ kind: "product" }, (asset) => {
+      if (asset) {
+        setHasRemoteDelivery(false);
+        setDeliveryFile(asset);
+      }
     });
-    if (!result.canceled && result.assets.length > 0) {
-      setHasRemoteDelivery(false);
-      setDeliveryFile(result.assets[0]);
-    }
   };
 
   const readPriceMinor = (): number | null => {
@@ -1116,7 +1115,7 @@ export function CreateProductScreen({ navigation, route }: Props) {
                 ? deliveryFile.name || "File selected"
                 : hasRemoteDelivery
                   ? "Delivery file attached — tap to replace"
-                  : "Tap to choose delivery image or video (required to publish)"}
+                  : "Tap to add delivery image or video — library, camera, or files"}
             </Text>
           </Pressable>
         ) : (

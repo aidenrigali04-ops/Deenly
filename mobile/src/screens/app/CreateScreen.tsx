@@ -13,6 +13,7 @@ import {
   View
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
+import { pickVisualMedia } from "../../lib/pick-visual-media";
 import { AppVideoView } from "../../components/AppVideoView";
 import {
   PostPublishSuccessOverlay,
@@ -243,24 +244,20 @@ export function CreateScreen({ navigation }: Props) {
     });
   }, [canPromoteProducts, persona, financialVariant]);
 
-  const pickMedia = async () => {
-    const result = await DocumentPicker.getDocumentAsync({
-      type: postType === "reel" ? "video/*" : ["image/*", "video/*"],
-      copyToCacheDirectory: true
+  const pickMedia = () => {
+    pickVisualMedia(postType === "reel" ? { kind: "reel" } : { kind: "post" }, (asset) => {
+      if (asset) {
+        setSelectedFile(asset);
+      }
     });
-    if (!result.canceled && result.assets.length > 0) {
-      setSelectedFile(result.assets[0]);
-    }
   };
 
-  const pickProductFile = async () => {
-    const result = await DocumentPicker.getDocumentAsync({
-      type: ["image/*", "video/*"],
-      copyToCacheDirectory: true
+  const pickProductFile = () => {
+    pickVisualMedia({ kind: "product" }, (asset) => {
+      if (asset) {
+        setProductFile(asset);
+      }
     });
-    if (!result.canceled && result.assets.length > 0) {
-      setProductFile(result.assets[0]);
-    }
   };
 
   const generateServiceDescriptionForSell = async () => {
@@ -530,7 +527,7 @@ export function CreateScreen({ navigation }: Props) {
             ]}
             accessibilityRole="button"
             accessibilityLabel="Add or change photo or video"
-            accessibilityHint="Opens the file picker for an image or video"
+            accessibilityHint="Choose from library, camera, or files"
           >
             {selectedFile && previewKind === "image" ? (
               <Image
