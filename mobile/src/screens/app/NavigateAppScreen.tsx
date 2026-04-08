@@ -6,20 +6,14 @@ import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNa
 
 type Props = NativeStackScreenProps<RootStackParamList, "NavigateApp">;
 
-type TabName =
-  | "HomeTab"
-  | "MarketplaceTab"
-  | "SearchTab"
-  | "MessagesTab"
-  | "CreateTab"
-  | "AccountTab";
+type TabName = "HomeTab" | "MarketplaceTab" | "MessagesTab" | "CreateTab" | "AccountTab";
 
-const ROWS: { tab: TabName; title: string; subtitle: string }[] = [
+const ROWS: ({ tab: TabName; title: string; subtitle: string } | { stack: "Search"; title: string; subtitle: string })[] = [
   { tab: "HomeTab", title: "Home", subtitle: "Main feed" },
   { tab: "MarketplaceTab", title: "Market", subtitle: "Browse listings" },
-  { tab: "SearchTab", title: "Search", subtitle: "People and posts" },
+  { stack: "Search", title: "Search", subtitle: "People, posts, and near me" },
   { tab: "MessagesTab", title: "Messages", subtitle: "Direct messages" },
-  { tab: "CreateTab", title: "Create", subtitle: "New post or reel" },
+  { tab: "CreateTab", title: "Create", subtitle: "Post, product, or event" },
   { tab: "AccountTab", title: "Profile", subtitle: "Your grid and products" }
 ];
 
@@ -30,8 +24,12 @@ export function NavigateAppScreen({ navigation }: Props) {
       <View style={[styles.card, shadows.card]}>
         {ROWS.map((row, index) => (
           <Pressable
-            key={row.tab}
+            key={"stack" in row ? row.stack : row.tab}
             onPress={() => {
+              if ("stack" in row) {
+                navigation.navigate(row.stack);
+                return;
+              }
               navigation.navigate(
                 "AppTabs",
                 { screen: row.tab } as NavigatorScreenParams<AppTabParamList>

@@ -21,6 +21,8 @@ import { assistPostText } from "../../lib/ai-assist";
 import {
   createProduct,
   publishProduct,
+  createTier,
+  publishTier,
   patchProduct,
   fetchMyProducts,
   fetchMyProductById,
@@ -217,10 +219,13 @@ function SuccessCheckOverlay({
   );
 }
 
+type ListingKind = "product" | "membership";
+
 export function CreateProductScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const appliedInitialDraft = useRef(false);
+  const [listingKind, setListingKind] = useState<ListingKind>("product");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priceUsd, setPriceUsd] = useState("");
@@ -320,6 +325,25 @@ export function CreateProductScreen({ navigation, route }: Props) {
     queryKey: ["mobile-create-connect-status"],
     queryFn: () => fetchConnectStatus()
   });
+  const capsQuery = useQuery({
+    queryKey: ["mobile-create-product-caps"],
+    queryFn: () =>
+      apiRequest<{
+        persona_capabilities?: { can_create_products?: boolean; can_manage_memberships?: boolean };
+      }>("/users/me", { auth: true })
+  });
+  const canCreateProductsCap = Boolean(capsQuery.data?.persona_capabilities?.can_create_products);
+  const canManageMembershipsCap = Boolean(capsQuery.data?.persona_capabilities?.can_manage_memberships);
+
+  useEffect(() => {
+    if (editProductId) {
+      setListingKind("product");
+      return;
+    }
+    if (canManageMembershipsCap && !canCreateProductsCap) {
+      setListingKind("membership");
+    }
+  }, [editProductId, canManageMembershipsCap, canCreateProductsCap]);
 
   const draftItems = useMemo(
     () => (myProducts?.items || []).filter((i) => i.status === "draft"),
@@ -341,6 +365,19 @@ export function CreateProductScreen({ navigation, route }: Props) {
       await queryClient.invalidateQueries({ queryKey: ["mobile-create-my-products"] });
       await queryClient.invalidateQueries({ queryKey: ["mobile-creator-products"] });
       await queryClient.invalidateQueries({ queryKey: ["mobile-creator-catalog"] });
+    }
+  });
+
+  const createTierMutation = useMutation({
+    mutationFn: createTier,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["mobile-creator-tiers"] });
+    }
+  });
+  const publishTierMutation = useMutation({
+    mutationFn: publishTier,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["mobile-creator-tiers"] });
     }
   });
 
@@ -441,6 +478,48 @@ export function CreateProductScreen({ navigation, route }: Props) {
     previewPriceMinor && previewPriceMinor > 0
       ? estimateCreatorNet(previewPriceMinor, selectedPlatformFeeBps, 700, true)
       : null;
+
+  const tierPlatformFeeBps =
+    connectStatus?.feePolicy?.tiers?.find((t) => t.key === "standard")?.platformFeeBps || 350;
+  const membershipMonthlyMinor = listingKind === "membership" ? parseUsdToMinor(priceUsd) : null;
+  const membershipPreview =
+    membershipMonthlyMinor && membershipMonthlyMinor > 0
+      ? estimateCreatorNet(membershipMonthlyMinor, tierPlatformFeeBps, 700, true)
+      : null;
+
+  const onPublishMembership = async () => {
+    setFormError("");
+    if (!canManageMembershipsCap) {
+      setFormError("Membership plans are not enabled for your profile.");
+      return;
+    }
+    const t = title.trim();
+    if (t.length < 3) {
+      setFormError("Title must be at least 3 characters.");
+      return;
+    }
+    const minor = parseUsdToMinor(priceUsd);
+    if (minor === null) {
+      setFormError("Enter a valid monthly USD amount.");
+      return;
+    }
+    try {
+      const tier = await createTierMutation.mutateAsync({
+        title: t,
+        description: description.trim() || undefined,
+        monthlyPriceMinor: minor,
+        currency: "usd"
+      });
+      await publishTierMutation.mutateAsync(tier.id);
+      setSuccessKind("added");
+      setTimeout(() => {
+        setSuccessKind(null);
+        navigation.goBack();
+      }, 1600);
+    } catch (e) {
+      setFormError(e instanceof ApiError ? e.message : "Could not publish membership.");
+    }
+  };
 
   const uploadDigitalDeliveryFile = async (): Promise<string> => {
     if (!deliveryFile) {
@@ -583,10 +662,18 @@ export function CreateProductScreen({ navigation, route }: Props) {
     >
       <SuccessCheckOverlay
         visible={successKind !== null}
-        title={successKind === "added" ? "Product added" : "Draft saved"}
+        title={
+          successKind === "added"
+            ? listingKind === "membership"
+              ? "Membership live"
+              : "Product added"
+            : "Draft saved"
+        }
         subtitle={
           successKind === "added"
-            ? "Your catalog is updated."
+            ? listingKind === "membership"
+              ? "Supporters can subscribe from your profile."
+              : "Your catalog is updated."
             : "Nothing was uploaded. Continue editing or publish when ready."
         }
       />
@@ -599,6 +686,123 @@ export function CreateProductScreen({ navigation, route }: Props) {
           Publish goes live on your catalog. Save draft keeps work private—delivery uploads only when you publish.
         </Text>
 
+        {!editProductId ? (
+          <View style={styles.chipRow}>
+            {canCreateProductsCap ? (
+              <>
+                <Pressable
+                  style={[styles.chip, listingKind === "product" && styles.chipOn]}
+                  onPress={() => setListingKind("product")}
+                >
+                  <Text style={[styles.chipText, listingKind === "product" && styles.chipTextOn]}>Product</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.chip, listingKind === "product" && productType === "digital" && styles.chipOn]}
+                  onPress={() => {
+                    setListingKind("product");
+                    setProductType("digital");
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      listingKind === "product" && productType === "digital" && styles.chipTextOn
+                    ]}
+                  >
+                    Digital
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.chip, listingKind === "product" && productType === "service" && styles.chipOn]}
+                  onPress={() => {
+                    setListingKind("product");
+                    setProductType("service");
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      listingKind === "product" && productType === "service" && styles.chipTextOn
+                    ]}
+                  >
+                    Service
+                  </Text>
+                </Pressable>
+              </>
+            ) : null}
+            {canManageMembershipsCap ? (
+              <Pressable
+                style={[styles.chip, listingKind === "membership" && styles.chipOn]}
+                onPress={() => setListingKind("membership")}
+              >
+                <Text style={[styles.chipText, listingKind === "membership" && styles.chipTextOn]}>
+                  Monthly membership
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+
+        {listingKind === "membership" && !editProductId ? (
+          <>
+            <SectionLabel>Plan</SectionLabel>
+            <TextInput
+              style={styles.input}
+              placeholder="Plan title"
+              placeholderTextColor={colors.muted}
+              value={title}
+              onChangeText={setTitle}
+            />
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="What members get each month"
+              placeholderTextColor={colors.muted}
+              value={description}
+              onChangeText={setDescription}
+              multiline
+            />
+            <SectionLabel>Monthly price (USD)</SectionLabel>
+            <TextInput
+              style={styles.input}
+              placeholder="9.99"
+              placeholderTextColor={colors.muted}
+              value={priceUsd}
+              onChangeText={setPriceUsd}
+              keyboardType="decimal-pad"
+            />
+            {membershipPreview ? (
+              <View style={styles.previewCard}>
+                <Text style={styles.previewTitle}>Estimated payout / month</Text>
+                <Text style={styles.previewCopy}>
+                  Member pays {formatMinorCurrency(membershipMonthlyMinor || 0, "usd")}
+                </Text>
+                <Text style={styles.previewCopy}>
+                  After fees ~ {formatMinorCurrency(membershipPreview.creatorNetMinor, "usd")}
+                </Text>
+              </View>
+            ) : null}
+            {formError ? <Text style={styles.error}>{formError}</Text> : null}
+            <Pressable
+              style={[
+                styles.btnPrimary,
+                (createTierMutation.isPending || publishTierMutation.isPending) && styles.btnDisabled
+              ]}
+              disabled={createTierMutation.isPending || publishTierMutation.isPending}
+              onPress={() => void onPublishMembership()}
+            >
+              <Text style={styles.btnPrimaryText}>
+                {publishTierMutation.isPending
+                  ? "Publishing…"
+                  : createTierMutation.isPending
+                    ? "Saving…"
+                    : "Publish membership"}
+              </Text>
+            </Pressable>
+          </>
+        ) : null}
+
+        {listingKind === "product" || editProductId ? (
+          <>
         {editLoading ? (
           <View style={styles.editLoadingRow}>
             <ActivityIndicator color={colors.accent} />
@@ -986,6 +1190,8 @@ export function CreateProductScreen({ navigation, route }: Props) {
         >
           <Text style={styles.btnSecondaryText}>{saveDraftPending ? "Saving…" : "Save draft"}</Text>
         </Pressable>
+          </>
+        ) : null}
       </ScrollView>
     </KeyboardAvoidingView>
   );

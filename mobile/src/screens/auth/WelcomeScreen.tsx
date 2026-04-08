@@ -11,7 +11,7 @@ export function WelcomeScreen({ navigation }: Props) {
       <Text style={styles.brand}>Deenly</Text>
       <Text style={styles.title}>Grow with beneficial content and sincere community.</Text>
       <Text style={styles.subtitle}>
-        Sign in to access Home, Marketplace, Messages, Search, Post, and your Profile.
+        Sign in for Home, Market, Create, Messages, and Profile—with Search from the feed headers when you need it.
       </Text>
       <Pressable style={styles.buttonPrimary} onPress={() => navigation.navigate("Login")}>
         <Text style={styles.buttonPrimaryText}>Login</Text>

@@ -10,17 +10,15 @@ import {
 } from "react-native";
 import * as Location from "expo-location";
 import { useQuery } from "@tanstack/react-query";
-import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
-import { CompositeScreenProps } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { apiRequest } from "../../lib/api";
 import { fetchBusinessesNear } from "../../lib/businesses";
 import { fetchEventsNear } from "../../lib/events";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
-import { SectionCard, TabScreenHeader, TabScreenRoot } from "../../components/TabScreenChrome";
+import { SectionCard, TabScreenRoot } from "../../components/TabScreenChrome";
 import { colors, radii } from "../../theme";
-import { useTabSceneBottomPadding, useTabSceneTopPadding } from "../../hooks/useTabSceneInsets";
-import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
+import type { RootStackParamList } from "../../navigation/AppNavigator";
 
 type UserItem = {
   user_id: number;
@@ -35,10 +33,7 @@ type PostItem = {
   author_display_name: string;
 };
 
-type Props = CompositeScreenProps<
-  BottomTabScreenProps<AppTabParamList, "SearchTab">,
-  NativeStackScreenProps<RootStackParamList>
->;
+type Props = NativeStackScreenProps<RootStackParamList, "Search">;
 
 type Mode = "search" | "near";
 type NearKind = "all" | "businesses" | "events";
@@ -73,8 +68,9 @@ function clusterNearbyEvents(
 const FALLBACK = { lat: 40.7128, lng: -74.006 };
 
 export function SearchScreen({ navigation }: Props) {
-  const topPad = useTabSceneTopPadding(12);
-  const bottomPad = useTabSceneBottomPadding(20);
+  const insets = useSafeAreaInsets();
+  const topPad = 12;
+  const bottomPad = insets.bottom + 24;
   const [mode, setMode] = useState<Mode>("search");
   const [q, setQ] = useState("");
   const [submittedQ, setSubmittedQ] = useState("");
@@ -172,17 +168,14 @@ export function SearchScreen({ navigation }: Props) {
         contentContainerStyle={[styles.scrollContent, { paddingTop: topPad, paddingBottom: bottomPad }]}
         showsVerticalScrollIndicator={false}
       >
-        <TabScreenHeader
-          title="Search"
-          subtitle="Find people, posts, and places near you."
-          headerRight={
-            canUseBusinessDirectoryTools ? (
-              <Pressable style={styles.headerLink} onPress={() => navigation.navigate("AddBusiness")}>
-                <Text style={styles.headerLinkText}>Add business</Text>
-              </Pressable>
-            ) : null
-          }
-        />
+        <View style={styles.introRow}>
+          <Text style={styles.introText}>Find people, posts, and places near you.</Text>
+          {canUseBusinessDirectoryTools ? (
+            <Pressable style={styles.headerLink} onPress={() => navigation.navigate("AddBusiness")}>
+              <Text style={styles.headerLinkText}>Add business</Text>
+            </Pressable>
+          ) : null}
+        </View>
 
         <SectionCard>
           <Text style={styles.panelLabel}>Mode</Text>
@@ -420,6 +413,21 @@ export function SearchScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { gap: 14 },
+  introRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingHorizontal: 4,
+    marginBottom: 4
+  },
+  introText: {
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.muted,
+    fontWeight: "500"
+  },
   headerLink: { paddingVertical: 6, paddingHorizontal: 4 },
   headerLinkText: { color: colors.accent, fontWeight: "700", fontSize: 13 },
   panelLabel: { fontSize: 12, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.6 },

@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState, Suspense } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/api";
 import { createOrOpenConversation, markConversationRead } from "@/lib/messages";
@@ -31,7 +32,6 @@ function MessagesPageInner() {
   const searchParams = useSearchParams();
   const currentUserId = useSessionStore((state) => state.user?.id || null);
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
-  const [newParticipantUserId, setNewParticipantUserId] = useState("");
   const [messageBody, setMessageBody] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -116,15 +116,6 @@ function MessagesPageInner() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [selectedConversationId, orderedMessages.length]);
 
-  const createConversation = useMutation({
-    mutationFn: (participantUserId: number) => createOrOpenConversation(participantUserId),
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["messages-conversations"] });
-      setSelectedConversationId(result.conversationId);
-      setNewParticipantUserId("");
-    }
-  });
-
   const sendMessage = useMutation({
     mutationFn: (payload: { conversationId: number; body: string }) =>
       apiRequest(`/messages/conversations/${payload.conversationId}/messages`, {
@@ -154,26 +145,12 @@ function MessagesPageInner() {
             onChange={(event) => setSearchTerm(event.target.value)}
             aria-label="Search conversations"
           />
-          <form
-            className="flex gap-2"
-            onSubmit={(event: FormEvent) => {
-              event.preventDefault();
-              const participantUserId = Number(newParticipantUserId);
-              if (!participantUserId) return;
-              createConversation.mutate(participantUserId);
-            }}
+          <Link
+            href="/search"
+            className="inline-flex w-full items-center justify-center rounded-control border border-black/10 bg-surface px-3 py-2 text-sm font-semibold text-text hover:bg-black/[0.02]"
           >
-            <input
-              className="messages-search"
-              placeholder="Start chat by User ID"
-              value={newParticipantUserId}
-              onChange={(event) => setNewParticipantUserId(event.target.value)}
-              aria-label="Participant user ID"
-            />
-            <button className="messages-icon-btn shrink-0" type="submit" aria-label="Start conversation">
-              {createConversation.isPending ? "..." : "+"}
-            </button>
-          </form>
+            Find people
+          </Link>
         </header>
 
         <div className="messages-conversation-list">
@@ -273,7 +250,10 @@ function MessagesPageInner() {
           </>
         ) : (
           <div className="messages-thread-empty">
-            <EmptyState title="Select a conversation" subtitle="Choose one from the left or open a chat from a profile." />
+            <EmptyState
+              title="Select a conversation"
+              subtitle="Choose one from the list, open a chat from a profile, or find someone in Search."
+            />
           </div>
         )}
       </article>

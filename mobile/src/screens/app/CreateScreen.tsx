@@ -37,7 +37,7 @@ import {
   shouldShowExperimentPrompt,
   trackClientExperimentEvent
 } from "../../lib/experiments";
-import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
+import type { AppTabParamList, CreateTabStackParamList, RootStackParamList } from "../../navigation/AppNavigator";
 
 type CreatePostResponse = { id: number };
 type UploadSignatureResponse = {
@@ -46,8 +46,8 @@ type UploadSignatureResponse = {
   key: string;
 };
 type Props = CompositeScreenProps<
-  BottomTabScreenProps<AppTabParamList, "CreateTab">,
-  NativeStackScreenProps<RootStackParamList>
+  NativeStackScreenProps<CreateTabStackParamList, "CreatePost">,
+  CompositeScreenProps<BottomTabScreenProps<AppTabParamList, "CreateTab">, NativeStackScreenProps<RootStackParamList>>
 >;
 
 function deriveMediaType(mimeType: string): "image" | "video" | null {
@@ -158,14 +158,6 @@ export function CreateScreen({ navigation }: Props) {
   const persona = profileQuery.data?.profile_kind || null;
   const financialVariant = resolveVariant(String(sessionQuery.data?.id || "anon"), growthExperiments.financialPrompt);
   const timeVariant = resolveVariant(String(sessionQuery.data?.id || "anon"), growthExperiments.timeCopy);
-  const convenienceVariant = resolveVariant(
-    String(sessionQuery.data?.id || "anon"),
-    growthExperiments.convenienceResume
-  );
-  const quickActionVariant = resolveVariant(
-    String(sessionQuery.data?.id || "anon"),
-    growthExperiments.quickActionPlacementV2
-  );
 
   const composerName = useMemo(() => {
     const p = profileQuery.data;
@@ -250,21 +242,6 @@ export function CreateScreen({ navigation }: Props) {
       properties: { variant: financialVariant }
     });
   }, [canPromoteProducts, persona, financialVariant]);
-
-  useEffect(() => {
-    if (!shouldShowExperimentPrompt({ experimentId: growthExperiments.convenienceResume, persona })) {
-      return;
-    }
-    void trackClientExperimentEvent({
-      eventName: "quick_actions_shown",
-      persona,
-      source: "mobile",
-      surface: "create_post",
-      experimentId: growthExperiments.convenienceResume,
-      variantId: convenienceVariant,
-      properties: { actions: canCreateProducts ? ["add_event", "add_product"] : ["add_event"] }
-    });
-  }, [canCreateProducts, persona, convenienceVariant]);
 
   const pickMedia = async () => {
     const result = await DocumentPicker.getDocumentAsync({
@@ -528,43 +505,6 @@ export function CreateScreen({ navigation }: Props) {
         ]}
       >
         <Text style={styles.headerTitle}>Create New Post</Text>
-        <View style={styles.headerActions}>
-          {(quickActionVariant === "fast_path" && canCreateProducts
-            ? ([
-                { key: "add_product", label: "Add product" },
-                { key: "add_event", label: "Add event" }
-              ] as const)
-            : ([
-                { key: "add_event", label: "Add event" },
-                ...(canCreateProducts ? ([{ key: "add_product", label: "Add product" }] as const) : ([] as const))
-              ] as const)
-          ).map((action) => (
-            <Pressable
-              key={action.key}
-              onPress={() => {
-                void trackClientExperimentEvent({
-                  eventName: "quick_action_clicked",
-                  persona,
-                  source: "mobile",
-                  surface: "create_post",
-                  experimentId: growthExperiments.quickActionPlacementV2,
-                  variantId: quickActionVariant,
-                  properties: { action: action.key }
-                });
-                if (action.key === "add_event") {
-                  navigation.navigate("CreateEvent");
-                } else {
-                  navigation.navigate("CreateProduct");
-                }
-              }}
-              style={({ pressed }) => [styles.headerProductLink, pressed && styles.pressableSoft]}
-              accessibilityRole="button"
-              accessibilityLabel={action.label}
-            >
-              <Text style={styles.headerProductLinkText}>{action.label}</Text>
-            </Pressable>
-          ))}
-        </View>
       </View>
       <KeyboardAvoidingView
         style={styles.flex}
@@ -1095,7 +1035,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.screenHorizontal,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     gap: 12
   },
   headerBarCompact: {
@@ -1107,22 +1046,6 @@ const styles = StyleSheet.create({
     fontSize: 19,
     fontWeight: "700",
     flexShrink: 1
-  },
-  headerProductLink: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: radii.pill,
-    backgroundColor: colors.subtleFill
-  },
-  headerProductLinkText: {
-    color: colors.text,
-    fontSize: 14,
-    fontWeight: "700"
-  },
-  headerActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8
   },
   scrollContent: {
     paddingHorizontal: spacing.screenHorizontal,

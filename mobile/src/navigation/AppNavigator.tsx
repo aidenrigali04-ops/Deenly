@@ -27,6 +27,7 @@ import { MessagesScreen } from "../screens/app/MessagesScreen";
 import { SearchScreen } from "../screens/app/SearchScreen";
 import { ProfileScreen } from "../screens/app/ProfileScreen";
 import { CreateScreen } from "../screens/app/CreateScreen";
+import { CreateHubScreen } from "../screens/app/CreateHubScreen";
 import { PostDetailScreen } from "../screens/app/PostDetailScreen";
 import { UserProfileScreen } from "../screens/app/UserProfileScreen";
 import { OnboardingScreen } from "../screens/app/OnboardingScreen";
@@ -62,14 +63,18 @@ import { NavTabIcon } from "../components/icons/NavTabIcon";
 import { BusinessPersonalizerOverlay } from "../components/BusinessPersonalizerOverlay";
 import { getWebAppBaseUrl } from "../lib/web-app";
 
+export type CreateTabStackParamList = {
+  CreateHub: undefined;
+  CreatePost: undefined;
+};
+
 export type AppTabParamList = {
   HomeTab: undefined;
   MarketplaceTab: undefined;
   MessagesTab: { openUserId?: number };
-  SearchTab: undefined;
   AccountTab: undefined;
   FeedTab: undefined;
-  CreateTab: undefined;
+  CreateTab: NavigatorScreenParams<CreateTabStackParamList> | undefined;
   ReflectTab: undefined;
   InboxTab: undefined;
   ProfileTab: undefined;
@@ -110,10 +115,27 @@ export type RootStackParamList = {
   AdminHub: undefined;
   CreateEvent: undefined;
   EventDetail: { id: number; inviteToken?: string };
+  Search: undefined;
 };
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<AppTabParamList>();
+const CreateStack = createNativeStackNavigator<CreateTabStackParamList>();
+
+function CreateTabFlow() {
+  return (
+    <CreateStack.Navigator
+      initialRouteName="CreateHub"
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: colors.atmosphere }
+      }}
+    >
+      <CreateStack.Screen name="CreateHub" component={CreateHubScreen} />
+      <CreateStack.Screen name="CreatePost" component={CreateScreen} />
+    </CreateStack.Navigator>
+  );
+}
 
 function AppTabs() {
   const insets = useSafeAreaInsets();
@@ -190,16 +212,6 @@ function AppTabs() {
         }}
       />
       <Tab.Screen
-        name="SearchTab"
-        component={SearchScreen}
-        options={{
-          title: "Search",
-          tabBarIcon: ({ color, size, focused }) => (
-            <NavTabIcon kind="search" color={color} size={size ?? 22} focused={focused} />
-          )
-        }}
-      />
-      <Tab.Screen
         name="MessagesTab"
         component={MessagesScreen}
         options={{
@@ -211,9 +223,9 @@ function AppTabs() {
       />
       <Tab.Screen
         name="CreateTab"
-        component={CreateScreen}
+        component={CreateTabFlow}
         options={{
-          title: "Post",
+          title: "Create",
           tabBarIcon: ({ color, size, focused }) => (
             <NavTabIcon kind="upload" color={color} size={size ?? 22} focused={focused} />
           )
@@ -372,6 +384,7 @@ export function AppNavigator() {
           ) : (
             <>
               <RootStack.Screen name="AppTabs" component={AppTabs} options={{ headerShown: false }} />
+              <RootStack.Screen name="Search" component={SearchScreen} options={{ title: "Search" }} />
               <RootStack.Screen name="PostDetail" component={PostDetailScreen} options={{ title: "Post" }} />
               <RootStack.Screen name="UserProfile" component={UserProfileScreen} options={{ title: "User" }} />
               <RootStack.Screen name="Onboarding" component={OnboardingScreen} options={{ title: "Setup & feed" }} />

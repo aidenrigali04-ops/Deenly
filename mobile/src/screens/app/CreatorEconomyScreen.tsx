@@ -213,12 +213,15 @@ export function CreatorEconomyScreen() {
         {(productsQuery.data?.items || []).length ? (
           (productsQuery.data?.items || []).slice(0, 8).map((item) => (
             <Text key={item.id} style={styles.listLine}>
+              <Text style={styles.kindPill}>
+                {item.product_type === "subscription" ? "Recurring" : "One-time"}
+              </Text>{" "}
               {item.title}
               <Text style={styles.muted}> · {(item.platform_fee_bps / 100).toFixed(1)}% fee</Text>
             </Text>
           ))
         ) : (
-          <EmptyState title="No products yet" subtitle="Add them from the web Creator hub → Products." />
+          <EmptyState title="No products yet" subtitle="Add from the Create tab → Product, or use the web Creator hub." />
         )}
       </View>
 
@@ -228,7 +231,7 @@ export function CreatorEconomyScreen() {
           {(tiersQuery.data?.items || []).length ? (
             tiersQuery.data?.items.slice(0, 8).map((tier) => (
               <Text key={tier.id} style={styles.listLine}>
-                {tier.title}
+                <Text style={styles.kindPill}>Monthly</Text> {tier.title}
                 <Text style={styles.muted}>
                   {" "}
                   · {formatMinorCurrency(tier.monthly_price_minor, tier.currency)}/mo
@@ -236,7 +239,7 @@ export function CreatorEconomyScreen() {
               </Text>
             ))
           ) : (
-            <EmptyState title="No plans yet" subtitle="Create membership plans from web Creator hub -> Grow." />
+            <EmptyState title="No plans yet" subtitle="Create tab → Product, then choose Monthly membership." />
           )}
         </View>
       ) : null}
@@ -373,6 +376,13 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 13,
     lineHeight: 20
+  },
+  kindPill: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: colors.muted,
+    textTransform: "uppercase",
+    letterSpacing: 0.4
   },
   row: {
     flexDirection: "row",

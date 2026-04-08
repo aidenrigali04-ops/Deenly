@@ -24,10 +24,10 @@ export default function CreateProductPage() {
             Back to home
           </Link>
         </p>
-        <h1 className="page-header-title mt-4">Create a product</h1>
+        <h1 className="page-header-title mt-4">Create an offering</h1>
         <p className="page-header-subtitle">
-          List what you sell: price, delivery, and optional AI help on your description. Publish when ready, then attach
-          it from Create post or your Creator hub.
+          One-time digital or service products, or a monthly membership plan. Save as a draft, publish when ready, then
+          attach products from Create post or manage everything in Creator hub.
         </p>
       </header>
 

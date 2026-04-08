@@ -61,7 +61,7 @@ async function dismissBizOverlayFromBrowserSession(request: APIRequestContext, p
   await dismissBusinessOnboardingViaApi(request, token);
   // PATCH updates the DB but the SPA keeps stale React Query data for /users/me; reload refetches so the overlay unmounts.
   await page.reload({ waitUntil: "domcontentloaded" });
-  await expect(page.locator('[role="dialog"][aria-labelledby="biz-personalizer-title"]')).toHaveCount(0, {
+  await expect(page.locator('[role="dialog"][aria-labelledby="app-tour-title"]')).toHaveCount(0, {
     timeout: 20_000
   });
 }

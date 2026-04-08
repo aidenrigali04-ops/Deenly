@@ -190,7 +190,7 @@ export function ProfileScreen({ navigation }: Props) {
       <View style={[styles.topBar, compact && styles.topBarCompact, { paddingTop: insets.top + 4 }]}>
         <Pressable
           style={styles.topBarHit}
-          onPress={() => navigation.navigate("CreateTab")}
+          onPress={() => navigation.navigate("CreateTab", { screen: "CreateHub" })}
           accessibilityRole="button"
           accessibilityLabel="Create post"
         >

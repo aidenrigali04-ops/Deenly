@@ -251,6 +251,11 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
     parent?.navigate("Notifications");
   }, [navigation]);
 
+  const openSearch = useCallback(() => {
+    const parent = navigation.getParent<NativeStackNavigationProp<RootStackParamList>>();
+    parent?.navigate("Search");
+  }, [navigation]);
+
   const listHeader = useMemo(() => {
     return (
       <View style={[styles.headerBlock, compact && styles.headerBlockCompact]}>
@@ -276,12 +281,20 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
                 <Text style={[styles.marketplaceHint, compact && styles.marketplaceHintCompact]}>
                   Filter listings and open businesses near you.
                 </Text>
-                <Pressable
-                  style={[styles.nearMePill, compact && styles.nearMePillCompact]}
-                  onPress={() => navigation.navigate("BusinessesNearMe")}
-                >
-                  <Text style={styles.nearMePillText}>Near me</Text>
-                </Pressable>
+                <View style={styles.marketplaceHeaderActions}>
+                  <Pressable
+                    style={[styles.nearMePill, compact && styles.nearMePillCompact]}
+                    onPress={openSearch}
+                  >
+                    <Text style={styles.nearMePillText}>Search</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.nearMePill, compact && styles.nearMePillCompact]}
+                    onPress={() => navigation.navigate("BusinessesNearMe")}
+                  >
+                    <Text style={styles.nearMePillText}>Near me</Text>
+                  </Pressable>
+                </View>
               </View>
               <View style={styles.marketplaceActionsRow}>
                 <Pressable
@@ -349,6 +362,7 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
     followingOnly,
     items.length,
     navigation,
+    openSearch,
     visibleReminder,
     compact,
     canCreateProducts
@@ -420,8 +434,9 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
       {feedVariant === "home" ? <StatusBar style="dark" /> : null}
       {feedVariant === "home" ? (
         <HomeTopBar
-          onPressCreate={() => navigation.navigate("CreateTab")}
+          onPressCreate={() => navigation.navigate("CreateTab", { screen: "CreateHub" })}
           onPressAlerts={openNotifications}
+          onPressSearch={openSearch}
         />
       ) : null}
       <FlatList
@@ -673,6 +688,12 @@ const styles = StyleSheet.create({
     gap: 10,
     flexWrap: "wrap",
     width: "100%"
+  },
+  marketplaceHeaderActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 8
   },
   marketplaceHint: {
     flex: 1,

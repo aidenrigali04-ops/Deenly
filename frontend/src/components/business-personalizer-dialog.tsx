@@ -6,18 +6,40 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiRequest } from "@/lib/api";
 import { useSessionStore } from "@/store/session-store";
-import { USAGE_PERSONA_OPTIONS, type UsagePersonaKey } from "../../../shared/onboarding-options";
 import { applyWebMeProfileAfterPreferencesPatch } from "@/lib/apply-me-profile-preferences-response";
 
 type MeOnboarding = {
   business_onboarding_dismissed_at?: string | null;
 };
 
+const TOUR_SLIDES: { title: string; body: string }[] = [
+  {
+    title: "Home and Market",
+    body: "Browse posts on Home and discover offers on Market. Use the main navigation anytime."
+  },
+  {
+    title: "Create",
+    body: "From Create you can post, list a product or membership, or add an event."
+  },
+  {
+    title: "Search",
+    body: "Find people, businesses, and events from Search."
+  },
+  {
+    title: "Messages",
+    body: "Message people you find in Search. Your inbox lists all conversations."
+  },
+  {
+    title: "Profile and account type",
+    body: "Account settings are under your profile. Switch to Professional or Business when you want creator or business tools—you can change this anytime."
+  }
+];
+
 export function BusinessPersonalizerDialog() {
   const router = useRouter();
   const user = useSessionStore((s) => s.user);
   const queryClient = useQueryClient();
-  const [selectedPersona, setSelectedPersona] = useState<UsagePersonaKey>("personal");
+  const [slideIndex, setSlideIndex] = useState(0);
   const [submitError, setSubmitError] = useState("");
 
   const meQuery = useQuery({
@@ -27,12 +49,12 @@ export function BusinessPersonalizerDialog() {
   });
 
   const completeMutation = useMutation({
-    mutationFn: async (body: { usagePersona: UsagePersonaKey; navigate?: "creator" | "onboarding" }) => {
+    mutationFn: async (body: { navigateToOnboarding?: boolean }) => {
       const me = await apiRequest("/users/me/preferences", {
         method: "PATCH",
         auth: true,
         body: {
-          usagePersona: body.usagePersona,
+          usagePersona: "personal",
           preferenceSource: "web_overlay"
         }
       });
@@ -43,10 +65,9 @@ export function BusinessPersonalizerDialog() {
     },
     onSuccess: async (body) => {
       setSubmitError("");
+      setSlideIndex(0);
       await applyWebMeProfileAfterPreferencesPatch(queryClient, body.me);
-      if (body.navigate === "creator") {
-        router.push("/account/creator");
-      } else if (body.navigate === "onboarding") {
+      if (body.navigateToOnboarding) {
         router.push("/onboarding");
       }
     },
@@ -60,69 +81,96 @@ export function BusinessPersonalizerDialog() {
     return null;
   }
 
+  const last = slideIndex === TOUR_SLIDES.length - 1;
+  const slide = TOUR_SLIDES[slideIndex];
+
   return (
     <div
       className="fixed inset-0 z-40 flex items-center justify-center bg-black/35 p-4"
       role="dialog"
       aria-modal="true"
-      aria-labelledby="biz-personalizer-title"
+      aria-labelledby="app-tour-title"
     >
       <div className="surface-card max-w-lg space-y-3 rounded-panel border border-black/10 p-5 shadow-soft">
-        <h2 id="biz-personalizer-title" className="text-lg font-semibold text-text">
-          Personalize your experience
+        <h2 id="app-tour-title" className="text-lg font-semibold text-text">
+          Welcome to Deenly
         </h2>
-        <p className="text-sm text-muted">
-          Choose what Deenly should optimize first. You can change this later in settings.
+        <p className="text-xs font-semibold text-muted">
+          {slideIndex + 1} of {TOUR_SLIDES.length}
         </p>
+        <h3 className="text-base font-semibold text-text">{slide.title}</h3>
+        <p className="text-sm text-muted leading-relaxed">{slide.body}</p>
+        <div className="flex justify-center gap-1.5 py-1">
+          {TOUR_SLIDES.map((_, i) => (
+            <span
+              key={i}
+              className={`h-1.5 rounded-full ${i === slideIndex ? "w-2 bg-text" : "w-1.5 bg-black/20"}`}
+              aria-hidden
+            />
+          ))}
+        </div>
         {submitError ? (
           <p className="rounded-control border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900" role="alert">
             {submitError}
           </p>
         ) : null}
-        <div className="flex flex-col gap-2">
-          {USAGE_PERSONA_OPTIONS.map((option) => {
-            const active = selectedPersona === option.key;
-            return (
-              <button
-                key={option.key}
-                type="button"
-                className={`rounded-control border px-3 py-2 text-left transition ${
-                  active
-                    ? "border-black bg-black/[0.03]"
-                    : "border-black/10 bg-surface hover:bg-black/[0.02]"
-                }`}
-                disabled={completeMutation.isPending}
-                onClick={() => setSelectedPersona(option.key)}
-              >
-                <p className="text-sm font-semibold text-text">{option.label}</p>
-                <p className="mt-1 text-xs text-muted">{option.subtitle}</p>
-              </button>
-            );
-          })}
-          <button
-            type="button"
-            className="btn-primary w-full"
-            disabled={completeMutation.isPending}
-            onClick={() => {
-              completeMutation.mutate({
-                usagePersona: selectedPersona,
-                navigate: selectedPersona === "business" ? "creator" : "onboarding"
-              });
-            }}
-          >
-            {completeMutation.isPending ? "Saving…" : "Continue"}
-          </button>
-          <button
-            type="button"
-            className="text-sm font-medium text-muted underline-offset-2 hover:underline"
-            disabled={completeMutation.isPending}
-            onClick={() => completeMutation.mutate({ usagePersona: "personal", navigate: "onboarding" })}
-          >
-            I&apos;ll decide later
-          </button>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          {slideIndex > 0 ? (
+            <button
+              type="button"
+              className="rounded-control border border-black/10 px-3 py-2 text-sm font-semibold text-text"
+              disabled={completeMutation.isPending}
+              onClick={() => setSlideIndex((i) => i - 1)}
+            >
+              Back
+            </button>
+          ) : (
+            <span className="w-16" />
+          )}
+          {!last ? (
+            <button
+              type="button"
+              className="btn-primary min-w-[120px] flex-1 sm:flex-none"
+              disabled={completeMutation.isPending}
+              onClick={() => setSlideIndex((i) => i + 1)}
+            >
+              Next
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn-primary min-w-[120px] flex-1 sm:flex-none"
+              disabled={completeMutation.isPending}
+              onClick={() => completeMutation.mutate({})}
+            >
+              {completeMutation.isPending ? "Saving…" : "Get started"}
+            </button>
+          )}
         </div>
+        {last ? (
+          <button
+            type="button"
+            className="w-full text-sm font-semibold text-sky-700 underline-offset-2 hover:underline"
+            disabled={completeMutation.isPending}
+            onClick={() => completeMutation.mutate({ navigateToOnboarding: true })}
+          >
+            Customize your feed
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="w-full text-sm font-medium text-muted underline-offset-2 hover:underline"
+          disabled={completeMutation.isPending}
+          onClick={() => completeMutation.mutate({})}
+        >
+          Skip
+        </button>
         <p className="text-xs text-muted">
-          Want a map listing too? Add it from <Link href="/businesses/new">business profile</Link>.
+          Map listing for a business? Add it from{" "}
+          <Link href="/businesses/new" className="font-semibold text-sky-700 underline-offset-2 hover:underline">
+            business profile
+          </Link>
+          .
         </p>
       </div>
     </div>

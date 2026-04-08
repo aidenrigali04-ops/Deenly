@@ -385,6 +385,9 @@ function AccountCreatorPageInner() {
             onCreated={async () => {
               await myProductsQuery.refetch();
             }}
+            onTierCreated={async () => {
+              await myTiersQuery.refetch();
+            }}
           />
         </div>
       </section>
@@ -407,6 +410,11 @@ function AccountCreatorPageInner() {
                 <div key={product.id} className="space-y-1 border-b border-black/5 pb-2 last:border-0">
                   <div className="flex items-center justify-between gap-2 text-xs">
                     <span className="truncate">
+                      <span className="mr-1 rounded-pill border border-black/10 bg-surface px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+                        {product.product_type === "subscription"
+                          ? "Recurring"
+                          : "One-time"}
+                      </span>
                       {product.title} - {formatMinorCurrency(product.price_minor, product.currency)} ·{" "}
                       {(product.platform_fee_bps / 100).toFixed(1)}% platform · {product.status}
                     </span>
@@ -517,6 +525,9 @@ function AccountCreatorPageInner() {
             {(myTiersQuery.data?.items || []).slice(0, 20).map((tier) => (
               <div key={tier.id} className="flex items-center justify-between gap-2 text-xs">
                 <span className="truncate">
+                  <span className="mr-1 rounded-pill border border-black/10 bg-surface px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+                    Monthly
+                  </span>
                   {tier.title} - {formatMinorCurrency(tier.monthly_price_minor, tier.currency)}/mo · {tier.status}
                 </span>
                 <button

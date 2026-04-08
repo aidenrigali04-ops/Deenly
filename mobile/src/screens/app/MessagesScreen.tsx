@@ -48,7 +48,6 @@ export function MessagesScreen({ navigation }: Props) {
   const queryClient = useQueryClient();
   const sessionUserId = useSessionStore((s) => s.user?.id ?? null);
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
-  const [participantUserId, setParticipantUserId] = useState("");
   const [usernameLookupInput, setUsernameLookupInput] = useState("");
   const [body, setBody] = useState("");
 
@@ -129,7 +128,6 @@ export function MessagesScreen({ navigation }: Props) {
     mutationFn: (userId: number) => createOrOpenConversation(userId),
     onSuccess: (result) => {
       setSelectedConversationId(result.conversationId);
-      setParticipantUserId("");
       setUsernameLookupInput("");
       usernameLookupMutation.reset();
       queryClient.invalidateQueries({ queryKey: ["mobile-messages-conversations"] });
@@ -167,7 +165,7 @@ export function MessagesScreen({ navigation }: Props) {
 
         <SectionCard title="New message">
           <Text style={styles.helper}>
-            Search by name or @username (same index as Search), or enter a numeric user ID from someone&apos;s profile.
+            Search by name or @username—the same people index as Search—or open a chat from someone&apos;s profile.
           </Text>
           <Text style={styles.miniLabel}>Find by name or username</Text>
           <TextInput
@@ -207,34 +205,13 @@ export function MessagesScreen({ navigation }: Props) {
                       {row.display_name}
                     </Text>
                     <Text style={styles.lookupRowSub} numberOfLines={1}>
-                      @{row.username} · ID {row.user_id}
+                      @{row.username}
                     </Text>
                   </Pressable>
                 ))}
               </View>
             )
           ) : null}
-          <Text style={[styles.miniLabel, styles.miniLabelSpaced]}>Or user ID</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="User ID"
-            placeholderTextColor={colors.muted}
-            value={participantUserId}
-            keyboardType="number-pad"
-            onChangeText={setParticipantUserId}
-          />
-          <Pressable
-            style={styles.buttonSecondary}
-            onPress={() => {
-              const n = Number(participantUserId);
-              if (!Number.isFinite(n) || n <= 0) return;
-              createConversation.mutate(n);
-            }}
-          >
-            <Text style={styles.buttonText}>
-              {createConversation.isPending ? "Starting..." : "Start conversation"}
-            </Text>
-          </Pressable>
         </SectionCard>
 
         {conversationsQuery.isLoading ? <LoadingState label="Loading conversations..." /> : null}
@@ -246,7 +223,7 @@ export function MessagesScreen({ navigation }: Props) {
           {inboxEmpty ? (
             <View style={styles.emptyInbox}>
               <Text style={styles.emptyInboxText}>No conversations yet. Start one above, or find people to message from Search.</Text>
-              <Pressable style={styles.findPeopleBtn} onPress={() => navigation.navigate("SearchTab")}>
+              <Pressable style={styles.findPeopleBtn} onPress={() => navigation.navigate("Search")}>
                 <Text style={styles.findPeopleBtnText}>Find people</Text>
               </Pressable>
             </View>
@@ -329,7 +306,6 @@ const styles = StyleSheet.create({
   scrollContent: { gap: 14 },
   helper: { color: colors.muted, fontSize: 13, lineHeight: 19 },
   miniLabel: { fontSize: 12, fontWeight: "700", color: colors.text, marginBottom: 6 },
-  miniLabelSpaced: { marginTop: 14 },
   lookupError: { color: colors.danger, fontSize: 13, marginTop: 8 },
   lookupList: { marginTop: 10, gap: 0, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderSubtle, borderRadius: radii.control, overflow: "hidden" },
   lookupRow: {

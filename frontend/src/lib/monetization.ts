@@ -278,10 +278,6 @@ export async function fetchMyTiers() {
   return apiRequest<{ items: SubscriptionTier[] }>("/monetization/tiers/me", { auth: true });
 }
 
-export async function fetchCreatorTiers(creatorUserId: number) {
-  return apiRequest<{ items: SubscriptionTier[] }>(`/monetization/tiers/creator/${creatorUserId}`);
-}
-
 export async function createTier(input: {
   title: string;
   description?: string;
@@ -301,6 +297,10 @@ export async function publishTier(tierId: number) {
     auth: true,
     body: {}
   });
+}
+
+export async function fetchCreatorTiers(creatorUserId: number) {
+  return apiRequest<{ items: SubscriptionTier[] }>(`/monetization/tiers/creator/${creatorUserId}`);
 }
 
 export async function attachProductToPost(postId: number, productId: number) {

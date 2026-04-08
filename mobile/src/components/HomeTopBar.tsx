@@ -7,9 +7,10 @@ import { colors } from "../theme";
 type Props = {
   onPressCreate: () => void;
   onPressAlerts: () => void;
+  onPressSearch?: () => void;
 };
 
-export function HomeTopBar({ onPressCreate, onPressAlerts }: Props) {
+export function HomeTopBar({ onPressCreate, onPressAlerts, onPressSearch }: Props) {
   const insets = useSafeAreaInsets();
   const useBlur = supportsNativeBlur();
   return (
@@ -29,14 +30,26 @@ export function HomeTopBar({ onPressCreate, onPressAlerts }: Props) {
           <Text style={styles.plus}>+</Text>
         </Pressable>
         <Text style={styles.wordmark}>Deenly</Text>
-        <Pressable
-          onPress={onPressAlerts}
-          style={styles.sideHit}
-          accessibilityRole="button"
-          accessibilityLabel="Notifications"
-        >
-          <Text style={styles.heart}>♥</Text>
-        </Pressable>
+        <View style={styles.rightCluster}>
+          {onPressSearch ? (
+            <Pressable
+              onPress={onPressSearch}
+              style={styles.sideHit}
+              accessibilityRole="button"
+              accessibilityLabel="Search"
+            >
+              <Text style={styles.searchGlyph}>⌕</Text>
+            </Pressable>
+          ) : null}
+          <Pressable
+            onPress={onPressAlerts}
+            style={styles.sideHit}
+            accessibilityRole="button"
+            accessibilityLabel="Notifications"
+          >
+            <Text style={styles.heart}>♥</Text>
+          </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -56,11 +69,21 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     zIndex: 1
   },
+  rightCluster: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2
+  },
   sideHit: {
     minWidth: 44,
     minHeight: 44,
     alignItems: "center",
     justifyContent: "center"
+  },
+  searchGlyph: {
+    color: colors.text,
+    fontSize: 22,
+    fontWeight: "500"
   },
   plus: {
     color: colors.text,

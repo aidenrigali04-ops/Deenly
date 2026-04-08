@@ -330,6 +330,27 @@ export async function fetchMyTiers() {
   return apiRequest<{ items: MonetizationTier[] }>("/monetization/tiers/me", { auth: true });
 }
 
+export async function createTier(input: {
+  title: string;
+  description?: string;
+  monthlyPriceMinor: number;
+  currency?: string;
+}) {
+  return apiRequest<MonetizationTier>("/monetization/tiers", {
+    method: "POST",
+    auth: true,
+    body: input
+  });
+}
+
+export async function publishTier(tierId: number) {
+  return apiRequest<MonetizationTier>(`/monetization/tiers/${tierId}/publish`, {
+    method: "POST",
+    auth: true,
+    body: {}
+  });
+}
+
 export async function fetchMyEarnings() {
   return apiRequest<{ totals: { balance_minor: number }; items: Record<string, unknown>[] }>(
     "/monetization/earnings/me",

@@ -8,6 +8,8 @@ import { assistPostText } from "@/lib/ai-assist";
 import {
   createProduct,
   publishProduct,
+  createTier,
+  publishTier,
   fetchConnectStatus,
   fetchStripeProductImportList,
   importProductDraftFromStripe,
@@ -59,12 +61,15 @@ export type CreateProductComposerProps = {
   variant: "page" | "embedded";
   /** Called after successful draft save (embedded: Creator hub). */
   onCreated?: (product: CreatorProduct) => void;
+  /** Called after a membership tier draft is saved (embedded: refetch tiers). */
+  onTierCreated?: () => void;
 };
 
 type MePersonaProfile = {
   profile_kind?: "consumer" | "professional" | "business_interest" | null;
   persona_capabilities?: {
     can_create_products?: boolean;
+    can_manage_memberships?: boolean;
   };
 };
 
@@ -110,7 +115,7 @@ function applyImportedDraft(
   setters.setBusinessCategory(draft.businessCategory || "");
 }
 
-export function CreateProductComposer({ variant, onCreated }: CreateProductComposerProps) {
+export function CreateProductComposer({ variant, onCreated, onTierCreated }: CreateProductComposerProps) {
   const queryClient = useQueryClient();
   const [newProductTitle, setNewProductTitle] = useState("");
   const [newProductDescription, setNewProductDescription] = useState("");
@@ -118,6 +123,7 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
   const [showPriceMinorAdvanced, setShowPriceMinorAdvanced] = useState(false);
   const [newProductPriceMinorRaw, setNewProductPriceMinorRaw] = useState("");
   const [newProductCurrency, setNewProductCurrency] = useState("usd");
+  const [offeringKind, setOfferingKind] = useState<"digital" | "service" | "membership">("digital");
   const [newProductType, setNewProductType] = useState<"digital" | "service">("digital");
   const [newProductAudienceTarget, setNewProductAudienceTarget] = useState<"b2b" | "b2c" | "both">("both");
   const [newProductBusinessCategory, setNewProductBusinessCategory] = useState("");
@@ -135,6 +141,7 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
   const [productAiPreview, setProductAiPreview] = useState<string | null>(null);
   const [serviceAiPreview, setServiceAiPreview] = useState<string | null>(null);
   const [lastCreated, setLastCreated] = useState<CreatorProduct | null>(null);
+  const [lastCreatedTier, setLastCreatedTier] = useState<{ id: number } | null>(null);
   const [publishError, setPublishError] = useState("");
   const [stripeImportItems, setStripeImportItems] = useState<StripeProductImportRow[]>([]);
   const [stripeImportBusy, setStripeImportBusy] = useState(false);
@@ -150,6 +157,13 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
     queryFn: () => apiRequest<MePersonaProfile>("/users/me", { auth: true })
   });
   const canCreateProducts = Boolean(meProfileQuery.data?.persona_capabilities?.can_create_products);
+  const canManageMemberships = Boolean(meProfileQuery.data?.persona_capabilities?.can_manage_memberships);
+
+  useEffect(() => {
+    if (canManageMemberships && !canCreateProducts) {
+      setOfferingKind("membership");
+    }
+  }, [canManageMemberships, canCreateProducts]);
   const persona = meProfileQuery.data?.profile_kind || null;
   const financialVariant = resolveVariant(`${variant}:${persona || "anon"}`, growthExperiments.financialPrompt);
   const timeVariant = resolveVariant(`${variant}:${persona || "anon"}`, growthExperiments.timeCopy);
@@ -176,6 +190,15 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
   const previewFeeBps = boostTierBps[newProductBoostTier] ?? 350;
   const previewNet =
     previewPriceMinor && previewPriceMinor > 0 ? estimateCreatorNet(previewPriceMinor, previewFeeBps, 700, true) : null;
+
+  const tierPlatformFeeBps =
+    connectStatusQuery.data?.feePolicy?.tiers?.find((tier) => tier.key === "standard")?.platformFeeBps || 350;
+  const membershipMonthlyMinor =
+    offeringKind === "membership" ? parseUsdToMinor(newProductPriceUsd) : null;
+  const membershipPreviewNet =
+    membershipMonthlyMinor && membershipMonthlyMinor > 0
+      ? estimateCreatorNet(membershipMonthlyMinor, tierPlatformFeeBps, 700, true)
+      : null;
 
   const createProductMutation = useMutation({
     mutationFn: (input: {
@@ -204,6 +227,21 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
     }
   });
 
+  const createTierMutation = useMutation({
+    mutationFn: (input: { title: string; description?: string; monthlyPriceMinor: number; currency?: string }) =>
+      createTier({ ...input, currency: input.currency || "usd" }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["account-monetization-tiers"] });
+    }
+  });
+
+  const publishTierMutation = useMutation({
+    mutationFn: (id: number) => publishTier(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["account-monetization-tiers"] });
+    }
+  });
+
   const resetForm = () => {
     setNewProductTitle("");
     setNewProductDescription("");
@@ -211,6 +249,7 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
     setNewProductPriceMinorRaw("");
     setShowPriceMinorAdvanced(false);
     setNewProductCurrency("usd");
+    setOfferingKind("digital");
     setNewProductType("digital");
     setNewProductAudienceTarget("both");
     setNewProductBusinessCategory("");
@@ -227,6 +266,7 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
     setProductAiPreview(null);
     setServiceAiPreview(null);
     setAssistError("");
+    setLastCreatedTier(null);
   };
 
   useEffect(() => {
@@ -249,11 +289,56 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
 
   const onCreateProductSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setNewProductFormError("");
+
+    if (offeringKind === "membership") {
+      if (!canManageMemberships) {
+        setNewProductFormError("Membership plans are not enabled for your profile. Check Account settings.");
+        return;
+      }
+      const title = newProductTitle.trim();
+      if (title.length < 3) {
+        setNewProductFormError("Title must be at least 3 characters.");
+        return;
+      }
+      const monthlyMinor = parseUsdToMinor(newProductPriceUsd);
+      if (monthlyMinor === null) {
+        setNewProductFormError("Enter a valid monthly USD amount (e.g. 9.99).");
+        return;
+      }
+      try {
+        const tier = await createTierMutation.mutateAsync({
+          title,
+          description: newProductDescription.trim() || undefined,
+          monthlyPriceMinor: monthlyMinor,
+          currency: "usd"
+        });
+        onTierCreated?.();
+        if (variant === "page") {
+          setLastCreatedTier({ id: tier.id });
+          resetForm();
+        } else {
+          resetForm();
+        }
+        void trackClientExperimentEvent({
+          eventName: "task_completed",
+          persona,
+          source: "web",
+          surface: "create_membership_tier",
+          experimentId: growthExperiments.timeCopy,
+          variantId: timeVariant,
+          properties: { tierId: tier.id }
+        });
+      } catch (err) {
+        setNewProductFormError((err as Error).message || "Could not create membership plan.");
+      }
+      return;
+    }
+
     if (!canCreateProducts) {
       setNewProductFormError("Switch to Professional or Business in Account settings to create product listings.");
       return;
     }
-    setNewProductFormError("");
     const title = newProductTitle.trim();
     if (title.length < 3) {
       setNewProductFormError("Title must be at least 3 characters.");
@@ -437,10 +522,50 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
     );
   }
 
-  if (!meProfileQuery.isLoading && !canCreateProducts) {
+  if (variant === "page" && lastCreatedTier) {
+    return (
+      <div className="surface-card section-stack rounded-control border border-black/10 px-6 py-6">
+        <p className="text-sm font-semibold text-text">Membership plan saved as draft</p>
+        <p className="mt-1 text-sm text-muted">
+          Publish when you are ready for checkout. You can manage plans in Creator hub.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="btn-primary px-3 py-1.5 text-sm"
+            disabled={publishTierMutation.isPending}
+            onClick={async () => {
+              setPublishError("");
+              try {
+                await publishTierMutation.mutateAsync(lastCreatedTier.id);
+                setLastCreatedTier(null);
+              } catch (e) {
+                setPublishError((e as Error).message || "Could not publish.");
+              }
+            }}
+          >
+            {publishTierMutation.isPending ? "Publishing…" : "Publish now"}
+          </button>
+          <Link href="/account/creator?tab=grow" className="btn-secondary inline-flex px-3 py-1.5 text-sm">
+            Creator hub
+          </Link>
+          <button type="button" className="btn-secondary px-3 py-1.5 text-sm" onClick={() => setLastCreatedTier(null)}>
+            Create another
+          </button>
+        </div>
+        {publishError ? (
+          <p className="mt-2 text-sm text-red-600" role="alert">
+            {publishError}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (!meProfileQuery.isLoading && !canCreateProducts && !canManageMemberships) {
     return (
       <div className="rounded-control border border-black/10 bg-surface px-4 py-3 text-sm text-muted">
-        Product creation is available for Professional and Business profiles.{" "}
+        Product and membership tools are available for Professional and Business profiles.{" "}
         <Link
           href="/account/settings"
           className="text-sky-600 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
@@ -454,6 +579,60 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
 
   return (
     <form className="space-y-4" onSubmit={onCreateProductSubmit}>
+      <div className="flex flex-wrap gap-2">
+        {canCreateProducts ? (
+          <>
+            <button
+              type="button"
+              className={`rounded-pill border px-3 py-1.5 text-xs font-semibold ${
+                offeringKind === "digital"
+                  ? "border-sky-600 bg-sky-50 text-sky-900"
+                  : "border-black/15 bg-surface text-text"
+              }`}
+              onClick={() => {
+                setOfferingKind("digital");
+                setNewProductType("digital");
+              }}
+            >
+              One-time digital
+            </button>
+            <button
+              type="button"
+              className={`rounded-pill border px-3 py-1.5 text-xs font-semibold ${
+                offeringKind === "service"
+                  ? "border-sky-600 bg-sky-50 text-sky-900"
+                  : "border-black/15 bg-surface text-text"
+              }`}
+              onClick={() => {
+                setOfferingKind("service");
+                setNewProductType("service");
+              }}
+            >
+              One-time service
+            </button>
+          </>
+        ) : null}
+        {canManageMemberships ? (
+          <button
+            type="button"
+            className={`rounded-pill border px-3 py-1.5 text-xs font-semibold ${
+              offeringKind === "membership"
+                ? "border-sky-600 bg-sky-50 text-sky-900"
+                : "border-black/15 bg-surface text-text"
+            }`}
+            onClick={() => setOfferingKind("membership")}
+          >
+            Monthly membership
+          </button>
+        ) : null}
+      </div>
+      {offeringKind === "membership" ? (
+        <p className="text-xs text-muted">
+          Recurring supporter plan billed monthly. Title and description appear on your profile checkout.
+        </p>
+      ) : null}
+
+      {offeringKind !== "membership" ? (
       <div className="space-y-3 rounded-control border border-black/10 bg-black/[0.02] px-4 py-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">Import</p>
         <p className="text-xs text-muted">
@@ -615,7 +794,9 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
           </p>
         ) : null}
       </div>
+      ) : null}
 
+      {offeringKind !== "membership" ? (
       <div className="space-y-3 border-t border-black/10 pt-4 first:border-t-0 first:pt-0">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">Pricing and type</p>
         {!showPriceMinorAdvanced && newProductCurrency.toLowerCase() === "usd" ? (
@@ -679,7 +860,7 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
           <option value="digital">Digital</option>
           <option value="service">Service</option>
         </select>
-        <p className="text-xs text-muted">Recurring offers are managed as Membership plans in Creator hub.</p>
+        <p className="text-xs text-muted">Use Monthly membership above for recurring supporter plans.</p>
         <div className="space-y-1">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">Marketplace boost fee</p>
           <p className="text-xs text-muted">
@@ -715,43 +896,48 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
           </div>
         </div>
       </div>
+      ) : null}
 
-      <div className="space-y-3 border-t border-black/10 pt-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted">Who it is for</p>
-        <select
-          className="input bg-white"
-          value={newProductAudienceTarget}
-          onChange={(e) => setNewProductAudienceTarget(e.target.value as "b2b" | "b2c" | "both")}
-          aria-label="Product audience"
-        >
-          <option value="b2c">Consumers (B2C)</option>
-          <option value="b2b">Businesses (B2B)</option>
-          <option value="both">Both</option>
-        </select>
-      </div>
+      {offeringKind !== "membership" ? (
+        <>
+          <div className="space-y-3 border-t border-black/10 pt-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">Who it is for</p>
+            <select
+              className="input bg-white"
+              value={newProductAudienceTarget}
+              onChange={(e) => setNewProductAudienceTarget(e.target.value as "b2b" | "b2c" | "both")}
+              aria-label="Product audience"
+            >
+              <option value="b2c">Consumers (B2C)</option>
+              <option value="b2b">Businesses (B2B)</option>
+              <option value="both">Both</option>
+            </select>
+          </div>
 
-      <div className="space-y-3 border-t border-black/10 pt-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted">Category</p>
-        <select
-          className="input bg-white"
-          value={newProductBusinessCategory}
-          onChange={(e) => setNewProductBusinessCategory(e.target.value)}
-          aria-label="Business category"
-        >
-          <option value="">Select category</option>
-          <option value="tools_growth">Tools & Growth</option>
-          <option value="professional_services">Professional Services</option>
-          <option value="digital_products">Digital Products</option>
-          <option value="education_coaching">Education & Coaching</option>
-          <option value="lifestyle_inspiration">Lifestyle & Inspiration</option>
-        </select>
-      </div>
+          <div className="space-y-3 border-t border-black/10 pt-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">Category</p>
+            <select
+              className="input bg-white"
+              value={newProductBusinessCategory}
+              onChange={(e) => setNewProductBusinessCategory(e.target.value)}
+              aria-label="Business category"
+            >
+              <option value="">Select category</option>
+              <option value="tools_growth">Tools & Growth</option>
+              <option value="professional_services">Professional Services</option>
+              <option value="digital_products">Digital Products</option>
+              <option value="education_coaching">Education & Coaching</option>
+              <option value="lifestyle_inspiration">Lifestyle & Inspiration</option>
+            </select>
+          </div>
+        </>
+      ) : null}
 
       <div className="space-y-3 border-t border-black/10 pt-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">Offer copy</p>
         <input
           className="input bg-white"
-          placeholder="Product title"
+          placeholder={offeringKind === "membership" ? "Plan title" : "Product title"}
           value={newProductTitle}
           onChange={(e) => setNewProductTitle(e.target.value)}
           maxLength={180}
@@ -780,7 +966,7 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
         ) : null}
         <textarea
           className="input min-h-24 resize-y bg-white"
-          placeholder="Product or offer details"
+          placeholder={offeringKind === "membership" ? "What members receive each month" : "Product or offer details"}
           value={newProductDescription}
           onChange={(e) => setNewProductDescription(e.target.value)}
           aria-label="Product description"
@@ -801,6 +987,43 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
         ) : null}
       </div>
 
+      {offeringKind === "membership" ? (
+        <div className="space-y-3 border-t border-black/10 pt-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Monthly price</p>
+          <div className="space-y-1">
+            <label className="text-xs text-muted" htmlFor="cp-membership-monthly-usd">
+              Price per month (USD)
+            </label>
+            <input
+              id="cp-membership-monthly-usd"
+              className="input bg-white"
+              placeholder="e.g. 9.99"
+              value={newProductPriceUsd}
+              onChange={(e) => setNewProductPriceUsd(e.target.value)}
+              inputMode="decimal"
+              aria-label="Monthly price in US dollars"
+            />
+          </div>
+          <div className="rounded-control border border-black/10 bg-white px-3 py-2 text-xs text-muted">
+            <p className="font-semibold text-text">Payout preview (per month)</p>
+            <p>Member pays: {membershipMonthlyMinor ? formatMinorCurrency(membershipMonthlyMinor, "usd") : "—"}</p>
+            <p>
+              Platform fee ({(tierPlatformFeeBps / 100).toFixed(1)}%):{" "}
+              {membershipPreviewNet ? formatMinorCurrency(membershipPreviewNet.platformFeeMinor, "usd") : "—"}
+            </p>
+            <p>
+              Affiliate impact (up to 7.0%):{" "}
+              {membershipPreviewNet ? formatMinorCurrency(membershipPreviewNet.affiliateMinor, "usd") : "—"}
+            </p>
+            <p className="font-semibold text-text">
+              You receive (estimated):{" "}
+              {membershipPreviewNet ? formatMinorCurrency(membershipPreviewNet.creatorNetMinor, "usd") : "Enter valid amount"}
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {offeringKind !== "membership" ? (
       <div className="space-y-3 border-t border-black/10 pt-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">Delivery</p>
         {newProductType === "digital" ? (
@@ -880,20 +1103,29 @@ export function CreateProductComposer({ variant, onCreated }: CreateProductCompo
           aria-label="Website URL"
         />
       </div>
+      ) : null}
 
       {newProductFormError ? (
         <p className="text-sm text-red-600" role="alert">
           {newProductFormError}
         </p>
       ) : null}
-      <button className="btn-primary" type="submit" disabled={createProductMutation.isPending}>
-        {createProductMutation.isPending
-          ? "Saving..."
-          : timeVariant === "value_copy"
-            ? "Save draft and start earning"
-            : timeVariant === "fast_path"
-              ? "Save draft (fast)"
-              : "Save product (draft)"}
+      <button
+        className="btn-primary"
+        type="submit"
+        disabled={offeringKind === "membership" ? createTierMutation.isPending : createProductMutation.isPending}
+      >
+        {offeringKind === "membership"
+          ? createTierMutation.isPending
+            ? "Saving…"
+            : "Save membership (draft)"
+          : createProductMutation.isPending
+            ? "Saving..."
+            : timeVariant === "value_copy"
+              ? "Save draft and start earning"
+              : timeVariant === "fast_path"
+                ? "Save draft (fast)"
+                : "Save product (draft)"}
       </button>
     </form>
   );
