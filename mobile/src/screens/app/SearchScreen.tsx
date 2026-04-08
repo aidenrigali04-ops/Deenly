@@ -17,6 +17,7 @@ import { apiRequest } from "../../lib/api";
 import { fetchBusinessesNear } from "../../lib/businesses";
 import { fetchEventsNear } from "../../lib/events";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
+import { SectionCard, TabScreenHeader, TabScreenRoot } from "../../components/TabScreenChrome";
 import { colors, radii } from "../../theme";
 import { useTabSceneBottomPadding, useTabSceneTopPadding } from "../../hooks/useTabSceneInsets";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
@@ -165,189 +166,263 @@ export function SearchScreen({ navigation }: Props) {
       : nearEventsQuery.data?.items || [];
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={[styles.content, { paddingTop: topPad, paddingBottom: bottomPad }]}
-    >
-      <Text style={styles.heading}>Search</Text>
-      <View style={styles.modeRow}>
-        <Pressable style={[styles.modeChip, mode === "search" ? styles.modeChipOn : null]} onPress={() => setMode("search")}>
-          <Text style={[styles.modeChipText, mode === "search" ? styles.modeChipTextOn : null]}>Search</Text>
-        </Pressable>
-        <Pressable style={[styles.modeChip, mode === "near" ? styles.modeChipOn : null]} onPress={() => setMode("near")}>
-          <Text style={[styles.modeChipText, mode === "near" ? styles.modeChipTextOn : null]}>Near me</Text>
-        </Pressable>
-        {canUseBusinessDirectoryTools ? (
-          <Pressable style={styles.addBiz} onPress={() => navigation.navigate("AddBusiness")}>
-            <Text style={styles.addBizText}>Add business</Text>
-          </Pressable>
-        ) : null}
-      </View>
+    <TabScreenRoot>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: topPad, paddingBottom: bottomPad }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <TabScreenHeader
+          title="Search"
+          subtitle="Find people, posts, and places near you."
+          headerRight={
+            canUseBusinessDirectoryTools ? (
+              <Pressable style={styles.headerLink} onPress={() => navigation.navigate("AddBusiness")}>
+                <Text style={styles.headerLinkText}>Add business</Text>
+              </Pressable>
+            ) : null
+          }
+        />
 
-      {mode === "search" ? (
-        <>
-          <View style={styles.searchRow}>
-            <TextInput
-              style={[styles.input, styles.flex1]}
-              placeholder="Search users or posts..."
-              placeholderTextColor={colors.muted}
-              value={q}
-              onChangeText={setQ}
-            />
-            <Pressable style={styles.buttonSecondary} onPress={() => setSubmittedQ(q.trim())}>
-              <Text style={styles.buttonText}>Go</Text>
+        <SectionCard>
+          <Text style={styles.panelLabel}>Mode</Text>
+          <View style={styles.modeRow}>
+            <Pressable style={[styles.modeChip, mode === "search" ? styles.modeChipOn : null]} onPress={() => setMode("search")}>
+              <Text style={[styles.modeChipText, mode === "search" ? styles.modeChipTextOn : null]}>Search</Text>
+            </Pressable>
+            <Pressable style={[styles.modeChip, mode === "near" ? styles.modeChipOn : null]} onPress={() => setMode("near")}>
+              <Text style={[styles.modeChipText, mode === "near" ? styles.modeChipTextOn : null]}>Near me</Text>
             </Pressable>
           </View>
-          {!submittedQ ? <EmptyState title="Search the platform" /> : null}
-          {usersQuery.isLoading || postsQuery.isLoading ? <LoadingState label="Searching..." /> : null}
-          {usersQuery.error ? <ErrorState message={(usersQuery.error as Error).message} /> : null}
-          {postsQuery.error ? <ErrorState message={(postsQuery.error as Error).message} /> : null}
-          {submittedQ ? (
-            <>
-              <View style={styles.card}>
-                <Text style={styles.title}>Users</Text>
-                {(usersQuery.data?.items || []).map((user) => (
-                  <Pressable key={user.user_id} onPress={() => navigation.navigate("UserProfile", { id: user.user_id })}>
-                    <Text style={styles.item}>{user.display_name} (@{user.username})</Text>
-                  </Pressable>
-                ))}
-                {(usersQuery.data?.items || []).length === 0 ? <EmptyState title="No users found" /> : null}
+        </SectionCard>
+
+        {mode === "search" ? (
+          <>
+            <SectionCard title="Look up">
+              <View style={styles.searchRow}>
+                <TextInput
+                  style={[styles.input, styles.flex1]}
+                  placeholder="Search users or posts..."
+                  placeholderTextColor={colors.muted}
+                  value={q}
+                  onChangeText={setQ}
+                  onSubmitEditing={() => setSubmittedQ(q.trim())}
+                  returnKeyType="search"
+                />
+                <Pressable style={styles.buttonSecondary} onPress={() => setSubmittedQ(q.trim())}>
+                  <Text style={styles.buttonText}>Go</Text>
+                </Pressable>
               </View>
-              <View style={styles.card}>
-                <Text style={styles.title}>Posts</Text>
-                {(postsQuery.data?.items || []).map((post) => (
-                  <Pressable key={post.id} onPress={() => navigation.navigate("PostDetail", { id: post.id })}>
-                    <Text style={styles.item}>
-                      [{post.post_type}] {post.content}
-                    </Text>
-                    <Text style={styles.muted}>by {post.author_display_name}</Text>
-                  </Pressable>
-                ))}
-                {(postsQuery.data?.items || []).length === 0 ? <EmptyState title="No posts found" /> : null}
-              </View>
-            </>
-          ) : null}
-        </>
-      ) : (
-        <View style={styles.nearSection}>
-          {geoNote ? <Text style={styles.note}>{geoNote}</Text> : null}
-          {geoLoading ? <LoadingState label="Finding your area…" /> : null}
-          {!geoLoading && geo ? (
-            <>
-              <Pressable
-                style={styles.mapPlaceholder}
-                onPress={() => Linking.openURL(`https://www.google.com/maps/@${geo.lat},${geo.lng},13z`)}
-              >
-                <Text style={styles.mapPlaceholderText}>Open area in Maps</Text>
-                <Text style={styles.mutedSmall}>
-                  {geo.lat.toFixed(4)}, {geo.lng.toFixed(4)}
-                </Text>
-              </Pressable>
-              {nearQuery.isLoading ? <LoadingState label="Loading nearby…" /> : null}
-              {nearQuery.error ? <ErrorState message={(nearQuery.error as Error).message} /> : null}
-              {nearEventsQuery.isLoading ? <LoadingState label="Loading nearby events…" /> : null}
-              {nearEventsQuery.error ? <ErrorState message={(nearEventsQuery.error as Error).message} /> : null}
-              <View style={styles.modeRow}>
-                {(["all", "businesses", "events"] as const).map((kind) => (
-                  <Pressable
-                    key={kind}
-                    style={[styles.modeChip, nearKind === kind ? styles.modeChipOn : null]}
-                    onPress={() => setNearKind(kind)}
-                  >
-                    <Text style={[styles.modeChipText, nearKind === kind ? styles.modeChipTextOn : null]}>
-                      {kind === "all" ? "All" : kind === "businesses" ? "Businesses" : "Events"}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-              {(nearKind === "all" || nearKind === "events") ? (
-                <View style={styles.modeRow}>
-                  {(["upcoming", "today", "this_week"] as const).map((windowKey) => (
+            </SectionCard>
+
+            {!submittedQ ? (
+              <SectionCard title="Start here">
+                <Text style={styles.hintPara}>Choose how you want to explore—same tools as the chips above, with a bit more context.</Text>
+                <Pressable
+                  style={styles.shortcutTile}
+                  onPress={() => {
+                    setMode("search");
+                    setSubmittedQ("");
+                  }}
+                >
+                  <Text style={styles.shortcutTitle}>Search people & posts</Text>
+                  <Text style={styles.shortcutSub}>Type a name, @username, or keyword and tap Go.</Text>
+                </Pressable>
+                <Pressable style={styles.shortcutTile} onPress={() => setMode("near")}>
+                  <Text style={styles.shortcutTitle}>Browse near me</Text>
+                  <Text style={styles.shortcutSub}>Uses your general area for businesses and events. You can open Maps for a wider view.</Text>
+                </Pressable>
+              </SectionCard>
+            ) : null}
+
+            {usersQuery.isLoading || postsQuery.isLoading ? <LoadingState label="Searching..." /> : null}
+            {usersQuery.error ? <ErrorState message={(usersQuery.error as Error).message} /> : null}
+            {postsQuery.error ? <ErrorState message={(postsQuery.error as Error).message} /> : null}
+            {submittedQ ? (
+              <>
+                <SectionCard title="People">
+                  {(usersQuery.data?.items || []).map((user) => (
                     <Pressable
-                      key={windowKey}
-                      style={[styles.modeChip, nearTimeWindow === windowKey ? styles.modeChipOn : null]}
-                      onPress={() => setNearTimeWindow(windowKey)}
+                      key={user.user_id}
+                      style={styles.resultRow}
+                      onPress={() => navigation.navigate("UserProfile", { id: user.user_id })}
                     >
-                      <Text style={[styles.modeChipText, nearTimeWindow === windowKey ? styles.modeChipTextOn : null]}>
-                        {windowKey === "upcoming" ? "Upcoming" : windowKey === "today" ? "Today" : "This week"}
-                      </Text>
+                      <View style={styles.resultRowText}>
+                        <View style={styles.avatarPlaceholder}>
+                          <Text style={styles.avatarLetter}>{(user.display_name || user.username).slice(0, 1).toUpperCase()}</Text>
+                        </View>
+                        <View style={styles.flex1}>
+                          <Text style={styles.item}>{user.display_name}</Text>
+                          <Text style={styles.muted}>@{user.username}</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.chevron}>›</Text>
                     </Pressable>
                   ))}
-                </View>
-              ) : null}
-              {(nearKind === "all" || nearKind === "events") && eventClusters.length > 0 ? (
-                <View style={styles.clusterCard}>
-                  <View style={styles.clusterHeader}>
-                    <Text style={styles.title}>Event clusters</Text>
-                    {selectedCluster ? (
-                      <Pressable onPress={() => setSelectedCluster(null)}>
-                        <Text style={styles.linkText}>Clear</Text>
-                      </Pressable>
-                    ) : null}
-                  </View>
+                  {(usersQuery.data?.items || []).length === 0 && !usersQuery.isLoading ? (
+                    <EmptyState title="No users found" subtitle="Try another spelling or keyword." />
+                  ) : null}
+                </SectionCard>
+                <SectionCard title="Posts">
+                  {(postsQuery.data?.items || []).map((post) => (
+                    <Pressable key={post.id} style={styles.resultRow} onPress={() => navigation.navigate("PostDetail", { id: post.id })}>
+                      <View style={styles.flex1}>
+                        <Text style={styles.postTypeTag}>{post.post_type}</Text>
+                        <Text style={styles.item} numberOfLines={2}>
+                          {post.content}
+                        </Text>
+                        <Text style={styles.muted}>by {post.author_display_name}</Text>
+                      </View>
+                      <Text style={styles.chevron}>›</Text>
+                    </Pressable>
+                  ))}
+                  {(postsQuery.data?.items || []).length === 0 && !postsQuery.isLoading ? (
+                    <EmptyState title="No posts found" subtitle="Try different keywords." />
+                  ) : null}
+                </SectionCard>
+              </>
+            ) : null}
+          </>
+        ) : (
+          <View style={styles.nearSection}>
+            {geoNote ? <Text style={styles.note}>{geoNote}</Text> : null}
+            {geoLoading ? <LoadingState label="Finding your area…" /> : null}
+            {!geoLoading && geo ? (
+              <>
+                <SectionCard title="Your area">
+                  <Text style={styles.privacyNote}>
+                    We use approximate location to list nearby businesses and events. Exact coordinates are not shared on your profile.
+                  </Text>
+                  <Pressable
+                    style={styles.mapPlaceholder}
+                    onPress={() => Linking.openURL(`https://www.google.com/maps/@${geo.lat},${geo.lng},13z`)}
+                  >
+                    <Text style={styles.mapPlaceholderText}>Open area in Maps</Text>
+                    <Text style={styles.mutedSmall}>
+                      {geo.lat.toFixed(4)}, {geo.lng.toFixed(4)}
+                    </Text>
+                  </Pressable>
+                </SectionCard>
+                {nearQuery.isLoading ? <LoadingState label="Loading nearby…" /> : null}
+                {nearQuery.error ? <ErrorState message={(nearQuery.error as Error).message} /> : null}
+                {nearEventsQuery.isLoading ? <LoadingState label="Loading nearby events…" /> : null}
+                {nearEventsQuery.error ? <ErrorState message={(nearEventsQuery.error as Error).message} /> : null}
+                <SectionCard>
+                  <Text style={styles.panelLabel}>Show</Text>
                   <View style={styles.modeRow}>
-                    {eventClusters.map((cluster) => (
+                    {(["all", "businesses", "events"] as const).map((kind) => (
                       <Pressable
-                        key={cluster.id}
-                        style={[styles.modeChip, selectedCluster === cluster.id ? styles.modeChipOn : null]}
-                        onPress={() => setSelectedCluster(cluster.id)}
+                        key={kind}
+                        style={[styles.modeChip, nearKind === kind ? styles.modeChipOn : null]}
+                        onPress={() => setNearKind(kind)}
                       >
-                        <Text style={[styles.modeChipText, selectedCluster === cluster.id ? styles.modeChipTextOn : null]}>
-                          {cluster.count} near {cluster.latitude.toFixed(2)},{cluster.longitude.toFixed(2)}
+                        <Text style={[styles.modeChipText, nearKind === kind ? styles.modeChipTextOn : null]}>
+                          {kind === "all" ? "All" : kind === "businesses" ? "Businesses" : "Events"}
                         </Text>
                       </Pressable>
                     ))}
                   </View>
-                </View>
-              ) : null}
-              <Text style={styles.title}>Nearby</Text>
-              {(nearQuery.data?.items || []).length === 0 &&
-              (nearEventsQuery.data?.items || []).length === 0 &&
-              !nearQuery.isLoading &&
-              !nearEventsQuery.isLoading ? (
-                <EmptyState
-                  title="No nearby events or businesses"
-                  subtitle={canUseBusinessDirectoryTools ? "Add your business from the button above." : "Try another area."}
-                />
-              ) : null}
-              {(nearKind === "all" || nearKind === "businesses" ? nearQuery.data?.items || [] : []).map((biz) => (
-                <Pressable
-                  key={biz.id}
-                  style={styles.bizRow}
-                  onPress={() => navigation.navigate("BusinessDetail", { id: biz.id })}
-                >
-                  <Text style={styles.item}>{biz.name}</Text>
-                  <Text style={styles.muted}>Business</Text>
-                  {typeof biz.distanceM === "number" ? (
-                    <Text style={styles.muted}>{(biz.distanceM / 1000).toFixed(1)} km</Text>
+                </SectionCard>
+                {(nearKind === "all" || nearKind === "events") ? (
+                  <SectionCard>
+                    <Text style={styles.panelLabel}>When</Text>
+                    <View style={styles.modeRow}>
+                      {(["upcoming", "today", "this_week"] as const).map((windowKey) => (
+                        <Pressable
+                          key={windowKey}
+                          style={[styles.modeChip, nearTimeWindow === windowKey ? styles.modeChipOn : null]}
+                          onPress={() => setNearTimeWindow(windowKey)}
+                        >
+                          <Text style={[styles.modeChipText, nearTimeWindow === windowKey ? styles.modeChipTextOn : null]}>
+                            {windowKey === "upcoming" ? "Upcoming" : windowKey === "today" ? "Today" : "This week"}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </SectionCard>
+                ) : null}
+                {(nearKind === "all" || nearKind === "events") && eventClusters.length > 0 ? (
+                  <SectionCard title="Event clusters">
+                    <View style={styles.clusterHeader}>
+                      {selectedCluster ? (
+                        <Pressable onPress={() => setSelectedCluster(null)}>
+                          <Text style={styles.linkText}>Clear filter</Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                    <View style={styles.modeRow}>
+                      {eventClusters.map((cluster) => (
+                        <Pressable
+                          key={cluster.id}
+                          style={[styles.modeChip, selectedCluster === cluster.id ? styles.modeChipOn : null]}
+                          onPress={() => setSelectedCluster(cluster.id)}
+                        >
+                          <Text style={[styles.modeChipText, selectedCluster === cluster.id ? styles.modeChipTextOn : null]}>
+                            {cluster.count} near {cluster.latitude.toFixed(2)},{cluster.longitude.toFixed(2)}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </SectionCard>
+                ) : null}
+                <SectionCard title="Nearby">
+                  {(nearQuery.data?.items || []).length === 0 &&
+                  (nearEventsQuery.data?.items || []).length === 0 &&
+                  !nearQuery.isLoading &&
+                  !nearEventsQuery.isLoading ? (
+                    <EmptyState
+                      title="No nearby results"
+                      subtitle={canUseBusinessDirectoryTools ? "Add your business from the link at the top." : "Try another time window or check back later."}
+                    />
                   ) : null}
-                </Pressable>
-              ))}
-              {(nearKind === "all" || nearKind === "events" ? visibleEvents : []).map((event) => (
-                <Pressable
-                  key={`event-${event.id}`}
-                  style={styles.bizRow}
-                  onPress={() => navigation.navigate("EventDetail", { id: event.id })}
-                >
-                  <Text style={styles.item}>{event.title}</Text>
-                  <Text style={styles.muted}>Event · {new Date(event.startsAt).toLocaleDateString()}</Text>
-                  {typeof event.distanceM === "number" ? (
-                    <Text style={styles.muted}>{(event.distanceM / 1000).toFixed(1)} km</Text>
-                  ) : null}
-                </Pressable>
-              ))}
-            </>
-          ) : null}
-        </View>
-      )}
-    </ScrollView>
+                  {(nearKind === "all" || nearKind === "businesses" ? nearQuery.data?.items || [] : []).map((biz) => (
+                    <Pressable
+                      key={biz.id}
+                      style={styles.resultRow}
+                      onPress={() => navigation.navigate("BusinessDetail", { id: biz.id })}
+                    >
+                      <View style={styles.flex1}>
+                        <Text style={styles.item}>{biz.name}</Text>
+                        <Text style={styles.muted}>Business</Text>
+                        {typeof biz.distanceM === "number" ? (
+                          <Text style={styles.muted}>{(biz.distanceM / 1000).toFixed(1)} km</Text>
+                        ) : null}
+                      </View>
+                      <Text style={styles.chevron}>›</Text>
+                    </Pressable>
+                  ))}
+                  {(nearKind === "all" || nearKind === "events" ? visibleEvents : []).map((event) => (
+                    <Pressable
+                      key={`event-${event.id}`}
+                      style={styles.resultRow}
+                      onPress={() => navigation.navigate("EventDetail", { id: event.id })}
+                    >
+                      <View style={styles.flex1}>
+                        <Text style={styles.item}>{event.title}</Text>
+                        <Text style={styles.muted}>Event · {new Date(event.startsAt).toLocaleDateString()}</Text>
+                        {typeof event.distanceM === "number" ? (
+                          <Text style={styles.muted}>{(event.distanceM / 1000).toFixed(1)} km</Text>
+                        ) : null}
+                      </View>
+                      <Text style={styles.chevron}>›</Text>
+                    </Pressable>
+                  ))}
+                </SectionCard>
+              </>
+            ) : null}
+          </View>
+        )}
+      </ScrollView>
+    </TabScreenRoot>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.atmosphere },
-  content: { padding: 14, gap: 12, paddingBottom: 32 },
-  heading: { color: colors.text, fontSize: 24, fontWeight: "700" },
+  scroll: { flex: 1 },
+  scrollContent: { gap: 14 },
+  headerLink: { paddingVertical: 6, paddingHorizontal: 4 },
+  headerLinkText: { color: colors.accent, fontWeight: "700", fontSize: 13 },
+  panelLabel: { fontSize: 12, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.6 },
   modeRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, alignItems: "center" },
   modeChip: {
     paddingHorizontal: 14,
@@ -360,32 +435,19 @@ const styles = StyleSheet.create({
   modeChipOn: { backgroundColor: colors.accent, borderColor: colors.accent },
   modeChipText: { color: colors.text, fontWeight: "600", fontSize: 13 },
   modeChipTextOn: { color: colors.onAccent },
-  clusterCard: {
-    backgroundColor: colors.card,
-    borderColor: colors.border,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radii.control,
-    padding: 10,
-    gap: 8
-  },
-  clusterHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  linkText: { color: colors.accent, fontSize: 12, fontWeight: "700" },
-  addBiz: { marginLeft: "auto", paddingHorizontal: 12, paddingVertical: 8 },
-  addBizText: { color: colors.accent, fontWeight: "700", fontSize: 13 },
   searchRow: { flexDirection: "row", gap: 8 },
   flex1: { flex: 1 },
-  card: {
-    backgroundColor: colors.card,
-    borderColor: colors.border,
+  hintPara: { color: colors.muted, fontSize: 14, lineHeight: 20 },
+  shortcutTile: {
     borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderSubtle,
     borderRadius: radii.control,
-    padding: 12,
-    gap: 8
+    padding: 14,
+    backgroundColor: colors.subtleFill,
+    gap: 4
   },
-  title: { color: colors.text, fontWeight: "700" },
-  item: { color: colors.text },
-  muted: { color: colors.muted, fontSize: 12 },
-  mutedSmall: { color: colors.muted, fontSize: 11, marginTop: 4 },
+  shortcutTitle: { fontSize: 15, fontWeight: "700", color: colors.text },
+  shortcutSub: { fontSize: 13, color: colors.muted, lineHeight: 18 },
   input: {
     borderColor: colors.border,
     borderWidth: StyleSheet.hairlineWidth,
@@ -398,15 +460,42 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.control,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     justifyContent: "center"
   },
   buttonText: { color: colors.text, fontWeight: "600" },
-  nearSection: { gap: 10 },
-  note: { color: colors.danger, fontSize: 12 },
+  resultRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.borderSubtle,
+    gap: 8
+  },
+  resultRowText: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12 },
+  avatarPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.subtleFill,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderSubtle
+  },
+  avatarLetter: { fontSize: 16, fontWeight: "700", color: colors.text },
+  item: { color: colors.text, fontWeight: "600" },
+  postTypeTag: { fontSize: 11, fontWeight: "700", color: colors.muted, marginBottom: 4, textTransform: "uppercase" },
+  muted: { color: colors.muted, fontSize: 12 },
+  mutedSmall: { color: colors.muted, fontSize: 11, marginTop: 4 },
+  chevron: { fontSize: 22, color: colors.muted, fontWeight: "300", paddingLeft: 4 },
+  nearSection: { gap: 14 },
+  note: { color: colors.danger, fontSize: 12, marginHorizontal: 20 },
+  privacyNote: { color: colors.muted, fontSize: 13, lineHeight: 19, marginBottom: 10 },
   mapPlaceholder: {
-    minHeight: 140,
-    borderRadius: radii.panel,
+    minHeight: 120,
+    borderRadius: radii.control,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     backgroundColor: colors.surface,
@@ -415,9 +504,6 @@ const styles = StyleSheet.create({
     padding: 16
   },
   mapPlaceholderText: { color: colors.accent, fontWeight: "700" },
-  bizRow: {
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border
-  }
+  clusterHeader: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", marginBottom: 4 },
+  linkText: { color: colors.accent, fontSize: 12, fontWeight: "700" }
 });

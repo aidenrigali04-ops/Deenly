@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { useRoute, type RouteProp } from "@react-navigation/native";
+import { CompositeScreenProps, useRoute, type RouteProp } from "@react-navigation/native";
+import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "../../lib/api";
 import { createOrOpenConversation, markConversationRead } from "../../lib/messages";
-import { EmptyState, ErrorState, LoadingState } from "../../components/States";
-import { colors } from "../../theme";
+import { ErrorState, LoadingState } from "../../components/States";
+import { SectionCard, TabScreenHeader, TabScreenRoot } from "../../components/TabScreenChrome";
+import { colors, radii } from "../../theme";
 import { useTabSceneBottomPadding, useTabSceneTopPadding } from "../../hooks/useTabSceneInsets";
-import type { AppTabParamList } from "../../navigation/AppNavigator";
+import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 import { useSessionStore } from "../../store/session-store";
 
 type ConversationItem = {
@@ -27,7 +30,12 @@ type MessageItem = {
 
 type MessagesRoute = RouteProp<AppTabParamList, "MessagesTab">;
 
-export function MessagesScreen() {
+type Props = CompositeScreenProps<
+  BottomTabScreenProps<AppTabParamList, "MessagesTab">,
+  NativeStackScreenProps<RootStackParamList>
+>;
+
+export function MessagesScreen({ navigation }: Props) {
   const route = useRoute<MessagesRoute>();
   const topPad = useTabSceneTopPadding(12);
   const bottomPad = useTabSceneBottomPadding(20);
@@ -114,125 +122,213 @@ export function MessagesScreen() {
     }
   });
 
+  const conversations = conversationsQuery.data?.items || [];
+  const inboxEmpty = !conversationsQuery.isLoading && conversations.length === 0;
+
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={[styles.content, { paddingTop: topPad, paddingBottom: bottomPad }]}
-    >
-      <Text style={styles.heading}>Messages</Text>
-      <View style={styles.card}>
-        <TextInput
-          style={styles.input}
-          placeholder="Start chat by User ID"
-          placeholderTextColor={colors.muted}
-          value={participantUserId}
-          keyboardType="number-pad"
-          onChangeText={setParticipantUserId}
+    <TabScreenRoot>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: topPad, paddingBottom: bottomPad }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <TabScreenHeader
+          title="Messages"
+          subtitle="Direct conversations with people on Deenly."
         />
-        <Pressable
-          style={styles.buttonSecondary}
-          onPress={() => {
-            const n = Number(participantUserId);
-            if (!Number.isFinite(n) || n <= 0) return;
-            createConversation.mutate();
-          }}
-        >
-          <Text style={styles.buttonText}>
-            {createConversation.isPending ? "Starting..." : "Start conversation"}
+
+        <SectionCard title="New message">
+          <Text style={styles.helper}>
+            Enter the numeric user ID from someone&apos;s profile. Username search is coming soon—until then, open their profile and use the ID shown there.
           </Text>
-        </Pressable>
-      </View>
-
-      {conversationsQuery.isLoading ? <LoadingState label="Loading conversations..." /> : null}
-      {conversationsQuery.error ? (
-        <ErrorState message={(conversationsQuery.error as Error).message} />
-      ) : null}
-      <View style={styles.stack}>
-        {(conversationsQuery.data?.items || []).map((item) => (
-          <Pressable
-            key={item.conversation_id}
-            style={[
-              styles.card,
-              selectedConversationId === item.conversation_id ? styles.cardActive : null
-            ]}
-            onPress={() => setSelectedConversationId(item.conversation_id)}
-          >
-            <Text style={styles.title}>{item.other_display_name}</Text>
-            <Text style={styles.muted}>@{item.other_username}</Text>
-            {item.unread_count > 0 ? <Text style={styles.muted}>{item.unread_count} unread</Text> : null}
-          </Pressable>
-        ))}
-      </View>
-      {!conversationsQuery.isLoading && (conversationsQuery.data?.items || []).length === 0 ? (
-        <EmptyState title="No conversations yet" />
-      ) : null}
-
-      {selectedConversation ? (
-        <View style={styles.card}>
-          <Text style={styles.title}>Chat with {selectedConversation.other_display_name}</Text>
-          {messagesQuery.isLoading ? <LoadingState label="Loading messages..." /> : null}
-          {messagesQuery.error ? <ErrorState message={(messagesQuery.error as Error).message} /> : null}
-          <View style={styles.stack}>
-            {orderedMessages.map((message) => {
-              const mine = sessionUserId != null && message.sender_id === sessionUserId;
-              return (
-                <View
-                  key={message.id}
-                  style={[styles.message, mine ? styles.messageMine : null]}
-                >
-                  <Text style={styles.muted}>{message.sender_display_name}</Text>
-                  <Text style={styles.body}>{message.body}</Text>
-                </View>
-              );
-            })}
-          </View>
           <TextInput
             style={styles.input}
-            placeholder="Type your message..."
+            placeholder="User ID"
             placeholderTextColor={colors.muted}
-            value={body}
-            onChangeText={setBody}
+            value={participantUserId}
+            keyboardType="number-pad"
+            onChangeText={setParticipantUserId}
           />
           <Pressable
             style={styles.buttonSecondary}
             onPress={() => {
-              if (!selectedConversationId || !body.trim()) return;
-              sendMessage.mutate();
+              const n = Number(participantUserId);
+              if (!Number.isFinite(n) || n <= 0) return;
+              createConversation.mutate();
             }}
-            disabled={sendMessage.isPending || !body.trim()}
           >
-            <Text style={styles.buttonText}>{sendMessage.isPending ? "Sending..." : "Send"}</Text>
+            <Text style={styles.buttonText}>
+              {createConversation.isPending ? "Starting..." : "Start conversation"}
+            </Text>
           </Pressable>
-        </View>
-      ) : null}
-    </ScrollView>
+        </SectionCard>
+
+        {conversationsQuery.isLoading ? <LoadingState label="Loading conversations..." /> : null}
+        {conversationsQuery.error ? (
+          <ErrorState message={(conversationsQuery.error as Error).message} />
+        ) : null}
+
+        <SectionCard title="Inbox">
+          {inboxEmpty ? (
+            <View style={styles.emptyInbox}>
+              <Text style={styles.emptyInboxText}>No conversations yet. Start one above, or find people to message from Search.</Text>
+              <Pressable style={styles.findPeopleBtn} onPress={() => navigation.navigate("SearchTab")}>
+                <Text style={styles.findPeopleBtnText}>Find people</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.inboxList}>
+              {conversations.map((item) => (
+                <Pressable
+                  key={item.conversation_id}
+                  style={[styles.inboxRow, selectedConversationId === item.conversation_id ? styles.inboxRowActive : null]}
+                  onPress={() => setSelectedConversationId(item.conversation_id)}
+                >
+                  <View style={styles.inboxRowAvatar}>
+                    <Text style={styles.inboxRowAvatarText}>
+                      {(item.other_display_name || item.other_username).slice(0, 1).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={styles.inboxRowMain}>
+                    <View style={styles.inboxRowTitleLine}>
+                      <Text style={styles.inboxRowName} numberOfLines={1}>
+                        {item.other_display_name}
+                      </Text>
+                      {item.unread_count > 0 ? (
+                        <View style={styles.unreadBadge}>
+                          <Text style={styles.unreadBadgeText}>{item.unread_count > 99 ? "99+" : item.unread_count}</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text style={styles.inboxRowSub} numberOfLines={1}>
+                      @{item.other_username}
+                    </Text>
+                  </View>
+                  <Text style={styles.chevron}>›</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+        </SectionCard>
+
+        {selectedConversation ? (
+          <SectionCard title={`Chat · ${selectedConversation.other_display_name}`}>
+            {messagesQuery.isLoading ? <LoadingState label="Loading messages..." /> : null}
+            {messagesQuery.error ? <ErrorState message={(messagesQuery.error as Error).message} /> : null}
+            <View style={styles.threadStack}>
+              {orderedMessages.map((message) => {
+                const mine = sessionUserId != null && message.sender_id === sessionUserId;
+                return (
+                  <View key={message.id} style={[styles.message, mine ? styles.messageMine : null]}>
+                    <Text style={styles.muted}>{message.sender_display_name}</Text>
+                    <Text style={styles.body}>{message.body}</Text>
+                  </View>
+                );
+              })}
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="Type your message..."
+              placeholderTextColor={colors.muted}
+              value={body}
+              onChangeText={setBody}
+            />
+            <Pressable
+              style={styles.buttonSecondary}
+              onPress={() => {
+                if (!selectedConversationId || !body.trim()) return;
+                sendMessage.mutate();
+              }}
+              disabled={sendMessage.isPending || !body.trim()}
+            >
+              <Text style={styles.buttonText}>{sendMessage.isPending ? "Sending..." : "Send"}</Text>
+            </Pressable>
+          </SectionCard>
+        ) : null}
+      </ScrollView>
+    </TabScreenRoot>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.atmosphere },
-  content: { padding: 14, gap: 12 },
-  heading: { color: colors.text, fontSize: 24, fontWeight: "700" },
-  stack: { gap: 8 },
-  card: {
-    backgroundColor: colors.card,
+  scroll: { flex: 1 },
+  scrollContent: { gap: 14 },
+  helper: { color: colors.muted, fontSize: 13, lineHeight: 19 },
+  input: {
     borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 12,
-    gap: 8
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.control,
+    color: colors.text,
+    backgroundColor: colors.surface,
+    padding: 12
   },
-  cardActive: {
-    borderColor: colors.accent
+  buttonSecondary: {
+    borderColor: colors.border,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.control,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    alignSelf: "flex-start",
+    backgroundColor: colors.surface
   },
-  title: { color: colors.text, fontWeight: "700" },
-  muted: { color: colors.muted, fontSize: 12 },
-  body: { color: colors.text },
+  buttonText: { color: colors.text, fontWeight: "600" },
+  emptyInbox: { gap: 12 },
+  emptyInboxText: { color: colors.muted, fontSize: 14, lineHeight: 21 },
+  findPeopleBtn: {
+    alignSelf: "flex-start",
+    backgroundColor: colors.accent,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: radii.control
+  },
+  findPeopleBtnText: { color: colors.onAccent, fontWeight: "700", fontSize: 14 },
+  inboxList: { gap: 0 },
+  inboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.borderSubtle,
+    gap: 12
+  },
+  inboxRowActive: {
+    backgroundColor: colors.subtleFill,
+    marginHorizontal: -8,
+    paddingHorizontal: 8,
+    borderRadius: radii.control
+  },
+  inboxRowAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.subtleFill,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderSubtle
+  },
+  inboxRowAvatarText: { fontSize: 18, fontWeight: "700", color: colors.text },
+  inboxRowMain: { flex: 1, minWidth: 0 },
+  inboxRowTitleLine: { flexDirection: "row", alignItems: "center", gap: 8 },
+  inboxRowName: { fontSize: 16, fontWeight: "700", color: colors.text, flex: 1 },
+  inboxRowSub: { fontSize: 13, color: colors.muted, marginTop: 2 },
+  unreadBadge: {
+    backgroundColor: colors.accent,
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    paddingHorizontal: 6,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  unreadBadgeText: { color: colors.onAccent, fontSize: 11, fontWeight: "800" },
+  chevron: { fontSize: 22, color: colors.muted, fontWeight: "300" },
+  threadStack: { gap: 8 },
   message: {
     borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.control,
+    padding: 10,
     gap: 4,
     alignSelf: "flex-start",
     maxWidth: "92%"
@@ -241,21 +337,6 @@ const styles = StyleSheet.create({
     alignSelf: "flex-end",
     backgroundColor: colors.surface
   },
-  input: {
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 10,
-    color: colors.text,
-    backgroundColor: colors.surface,
-    padding: 10
-  },
-  buttonSecondary: {
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    alignSelf: "flex-start"
-  },
-  buttonText: { color: colors.text, fontWeight: "600" }
+  muted: { color: colors.muted, fontSize: 12 },
+  body: { color: colors.text }
 });

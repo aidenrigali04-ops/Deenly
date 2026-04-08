@@ -76,6 +76,14 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
     enabled: feedVariant === "home"
   });
 
+  const marketplaceCapsQuery = useQuery({
+    queryKey: ["mobile-marketplace-me-caps"],
+    queryFn: () =>
+      apiRequest<{ persona_capabilities?: { can_create_products?: boolean } }>("/users/me", { auth: true }),
+    enabled: feedVariant === "marketplace"
+  });
+  const canCreateProducts = Boolean(marketplaceCapsQuery.data?.persona_capabilities?.can_create_products);
+
   useEffect(() => {
     if (feedVariant !== "home") {
       return;
@@ -256,10 +264,14 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
 
         {feedVariant === "marketplace" ? (
           <View style={[styles.headerCard, compact && styles.headerCardCompact]}>
-            <View style={styles.filters}>
+            <Text style={[styles.marketHeroTitle, compact && styles.marketHeroTitleCompact]}>Market</Text>
+            <Text style={[styles.marketHeroSubtitle, compact && styles.marketHeroSubtitleCompact]}>
+              Creator offers and businesses you can buy from or visit.
+            </Text>
+            <View style={styles.marketplaceFilterStack}>
               <View style={styles.marketplaceTopRow}>
                 <Text style={[styles.marketplaceHint, compact && styles.marketplaceHintCompact]}>
-                  Creator offers and local businesses.
+                  Filter listings and open businesses near you.
                 </Text>
                 <Pressable
                   style={[styles.nearMePill, compact && styles.nearMePillCompact]}
@@ -268,14 +280,21 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
                   <Text style={styles.nearMePillText}>Near me</Text>
                 </Pressable>
               </View>
-              <Pressable
-                style={[styles.chip, compact && styles.chipCompact, followingOnly ? styles.chipActive : null]}
-                onPress={() => setFollowingOnly((value) => !value)}
-              >
-                <Text style={[styles.chipText, compact && styles.chipTextCompact, followingOnly ? styles.chipTextActive : null]}>
-                  {followingOnly ? "Following only" : "All posts"}
-                </Text>
-              </Pressable>
+              <View style={styles.marketplaceActionsRow}>
+                <Pressable
+                  style={[styles.chip, compact && styles.chipCompact, followingOnly ? styles.chipActive : null]}
+                  onPress={() => setFollowingOnly((value) => !value)}
+                >
+                  <Text style={[styles.chipText, compact && styles.chipTextCompact, followingOnly ? styles.chipTextActive : null]}>
+                    {followingOnly ? "Following only" : "All posts"}
+                  </Text>
+                </Pressable>
+                {canCreateProducts ? (
+                  <Pressable style={styles.marketCta} onPress={() => navigation.navigate("CreatorEconomy")}>
+                    <Text style={styles.marketCtaText}>Creator hub</Text>
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
           </View>
         ) : null}
@@ -294,14 +313,29 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
           />
         ) : null}
         {!feedQuery.isLoading && !feedQuery.error && items.length === 0 ? (
-          <EmptyState
-            title="No posts yet"
-            subtitle={
-              feedVariant === "marketplace"
-                ? "Add a marketplace post with a product from Creator hub."
-                : "Create the first post."
-            }
-          />
+          feedVariant === "marketplace" ? (
+            <View style={[styles.marketEmptyPanel, compact && styles.marketEmptyPanelCompact]}>
+              <Text style={styles.marketEmptyTitle}>No marketplace posts yet</Text>
+              <Text style={styles.marketEmptySub}>
+                Listings from creators you follow appear here. Widen the feed or check the home tab for more activity.
+              </Text>
+              {followingOnly ? (
+                <Pressable style={styles.marketEmptyBtn} onPress={() => setFollowingOnly(false)}>
+                  <Text style={styles.marketEmptyBtnText}>Show all posts</Text>
+                </Pressable>
+              ) : null}
+              <Pressable style={styles.marketEmptyBtnSecondary} onPress={() => navigation.navigate("HomeTab")}>
+                <Text style={styles.marketEmptyBtnSecondaryText}>Go to Home</Text>
+              </Pressable>
+              {canCreateProducts ? (
+                <Pressable style={styles.marketEmptyBtnSecondary} onPress={() => navigation.navigate("CreatorEconomy")}>
+                  <Text style={styles.marketEmptyBtnSecondaryText}>Open Creator hub</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : (
+            <EmptyState title="No posts yet" subtitle="Create the first post." />
+          )
         ) : null}
       </View>
     );
@@ -315,7 +349,8 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
     items.length,
     navigation,
     visibleReminder,
-    compact
+    compact,
+    canCreateProducts
   ]);
 
   const renderItem: ListRenderItem<FeedItem> = useCallback(
@@ -530,6 +565,106 @@ const styles = StyleSheet.create({
   },
   chipTextActive: {
     color: colors.onAccent
+  },
+  marketHeroTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: colors.text,
+    letterSpacing: -0.4
+  },
+  marketHeroTitleCompact: {
+    fontSize: 20
+  },
+  marketHeroSubtitle: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.muted,
+    fontWeight: "500"
+  },
+  marketHeroSubtitleCompact: {
+    fontSize: 12,
+    lineHeight: 17
+  },
+  marketplaceFilterStack: {
+    width: "100%",
+    gap: 10
+  },
+  marketplaceActionsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    alignItems: "center"
+  },
+  marketCta: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.accent,
+    borderRadius: radii.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: colors.surface
+  },
+  marketCtaText: {
+    color: colors.accent,
+    fontSize: 12,
+    fontWeight: "700"
+  },
+  marketEmptyPanel: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.panel,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderSubtle,
+    padding: 16,
+    gap: 12,
+    marginHorizontal: 4,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.shadow,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 1,
+        shadowRadius: 12
+      },
+      android: { elevation: 2 }
+    })
+  },
+  marketEmptyPanelCompact: {
+    padding: 14,
+    gap: 10
+  },
+  marketEmptyTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: colors.text
+  },
+  marketEmptySub: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: colors.muted
+  },
+  marketEmptyBtn: {
+    alignSelf: "flex-start",
+    backgroundColor: colors.accent,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: radii.control
+  },
+  marketEmptyBtnText: {
+    color: colors.onAccent,
+    fontWeight: "700",
+    fontSize: 14
+  },
+  marketEmptyBtnSecondary: {
+    alignSelf: "flex-start",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: radii.control,
+    backgroundColor: colors.card
+  },
+  marketEmptyBtnSecondaryText: {
+    color: colors.text,
+    fontWeight: "600",
+    fontSize: 14
   },
   marketplaceTopRow: {
     flexDirection: "row",

@@ -30,3 +30,7 @@ Use with [backend/RELEASE_CHECKLIST.md](../../backend/RELEASE_CHECKLIST.md) and 
 
 - [ ] Start with **internal testing** / **TestFlight** / **Play internal track**.
 - [ ] Expand to production with staged percentage or country rollout; watch backend `/ops/metrics` and crash dashboards.
+
+## User readiness (product QA)
+
+Before external testers or store review, run the flow checklist in [docs/USER_READINESS.md](../../docs/USER_READINESS.md) on critical paths (auth, feed, search, messages, checkout handoff). Track post-MVP work in [docs/PLATFORM_BACKLOG.md](../../docs/PLATFORM_BACKLOG.md).
