@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { ApiError } from "../lib/api";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { apiRequest } from "../lib/api";
+import { ApiError, apiRequest } from "../lib/api";
 import { USAGE_PERSONA_OPTIONS, type UsagePersonaKey } from "../lib/onboarding-options";
 import { colors, radii } from "../theme";
 import type { RootStackParamList } from "../navigation/AppNavigator";
@@ -100,7 +99,7 @@ export function BusinessPersonalizerOverlay({ visible, onDismiss }: Props) {
             disabled={completeMutation.isPending}
             onPress={() => completeMutation.mutate({ usagePersona: "personal", navigate: "Onboarding" })}
           >
-            <Text style={styles.ghostText}>I'll decide later</Text>
+            <Text style={styles.ghostText}>I&apos;ll decide later</Text>
           </Pressable>
         </View>
       </View>

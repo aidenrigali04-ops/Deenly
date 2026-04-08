@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { SettingsRow, SettingsSection } from "../../components/SettingsSection";
 import { colors } from "../../theme";

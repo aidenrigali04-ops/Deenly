@@ -83,7 +83,7 @@ function devMachineHostFromBundler(): string | null {
       }
     | null;
 
-  const candidates: Array<string | undefined> = [
+  const candidates: (string | undefined)[] = [
     expoGo?.debuggerHost,
     classicManifest?.debuggerHost,
     expoConfig?.hostUri,

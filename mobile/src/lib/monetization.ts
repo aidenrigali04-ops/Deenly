@@ -9,13 +9,13 @@ export type MonetizationConnectStatus = {
   dashboardUrl?: string;
   feePolicy?: {
     feeExperimentEnabled?: boolean;
-    tiers?: Array<{
+    tiers?: {
       key: MonetizationBoostTier;
       label: string;
       platformFeeBps: number;
       enabled: boolean;
       description: string;
-    }>;
+    }[];
   };
 };
 

@@ -121,6 +121,11 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
     getNextPageParam: (lastPage) => lastPage.nextCursor || undefined
   });
 
+  const items = useMemo(
+    () => feedQuery.data?.pages.flatMap((page) => page.items) || [],
+    [feedQuery.data?.pages]
+  );
+
   const prayerStatusQuery = useQuery({
     queryKey: ["mobile-prayer-status"],
     queryFn: () => fetchPrayerStatus(),
@@ -140,8 +145,6 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
     await ackPrayerReminder(reminderKey);
     setAckedReminderKey(reminderKey);
   }, [prayerStatusQuery.data?.reminderKey]);
-
-  const items = feedQuery.data?.pages.flatMap((page) => page.items) || [];
 
   const [activeVideoPostId, setActiveVideoPostId] = useState<number | null>(null);
   const activeVideoPostIdRef = useRef<number | null>(null);
@@ -341,9 +344,7 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
     );
   }, [
     acknowledgeReminder,
-    feedQuery.error,
-    feedQuery.isLoading,
-    feedQuery.refetch,
+    feedQuery,
     feedVariant,
     followingOnly,
     items.length,
