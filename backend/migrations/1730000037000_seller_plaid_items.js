@@ -1,8 +1,23 @@
 /* eslint-disable camelcase */
 
+/**
+ * Plaid-linked bank tokens for seller payouts (Stripe Connect external account).
+ * Timestamp is after 1730000036000 so deploys that already ran persona/events migrations
+ * do not hit an out-of-order migration error.
+ */
+
 exports.shorthands = undefined;
 
-exports.up = (pgm) => {
+exports.up = async (pgm) => {
+  const { rows } = await pgm.db.query(`
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = 'seller_plaid_items'
+    ) AS exists
+  `);
+  if (rows[0]?.exists) {
+    return;
+  }
   pgm.createTable("seller_plaid_items", {
     user_id: {
       type: "integer",
