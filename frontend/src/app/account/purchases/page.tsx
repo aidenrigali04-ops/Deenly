@@ -64,7 +64,10 @@ export default function AccountPurchasesPage() {
         </p>
         <h1 className="page-header-title mt-4 text-xl sm:text-2xl">Purchases</h1>
         <p className="page-header-subtitle text-xs sm:text-sm">
-          Orders you&apos;ve completed. Open a seller&apos;s profile or message them anytime.
+          Orders you&apos;ve completed. Open a seller&apos;s profile or message them anytime.{" "}
+          <Link href="/account/payments" className="text-sky-600 underline-offset-2 hover:underline">
+            How checkout works
+          </Link>
         </p>
       </header>
 

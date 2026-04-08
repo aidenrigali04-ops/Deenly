@@ -5,7 +5,8 @@ import { motion, useReducedMotion } from "framer-motion";
 import type { FeedItem } from "@/types";
 import { apiRequest } from "@/lib/api";
 import { resolveMediaUrl } from "@/lib/media-url";
-import { createProductCheckout, formatMinorCurrency } from "@/lib/monetization";
+import { PaymentHandoffDialog } from "@/components/payment/payment-handoff-dialog";
+import { formatMinorCurrency } from "@/lib/monetization";
 import { PostCommentsBlock } from "@/components/post-comments-block";
 
 function feedPostTypeLabel(postType: string) {
@@ -81,14 +82,12 @@ export function FeedCard({
     .join("");
   const authorAvatarUrl = resolveMediaUrl(item.author_avatar_url) || undefined;
   const isFollowing = Boolean(item.is_following_author);
-  const checkoutMutation = useMutation({
-    mutationFn: (productId: number) => createProductCheckout(productId),
-    onSuccess: (result) => {
-      if (result?.checkoutUrl && typeof window !== "undefined") {
-        window.location.assign(result.checkoutUrl);
-      }
-    }
-  });
+  const [checkoutHandoff, setCheckoutHandoff] = useState<{
+    productId: number;
+    title: string;
+    priceMinor: number;
+    currency: string;
+  } | null>(null);
   const hasAttachedProduct = Boolean(item.attached_product_id);
   const attachedProductType = item.attached_product_type || "digital";
   const likeMutation = useMutation({
@@ -157,8 +156,34 @@ export function FeedCard({
     ? {}
     : { whileTap: { scale: 0.92 }, transition: { type: "spring" as const, stiffness: 520, damping: 28 } };
 
+  const openAttachedCheckout = () => {
+    if (attachedProductType !== "digital" && item.attached_product_website_url) {
+      window.open(item.attached_product_website_url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (!item.attached_product_id) return;
+    setCheckoutHandoff({
+      productId: item.attached_product_id,
+      title: item.attached_product_title || "Creator product",
+      priceMinor: Number(item.attached_product_price_minor || 0),
+      currency: item.attached_product_currency || "usd"
+    });
+  };
+
+  const handoffDialog = (
+    <PaymentHandoffDialog
+      open={checkoutHandoff != null}
+      onClose={() => setCheckoutHandoff(null)}
+      productId={checkoutHandoff?.productId ?? 0}
+      title={checkoutHandoff?.title ?? ""}
+      priceMinor={checkoutHandoff?.priceMinor ?? 0}
+      currency={checkoutHandoff?.currency ?? "usd"}
+    />
+  );
+
   if (layout === "home") {
     return (
+      <>
       <article className="feed-card-root group surface-card overflow-hidden rounded-[1.45rem] p-0">
         <header className="flex items-center justify-between px-4 py-3">
           <div className="flex min-w-0 items-center gap-2.5">
@@ -263,25 +288,9 @@ export function FeedCard({
                 </p>
                 <button
                   className="btn-secondary px-3 py-1 text-xs"
-                  onClick={() => {
-                    if (
-                      attachedProductType !== "digital" &&
-                      item.attached_product_website_url
-                    ) {
-                      window.open(item.attached_product_website_url, "_blank", "noopener,noreferrer");
-                      return;
-                    }
-                    if (item.attached_product_id) {
-                      checkoutMutation.mutate(item.attached_product_id);
-                    }
-                  }}
-                  disabled={checkoutMutation.isPending}
+                  onClick={openAttachedCheckout}
                 >
-                  {checkoutMutation.isPending
-                    ? "Opening..."
-                    : attachedProductType === "digital"
-                      ? "Buy"
-                      : "View offer"}
+                  {attachedProductType === "digital" ? "Buy" : "View offer"}
                 </button>
               </div>
             </div>
@@ -344,10 +353,13 @@ export function FeedCard({
           </div>
         </div>
       </article>
+      {handoffDialog}
+      </>
     );
   }
 
   return (
+    <>
     <article className="feed-card-root group surface-card overflow-hidden rounded-[1.5rem] p-0">
       <header className="flex items-center justify-between gap-3 px-6 py-4">
         <div className="flex min-w-0 items-center gap-3">
@@ -452,27 +464,8 @@ export function FeedCard({
                 )}
               </p>
             </div>
-            <button
-              className="btn-secondary px-3 py-1.5 text-xs"
-              onClick={() => {
-                if (
-                  attachedProductType !== "digital" &&
-                  item.attached_product_website_url
-                ) {
-                  window.open(item.attached_product_website_url, "_blank", "noopener,noreferrer");
-                  return;
-                }
-                if (item.attached_product_id) {
-                  checkoutMutation.mutate(item.attached_product_id);
-                }
-              }}
-              disabled={checkoutMutation.isPending}
-            >
-              {checkoutMutation.isPending
-                ? "Opening..."
-                : attachedProductType === "digital"
-                  ? "Buy now"
-                  : "View offer"}
+            <button className="btn-secondary px-3 py-1.5 text-xs" onClick={openAttachedCheckout}>
+              {attachedProductType === "digital" ? "Buy now" : "View offer"}
             </button>
           </div>
         </div>
@@ -537,5 +530,7 @@ export function FeedCard({
         </Link>
       </footer>
     </article>
+    {handoffDialog}
+    </>
   );
 }

@@ -14,6 +14,7 @@ import {
   type CreatorHubTab
 } from "@/components/creator-hub/creator-hub-constants";
 import { OnboardingChecklist } from "@/components/creator-hub/onboarding-checklist";
+import { PlaidPayoutLinkSection } from "@/components/plaid-payout-link";
 import {
   createAffiliateCode,
   createConnectAccount,
@@ -341,6 +342,11 @@ function AccountCreatorPageInner() {
                 </a>
               ) : null}
             </div>
+            <PlaidPayoutLinkSection
+              onAttached={async () => {
+                await connectStatusQuery.refetch();
+              }}
+            />
           </div>
           <div className="rounded-control border border-black/10 bg-surface px-3 py-2">
             <p className="text-xs uppercase tracking-wide text-muted">Earnings balance</p>

@@ -58,6 +58,14 @@ export function CreatorEconomyScreen() {
         };
       }>("/users/me", { auth: true })
   });
+  const plaidStatusQuery = useQuery({
+    queryKey: ["mobile-plaid-status"],
+    queryFn: () =>
+      apiRequest<{ configured: boolean; linked?: boolean; institutionName?: string | null }>(
+        "/monetization/plaid/status",
+        { auth: true }
+      )
+  });
   const canManageMemberships = Boolean(profileQuery.data?.persona_capabilities?.can_manage_memberships);
   const canUseAffiliateTools = Boolean(profileQuery.data?.persona_capabilities?.can_use_affiliate_tools);
 
@@ -172,6 +180,24 @@ export function CreatorEconomyScreen() {
             </Pressable>
           ) : null}
         </View>
+        {plaidStatusQuery.data?.configured ? (
+          <View style={styles.plaidHint}>
+            <Text style={styles.muted}>
+              US sellers: link a bank with Plaid (WebView), then we attach it to Stripe for payouts. Complete Stripe
+              onboarding first.
+            </Text>
+            {plaidStatusQuery.data?.linked ? (
+              <Text style={styles.muted}>
+                Plaid linked{plaidStatusQuery.data.institutionName ? ` · ${plaidStatusQuery.data.institutionName}` : ""}.
+              </Text>
+            ) : null}
+            <Pressable style={styles.buttonSecondary} onPress={() => navigation.navigate("PlaidLink")}>
+              <Text style={styles.buttonText}>
+                {plaidStatusQuery.data?.linked ? "Re-link bank (Plaid)" : "Link bank (Plaid)"}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.card}>
@@ -353,6 +379,13 @@ const styles = StyleSheet.create({
     gap: 8,
     flexWrap: "wrap",
     marginTop: 2
+  },
+  plaidHint: {
+    marginTop: 12,
+    gap: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.borderSubtle,
+    paddingTop: 10
   },
   buttonSecondary: {
     borderColor: colors.border,

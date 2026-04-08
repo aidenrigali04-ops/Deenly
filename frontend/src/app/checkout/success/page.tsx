@@ -10,25 +10,33 @@ function CheckoutSuccessContent() {
 
   return (
     <div className="page-stack mx-auto max-w-md px-4 py-16 text-center">
-      <h1 className="text-xl font-semibold text-text">Payment received</h1>
-      <p className="mt-3 text-sm text-muted">
-        Thank you. For product purchases, we email you a secure access link (check spam). If you opted in, you will also get
-        a text with the same link. Subscription and support payments are recorded on your Deenly account when you paid
-        while signed in.
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-emerald-600/30 bg-emerald-50 text-2xl text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-950/50 dark:text-emerald-400">
+        ✓
+      </div>
+      <h1 className="mt-6 text-xl font-semibold text-text">Payment successful</h1>
+      <p className="mt-3 text-sm leading-relaxed text-muted">
+        Thank you. For product purchases, check your email for the secure access link (including spam). If you opted in,
+        you will also receive a text with the same link. Subscription and support payments appear on your Deenly account
+        when you paid while signed in.
       </p>
       {sessionId ? (
-        <p className="mt-2 font-mono text-xs text-muted break-all" aria-label="Checkout session reference">
-          Ref: {sessionId}
+        <p className="mt-3 font-mono text-xs text-muted break-all" aria-label="Checkout session reference">
+          Reference: {sessionId}
         </p>
       ) : null}
-      <div className="mt-8 flex flex-col gap-2 sm:flex-row sm:justify-center">
-        <Link href="/feed" className="btn-primary inline-flex justify-center px-4 py-2 text-sm">
+      <div className="mt-10 flex flex-col gap-2 sm:flex-row sm:justify-center">
+        <Link href="/account/purchases" className="btn-primary inline-flex justify-center px-4 py-2 text-sm">
+          View purchases
+        </Link>
+        <Link href="/feed" className="btn-secondary inline-flex justify-center px-4 py-2 text-sm">
           Back to feed
         </Link>
-        <Link href="/account/creator" className="btn-secondary inline-flex justify-center px-4 py-2 text-sm">
-          Creator hub
-        </Link>
       </div>
+      <p className="mt-6 text-xs text-muted">
+        <Link href="/account/payments" className="text-sky-700 underline-offset-2 hover:underline">
+          How payments work
+        </Link>
+      </p>
     </div>
   );
 }

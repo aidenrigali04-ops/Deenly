@@ -219,6 +219,10 @@ function loadEnv(envSource = process.env) {
     stripeSecretKey: String(envSource.STRIPE_SECRET_KEY || "").trim(),
     stripeWebhookSecret: String(envSource.STRIPE_WEBHOOK_SECRET || "").trim(),
     stripeConnectClientId: String(envSource.STRIPE_CONNECT_CLIENT_ID || "").trim(),
+    plaidClientId: String(envSource.PLAID_CLIENT_ID || "").trim(),
+    plaidSecret: String(envSource.PLAID_SECRET || "").trim(),
+    plaidEnv: String(envSource.PLAID_ENV || "sandbox").trim().toLowerCase(),
+    plaidTokenEncryptionKey: String(envSource.PLAID_TOKEN_ENCRYPTION_KEY || "").trim(),
     monetizationPlatformFeeBpsMin: parseFeeBpsBound(
       envSource.MONETIZATION_PLATFORM_FEE_BPS_MIN,
       50,

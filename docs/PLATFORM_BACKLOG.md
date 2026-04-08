@@ -31,6 +31,18 @@ Ordered backlog for **user readiness** and production maturity. Each row can bec
 
 - Continue [UX_CLUTTER_REDUCTION_PLAN.md](./UX_CLUTTER_REDUCTION_PLAN.md) Phase 2–3 when mobile IA changes (account, nav, business entry points).
 
+## Payments / monetization (future epic)
+
+**Shipped (partial):** Stripe Checkout **wallet-friendly** card flow + **Plaid Link** for US sellers to attach a bank account to **Stripe Connect** via processor token. See [PAYMENTS_APPLE_PAY_PLAID.md](./PAYMENTS_APPLE_PAY_PLAID.md).
+
+Remaining if moving off **Stripe** entirely: **platform-held balances**, **StoreKit / IAP** for iOS digital (App Store rules), full **ledger**, compliance. Suggested milestones:
+
+1. **Policy** — Per surface: iOS digital (IAP vs other), web/Android, physical/services; document decisions.  
+2. **Acceptance** — Replace Stripe checkout with chosen rails; server validation / entitlements for IAP if applicable.  
+3. **Ledger** — Internal balances, platform fee, refunds, reconciliation.  
+4. **Payouts** — Extend beyond Plaid+Stripe (e.g. direct ACH, international) as needed.  
+5. **Migration** — Feature-flag, settle open Stripe obligations, remove dead Stripe paths and env keys from [backend/src/modules/monetization/routes.js](../backend/src/modules/monetization/routes.js) and clients.
+
 ## References
 
 - [PRE_LAUNCH_RUNBOOK.md](./PRE_LAUNCH_RUNBOOK.md) — env → QA → store order.  

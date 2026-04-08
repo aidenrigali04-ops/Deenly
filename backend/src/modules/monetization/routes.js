@@ -185,7 +185,7 @@ function parseProductBusinessCategory(rawValue) {
   return value ? value.trim().toLowerCase() : null;
 }
 
-function createMonetizationRouter({ db, config, logger, monetizationGateway, mediaStorage, analytics }) {
+function createMonetizationRouter({ db, config, logger, monetizationGateway, mediaStorage, analytics, plaidSellerBank }) {
   const router = express.Router();
   const authMiddleware = authenticate({ config, db });
   const optionalAuthMiddleware = authenticateOptional({ config, db });
@@ -2679,6 +2679,70 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
         skippedCount,
         items
       });
+    })
+  );
+
+  router.post(
+    "/plaid/link-token",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      await requireCreatorOperationsCapability(req.user.id);
+      if (!plaidSellerBank) {
+        throw httpError(503, "Plaid bank linking is not configured");
+      }
+      const { linkToken } = await plaidSellerBank.createLinkToken(req.user.id);
+      res.status(200).json({ linkToken });
+    })
+  );
+
+  router.post(
+    "/plaid/exchange",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      await requireCreatorOperationsCapability(req.user.id);
+      if (!plaidSellerBank) {
+        throw httpError(503, "Plaid bank linking is not configured");
+      }
+      const publicToken = requireString(
+        req.body?.publicToken ?? req.body?.public_token,
+        "publicToken",
+        10,
+        600
+      );
+      const result = await plaidSellerBank.exchangePublicToken(req.user.id, publicToken);
+      res.status(200).json(result);
+    })
+  );
+
+  router.get(
+    "/plaid/status",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      await requireCreatorOperationsCapability(req.user.id);
+      if (!plaidSellerBank) {
+        res.status(200).json({ configured: false, linked: false });
+        return;
+      }
+      const status = await plaidSellerBank.getStatus(req.user.id);
+      res.status(200).json({ configured: true, ...status });
+    })
+  );
+
+  router.post(
+    "/plaid/attach-stripe-payout",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      await requireCreatorOperationsCapability(req.user.id);
+      if (!plaidSellerBank) {
+        throw httpError(503, "Plaid bank linking is not configured");
+      }
+      const accountId = requireString(req.body?.accountId, "accountId", 5, 128);
+      const result = await plaidSellerBank.attachStripeBankAccount({
+        userId: req.user.id,
+        plaidAccountId: accountId,
+        monetizationGateway
+      });
+      res.status(200).json(result);
     })
   );
 

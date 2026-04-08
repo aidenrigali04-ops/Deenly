@@ -3,9 +3,9 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "framer-motion";
-import { apiRequest } from "@/lib/api";
+import { ApiError, apiRequest } from "@/lib/api";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { PostCommentsBlock } from "@/components/post-comments-block";
 import { resolveMediaUrl } from "@/lib/media-url";
@@ -40,8 +40,10 @@ export default function PostDetailPage() {
   const router = useRouter();
   const postId = Number(params.id);
   const sessionUser = useSessionStore((state) => state.user);
+  const queryClient = useQueryClient();
   const reducedMotion = useReducedMotion();
   const [reportReason, setReportReason] = useState("");
+  const [deleteError, setDeleteError] = useState("");
   const [mediaFailed, setMediaFailed] = useState(false);
   const [liked, setLiked] = useState(false);
   const [benefitedCount, setBenefitedCount] = useState(0);
@@ -140,8 +142,26 @@ export default function PostDetailPage() {
         method: "DELETE",
         auth: true
       }),
-    onSuccess: () => {
+    onMutate: () => {
+      setDeleteError("");
+    },
+    onSuccess: async () => {
+      const detail = queryClient.getQueryData<PostDetail>(["post-detail", postId]);
+      const authorId = detail?.author_id;
+      await queryClient.invalidateQueries({ queryKey: ["feed"] });
+      if (authorId != null) {
+        await queryClient.invalidateQueries({ queryKey: ["user-profile-posts", authorId] });
+        await queryClient.invalidateQueries({ queryKey: ["user-profile", authorId] });
+      }
+      await queryClient.invalidateQueries({
+        predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === "search-posts"
+      });
+      queryClient.removeQueries({ queryKey: ["post-detail", postId] });
+      queryClient.removeQueries({ queryKey: ["post-distribution", postId] });
       router.push("/");
+    },
+    onError: (error) => {
+      setDeleteError(error instanceof ApiError ? error.message : "Could not delete post.");
     }
   });
 
@@ -267,13 +287,16 @@ export default function PostDetailPage() {
             Author Profile
           </Link>
           {sessionUser?.id === post.author_id ? (
-            <button
-              className="btn-secondary"
-              onClick={() => deletePostMutation.mutate()}
-              disabled={deletePostMutation.isPending}
-            >
-              {deletePostMutation.isPending ? "Deleting..." : "Delete post"}
-            </button>
+            <div className="flex min-w-0 flex-col gap-1">
+              <button
+                className="btn-secondary"
+                onClick={() => deletePostMutation.mutate()}
+                disabled={deletePostMutation.isPending}
+              >
+                {deletePostMutation.isPending ? "Deleting..." : "Delete post"}
+              </button>
+              {deleteError ? <p className="text-xs text-red-600 dark:text-red-400">{deleteError}</p> : null}
+            </div>
           ) : null}
         </div>
         {post.cta_label && post.cta_url ? (

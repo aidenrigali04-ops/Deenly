@@ -35,6 +35,7 @@
     "pg": "^8.13.1",
     "pino": "^9.5.0",
     "pino-http": "^10.3.0",
+    "plaid": "^38.1.0",
     "stripe": "^20.4.1"
   },
   "devDependencies": {

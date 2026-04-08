@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppVideoView } from "../../components/AppVideoView";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, apiRequest } from "../../lib/api";
 import { resolveMediaUrl } from "../../lib/media-url";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
@@ -54,6 +54,7 @@ export function PostDetailScreen({ route, navigation }: Props) {
   const [guestCheckoutEmail, setGuestCheckoutEmail] = useState("");
   const [checkoutHandoff, setCheckoutHandoff] = useState(false);
   const sessionUser = useSessionStore((state) => state.user);
+  const queryClient = useQueryClient();
 
   const postQuery = useQuery({
     queryKey: ["mobile-post-detail", postId],
@@ -118,8 +119,22 @@ export function PostDetailScreen({ route, navigation }: Props) {
         method: "DELETE",
         auth: true
       }),
-    onSuccess: () => {
+    onSuccess: async () => {
+      const detail = queryClient.getQueryData<PostDetail>(["mobile-post-detail", postId]);
+      const authorId = detail?.author_id;
+      await queryClient.invalidateQueries({ queryKey: ["mobile-feed"] });
+      await queryClient.invalidateQueries({ queryKey: ["mobile-feed-reels"] });
+      if (authorId != null) {
+        await queryClient.invalidateQueries({ queryKey: ["mobile-account-posts", authorId] });
+      }
+      await queryClient.invalidateQueries({
+        predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === "mobile-search-posts"
+      });
+      queryClient.removeQueries({ queryKey: ["mobile-post-detail", postId] });
       navigation.goBack();
+    },
+    onError: (error) => {
+      setMessage(error instanceof ApiError ? error.message : "Could not delete post.");
     }
   });
 

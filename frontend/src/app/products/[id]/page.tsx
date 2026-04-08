@@ -1,19 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, usePathname } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { ProductCheckoutPanel } from "@/components/payment/product-checkout-panel";
 import { resolveMediaUrl } from "@/lib/media-url";
-import {
-  createGuestProductCheckout,
-  createProductCheckout,
-  fetchPublicProduct,
-  formatMinorCurrency,
-  type PublicCatalogProduct
-} from "@/lib/monetization";
+import { fetchPublicProduct, formatMinorCurrency, type PublicCatalogProduct } from "@/lib/monetization";
 import { useSessionStore } from "@/store/session-store";
+import { ApiError, apiRequest } from "@/lib/api";
 
 function productTypeLabel(t: PublicCatalogProduct["product_type"]) {
   if (t === "digital") return "Digital";
@@ -24,9 +20,12 @@ function productTypeLabel(t: PublicCatalogProduct["product_type"]) {
 export default function PublicProductPage() {
   const params = useParams<{ id: string }>();
   const pathname = usePathname();
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const productId = Number(params.id);
   const sessionUser = useSessionStore((state) => state.user);
   const loginNext = encodeURIComponent(pathname || `/products/${productId}`);
+  const [archiveError, setArchiveError] = useState("");
 
   const productQuery = useQuery({
     queryKey: ["public-product", productId],
@@ -34,29 +33,28 @@ export default function PublicProductPage() {
     enabled: Number.isFinite(productId) && productId > 0
   });
 
-  const [smsOptIn, setSmsOptIn] = useState(false);
-  const [guestEmail, setGuestEmail] = useState("");
-  const [guestExpanded, setGuestExpanded] = useState(false);
-
-  const checkoutMutation = useMutation({
-    mutationFn: () => createProductCheckout(productId, { smsOptIn }),
-    onSuccess: (result) => {
-      if (result?.checkoutUrl && typeof window !== "undefined") {
-        window.location.assign(result.checkoutUrl);
-      }
-    }
-  });
-
-  const guestCheckoutMutation = useMutation({
+  const archiveProductMutation = useMutation({
     mutationFn: () =>
-      createGuestProductCheckout(productId, {
-        guestEmail: guestEmail.trim() || undefined,
-        smsOptIn
+      apiRequest(`/monetization/products/${productId}`, {
+        method: "PATCH",
+        auth: true,
+        body: { status: "archived" }
       }),
-    onSuccess: (result) => {
-      if (result?.checkoutUrl && typeof window !== "undefined") {
-        window.location.assign(result.checkoutUrl);
+    onMutate: () => {
+      setArchiveError("");
+    },
+    onSuccess: async () => {
+      const row = queryClient.getQueryData<PublicCatalogProduct>(["public-product", productId]);
+      const creatorId = row?.creator_user_id;
+      await queryClient.invalidateQueries({ queryKey: ["public-product", productId] });
+      await queryClient.invalidateQueries({ queryKey: ["account-monetization-products"] });
+      if (creatorId != null) {
+        await queryClient.invalidateQueries({ queryKey: ["creator-products-public", creatorId] });
       }
+      router.push("/account/creator?tab=products");
+    },
+    onError: (error) => {
+      setArchiveError(error instanceof ApiError ? error.message : "Could not archive listing.");
     }
   });
 
@@ -120,81 +118,45 @@ export default function PublicProductPage() {
         </div>
 
         {isOwner ? (
-          <div className="mt-6">
-            <Link href="/account/creator?tab=products" className="btn-secondary inline-flex px-4 py-2 text-sm">
-              Manage in Creator hub
-            </Link>
+          <div className="mt-6 flex flex-col gap-2">
+            <div className="flex flex-wrap gap-2">
+              <Link href="/account/creator?tab=products" className="btn-secondary inline-flex px-4 py-2 text-sm">
+                Manage in Creator hub
+              </Link>
+              {p.status === "published" ? (
+                <button
+                  type="button"
+                  className="inline-flex border border-red-600 bg-surface px-4 py-2 text-sm font-semibold text-red-600 dark:border-red-500 dark:text-red-400"
+                  disabled={archiveProductMutation.isPending}
+                  onClick={() => {
+                    if (
+                      typeof window !== "undefined" &&
+                      window.confirm(
+                        "Archive this listing? Buyers will no longer see it in your catalog. You can republish from Creator hub."
+                      )
+                    ) {
+                      archiveProductMutation.mutate();
+                    }
+                  }}
+                >
+                  {archiveProductMutation.isPending ? "Archiving…" : "Archive listing"}
+                </button>
+              ) : null}
+            </div>
+            {archiveError ? <p className="text-xs text-red-600 dark:text-red-400">{archiveError}</p> : null}
           </div>
         ) : (
-          <>
-            <div className="mt-6 flex flex-wrap gap-2">
-              <button type="button" className="btn-secondary px-4 py-2 text-sm" onClick={scrollToFullOffer}>
-                View offer
-              </button>
-              {!sessionUser ? (
-                <>
-                  <Link href={`/auth/login?next=${loginNext}`} className="btn-primary inline-flex px-4 py-2 text-sm">
-                    Log in to buy
-                  </Link>
-                  <button
-                    type="button"
-                    className="btn-secondary px-4 py-2 text-sm"
-                    onClick={() => setGuestExpanded((v) => !v)}
-                  >
-                    {guestExpanded ? "Hide guest checkout" : "Buy now as guest"}
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  className="btn-primary px-4 py-2 text-sm"
-                  disabled={checkoutMutation.isPending}
-                  onClick={() => checkoutMutation.mutate()}
-                >
-                  {checkoutMutation.isPending ? "Opening…" : "Buy now"}
-                </button>
-              )}
-            </div>
-            {!sessionUser && guestExpanded ? (
-              <div className="surface-card mt-4 space-y-3 rounded-control border border-black/10 px-4 py-4 text-sm">
-                <p className="text-muted">
-                  Secure Stripe checkout. Optional email below; check the box if you want a text with your access link
-                  (phone collected on Stripe if needed).
-                </p>
-                <input
-                  className="input w-full bg-white"
-                  placeholder="Email (optional)"
-                  type="email"
-                  autoComplete="email"
-                  value={guestEmail}
-                  onChange={(e) => setGuestEmail(e.target.value)}
-                />
-                <label className="flex cursor-pointer items-center gap-2 text-muted">
-                  <input type="checkbox" checked={smsOptIn} onChange={(e) => setSmsOptIn(e.target.checked)} />
-                  Text me the access link (optional)
-                </label>
-                <button
-                  type="button"
-                  className="btn-primary px-4 py-2 text-sm"
-                  disabled={guestCheckoutMutation.isPending}
-                  onClick={() => guestCheckoutMutation.mutate()}
-                >
-                  {guestCheckoutMutation.isPending ? "Opening Stripe…" : "Buy now"}
-                </button>
-              </div>
-            ) : null}
-            {sessionUser ? (
-              <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-muted">
-                <input type="checkbox" checked={smsOptIn} onChange={(e) => setSmsOptIn(e.target.checked)} />
-                Also text me the access link (phone collected on Stripe if checked)
-              </label>
-            ) : null}
-          </>
+          <ProductCheckoutPanel
+            productId={productId}
+            title={p.title}
+            priceMinor={p.price_minor}
+            currency={p.currency}
+            productType={p.product_type}
+            websiteUrl={p.website_url ?? null}
+            loginNextEncoded={loginNext}
+            onScrollToOffer={scrollToFullOffer}
+          />
         )}
-
-        <p className="mt-6 rounded-control border border-black/10 bg-surface px-3 py-2 text-xs text-muted">
-          Secure checkout with Stripe. You will complete payment on Stripe, then return to Deenly.
-        </p>
 
         <div id="offer-details" className="scroll-mt-24 space-y-6 border-t border-black/10 pt-8">
           <section>

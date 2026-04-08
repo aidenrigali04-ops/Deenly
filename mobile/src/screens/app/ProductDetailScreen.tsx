@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
-import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { apiRequest } from "../../lib/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ApiError, apiRequest } from "../../lib/api";
 import { fetchProductOverview } from "../../lib/ai-assist";
 import {
   createGuestProductCheckout,
@@ -61,7 +61,9 @@ export function ProductDetailScreen({ route, navigation }: Props) {
   const { productId } = route.params;
   const checkoutVariant = resolveCheckoutVariant(productId);
   const sessionUser = useSessionStore((s) => s.user);
+  const queryClient = useQueryClient();
   const [aiOpen, setAiOpen] = useState(false);
+  const [archiveError, setArchiveError] = useState("");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [checkoutHandoff, setCheckoutHandoff] = useState(false);
   const [guestEmail, setGuestEmail] = useState("");
@@ -106,6 +108,29 @@ export function ProductDetailScreen({ route, navigation }: Props) {
         await Linking.openURL(result.checkoutUrl);
         setCheckoutHandoff(false);
       }
+    }
+  });
+
+  const archiveProductMutation = useMutation({
+    mutationFn: () =>
+      apiRequest(`/monetization/products/${productId}`, {
+        method: "PATCH",
+        auth: true,
+        body: { status: "archived" }
+      }),
+    onMutate: () => {
+      setArchiveError("");
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["mobile-product-detail", productId] });
+      await queryClient.invalidateQueries({ queryKey: ["mobile-creator-products"] });
+      await queryClient.invalidateQueries({ queryKey: ["mobile-creator-catalog"] });
+      await queryClient.invalidateQueries({ queryKey: ["mobile-create-my-products"] });
+      await queryClient.invalidateQueries({ queryKey: ["creator-product-edit", productId] });
+      await productQuery.refetch();
+    },
+    onError: (error) => {
+      setArchiveError(error instanceof ApiError ? error.message : "Could not archive listing.");
     }
   });
 
@@ -261,7 +286,12 @@ export function ProductDetailScreen({ route, navigation }: Props) {
             </Text>
           </Pressable>
         </View>
-        {canBuy ? <Text style={styles.buyHint}>Secure Stripe checkout opens in your browser.</Text> : null}
+        {canBuy ? (
+          <Text style={styles.buyHint}>
+            Secure Stripe Checkout in your browser — Apple Pay or Google Pay appears when your device and Stripe
+            settings support it.
+          </Text>
+        ) : null}
 
         {websiteOk ? (
           <Pressable
@@ -283,6 +313,33 @@ export function ProductDetailScreen({ route, navigation }: Props) {
 
         {isOwner && !isPublished ? (
           <Text style={styles.hint}>Publish this product from Creator hub so others can buy it.</Text>
+        ) : null}
+        {isOwner && isPublished ? (
+          <View style={styles.ownerActions}>
+            <Pressable
+              style={[styles.archiveBtn, archiveProductMutation.isPending && styles.buttonDisabled]}
+              disabled={archiveProductMutation.isPending}
+              onPress={() => {
+                Alert.alert(
+                  "Archive listing?",
+                  "Buyers will no longer see this product in your catalog. You can republish from Creator hub.",
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Archive",
+                      style: "destructive",
+                      onPress: () => archiveProductMutation.mutate()
+                    }
+                  ]
+                );
+              }}
+            >
+              <Text style={styles.archiveBtnText}>
+                {archiveProductMutation.isPending ? "Archiving…" : "Archive listing"}
+              </Text>
+            </Pressable>
+            {archiveError ? <Text style={styles.errorText}>{archiveError}</Text> : null}
+          </View>
         ) : null}
         </View>
 
@@ -427,6 +484,16 @@ const styles = StyleSheet.create({
   linkBtn: { paddingVertical: 4 },
   linkText: { color: colors.accent, fontWeight: "600", fontSize: 15 },
   hint: { fontSize: 13, color: colors.muted, fontStyle: "italic" },
+  ownerActions: { gap: 8, marginTop: 4 },
+  archiveBtn: {
+    borderRadius: radii.control,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.danger,
+    backgroundColor: colors.surface
+  },
+  archiveBtnText: { color: colors.danger, fontWeight: "700", fontSize: 15 },
   aiToggle: { fontSize: 15, fontWeight: "700", color: colors.accent },
   aiBody: { marginTop: 10, gap: 8 },
   aiSummary: { fontSize: 14, color: colors.text, lineHeight: 22 },

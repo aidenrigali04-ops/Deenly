@@ -81,6 +81,47 @@ export async function fetchConnectStatus() {
   return apiRequest<ConnectStatus>("/monetization/connect/status", { auth: true });
 }
 
+export type PlaidStatusResponse = {
+  configured: boolean;
+  linked?: boolean;
+  itemId?: string;
+  institutionName?: string | null;
+  updatedAt?: string;
+};
+
+export async function fetchPlaidStatus() {
+  return apiRequest<PlaidStatusResponse>("/monetization/plaid/status", { auth: true });
+}
+
+export async function createPlaidLinkToken() {
+  return apiRequest<{ linkToken: string }>("/monetization/plaid/link-token", { method: "POST", auth: true, body: {} });
+}
+
+export type PlaidExchangeResponse = {
+  itemId: string;
+  institutionName: string | null;
+  accounts: { id: string; mask: string | null; name: string | null; subtype: string | null; type: string | null }[];
+};
+
+export async function exchangePlaidPublicToken(publicToken: string) {
+  return apiRequest<PlaidExchangeResponse>("/monetization/plaid/exchange", {
+    method: "POST",
+    auth: true,
+    body: { publicToken }
+  });
+}
+
+export async function attachPlaidStripePayout(accountId: string) {
+  return apiRequest<{ attached: boolean; stripeExternalAccountId?: string | null; last4?: string | null }>(
+    "/monetization/plaid/attach-stripe-payout",
+    {
+      method: "POST",
+      auth: true,
+      body: { accountId }
+    }
+  );
+}
+
 export async function createConnectAccount() {
   return apiRequest("/monetization/connect/account", { method: "POST", auth: true, body: {} });
 }

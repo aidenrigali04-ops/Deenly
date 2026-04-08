@@ -42,6 +42,7 @@ import { DhikrScreen } from "../screens/app/DhikrScreen";
 import { QuranReaderScreen } from "../screens/app/QuranReaderScreen";
 import { SalahSettingsScreen } from "../screens/app/SalahSettingsScreen";
 import { CreatorEconomyScreen } from "../screens/app/CreatorEconomyScreen";
+import { PlaidLinkScreen } from "../screens/app/PlaidLinkScreen";
 import { CreateProductScreen } from "../screens/app/CreateProductScreen";
 import { ProductDetailScreen } from "../screens/app/ProductDetailScreen";
 import type { ProductImportDraft } from "../lib/monetization";
@@ -94,6 +95,7 @@ export type RootStackParamList = {
   QuranReader: undefined;
   SalahSettings: undefined;
   CreatorEconomy: undefined;
+  PlaidLink: undefined;
   CreateProduct: { initialDraft?: ProductImportDraft; editProductId?: number } | undefined;
   ProductDetail: { productId: number };
   Reels: undefined;
@@ -387,6 +389,7 @@ export function AppNavigator() {
               <RootStack.Screen name="QuranReader" component={QuranReaderScreen} options={{ title: "Quran Reader" }} />
               <RootStack.Screen name="SalahSettings" component={SalahSettingsScreen} options={{ title: "Salah Settings" }} />
               <RootStack.Screen name="CreatorEconomy" component={CreatorEconomyScreen} options={{ title: "Creator hub" }} />
+              <RootStack.Screen name="PlaidLink" component={PlaidLinkScreen} options={{ title: "Link bank (Plaid)" }} />
               <RootStack.Screen name="CreateProduct" component={CreateProductScreen} options={{ title: "Add product" }} />
               <RootStack.Screen name="CreateEvent" component={CreateEventScreen} options={{ title: "Create event" }} />
               <RootStack.Screen name="ProductDetail" component={ProductDetailScreen} options={{ title: "Product" }} />

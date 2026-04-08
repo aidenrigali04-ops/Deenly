@@ -55,8 +55,16 @@ export function ProductCheckoutSheet({
   const confirmDisabled = loading || (isGuest && !guestEmailLooksValid);
   const points =
     checkoutVariant === "speed_first"
-      ? ["Checkout completes in under a minute.", "Delivery access is shared right after payment."]
-      : ["Payment completes in Stripe.", "Access details are sent after payment."];
+      ? [
+          "Review your item, then pay on Stripe in one short session.",
+          "Use card, Apple Pay, or Google Pay when your device supports it.",
+          "Access and receipts arrive by email (and SMS when you opt in)."
+        ]
+      : [
+          "You will pay on Stripe; Deenly does not store your card number.",
+          "Card, Apple Pay, or Google Pay when available.",
+          "After payment, open your email for the secure access link."
+        ];
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={() => (loading ? undefined : onClose())}>
@@ -70,6 +78,19 @@ export function ProductCheckoutSheet({
               {title}
             </Text>
             <Text style={styles.price}>{priceLabel}</Text>
+
+            <View style={styles.stepsRow}>
+              {[
+                { n: "1", t: "Review" },
+                { n: "2", t: "Pay" },
+                { n: "3", t: "Access" }
+              ].map((s, i) => (
+                <View key={s.n} style={[styles.stepChip, i < 2 && styles.stepChipDivider]}>
+                  <Text style={styles.stepNum}>{s.n}</Text>
+                  <Text style={styles.stepLabel}>{s.t}</Text>
+                </View>
+              ))}
+            </View>
 
             {points.map((point) => (
               <View key={point} style={styles.pointRow}>
@@ -125,7 +146,7 @@ export function ProductCheckoutSheet({
                 disabled={confirmDisabled}
               >
                 <Text style={styles.btnPrimaryText}>
-                  {loading ? (handoffState ? "Securely opening..." : "Opening...") : "Continue to Stripe"}
+                  {loading ? (handoffState ? "Opening secure checkout…" : "Opening…") : "Continue to secure checkout"}
                 </Text>
               </Pressable>
             </View>
@@ -170,6 +191,32 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 18, fontWeight: "600", color: colors.text, letterSpacing: -0.2 },
   price: { fontSize: 16, fontWeight: "600", color: colors.text },
+  stepsRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    marginTop: 4,
+    marginBottom: 4,
+    borderRadius: radii.control,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderSubtle,
+    overflow: "hidden"
+  },
+  stepChip: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    backgroundColor: colors.surface
+  },
+  stepChipDivider: {
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderRightColor: colors.borderSubtle
+  },
+  stepNum: { fontSize: 11, fontWeight: "700", color: colors.muted },
+  stepLabel: { fontSize: 11, fontWeight: "600", color: colors.text },
   pointRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
   pointDot: { color: colors.muted, fontSize: 15, lineHeight: 20 },
   copy: { fontSize: 14, color: colors.muted, lineHeight: 20, letterSpacing: -0.1 },

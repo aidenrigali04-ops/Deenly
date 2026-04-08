@@ -34,6 +34,7 @@ const { createGeocodeRouter } = require("./modules/geocode/routes");
 const { createInstagramCrossPostOrchestrator } = require("./services/instagram-graph");
 const { createMetrics } = require("./observability/metrics");
 const { createMonetizationGateway } = require("./services/monetization-gateway");
+const { createPlaidSellerBankService } = require("./services/plaid-seller-bank");
 const { authenticate, authorize } = require("./middleware/auth");
 const { httpError } = require("./utils/http-error");
 
@@ -82,6 +83,7 @@ function createApp({
   app.locals.mediaStorage = mediaStorage;
   app.locals.pushNotifications = pushNotifications || null;
   app.locals.monetizationGateway = monetizationGateway || createMonetizationGateway({ config });
+  app.locals.plaidSellerBank = createPlaidSellerBankService({ db, config, logger });
 
   const instagramCrossPost = createInstagramCrossPostOrchestrator({
     db,
@@ -266,7 +268,8 @@ function createApp({
       logger,
       monetizationGateway: app.locals.monetizationGateway,
       mediaStorage: app.locals.mediaStorage,
-      analytics: app.locals.analytics
+      analytics: app.locals.analytics,
+      plaidSellerBank: app.locals.plaidSellerBank
     })
   );
   apiRouter.use("/ads", createAdsRouter({ db, config, analytics: app.locals.analytics }));

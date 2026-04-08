@@ -109,7 +109,17 @@ function createMonetizationGateway({ config }) {
       mode: normalizedMode,
       success_url: successUrl || defaultSuccess,
       cancel_url: cancelUrl || defaultCancel,
+      // Card includes Apple Pay / Google Pay in Stripe Checkout on supported browsers when enabled in Stripe Dashboard (Apple Pay domain verification for web).
       payment_method_types: ["card"],
+      ...(normalizedMode === "payment"
+        ? {
+            payment_method_options: {
+              card: {
+                request_three_d_secure: "automatic"
+              }
+            }
+          }
+        : {}),
       line_items: [
         {
           quantity: 1,
@@ -207,6 +217,18 @@ function createMonetizationGateway({ config }) {
     return client.products.retrieve(productId, {}, { stripeAccount: stripeAccountId });
   }
 
+  /**
+   * Attach a US bank account to a Connect account using Plaid's stripe_bank_account_token.
+   * @param {{ connectedAccountId: string, stripeBankAccountToken: string }} params
+   */
+  async function attachExternalBankToken({ connectedAccountId, stripeBankAccountToken }) {
+    const client = requireStripeClient();
+    return client.accounts.createExternalAccount(connectedAccountId, {
+      external_account: stripeBankAccountToken,
+      default_for_currency: true
+    });
+  }
+
   return {
     createConnectedAccount,
     retrieveConnectedAccount,
@@ -218,7 +240,8 @@ function createMonetizationGateway({ config }) {
     listConnectAccountPrices,
     listConnectAccountPricesByProduct,
     retrieveConnectAccountPrice,
-    retrieveConnectAccountProduct
+    retrieveConnectAccountProduct,
+    attachExternalBankToken
   };
 }
 
