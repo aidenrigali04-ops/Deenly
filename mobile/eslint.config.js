@@ -16,6 +16,6 @@ module.exports = defineConfig([
     }
   },
   {
-    ignores: ["dist/**", ".expo/**", "coverage/**", "node_modules/**"]
+    ignores: ["dist/**", "dist-web/**", ".expo/**", "coverage/**", "node_modules/**"]
   }
 ]);

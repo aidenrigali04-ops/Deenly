@@ -4,7 +4,7 @@ Ordered backlog for **user readiness** and production maturity. Each row can bec
 
 ## Product / UX
 
-- Username or profile-based DM start (reduce reliance on numeric user ID).  
+- Username-based DM start: **partial** — Messages tab can look up by name/@username via `/search/users` and start a chat; deep links from profile remain ideal follow-up.  
 - Message requests / safety for unsolicited chats.  
 - Search: debounced queries, recent searches, clearer zero-result guidance.  
 - Marketplace: category/price filters when listing volume justifies them.  
@@ -33,5 +33,6 @@ Ordered backlog for **user readiness** and production maturity. Each row can bec
 
 ## References
 
+- [PRE_LAUNCH_RUNBOOK.md](./PRE_LAUNCH_RUNBOOK.md) — env → QA → store order.  
 - [USER_READINESS.md](./USER_READINESS.md) — review process.  
 - [mobile/docs/STORE_RELEASE_CHECKLIST.md](../mobile/docs/STORE_RELEASE_CHECKLIST.md) — store submission.

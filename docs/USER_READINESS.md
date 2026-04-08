@@ -1,6 +1,6 @@
 # User readiness review
 
-Use this before TestFlight/App Store cuts and after major flows change. Complements [mobile/docs/STORE_RELEASE_CHECKLIST.md](../mobile/docs/STORE_RELEASE_CHECKLIST.md) and [UX_CLUTTER_REDUCTION_PLAN.md](./UX_CLUTTER_REDUCTION_PLAN.md).
+Use this before TestFlight/App Store cuts and after major flows change. **Order of operations:** [PRE_LAUNCH_RUNBOOK.md](./PRE_LAUNCH_RUNBOOK.md) → this doc → [mobile/docs/STORE_RELEASE_CHECKLIST.md](../mobile/docs/STORE_RELEASE_CHECKLIST.md). See also [UX_CLUTTER_REDUCTION_PLAN.md](./UX_CLUTTER_REDUCTION_PLAN.md).
 
 ## Release loop (full flow)
 

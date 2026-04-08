@@ -20,6 +20,12 @@ type ConversationItem = {
   unread_count: number;
 };
 
+type SearchUserRow = {
+  user_id: number;
+  username: string;
+  display_name: string;
+};
+
 type MessageItem = {
   id: number;
   sender_id: number;
@@ -43,6 +49,7 @@ export function MessagesScreen({ navigation }: Props) {
   const sessionUserId = useSessionStore((s) => s.user?.id ?? null);
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
   const [participantUserId, setParticipantUserId] = useState("");
+  const [usernameLookupInput, setUsernameLookupInput] = useState("");
   const [body, setBody] = useState("");
 
   const openUserId = route.params?.openUserId;
@@ -99,11 +106,32 @@ export function MessagesScreen({ navigation }: Props) {
     });
   }, [selectedConversationId, messagesQuery.data?.items, queryClient]);
 
+  const usernameLookupMutation = useMutation({
+    mutationFn: (q: string) => {
+      const trimmed = q.trim();
+      if (trimmed.length < 2) {
+        return Promise.reject(new Error("Enter at least 2 characters."));
+      }
+      return apiRequest<{ items: SearchUserRow[] }>(
+        `/search/users?q=${encodeURIComponent(trimmed)}&limit=8`,
+        { auth: true }
+      );
+    }
+  });
+
+  const usernameLookupRows = useMemo(() => {
+    const items = usernameLookupMutation.data?.items || [];
+    if (!sessionUserId) return items;
+    return items.filter((row) => row.user_id !== sessionUserId);
+  }, [usernameLookupMutation.data?.items, sessionUserId]);
+
   const createConversation = useMutation({
-    mutationFn: () => createOrOpenConversation(Number(participantUserId)),
+    mutationFn: (userId: number) => createOrOpenConversation(userId),
     onSuccess: (result) => {
       setSelectedConversationId(result.conversationId);
       setParticipantUserId("");
+      setUsernameLookupInput("");
+      usernameLookupMutation.reset();
       queryClient.invalidateQueries({ queryKey: ["mobile-messages-conversations"] });
     }
   });
@@ -139,8 +167,54 @@ export function MessagesScreen({ navigation }: Props) {
 
         <SectionCard title="New message">
           <Text style={styles.helper}>
-            Enter the numeric user ID from someone&apos;s profile. Username search is coming soon—until then, open their profile and use the ID shown there.
+            Search by name or @username (same index as Search), or enter a numeric user ID from someone&apos;s profile.
           </Text>
+          <Text style={styles.miniLabel}>Find by name or username</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. ahmad or @username"
+            placeholderTextColor={colors.muted}
+            autoCapitalize="none"
+            autoCorrect={false}
+            value={usernameLookupInput}
+            onChangeText={setUsernameLookupInput}
+          />
+          <Pressable
+            style={styles.buttonSecondary}
+            onPress={() => usernameLookupMutation.mutate(usernameLookupInput)}
+            disabled={usernameLookupMutation.isPending}
+          >
+            <Text style={styles.buttonText}>
+              {usernameLookupMutation.isPending ? "Searching..." : "Search people"}
+            </Text>
+          </Pressable>
+          {usernameLookupMutation.isError ? (
+            <Text style={styles.lookupError}>{(usernameLookupMutation.error as Error).message}</Text>
+          ) : null}
+          {usernameLookupMutation.isSuccess ? (
+            usernameLookupRows.length === 0 ? (
+              <Text style={styles.helper}>No users match that search.</Text>
+            ) : (
+              <View style={styles.lookupList}>
+                {usernameLookupRows.map((row) => (
+                  <Pressable
+                    key={row.user_id}
+                    style={styles.lookupRow}
+                    onPress={() => createConversation.mutate(row.user_id)}
+                    disabled={createConversation.isPending}
+                  >
+                    <Text style={styles.lookupRowName} numberOfLines={1}>
+                      {row.display_name}
+                    </Text>
+                    <Text style={styles.lookupRowSub} numberOfLines={1}>
+                      @{row.username} · ID {row.user_id}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            )
+          ) : null}
+          <Text style={[styles.miniLabel, styles.miniLabelSpaced]}>Or user ID</Text>
           <TextInput
             style={styles.input}
             placeholder="User ID"
@@ -154,7 +228,7 @@ export function MessagesScreen({ navigation }: Props) {
             onPress={() => {
               const n = Number(participantUserId);
               if (!Number.isFinite(n) || n <= 0) return;
-              createConversation.mutate();
+              createConversation.mutate(n);
             }}
           >
             <Text style={styles.buttonText}>
@@ -254,6 +328,19 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { gap: 14 },
   helper: { color: colors.muted, fontSize: 13, lineHeight: 19 },
+  miniLabel: { fontSize: 12, fontWeight: "700", color: colors.text, marginBottom: 6 },
+  miniLabelSpaced: { marginTop: 14 },
+  lookupError: { color: colors.danger, fontSize: 13, marginTop: 8 },
+  lookupList: { marginTop: 10, gap: 0, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderSubtle, borderRadius: radii.control, overflow: "hidden" },
+  lookupRow: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.borderSubtle,
+    backgroundColor: colors.surface
+  },
+  lookupRowName: { fontSize: 15, fontWeight: "700", color: colors.text },
+  lookupRowSub: { fontSize: 12, color: colors.muted, marginTop: 2 },
   input: {
     borderColor: colors.border,
     borderWidth: StyleSheet.hairlineWidth,

@@ -1,5 +1,7 @@
 # Mobile store release checklist
 
+**Start here for ordering:** [docs/PRE_LAUNCH_RUNBOOK.md](../../docs/PRE_LAUNCH_RUNBOOK.md) (env → QA → store → observability).
+
 Use with [backend/RELEASE_CHECKLIST.md](../../backend/RELEASE_CHECKLIST.md) and [backend/LAUNCH_HARDENING_REPORT.md](../../backend/LAUNCH_HARDENING_REPORT.md).
 
 ## EAS Build
