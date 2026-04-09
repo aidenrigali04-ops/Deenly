@@ -22,6 +22,42 @@ export type AuthResponse = {
   tokens: AuthTokens;
 };
 
+export type FeedEventPayload = {
+  id: number;
+  host_user_id: number;
+  host_display_name: string;
+  title: string;
+  description?: string | null;
+  starts_at: string;
+  ends_at?: string | null;
+  timezone?: string | null;
+  is_online: boolean;
+  online_url?: string | null;
+  address_display?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  visibility: string;
+  capacity?: number | null;
+  status: string;
+  created_at?: string;
+  updated_at?: string;
+  viewer_rsvp_status?: string | null;
+  rsvp_interested_count: number;
+  rsvp_going_count: number;
+  can_join_chat: boolean;
+  event_rank_score?: number;
+};
+
+export type FeedEventCardItem = {
+  id: string;
+  post_type: "event";
+  card_type: "event";
+  event: FeedEventPayload;
+  sponsored?: boolean;
+  sponsored_label?: string | null;
+  ad_campaign_id?: number | null;
+};
+
 export type FeedItem = {
   id: number;
   author_id: number;
@@ -57,3 +93,5 @@ export type FeedItem = {
   avg_watch_time_ms?: number;
   avg_completion_rate?: number;
 };
+
+export type FeedListItem = FeedItem | FeedEventCardItem;

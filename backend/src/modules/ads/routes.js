@@ -1,8 +1,14 @@
 const express = require("express");
+const rateLimit = require("express-rate-limit");
 const { authenticate } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
 const { httpError } = require("../../utils/http-error");
 const { optionalString, requireString } = require("../../utils/validators");
+const { listBoostPackages, getBoostPackageById } = require("../../config/boost-catalog");
+const {
+  normalizeBoostCheckoutReturnClient,
+  resolveAdBoostStripeReturnUrls
+} = require("../../utils/boost-checkout-return");
 
 const CAMPAIGN_STATUSES = new Set(["draft", "active", "paused", "ended"]);
 
@@ -13,40 +19,122 @@ function normalizeCurrency(value) {
     .slice(0, 3);
 }
 
-function createAdsRouter({ db, config, analytics }) {
+function createAdsRouter({ db, config, analytics, monetizationGateway }) {
   const router = express.Router();
   const authMiddleware = authenticate({ config, db });
+
+  const skipAdsUserRateLimits = () => Boolean(config.isTest);
+  const adsCampaignCreateLimiter = rateLimit({
+    windowMs: config.adsCampaignCreateRateLimitWindowMs,
+    limit: config.adsCampaignCreateRateLimitMax,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: skipAdsUserRateLimits,
+    keyGenerator(req) {
+      return req.user?.id ? `ads-campaign-create:${req.user.id}` : req.ip;
+    }
+  });
+  const adsBoostCheckoutLimiter = rateLimit({
+    windowMs: config.adsBoostCheckoutRateLimitWindowMs,
+    limit: config.adsBoostCheckoutRateLimitMax,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: skipAdsUserRateLimits,
+    keyGenerator(req) {
+      return req.user?.id ? `ads-boost-checkout:${req.user.id}` : req.ip;
+    }
+  });
+
+  router.get(
+    "/boost-catalog",
+    asyncHandler(async (_req, res) => {
+      res.status(200).json({ items: listBoostPackages() });
+    })
+  );
 
   router.post(
     "/campaigns",
     authMiddleware,
+    adsCampaignCreateLimiter,
     asyncHandler(async (req, res) => {
-      const postId = Number(req.body?.postId);
-      const budgetMinor = Number(req.body?.budgetMinor);
-      const currency = normalizeCurrency(req.body?.currency || "usd");
-      const dailyCapImpressions = Math.min(
-        Math.max(Number(req.body?.dailyCapImpressions) || 1000, 100),
-        100000
-      );
+      const postIdRaw = req.body?.postId;
+      const eventIdRaw = req.body?.eventId;
+      const postId =
+        postIdRaw !== undefined && postIdRaw !== null && String(postIdRaw).trim() !== ""
+          ? Number(postIdRaw)
+          : null;
+      const eventId =
+        eventIdRaw !== undefined && eventIdRaw !== null && String(eventIdRaw).trim() !== ""
+          ? Number(eventIdRaw)
+          : null;
+
+      if ((!postId || !Number.isInteger(postId)) && (!eventId || !Number.isInteger(eventId))) {
+        throw httpError(400, "postId or eventId is required");
+      }
+      if (postId && eventId) {
+        throw httpError(400, "Provide only one of postId or eventId");
+      }
+
+      const packageId = optionalString(req.body?.packageId, "packageId", 64);
+      const pkg = packageId ? getBoostPackageById(packageId) : null;
+      if (packageId && !pkg) {
+        throw httpError(400, "Unknown packageId");
+      }
+
+      let budgetMinor =
+        req.body?.budgetMinor !== undefined && req.body?.budgetMinor !== null
+          ? Number(req.body.budgetMinor)
+          : NaN;
+      if (!Number.isInteger(budgetMinor) || budgetMinor <= 0) {
+        if (pkg) {
+          budgetMinor = pkg.suggestedBudgetMinor;
+        }
+      }
+      if (!Number.isInteger(budgetMinor) || budgetMinor <= 0) {
+        throw httpError(400, "budgetMinor must be a positive integer");
+      }
+
+      const currency = normalizeCurrency(pkg?.currency || req.body?.currency || "usd");
+      let dailyCapImpressions;
+      if (req.body?.dailyCapImpressions !== undefined && req.body?.dailyCapImpressions !== null) {
+        dailyCapImpressions = Math.min(Math.max(Number(req.body.dailyCapImpressions), 100), 100000);
+        if (!Number.isFinite(dailyCapImpressions)) {
+          throw httpError(400, "dailyCapImpressions must be a number");
+        }
+      } else if (pkg) {
+        dailyCapImpressions = Math.min(Math.max(Number(pkg.dailyCapImpressions), 100), 100000);
+      } else {
+        dailyCapImpressions = Math.min(Math.max(Number(req.body?.dailyCapImpressions) || 1000, 100), 100000);
+      }
+
       const startsAt = optionalString(req.body?.startsAt, "startsAt", 64) || null;
       const endsAt = optionalString(req.body?.endsAt, "endsAt", 64) || null;
-      if (!postId || !Number.isInteger(budgetMinor) || budgetMinor <= 0) {
-        throw httpError(400, "postId and budgetMinor are required");
+
+      if (postId) {
+        const ownerCheck = await db.query(
+          `SELECT id FROM posts WHERE id = $1 AND author_id = $2 LIMIT 1`,
+          [postId, req.user.id]
+        );
+        if (ownerCheck.rowCount === 0) {
+          throw httpError(404, "Post not found");
+        }
+      } else {
+        const ownerCheck = await db.query(
+          `SELECT id FROM events WHERE id = $1 AND host_user_id = $2 AND status = 'scheduled' LIMIT 1`,
+          [eventId, req.user.id]
+        );
+        if (ownerCheck.rowCount === 0) {
+          throw httpError(404, "Event not found");
+        }
       }
-      const ownerCheck = await db.query(
-        `SELECT id FROM posts WHERE id = $1 AND author_id = $2 LIMIT 1`,
-        [postId, req.user.id]
-      );
-      if (ownerCheck.rowCount === 0) {
-        throw httpError(404, "Post not found");
-      }
+
       const created = await db.query(
         `INSERT INTO ad_campaigns (
-           creator_user_id, post_id, status, budget_minor, spent_minor, currency, daily_cap_impressions, starts_at, ends_at
+           creator_user_id, post_id, event_id, status, budget_minor, spent_minor, currency, daily_cap_impressions, starts_at, ends_at
          )
-         VALUES ($1, $2, 'draft', $3, 0, $4, $5, $6::timestamptz, $7::timestamptz)
+         VALUES ($1, $2, $3, 'draft', $4, 0, $5, $6, $7::timestamptz, $8::timestamptz)
          RETURNING *`,
-        [req.user.id, postId, budgetMinor, currency, dailyCapImpressions, startsAt, endsAt]
+        [req.user.id, postId || null, eventId || null, budgetMinor, currency, dailyCapImpressions, startsAt, endsAt]
       );
       await db.query(
         `INSERT INTO ad_creative_reviews (campaign_id, status)
@@ -58,10 +146,61 @@ function createAdsRouter({ db, config, analytics }) {
         await analytics.trackEvent("ad_campaign_create", {
           userId: req.user.id,
           campaignId: created.rows[0].id,
-          postId
+          postId: postId || undefined,
+          eventId: eventId || undefined,
+          packageId: packageId || undefined
         });
       }
       res.status(201).json(created.rows[0]);
+    })
+  );
+
+  router.post(
+    "/campaigns/:id/boost-checkout",
+    authMiddleware,
+    adsBoostCheckoutLimiter,
+    asyncHandler(async (req, res) => {
+      if (!monetizationGateway || typeof monetizationGateway.createCheckoutSession !== "function") {
+        throw httpError(503, "Checkout is not available");
+      }
+      const campaignId = Number(req.params.id);
+      if (!campaignId) {
+        throw httpError(400, "campaign id must be a number");
+      }
+      const campResult = await db.query(
+        `SELECT * FROM ad_campaigns WHERE id = $1 AND creator_user_id = $2 LIMIT 1`,
+        [campaignId, req.user.id]
+      );
+      if (campResult.rowCount === 0) {
+        throw httpError(404, "Campaign not found");
+      }
+      const camp = campResult.rows[0];
+      if (camp.boost_funded_at) {
+        throw httpError(409, "Boost budget is already funded");
+      }
+      const returnClient = normalizeBoostCheckoutReturnClient(req.body?.returnClient);
+      if (returnClient == null) {
+        throw httpError(400, "returnClient must be web or mobile_app");
+      }
+      const { successUrl, cancelUrl } = resolveAdBoostStripeReturnUrls({
+        appBaseUrl: config?.appBaseUrl,
+        campaignId,
+        returnClient
+      });
+      const session = await monetizationGateway.createCheckoutSession({
+        kind: "ad_boost",
+        mode: "payment",
+        amountMinor: Number(camp.budget_minor),
+        currency: camp.currency,
+        buyerUserId: req.user.id,
+        sellerUserId: req.user.id,
+        title: "Boost campaign budget",
+        description: `Ad campaign #${campaignId}`,
+        metadataExtra: { adCampaignId: String(campaignId) },
+        successUrl,
+        cancelUrl
+      });
+      res.status(200).json({ url: session.url, sessionId: session.id });
     })
   );
 
@@ -85,6 +224,18 @@ function createAdsRouter({ db, config, analytics }) {
         req.body?.status !== undefined ? String(req.body.status).trim().toLowerCase() : current.status;
       if (!CAMPAIGN_STATUSES.has(status)) {
         throw httpError(400, "status must be draft, active, paused, or ended");
+      }
+      if (status === "active" && status !== current.status) {
+        const reviewCheck = await db.query(
+          `SELECT status FROM ad_creative_reviews WHERE campaign_id = $1 LIMIT 1`,
+          [campaignId]
+        );
+        if (reviewCheck.rows[0]?.status !== "approved") {
+          throw httpError(409, "Creative review must be approved before activating");
+        }
+        if (!current.boost_funded_at) {
+          throw httpError(409, "Boost budget must be paid before activating");
+        }
       }
       const budgetMinor =
         req.body?.budgetMinor !== undefined ? Number(req.body.budgetMinor) : current.budget_minor;
@@ -123,6 +274,63 @@ function createAdsRouter({ db, config, analytics }) {
         [req.user.id]
       );
       res.status(200).json({ items: rows.rows });
+    })
+  );
+
+  router.get(
+    "/campaigns/me/analytics-summary",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const agg = await db.query(
+        `SELECT
+           COUNT(DISTINCT ac.id)::int AS campaign_count,
+           COUNT(DISTINCT ac.id) FILTER (WHERE ac.status = 'active')::int AS active_campaigns,
+           COALESCE(SUM(CASE WHEN ae.event_type = 'impression' THEN 1 ELSE 0 END), 0)::bigint AS impressions,
+           COALESCE(SUM(CASE WHEN ae.event_type = 'click' THEN 1 ELSE 0 END), 0)::bigint AS clicks
+         FROM ad_campaigns ac
+         LEFT JOIN ad_events ae ON ae.campaign_id = ac.id
+         WHERE ac.creator_user_id = $1`,
+        [req.user.id]
+      );
+      const row = agg.rows[0] || {};
+      res.status(200).json({
+        campaignCount: Number(row.campaign_count) || 0,
+        activeCampaigns: Number(row.active_campaigns) || 0,
+        impressions: Number(row.impressions) || 0,
+        clicks: Number(row.clicks) || 0
+      });
+    })
+  );
+
+  router.get(
+    "/campaigns/:id/analytics",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const campaignId = Number(req.params.id);
+      if (!campaignId) {
+        throw httpError(400, "campaign id must be a number");
+      }
+      const own = await db.query(
+        `SELECT id FROM ad_campaigns WHERE id = $1 AND creator_user_id = $2 LIMIT 1`,
+        [campaignId, req.user.id]
+      );
+      if (own.rowCount === 0) {
+        throw httpError(404, "Campaign not found");
+      }
+      const stats = await db.query(
+        `SELECT
+           COUNT(*) FILTER (WHERE event_type = 'impression')::int AS impressions,
+           COUNT(*) FILTER (WHERE event_type = 'click')::int AS clicks
+         FROM ad_events
+         WHERE campaign_id = $1`,
+        [campaignId]
+      );
+      const row = stats.rows[0] || { impressions: 0, clicks: 0 };
+      res.status(200).json({
+        campaignId,
+        impressions: Number(row.impressions) || 0,
+        clicks: Number(row.clicks) || 0
+      });
     })
   );
 

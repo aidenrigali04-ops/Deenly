@@ -39,7 +39,9 @@ export function SalahSettingsScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.heading}>Salah Settings</Text>
-      <Text style={styles.subtle}>Pause in-app and push alerts around prayer windows.</Text>
+      <Text style={styles.subtle}>
+        Pause in-app and push alerts around prayer windows. Push reminders follow the same quiet rules so worship time stays undisturbed.
+      </Text>
 
       <View style={styles.card}>
         <Text style={styles.label}>Quiet mode</Text>

@@ -43,6 +43,8 @@ import { DhikrScreen } from "../screens/app/DhikrScreen";
 import { QuranReaderScreen } from "../screens/app/QuranReaderScreen";
 import { SalahSettingsScreen } from "../screens/app/SalahSettingsScreen";
 import { CreatorEconomyScreen } from "../screens/app/CreatorEconomyScreen";
+import { PromotePostScreen } from "../screens/app/PromotePostScreen";
+import { BoostCheckoutReturnScreen } from "../screens/app/BoostCheckoutReturnScreen";
 import { PlaidLinkScreen } from "../screens/app/PlaidLinkScreen";
 import { CreateProductScreen } from "../screens/app/CreateProductScreen";
 import { ProductDetailScreen } from "../screens/app/ProductDetailScreen";
@@ -62,6 +64,7 @@ import { EventDetailScreen } from "../screens/app/EventDetailScreen";
 import { NavTabIcon } from "../components/icons/NavTabIcon";
 import { BusinessPersonalizerOverlay } from "../components/BusinessPersonalizerOverlay";
 import { getWebAppBaseUrl } from "../lib/web-app";
+import { registerExpoPushDevice } from "../lib/push-registration";
 
 export type CreateTabStackParamList = {
   CreateHub: undefined;
@@ -100,6 +103,8 @@ export type RootStackParamList = {
   QuranReader: undefined;
   SalahSettings: undefined;
   CreatorEconomy: undefined;
+  PromotePost: undefined;
+  BoostCheckoutReturn: { step: string };
   PlaidLink: undefined;
   CreateProduct: { initialDraft?: ProductImportDraft; editProductId?: number } | undefined;
   ProductDetail: { productId: number };
@@ -305,6 +310,13 @@ export function AppNavigator() {
     };
   }, [sessionQuery, setUser]);
 
+  useEffect(() => {
+    if (!user?.id) {
+      return;
+    }
+    void registerExpoPushDevice();
+  }, [user?.id]);
+
   const navTheme = {
     ...DefaultTheme,
     colors: {
@@ -338,6 +350,13 @@ export function AppNavigator() {
             AppTabs: "",
             PostDetail: "posts/:id",
             UserProfile: "users/:id",
+            PromotePost: "creator/promote",
+            BoostCheckoutReturn: {
+              path: "checkout/:step",
+              parse: {
+                step: (s: string) => String(s || "").toLowerCase()
+              }
+            },
             ...eventDetail
           }
         }
@@ -384,7 +403,7 @@ export function AppNavigator() {
           ) : (
             <>
               <RootStack.Screen name="AppTabs" component={AppTabs} options={{ headerShown: false }} />
-              <RootStack.Screen name="Search" component={SearchScreen} options={{ title: "Search" }} />
+              <RootStack.Screen name="Search" component={SearchScreen} options={{ title: "Explore" }} />
               <RootStack.Screen name="PostDetail" component={PostDetailScreen} options={{ title: "Post" }} />
               <RootStack.Screen name="UserProfile" component={UserProfileScreen} options={{ title: "User" }} />
               <RootStack.Screen name="Onboarding" component={OnboardingScreen} options={{ title: "Setup & feed" }} />
@@ -402,6 +421,12 @@ export function AppNavigator() {
               <RootStack.Screen name="QuranReader" component={QuranReaderScreen} options={{ title: "Quran Reader" }} />
               <RootStack.Screen name="SalahSettings" component={SalahSettingsScreen} options={{ title: "Salah Settings" }} />
               <RootStack.Screen name="CreatorEconomy" component={CreatorEconomyScreen} options={{ title: "Creator hub" }} />
+              <RootStack.Screen name="PromotePost" component={PromotePostScreen} options={{ title: "Promote in feed" }} />
+              <RootStack.Screen
+                name="BoostCheckoutReturn"
+                component={BoostCheckoutReturnScreen}
+                options={{ title: "Boost checkout" }}
+              />
               <RootStack.Screen name="PlaidLink" component={PlaidLinkScreen} options={{ title: "Link bank (Plaid)" }} />
               <RootStack.Screen name="CreateProduct" component={CreateProductScreen} options={{ title: "Add product" }} />
               <RootStack.Screen name="CreateEvent" component={CreateEventScreen} options={{ title: "Create event" }} />

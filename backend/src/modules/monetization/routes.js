@@ -11,6 +11,7 @@ const { fulfillProductOrderAfterPayment, parseSmsOptIn } = require("../../servic
 const { hashToken } = require("../../services/purchase-access-token");
 const { resolvePersonaCapabilities } = require("../../services/persona-capabilities");
 const { throwIfAnyUserFacingPolicyViolation } = require("../../utils/content-safety");
+const { notifyAfterAdBoostPayment } = require("../../services/ad-boost-notifications");
 
 function extractCheckoutCustomerContact(sessionObj) {
   const d = sessionObj?.customer_details || {};
@@ -185,7 +186,16 @@ function parseProductBusinessCategory(rawValue) {
   return value ? value.trim().toLowerCase() : null;
 }
 
-function createMonetizationRouter({ db, config, logger, monetizationGateway, mediaStorage, analytics, plaidSellerBank }) {
+function createMonetizationRouter({
+  db,
+  config,
+  logger,
+  monetizationGateway,
+  mediaStorage,
+  analytics,
+  plaidSellerBank,
+  pushNotifications
+}) {
   const router = express.Router();
   const authMiddleware = authenticate({ config, db });
   const optionalAuthMiddleware = authenticateOptional({ config, db });
@@ -1926,6 +1936,62 @@ function createMonetizationRouter({ db, config, logger, monetizationGateway, med
       );
       if (conflictResult.rowCount === 0) {
         return res.status(200).json({ received: true, duplicate: true });
+      }
+
+      const checkoutObj = event.data.object || {};
+      const checkoutMeta =
+        checkoutObj.metadata && typeof checkoutObj.metadata === "object" && !Array.isArray(checkoutObj.metadata)
+          ? checkoutObj.metadata
+          : {};
+
+      if (String(checkoutMeta.kind || "") === "ad_boost") {
+        const paid = String(checkoutObj.payment_status || "") === "paid";
+        const amountTotal = Number(checkoutObj.amount_total);
+        const buyerUserId = Number(checkoutMeta.buyerUserId);
+        const campaignId = Number(checkoutMeta.adCampaignId);
+        if (!paid || !Number.isInteger(campaignId) || campaignId <= 0 || !Number.isInteger(buyerUserId)) {
+          return res.status(200).json({ received: true, ignored: true, reason: "ad_boost_invalid_meta" });
+        }
+        const campResult = await db.query(
+          `SELECT id, creator_user_id, budget_minor, boost_funded_at
+           FROM ad_campaigns
+           WHERE id = $1
+           LIMIT 1`,
+          [campaignId]
+        );
+        if (campResult.rowCount === 0 || Number(campResult.rows[0].creator_user_id) !== buyerUserId) {
+          return res.status(200).json({ received: true, ignored: true, reason: "ad_boost_campaign_mismatch" });
+        }
+        const campRow = campResult.rows[0];
+        if (campRow.boost_funded_at) {
+          return res.status(200).json({ received: true, duplicate: true, kind: "ad_boost" });
+        }
+        if (!Number.isInteger(amountTotal) || amountTotal !== Number(campRow.budget_minor)) {
+          return res.status(200).json({ received: true, ignored: true, reason: "ad_boost_amount_mismatch" });
+        }
+        const funded = await db.query(
+          `UPDATE ad_campaigns ac
+           SET boost_funded_at = NOW(),
+               status = CASE
+                 WHEN ac.status = 'draft'
+                   AND EXISTS (
+                     SELECT 1
+                     FROM ad_creative_reviews r
+                     WHERE r.campaign_id = ac.id
+                       AND r.status = 'approved'
+                   )
+                 THEN 'active'
+                 ELSE ac.status
+               END,
+               updated_at = NOW()
+           WHERE ac.id = $1
+             AND ac.boost_funded_at IS NULL`,
+          [campaignId]
+        );
+        if (funded.rowCount > 0) {
+          await notifyAfterAdBoostPayment(db, pushNotifications, campaignId);
+        }
+        return res.status(200).json({ received: true, processed: true, kind: "ad_boost" });
       }
 
       const stripeSessionId = String(event.data.object?.id || "");

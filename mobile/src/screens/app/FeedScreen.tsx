@@ -22,20 +22,25 @@ import { apiRequest } from "../../lib/api";
 import { ackPrayerReminder, fetchPrayerStatus } from "../../lib/prayer";
 import { followUser, unfollowUser } from "../../lib/follows";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
+import { FeedEventCard } from "../../components/FeedEventCard";
 import { isImageMedia, PostCard } from "../../components/PostCard";
 import { HomeTopBar } from "../../components/HomeTopBar";
 import { HomeStoriesRow } from "../../components/HomeStoriesRow";
 import { colors, radii } from "../../theme";
-import type { FeedItem } from "../../types";
+import type { FeedItem, FeedListItem } from "../../types";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 import { createGuestProductCheckout, createProductCheckout } from "../../lib/monetization";
 import { hapticSuccess } from "../../lib/haptics";
 import { useSessionStore } from "../../store/session-store";
 
 type FeedResponse = {
-  items: FeedItem[];
+  items: FeedListItem[];
   nextCursor: string | null;
 };
+
+function isFeedPostItem(item: FeedListItem): item is FeedItem {
+  return typeof item.id === "number";
+}
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<AppTabParamList>,
@@ -152,12 +157,15 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
   const onViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
       const ordered = [...viewableItems]
-        .filter((v) => v.isViewable && v.item != null && typeof (v.item as FeedItem).id === "number")
+        .filter((v) => v.isViewable && v.item != null)
         .sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
 
       let next: number | null = null;
       for (const v of ordered) {
-        const row = v.item as FeedItem;
+        const row = v.item as FeedListItem;
+        if (!isFeedPostItem(row)) {
+          continue;
+        }
         if (row.media_url && !isImageMedia(row)) {
           next = row.id;
           break;
@@ -182,7 +190,7 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
 
   useEffect(() => {
     const sponsoredCampaignIds = items
-      .filter((item) => item.sponsored && item.ad_campaign_id)
+      .filter((item) => Boolean(item.sponsored && item.ad_campaign_id))
       .map((item) => Number(item.ad_campaign_id))
       .filter((id) => Number.isFinite(id));
     sponsoredCampaignIds.forEach((campaignId) => {
@@ -286,7 +294,7 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
                     style={[styles.nearMePill, compact && styles.nearMePillCompact]}
                     onPress={openSearch}
                   >
-                    <Text style={styles.nearMePillText}>Search</Text>
+                    <Text style={styles.nearMePillText}>Explore</Text>
                   </Pressable>
                   <Pressable
                     style={[styles.nearMePill, compact && styles.nearMePillCompact]}
@@ -368,28 +376,43 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
     canCreateProducts
   ]);
 
-  const renderItem: ListRenderItem<FeedItem> = useCallback(
+  const renderItem: ListRenderItem<FeedListItem> = useCallback(
     ({ item }) => {
-      const isVideoPost = Boolean(item.media_url) && !isImageMedia(item);
-      const mediaPlaybackActive = !isVideoPost || item.id === activeVideoPostId;
+      if ("card_type" in item && item.card_type === "event") {
+        return (
+          <View style={[styles.cardWrap, compact && styles.cardWrapCompact]}>
+            <FeedEventCard
+              item={item}
+              compact={compact}
+              onOpen={() => navigation.navigate("EventDetail", { id: item.event.id })}
+            />
+          </View>
+        );
+      }
+      if (!isFeedPostItem(item)) {
+        return <View style={[styles.cardWrap, compact && styles.cardWrapCompact]} />;
+      }
+      const post = item;
+      const isVideoPost = Boolean(post.media_url) && !isImageMedia(post);
+      const mediaPlaybackActive = !isVideoPost || post.id === activeVideoPostId;
       return (
         <View style={[styles.cardWrap, compact && styles.cardWrapCompact]}>
           <PostCard
-            item={item}
+            item={post}
             layout="home"
             mediaPlaybackActive={mediaPlaybackActive}
             onViewOffer={(productId) => navigation.navigate("ProductDetail", { productId })}
             onBuyNow={(productId) => buyProductMutation.mutate(productId)}
             buyBusy={buyProductMutation.isPending}
             buyHandoffProductId={buyHandoffProductId}
-            onLike={() => likeMutation.mutate({ postId: item.id, nextLiked: !item.liked_by_viewer })}
+            onLike={() => likeMutation.mutate({ postId: post.id, nextLiked: !post.liked_by_viewer })}
             liking={likeMutation.isPending}
             onToggleFollow={(authorId, currentlyFollowing) =>
               followMutation.mutate({ authorId, currentlyFollowing })
             }
             followBusy={
               followMutation.isPending &&
-              followMutation.variables?.authorId === item.author_id
+              followMutation.variables?.authorId === post.author_id
             }
           />
         </View>

@@ -1,4 +1,5 @@
 const request = require("supertest");
+const Stripe = require("stripe");
 const { parse: parseConnectionString } = require("pg-connection-string");
 const { loadEnv } = require("../../src/config/env");
 const { createLogger } = require("../../src/config/logger");
@@ -44,6 +45,9 @@ if (hasDatabase) {
 }
 const describeIfDatabase = hasDatabase ? describe : describe.skip;
 
+const INTEGRATION_STRIPE_WEBHOOK_SECRET =
+  process.env.STRIPE_WEBHOOK_SECRET || "whsec_test_integration_signing_secret_32b";
+
 describeIfDatabase("integration api flows", () => {
   jest.setTimeout(120000);
   const config = loadEnv({
@@ -58,7 +62,13 @@ describeIfDatabase("integration api flows", () => {
     PROCESSING_WEBHOOK_TOKEN: process.env.PROCESSING_WEBHOOK_TOKEN || "test-processing-token",
     MEDIA_PROVIDER: "mock",
     MEDIA_PUBLIC_BASE_URL: process.env.MEDIA_PUBLIC_BASE_URL || "https://media.test-cdn.example",
-    MEDIA_ASYNC_VIDEO_PROCESSING: process.env.MEDIA_ASYNC_VIDEO_PROCESSING || "false"
+    MEDIA_ASYNC_VIDEO_PROCESSING: process.env.MEDIA_ASYNC_VIDEO_PROCESSING || "false",
+    // Keep sponsored insertion testable without seeding many posts (min gap is still 3 from code).
+    FEED_SPONSORED_INSERT_EVERY: process.env.FEED_SPONSORED_INSERT_EVERY || "2",
+    // Real Stripe APIs are not called by these tests; signing uses stripe-node's test header helper.
+    STRIPE_SECRET_KEY:
+      process.env.STRIPE_SECRET_KEY || "sk_test_integration_placeholder_not_for_live_api_calls",
+    STRIPE_WEBHOOK_SECRET: INTEGRATION_STRIPE_WEBHOOK_SECRET
   });
 
   const logger = createLogger({ ...config, logLevel: "silent" });
@@ -67,6 +77,25 @@ describeIfDatabase("integration api flows", () => {
   const mediaStorage = createMediaStorage(config);
   const pushNotifications = createPushNotifications({ db, logger });
   const app = createApp({ config, logger, db, analytics, mediaStorage, pushNotifications });
+
+  function postStripeCheckoutSessionCompletedWebhook(eventId, checkoutObject) {
+    const event = {
+      id: eventId,
+      object: "event",
+      type: "checkout.session.completed",
+      data: { object: checkoutObject }
+    };
+    const raw = JSON.stringify(event);
+    const signature = Stripe.webhooks.generateTestHeaderString({
+      payload: raw,
+      secret: config.stripeWebhookSecret
+    });
+    return request(app)
+      .post("/api/v1/monetization/webhooks/stripe")
+      .set("stripe-signature", signature)
+      .set("Content-Type", "application/json")
+      .send(raw);
+  }
 
   async function cleanDb() {
     await db.query("TRUNCATE TABLE webhook_events RESTART IDENTITY CASCADE");
@@ -95,6 +124,10 @@ describeIfDatabase("integration api flows", () => {
     await db.query("TRUNCATE TABLE waitlist_entries RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE support_tickets RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE post_views RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE ad_spend_ledger RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE ad_events RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE ad_creative_reviews RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE ad_campaigns RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE moderation_actions RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE reports RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE user_blocks RESTART IDENTITY CASCADE");
@@ -1981,5 +2014,586 @@ describeIfDatabase("integration api flows", () => {
     expect(stored.rowCount).toBe(1);
     expect(stored.rows[0].payload.surface).toBe("create_post");
     expect(stored.rows[0].payload.experimentId).toBe("exp_time_copy_v1");
+  });
+
+  it("returns ads analytics summary for authenticated user with no campaigns", async () => {
+    const ts = Date.now();
+    const reg = await request(app).post("/api/v1/auth/register").send({
+      email: `ad-summary-${ts}@example.com`,
+      username: `ad_summary_${ts}`,
+      password: "StrongPass123",
+      displayName: "Summary User"
+    });
+    expect(reg.statusCode).toBe(201);
+    const token = reg.body.tokens.accessToken;
+    const res = await request(app)
+      .get("/api/v1/ads/campaigns/me/analytics-summary")
+      .set("Authorization", `Bearer ${token}`);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({
+      campaignCount: 0,
+      activeCampaigns: 0,
+      impressions: 0,
+      clicks: 0
+    });
+  });
+
+  it("exposes ads boost catalog without authentication", async () => {
+    const res = await request(app).get("/api/v1/ads/boost-catalog");
+    expect(res.statusCode).toBe(200);
+    expect(Array.isArray(res.body.items)).toBe(true);
+    expect(res.body.items.length).toBeGreaterThanOrEqual(1);
+    const ids = res.body.items.map((p) => p.id);
+    expect(ids).toContain("feed_spotlight_7d");
+    expect(ids).toContain("event_highlight_7d");
+  });
+
+  it("rejects ad campaign creation when unauthenticated or payload is invalid", async () => {
+    const unauth = await request(app).post("/api/v1/ads/campaigns").send({ postId: 1, budgetMinor: 1000 });
+    expect(unauth.statusCode).toBe(401);
+
+    const ts = Date.now();
+    const reg = await request(app).post("/api/v1/auth/register").send({
+      email: `ad-payload-${ts}@example.com`,
+      username: `ad_payload_${ts}`,
+      password: "StrongPass123",
+      displayName: "Ad Payload"
+    });
+    expect(reg.statusCode).toBe(201);
+    const token = reg.body.tokens.accessToken;
+
+    const noTarget = await request(app)
+      .post("/api/v1/ads/campaigns")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ budgetMinor: 1000 });
+    expect(noTarget.statusCode).toBe(400);
+
+    const both = await request(app)
+      .post("/api/v1/ads/campaigns")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ postId: 1, eventId: 1, budgetMinor: 1000 });
+    expect(both.statusCode).toBe(400);
+
+    const badPkg = await request(app)
+      .post("/api/v1/ads/campaigns")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ postId: 1, budgetMinor: 5000, packageId: "not_a_real_package" });
+    expect(badPkg.statusCode).toBe(400);
+  });
+
+  it("creates post ad campaign with packageId defaults and approves via admin review", async () => {
+    const ts = Date.now();
+    const adminReg = await request(app).post("/api/v1/auth/register").send({
+      email: "admin-growth@example.com",
+      username: `growth_ads_${ts}`,
+      password: "StrongPass123",
+      displayName: "Growth Admin"
+    });
+    expect(adminReg.statusCode).toBe(201);
+    expect(adminReg.body.user.role).toBe("admin");
+
+    const adv = await request(app).post("/api/v1/auth/register").send({
+      email: `ad-advertiser-${ts}@example.com`,
+      username: `ad_advertiser_${ts}`,
+      password: "StrongPass123",
+      displayName: "Advertiser"
+    });
+    expect(adv.statusCode).toBe(201);
+    const advToken = adv.body.tokens.accessToken;
+
+    const adminLogin = await request(app).post("/api/v1/auth/login").send({
+      email: "admin-growth@example.com",
+      password: "StrongPass123"
+    });
+    expect(adminLogin.statusCode).toBe(200);
+    const adminToken = adminLogin.body.tokens.accessToken;
+
+    const post = await request(app)
+      .post("/api/v1/posts")
+      .set("Authorization", `Bearer ${advToken}`)
+      .send({
+        postType: "post",
+        content: "Post for promoted campaign",
+        mediaUrl: null
+      });
+    expect(post.statusCode).toBe(201);
+
+    const camp = await request(app)
+      .post("/api/v1/ads/campaigns")
+      .set("Authorization", `Bearer ${advToken}`)
+      .send({ postId: post.body.id, packageId: "feed_spotlight_7d" });
+    expect(camp.statusCode).toBe(201);
+    expect(Number(camp.body.budget_minor)).toBe(4900);
+    expect(Number(camp.body.post_id)).toBe(post.body.id);
+    expect(camp.body.event_id == null).toBe(true);
+
+    await db.query(`UPDATE ad_campaigns SET boost_funded_at = NOW() WHERE id = $1`, [camp.body.id]);
+
+    const reviews = await request(app)
+      .get("/api/v1/admin/ads/reviews?status=pending")
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(reviews.statusCode).toBe(200);
+    const row = reviews.body.items.find((r) => Number(r.campaign_id) === Number(camp.body.id));
+    expect(row).toBeDefined();
+    const reviewId = row.id;
+
+    const approve = await request(app)
+      .post(`/api/v1/admin/ads/reviews/${reviewId}/approve`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({});
+    expect(approve.statusCode).toBe(200);
+  });
+
+  it("keeps ad campaign in draft when admin approves creative before boost is funded", async () => {
+    const ts = Date.now();
+    const adminReg = await request(app).post("/api/v1/auth/register").send({
+      email: "admin-growth@example.com",
+      username: `growth_ads_nf_${ts}`,
+      password: "StrongPass123",
+      displayName: "Growth Admin NF"
+    });
+    expect(adminReg.statusCode).toBe(201);
+
+    const adv = await request(app).post("/api/v1/auth/register").send({
+      email: `ad-no-fund-${ts}@example.com`,
+      username: `ad_no_fund_${ts}`,
+      password: "StrongPass123",
+      displayName: "No Fund Adv"
+    });
+    expect(adv.statusCode).toBe(201);
+    const advToken = adv.body.tokens.accessToken;
+
+    const adminLogin = await request(app).post("/api/v1/auth/login").send({
+      email: "admin-growth@example.com",
+      password: "StrongPass123"
+    });
+    expect(adminLogin.statusCode).toBe(200);
+    const adminToken = adminLogin.body.tokens.accessToken;
+
+    const post = await request(app)
+      .post("/api/v1/posts")
+      .set("Authorization", `Bearer ${advToken}`)
+      .send({
+        postType: "post",
+        content: "Unfunded boost test",
+        mediaUrl: null
+      });
+    expect(post.statusCode).toBe(201);
+
+    const camp = await request(app)
+      .post("/api/v1/ads/campaigns")
+      .set("Authorization", `Bearer ${advToken}`)
+      .send({ postId: post.body.id, packageId: "feed_spotlight_7d" });
+    expect(camp.statusCode).toBe(201);
+
+    const reviews = await request(app)
+      .get("/api/v1/admin/ads/reviews?status=pending")
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(reviews.statusCode).toBe(200);
+    const row = reviews.body.items.find((r) => Number(r.campaign_id) === Number(camp.body.id));
+    expect(row).toBeDefined();
+
+    const approve = await request(app)
+      .post(`/api/v1/admin/ads/reviews/${row.id}/approve`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({});
+    expect(approve.statusCode).toBe(200);
+
+    const statusRow = await db.query(`SELECT status, boost_funded_at FROM ad_campaigns WHERE id = $1`, [
+      camp.body.id
+    ]);
+    expect(statusRow.rowCount).toBe(1);
+    expect(statusRow.rows[0].status).toBe("draft");
+    expect(statusRow.rows[0].boost_funded_at).toBeNull();
+  });
+
+  it("Stripe webhook checkout.session.completed funds ad_boost and activates when creative is approved", async () => {
+    const ts = Date.now();
+    await request(app).post("/api/v1/auth/register").send({
+      email: "admin-growth@example.com",
+      username: `growth_wh_${ts}`,
+      password: "StrongPass123",
+      displayName: "Growth WH"
+    });
+
+    const adv = await request(app).post("/api/v1/auth/register").send({
+      email: `ad-wh-live-${ts}@example.com`,
+      username: `ad_wh_live_${ts}`,
+      password: "StrongPass123",
+      displayName: "WH Advertiser"
+    });
+    expect(adv.statusCode).toBe(201);
+    const buyerUserId = adv.body.user.id;
+    const advToken = adv.body.tokens.accessToken;
+
+    const adminLogin = await request(app).post("/api/v1/auth/login").send({
+      email: "admin-growth@example.com",
+      password: "StrongPass123"
+    });
+    expect(adminLogin.statusCode).toBe(200);
+    const adminToken = adminLogin.body.tokens.accessToken;
+
+    const post = await request(app)
+      .post("/api/v1/posts")
+      .set("Authorization", `Bearer ${advToken}`)
+      .send({
+        postType: "post",
+        content: "Webhook boost live",
+        mediaUrl: null
+      });
+    expect(post.statusCode).toBe(201);
+
+    const camp = await request(app)
+      .post("/api/v1/ads/campaigns")
+      .set("Authorization", `Bearer ${advToken}`)
+      .send({ postId: post.body.id, packageId: "feed_spotlight_7d" });
+    expect(camp.statusCode).toBe(201);
+    const campaignId = camp.body.id;
+    const budgetMinor = Number(camp.body.budget_minor);
+
+    const reviews = await request(app)
+      .get("/api/v1/admin/ads/reviews?status=pending")
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(reviews.statusCode).toBe(200);
+    const row = reviews.body.items.find((r) => Number(r.campaign_id) === Number(campaignId));
+    expect(row).toBeDefined();
+
+    const approve = await request(app)
+      .post(`/api/v1/admin/ads/reviews/${row.id}/approve`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({});
+    expect(approve.statusCode).toBe(200);
+    const draftAfterApprove = await db.query(`SELECT status, boost_funded_at FROM ad_campaigns WHERE id = $1`, [
+      campaignId
+    ]);
+    expect(draftAfterApprove.rows[0].status).toBe("draft");
+    expect(draftAfterApprove.rows[0].boost_funded_at).toBeNull();
+
+    const webhook = await postStripeCheckoutSessionCompletedWebhook(`evt_ad_boost_fund_${ts}`, {
+      id: `cs_ad_boost_${ts}`,
+      payment_status: "paid",
+      amount_total: budgetMinor,
+      metadata: {
+        kind: "ad_boost",
+        buyerUserId: String(buyerUserId),
+        adCampaignId: String(campaignId)
+      }
+    });
+    expect(webhook.statusCode).toBe(200);
+    expect(webhook.body).toMatchObject({ received: true, processed: true, kind: "ad_boost" });
+
+    const funded = await db.query(`SELECT status, boost_funded_at FROM ad_campaigns WHERE id = $1`, [campaignId]);
+    expect(funded.rows[0].boost_funded_at).toBeTruthy();
+    expect(funded.rows[0].status).toBe("active");
+
+    const replay = await postStripeCheckoutSessionCompletedWebhook(`evt_ad_boost_fund_${ts}`, {
+      id: `cs_ad_boost_${ts}`,
+      payment_status: "paid",
+      amount_total: budgetMinor,
+      metadata: {
+        kind: "ad_boost",
+        buyerUserId: String(buyerUserId),
+        adCampaignId: String(campaignId)
+      }
+    });
+    expect(replay.statusCode).toBe(200);
+    expect(replay.body).toMatchObject({ received: true, duplicate: true });
+  });
+
+  it("Stripe webhook ad_boost sets boost_funded_at but keeps draft when creative is not approved", async () => {
+    const ts = Date.now();
+    const adv = await request(app).post("/api/v1/auth/register").send({
+      email: `ad-wh-draft-${ts}@example.com`,
+      username: `ad_wh_draft_${ts}`,
+      password: "StrongPass123",
+      displayName: "WH Draft"
+    });
+    expect(adv.statusCode).toBe(201);
+    const buyerUserId = adv.body.user.id;
+    const advToken = adv.body.tokens.accessToken;
+
+    const post = await request(app)
+      .post("/api/v1/posts")
+      .set("Authorization", `Bearer ${advToken}`)
+      .send({
+        postType: "post",
+        content: "Webhook draft only",
+        mediaUrl: null
+      });
+    expect(post.statusCode).toBe(201);
+
+    const camp = await request(app)
+      .post("/api/v1/ads/campaigns")
+      .set("Authorization", `Bearer ${advToken}`)
+      .send({ postId: post.body.id, packageId: "feed_spotlight_7d" });
+    expect(camp.statusCode).toBe(201);
+    const campaignId = camp.body.id;
+    const budgetMinor = Number(camp.body.budget_minor);
+
+    const webhook = await postStripeCheckoutSessionCompletedWebhook(`evt_ad_boost_draft_${ts}`, {
+      id: `cs_ad_boost_draft_${ts}`,
+      payment_status: "paid",
+      amount_total: budgetMinor,
+      metadata: {
+        kind: "ad_boost",
+        buyerUserId: String(buyerUserId),
+        adCampaignId: String(campaignId)
+      }
+    });
+    expect(webhook.statusCode).toBe(200);
+    expect(webhook.body).toMatchObject({ received: true, processed: true, kind: "ad_boost" });
+
+    const row = await db.query(`SELECT status, boost_funded_at FROM ad_campaigns WHERE id = $1`, [campaignId]);
+    expect(row.rows[0].boost_funded_at).toBeTruthy();
+    expect(row.rows[0].status).toBe("draft");
+  });
+
+  it("Stripe webhook ad_boost ignores amount_total mismatch with campaign budget", async () => {
+    const ts = Date.now();
+    const adv = await request(app).post("/api/v1/auth/register").send({
+      email: `ad-wh-badamt-${ts}@example.com`,
+      username: `ad_wh_bad_${ts}`,
+      password: "StrongPass123",
+      displayName: "WH Bad Amt"
+    });
+    expect(adv.statusCode).toBe(201);
+    const buyerUserId = adv.body.user.id;
+    const advToken = adv.body.tokens.accessToken;
+
+    const post = await request(app)
+      .post("/api/v1/posts")
+      .set("Authorization", `Bearer ${advToken}`)
+      .send({
+        postType: "post",
+        content: "Webhook bad amount",
+        mediaUrl: null
+      });
+    expect(post.statusCode).toBe(201);
+
+    const camp = await request(app)
+      .post("/api/v1/ads/campaigns")
+      .set("Authorization", `Bearer ${advToken}`)
+      .send({ postId: post.body.id, packageId: "feed_spotlight_7d" });
+    expect(camp.statusCode).toBe(201);
+    const campaignId = camp.body.id;
+    const budgetMinor = Number(camp.body.budget_minor);
+
+    const webhook = await postStripeCheckoutSessionCompletedWebhook(`evt_ad_boost_bad_${ts}`, {
+      id: `cs_ad_boost_bad_${ts}`,
+      payment_status: "paid",
+      amount_total: budgetMinor + 1,
+      metadata: {
+        kind: "ad_boost",
+        buyerUserId: String(buyerUserId),
+        adCampaignId: String(campaignId)
+      }
+    });
+    expect(webhook.statusCode).toBe(200);
+    expect(webhook.body).toMatchObject({
+      received: true,
+      ignored: true,
+      reason: "ad_boost_amount_mismatch"
+    });
+
+    const row = await db.query(`SELECT boost_funded_at FROM ad_campaigns WHERE id = $1`, [campaignId]);
+    expect(row.rows[0].boost_funded_at).toBeNull();
+  });
+
+  it("Stripe webhook ad_boost second checkout for same funded campaign returns ad_boost duplicate", async () => {
+    const ts = Date.now();
+    const adv = await request(app).post("/api/v1/auth/register").send({
+      email: `ad-wh-dup2-${ts}@example.com`,
+      username: `ad_wh_dup2_${ts}`,
+      password: "StrongPass123",
+      displayName: "WH Dup2"
+    });
+    expect(adv.statusCode).toBe(201);
+    const buyerUserId = adv.body.user.id;
+    const advToken = adv.body.tokens.accessToken;
+
+    const post = await request(app)
+      .post("/api/v1/posts")
+      .set("Authorization", `Bearer ${advToken}`)
+      .send({
+        postType: "post",
+        content: "Webhook dup2",
+        mediaUrl: null
+      });
+    expect(post.statusCode).toBe(201);
+
+    const camp = await request(app)
+      .post("/api/v1/ads/campaigns")
+      .set("Authorization", `Bearer ${advToken}`)
+      .send({ postId: post.body.id, packageId: "feed_spotlight_7d" });
+    expect(camp.statusCode).toBe(201);
+    const campaignId = camp.body.id;
+    const budgetMinor = Number(camp.body.budget_minor);
+
+    const first = await postStripeCheckoutSessionCompletedWebhook(`evt_ad_boost_dup2_a_${ts}`, {
+      id: `cs_ad_boost_dup2_a_${ts}`,
+      payment_status: "paid",
+      amount_total: budgetMinor,
+      metadata: {
+        kind: "ad_boost",
+        buyerUserId: String(buyerUserId),
+        adCampaignId: String(campaignId)
+      }
+    });
+    expect(first.statusCode).toBe(200);
+    expect(first.body).toMatchObject({ received: true, processed: true, kind: "ad_boost" });
+
+    const second = await postStripeCheckoutSessionCompletedWebhook(`evt_ad_boost_dup2_b_${ts}`, {
+      id: `cs_ad_boost_dup2_b_${ts}`,
+      payment_status: "paid",
+      amount_total: budgetMinor,
+      metadata: {
+        kind: "ad_boost",
+        buyerUserId: String(buyerUserId),
+        adCampaignId: String(campaignId)
+      }
+    });
+    expect(second.statusCode).toBe(200);
+    expect(second.body).toMatchObject({ received: true, duplicate: true, kind: "ad_boost" });
+  });
+
+  it("rejects event ad campaign when requester is not the host", async () => {
+    const ts = Date.now();
+    const host = await request(app).post("/api/v1/auth/register").send({
+      email: `ad-hostonly-${ts}@example.com`,
+      username: `ad_hostonly_${ts}`,
+      password: "StrongPass123",
+      displayName: "Host"
+    });
+    const other = await request(app).post("/api/v1/auth/register").send({
+      email: `ad-not-host-${ts}@example.com`,
+      username: `ad_not_host_${ts}`,
+      password: "StrongPass123",
+      displayName: "Stranger"
+    });
+    expect(host.statusCode).toBe(201);
+    expect(other.statusCode).toBe(201);
+
+    const event = await request(app)
+      .post("/api/v1/events")
+      .set("Authorization", `Bearer ${host.body.tokens.accessToken}`)
+      .send({
+        title: "Host only event",
+        startsAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        visibility: "public",
+        source: "integration_test"
+      });
+    expect(event.statusCode).toBe(201);
+
+    const res = await request(app)
+      .post("/api/v1/ads/campaigns")
+      .set("Authorization", `Bearer ${other.body.tokens.accessToken}`)
+      .send({ eventId: event.body.id, budgetMinor: 5000 });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("creates event ad campaign and surfaces sponsored event card in for_you feed", async () => {
+    const ts = Date.now();
+    const adminReg = await request(app).post("/api/v1/auth/register").send({
+      email: "admin-growth@example.com",
+      username: `growth_ads_evt_${ts}`,
+      password: "StrongPass123",
+      displayName: "Growth Admin"
+    });
+    expect(adminReg.statusCode).toBe(201);
+
+    const host = await request(app).post("/api/v1/auth/register").send({
+      email: `ad-ev-host-${ts}@example.com`,
+      username: `ad_ev_host_${ts}`,
+      password: "StrongPass123",
+      displayName: "Event Host"
+    });
+    const filler = await request(app).post("/api/v1/auth/register").send({
+      email: `ad-ev-filler-${ts}@example.com`,
+      username: `ad_ev_filler_${ts}`,
+      password: "StrongPass123",
+      displayName: "Filler"
+    });
+    const viewer = await request(app).post("/api/v1/auth/register").send({
+      email: `ad-ev-viewer-${ts}@example.com`,
+      username: `ad_ev_viewer_${ts}`,
+      password: "StrongPass123",
+      displayName: "Viewer"
+    });
+    expect(host.statusCode).toBe(201);
+    expect(filler.statusCode).toBe(201);
+    expect(viewer.statusCode).toBe(201);
+
+    const adminLogin = await request(app).post("/api/v1/auth/login").send({
+      email: "admin-growth@example.com",
+      password: "StrongPass123"
+    });
+    expect(adminLogin.statusCode).toBe(200);
+    const adminToken = adminLogin.body.tokens.accessToken;
+
+    const hostToken = host.body.tokens.accessToken;
+    const fillerToken = filler.body.tokens.accessToken;
+    const viewerToken = viewer.body.tokens.accessToken;
+
+    const createdEvent = await request(app)
+      .post("/api/v1/events")
+      .set("Authorization", `Bearer ${hostToken}`)
+      .send({
+        title: "Sponsored integration event",
+        startsAt: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
+        visibility: "public",
+        source: "integration_test"
+      });
+    expect(createdEvent.statusCode).toBe(201);
+    const eventId = createdEvent.body.id;
+
+    const camp = await request(app)
+      .post("/api/v1/ads/campaigns")
+      .set("Authorization", `Bearer ${hostToken}`)
+      .send({
+        eventId,
+        budgetMinor: 8000,
+        packageId: "event_highlight_7d"
+      });
+    expect(camp.statusCode).toBe(201);
+    expect(Number(camp.body.event_id)).toBe(eventId);
+    expect(camp.body.post_id == null).toBe(true);
+
+    const reviews = await request(app)
+      .get("/api/v1/admin/ads/reviews?status=pending")
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(reviews.statusCode).toBe(200);
+    const reviewRow = reviews.body.items.find((r) => Number(r.campaign_id) === Number(camp.body.id));
+    expect(reviewRow).toBeDefined();
+
+    await db.query(`UPDATE ad_campaigns SET boost_funded_at = NOW() WHERE id = $1`, [camp.body.id]);
+
+    const approve = await request(app)
+      .post(`/api/v1/admin/ads/reviews/${reviewRow.id}/approve`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({});
+    expect(approve.statusCode).toBe(200);
+
+    await request(app)
+      .post("/api/v1/posts")
+      .set("Authorization", `Bearer ${fillerToken}`)
+      .send({ postType: "post", content: "Filler post one", mediaUrl: null });
+    await request(app)
+      .post("/api/v1/posts")
+      .set("Authorization", `Bearer ${fillerToken}`)
+      .send({ postType: "post", content: "Filler post two", mediaUrl: null });
+
+    const feed = await request(app)
+      .get("/api/v1/feed?feedTab=for_you&limit=20")
+      .set("Authorization", `Bearer ${viewerToken}`);
+    expect(feed.statusCode).toBe(200);
+    const sponsoredEvent = feed.body.items.find(
+      (item) =>
+        item.card_type === "event" &&
+        item.sponsored === true &&
+        item.event &&
+        Number(item.event.id) === Number(eventId)
+    );
+    expect(sponsoredEvent).toBeDefined();
+    expect(Number(sponsoredEvent.ad_campaign_id)).toBe(Number(camp.body.id));
   });
 });

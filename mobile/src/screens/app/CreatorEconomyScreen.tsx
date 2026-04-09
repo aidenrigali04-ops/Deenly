@@ -53,6 +53,7 @@ export function CreatorEconomyScreen() {
       apiRequest<{
         profile_kind?: "consumer" | "professional" | "business_interest" | null;
         persona_capabilities?: {
+          can_access_creator_hub?: boolean;
           can_manage_memberships?: boolean;
           can_use_affiliate_tools?: boolean;
         };
@@ -66,6 +67,7 @@ export function CreatorEconomyScreen() {
         { auth: true }
       )
   });
+  const canAccessCreatorHub = Boolean(profileQuery.data?.persona_capabilities?.can_access_creator_hub);
   const canManageMemberships = Boolean(profileQuery.data?.persona_capabilities?.can_manage_memberships);
   const canUseAffiliateTools = Boolean(profileQuery.data?.persona_capabilities?.can_use_affiliate_tools);
 
@@ -107,6 +109,12 @@ export function CreatorEconomyScreen() {
       <Pressable style={styles.addProductBtn} onPress={() => navigation.navigate("CreateProduct")}>
         <Text style={styles.addProductBtnText}>Add product</Text>
       </Pressable>
+
+      {canAccessCreatorHub ? (
+        <Pressable style={styles.promoteBtn} onPress={() => navigation.navigate("PromotePost")}>
+          <Text style={styles.promoteBtnText}>Promote in feed (post or event)</Text>
+        </Pressable>
+      ) : null}
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Get paid</Text>
@@ -297,6 +305,19 @@ const styles = StyleSheet.create({
   addProductBtnText: {
     color: colors.onAccent,
     fontSize: 16,
+    fontWeight: "700"
+  },
+  promoteBtn: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: radii.control,
+    paddingVertical: 12,
+    alignItems: "center",
+    backgroundColor: colors.surface
+  },
+  promoteBtnText: {
+    color: colors.text,
+    fontSize: 15,
     fontWeight: "700"
   },
   card: {

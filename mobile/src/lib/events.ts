@@ -44,6 +44,17 @@ export type EventChatMessage = {
   createdAt: string;
 };
 
+/** Events hosted by a user (public, or viewer is host / RSVP'd / invited). */
+export async function fetchEventsByHost(hostUserId: number, opts?: { limit?: number; offset?: number }) {
+  const q = new URLSearchParams({
+    hostUserId: String(hostUserId),
+    limit: String(opts?.limit ?? 40),
+    offset: String(opts?.offset ?? 0),
+    source: "mobile_promote"
+  });
+  return apiRequest<{ items: EventRecord[] }>(`/events?${q.toString()}`, { auth: true });
+}
+
 export async function fetchEventsNear(params: {
   lat: number;
   lng: number;

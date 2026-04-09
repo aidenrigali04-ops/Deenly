@@ -1,23 +1,19 @@
 import "react-native-gesture-handler";
 import { useEffect, useState } from "react";
 import NetInfo from "@react-native-community/netinfo";
+import * as Sentry from "@sentry/react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 import { ReliabilityBanner } from "./src/components/ReliabilityBanner";
-import { initCrashReporting } from "./src/lib/crash-reporting";
 import { flushQueuedMutations, getQueuedMutationCount } from "./src/lib/mutation-queue";
 
 const queryClient = new QueryClient();
 
-export default function App() {
+function App() {
   const [isOffline, setIsOffline] = useState(false);
   const [queuedMutations, setQueuedMutations] = useState(0);
-
-  useEffect(() => {
-    initCrashReporting();
-  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -58,3 +54,5 @@ export default function App() {
     </SafeAreaProvider>
   );
 }
+
+export default Sentry.wrap(App);

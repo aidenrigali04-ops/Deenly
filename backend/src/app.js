@@ -40,6 +40,9 @@ const { httpError } = require("./utils/http-error");
 
 function createCorsOptions(config) {
   if (config.corsOrigins.length === 0) {
+    if (config.isProduction) {
+      return { origin: false };
+    }
     return { origin: true };
   }
 
@@ -108,21 +111,45 @@ function createApp({
 
   app.use(helmet());
   app.use(cors(createCorsOptions(config)));
+  const rateLimitSkipTestOrStripe = (req) => {
+    if (process.env.NODE_ENV === "test") {
+      return true;
+    }
+    const url = String(req.originalUrl || req.url || req.path || "");
+    return url.includes("/monetization/webhooks/stripe");
+  };
+
   app.use(
     rateLimit({
       windowMs: 60 * 1000,
       limit: 120,
       standardHeaders: true,
       legacyHeaders: false,
-      skip: (req) => {
-        if (process.env.NODE_ENV === "test") {
-          return true;
-        }
-        const url = String(req.originalUrl || req.url || req.path || "");
-        return url.includes("/monetization/webhooks/stripe");
-      }
+      skip: rateLimitSkipTestOrStripe
     })
   );
+
+  const feedReadLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 90,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: () => process.env.NODE_ENV === "test"
+  });
+  const searchReadLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 60,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: () => process.env.NODE_ENV === "test"
+  });
+  const aiWriteLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 24,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: () => process.env.NODE_ENV === "test"
+  });
   app.use(
     express.json({
       limit: "1mb",
@@ -136,13 +163,16 @@ function createApp({
   app.get(
     "/health",
     asyncHandler(async (_req, res) => {
-      res.status(200).json({
+      const body = {
         status: "ok",
         service: "deenly-backend",
-        databaseConfigured: Boolean(config.databaseUrl),
-        stripeConfigured: Boolean(config.stripeSecretKey && config.stripeWebhookSecret),
         timestamp: new Date().toISOString()
-      });
+      };
+      if (!config.isProduction) {
+        body.databaseConfigured = Boolean(config.databaseUrl);
+        body.stripeConfigured = Boolean(config.stripeSecretKey && config.stripeWebhookSecret);
+      }
+      res.status(200).json(body);
     })
   );
 
@@ -219,7 +249,7 @@ function createApp({
       enqueueInstagramCrossPostByPostId: instagramCrossPost.enqueueByPostId
     })
   );
-  apiRouter.use("/feed", createFeedRouter({ db, config, mediaStorage: app.locals.mediaStorage }));
+  apiRouter.use("/feed", feedReadLimiter, createFeedRouter({ db, config, mediaStorage: app.locals.mediaStorage }));
   apiRouter.use(
     "/interactions",
     createInteractionsRouter({
@@ -250,13 +280,13 @@ function createApp({
     "/messages",
     createMessagesRouter({ db, config, pushNotifications: app.locals.pushNotifications })
   );
-  apiRouter.use("/search", createSearchRouter({ db, config }));
+  apiRouter.use("/search", searchReadLimiter, createSearchRouter({ db, config }));
   apiRouter.use(
     "/admin",
     authenticate({ config, db }),
     authorize(["moderator", "admin"]),
     requireAdminOwner,
-    createAdminRouter({ db, config })
+    createAdminRouter({ db, config, pushNotifications: app.locals.pushNotifications })
   );
   apiRouter.use("/beta", createBetaRouter({ db, config }));
   apiRouter.use("/support", createSupportRouter({ db, config }));
@@ -269,23 +299,32 @@ function createApp({
       monetizationGateway: app.locals.monetizationGateway,
       mediaStorage: app.locals.mediaStorage,
       analytics: app.locals.analytics,
-      plaidSellerBank: app.locals.plaidSellerBank
+      plaidSellerBank: app.locals.plaidSellerBank,
+      pushNotifications: app.locals.pushNotifications
     })
   );
-  apiRouter.use("/ads", createAdsRouter({ db, config, analytics: app.locals.analytics }));
+  apiRouter.use(
+    "/ads",
+    createAdsRouter({
+      db,
+      config,
+      analytics: app.locals.analytics,
+      monetizationGateway: app.locals.monetizationGateway
+    })
+  );
   apiRouter.use("/creator", createCreatorRouter({ db, config, mediaStorage: app.locals.mediaStorage }));
   apiRouter.use("/businesses", createBusinessesRouter({ db, config }));
-    apiRouter.use(
-      "/events",
-      createEventsRouter({
-        db,
-        config,
-        analytics: app.locals.analytics,
-        pushNotifications: app.locals.pushNotifications
-      })
-    );
+  apiRouter.use(
+    "/events",
+    createEventsRouter({
+      db,
+      config,
+      analytics: app.locals.analytics,
+      pushNotifications: app.locals.pushNotifications
+    })
+  );
   apiRouter.use("/geocode", createGeocodeRouter());
-  apiRouter.use("/ai", createAiRouter({ config, db, logger }));
+  apiRouter.use("/ai", aiWriteLimiter, createAiRouter({ config, db, logger }));
 
   app.use("/api", apiRouter);
   app.use("/api/v1", apiRouter);

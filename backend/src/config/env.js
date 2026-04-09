@@ -179,6 +179,26 @@ function loadEnv(envSource = process.env) {
       10,
       "AUTH_REGISTER_RATE_LIMIT_MAX"
     ),
+    adsCampaignCreateRateLimitWindowMs: parsePositiveInt(
+      envSource.ADS_CAMPAIGN_CREATE_RATE_LIMIT_WINDOW_MS,
+      15 * 60 * 1000,
+      "ADS_CAMPAIGN_CREATE_RATE_LIMIT_WINDOW_MS"
+    ),
+    adsCampaignCreateRateLimitMax: parsePositiveInt(
+      envSource.ADS_CAMPAIGN_CREATE_RATE_LIMIT_MAX,
+      40,
+      "ADS_CAMPAIGN_CREATE_RATE_LIMIT_MAX"
+    ),
+    adsBoostCheckoutRateLimitWindowMs: parsePositiveInt(
+      envSource.ADS_BOOST_CHECKOUT_RATE_LIMIT_WINDOW_MS,
+      15 * 60 * 1000,
+      "ADS_BOOST_CHECKOUT_RATE_LIMIT_WINDOW_MS"
+    ),
+    adsBoostCheckoutRateLimitMax: parsePositiveInt(
+      envSource.ADS_BOOST_CHECKOUT_RATE_LIMIT_MAX,
+      25,
+      "ADS_BOOST_CHECKOUT_RATE_LIMIT_MAX"
+    ),
     feedRankWeights: {
       comment: parseNumber(envSource.FEED_RANK_COMMENT_WEIGHT, 120),
       benefited: parseNumber(envSource.FEED_RANK_BENEFITED_WEIGHT, 60),

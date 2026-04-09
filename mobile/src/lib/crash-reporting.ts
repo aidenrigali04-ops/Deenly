@@ -1,15 +1,36 @@
-/**
- * Optional crash reporting. Set EXPO_PUBLIC_SENTRY_DSN when you add @sentry/react-native
- * (or your chosen SDK) and call Sentry.init here per vendor docs.
- */
-export function initCrashReporting(): void {
+import * as Sentry from "@sentry/react-native";
+
+let initialized = false;
+
+function ensureSentryInit(): void {
+  if (initialized) {
+    return;
+  }
   const dsn = process.env.EXPO_PUBLIC_SENTRY_DSN?.trim();
   if (!dsn) {
     return;
   }
-  if (__DEV__) {
+  const sendInDev = process.env.EXPO_PUBLIC_SENTRY_SEND_IN_DEV === "1";
+  if (__DEV__ && !sendInDev) {
     return;
   }
-  // Example after installing Sentry:
-  // Sentry.init({ dsn, enableNative: true });
+
+  Sentry.init({
+    dsn,
+    debug: __DEV__ && sendInDev,
+    tracesSampleRate: __DEV__ ? 1.0 : 0.2,
+    enableAutoSessionTracking: true,
+    sendDefaultPii: false
+  });
+  initialized = true;
+}
+
+ensureSentryInit();
+
+/**
+ * Optional crash reporting via Sentry. Set `EXPO_PUBLIC_SENTRY_DSN` for release builds.
+ * In development, set `EXPO_PUBLIC_SENTRY_SEND_IN_DEV=1` to verify the integration.
+ */
+export function initCrashReporting(): void {
+  ensureSentryInit();
 }

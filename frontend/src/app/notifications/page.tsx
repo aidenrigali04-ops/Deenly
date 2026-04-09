@@ -105,6 +105,45 @@ function notificationPresentation(item: NotificationItem): {
     };
   }
 
+  const boostCampaignId = payloadNum(p, "campaignId");
+  if (item.type === "ad_boost_live" && boostCampaignId != null) {
+    return {
+      title: typeof p.title === "string" ? p.title : "Boost is live",
+      detail: typeof p.message === "string" ? p.message : "Your feed boost is delivering.",
+      href: "/account/creator?tab=grow",
+      cta: "Creator hub — Grow"
+    };
+  }
+  if (item.type === "ad_boost_approve_pay" && boostCampaignId != null) {
+    return {
+      title: typeof p.title === "string" ? p.title : "Boost creative approved",
+      detail:
+        typeof p.message === "string" ? p.message : "Complete payment in Creator hub → Grow to start delivery.",
+      href: "/account/creator?tab=grow",
+      cta: "Open Grow"
+    };
+  }
+  if (item.type === "ad_boost_payment_received" && boostCampaignId != null) {
+    return {
+      title: typeof p.title === "string" ? p.title : "Boost payment received",
+      detail:
+        typeof p.message === "string"
+          ? p.message
+          : "Payment recorded. Delivery starts after creative review approves.",
+      href: "/account/creator?tab=grow",
+      cta: "Open Grow"
+    };
+  }
+  if (item.type === "ad_boost_rejected" && boostCampaignId != null) {
+    const note = payloadStr(p, "notePreview");
+    return {
+      title: typeof p.title === "string" ? p.title : "Boost not approved",
+      detail: note || (typeof p.message === "string" ? p.message : undefined),
+      href: "/account/creator?tab=grow",
+      cta: "Open Grow"
+    };
+  }
+
   return {
     title: item.type.replace(/_/g, " "),
     detail: undefined

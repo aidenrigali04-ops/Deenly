@@ -1,13 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  Linking,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View
-} from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import * as Location from "expo-location";
 import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,6 +7,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { apiRequest } from "../../lib/api";
 import { fetchBusinessesNear } from "../../lib/businesses";
 import { fetchEventsNear } from "../../lib/events";
+import { NearMeMap, type NearMapSelection } from "../../components/NearMeMap";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { SectionCard, TabScreenRoot } from "../../components/TabScreenChrome";
 import { colors, radii } from "../../theme";
@@ -80,6 +73,7 @@ export function SearchScreen({ navigation }: Props) {
   const [nearKind, setNearKind] = useState<NearKind>("all");
   const [nearTimeWindow, setNearTimeWindow] = useState<NearTimeWindow>("upcoming");
   const [selectedCluster, setSelectedCluster] = useState<string | null>(null);
+  const [mapSelection, setMapSelection] = useState<NearMapSelection>(null);
 
   useEffect(() => {
     if (mode !== "near") return;
@@ -113,6 +107,10 @@ export function SearchScreen({ navigation }: Props) {
       cancelled = true;
     };
   }, [mode]);
+
+  useEffect(() => {
+    setMapSelection(null);
+  }, [nearKind, nearTimeWindow, selectedCluster]);
 
   const usersQuery = useQuery({
     queryKey: ["mobile-search-users", submittedQ],
@@ -223,7 +221,7 @@ export function SearchScreen({ navigation }: Props) {
                 </Pressable>
                 <Pressable style={styles.shortcutTile} onPress={() => setMode("near")}>
                   <Text style={styles.shortcutTitle}>Browse near me</Text>
-                  <Text style={styles.shortcutSub}>Uses your general area for businesses and events. You can open Maps for a wider view.</Text>
+                  <Text style={styles.shortcutSub}>Uses your general area for businesses and events with an in-app map.</Text>
                 </Pressable>
               </SectionCard>
             ) : null}
@@ -286,15 +284,50 @@ export function SearchScreen({ navigation }: Props) {
                   <Text style={styles.privacyNote}>
                     We use approximate location to list nearby businesses and events. Exact coordinates are not shared on your profile.
                   </Text>
-                  <Pressable
-                    style={styles.mapPlaceholder}
-                    onPress={() => Linking.openURL(`https://www.google.com/maps/@${geo.lat},${geo.lng},13z`)}
-                  >
-                    <Text style={styles.mapPlaceholderText}>Open area in Maps</Text>
-                    <Text style={styles.mutedSmall}>
-                      {geo.lat.toFixed(4)}, {geo.lng.toFixed(4)}
-                    </Text>
-                  </Pressable>
+                  <NearMeMap
+                    center={geo}
+                    businesses={nearKind === "all" || nearKind === "businesses" ? nearQuery.data?.items ?? [] : []}
+                    events={nearKind === "all" || nearKind === "events" ? visibleEvents : []}
+                    selection={mapSelection}
+                    onSelect={setMapSelection}
+                    locationIsApproximate={Boolean(geoNote)}
+                  />
+                  <Text style={styles.mapHint}>Tap a pin for details · pinch or drag to explore</Text>
+                  {mapSelection ? (
+                    <View style={styles.mapSelectionCard}>
+                      {mapSelection.kind === "business" ? (
+                        <>
+                          <Text style={styles.mapSelectionTitle}>{mapSelection.item.name}</Text>
+                          {mapSelection.item.category ? (
+                            <Text style={styles.mutedSmall}>{mapSelection.item.category}</Text>
+                          ) : null}
+                          {typeof mapSelection.item.distanceM === "number" ? (
+                            <Text style={styles.mutedSmall}>{(mapSelection.item.distanceM / 1000).toFixed(1)} km away</Text>
+                          ) : null}
+                          <Pressable
+                            style={styles.mapSelectionBtn}
+                            onPress={() => navigation.navigate("BusinessDetail", { id: mapSelection.item.id })}
+                          >
+                            <Text style={styles.mapSelectionBtnText}>Open business</Text>
+                          </Pressable>
+                        </>
+                      ) : (
+                        <>
+                          <Text style={styles.mapSelectionTitle}>{mapSelection.item.title}</Text>
+                          <Text style={styles.mutedSmall}>{new Date(mapSelection.item.startsAt).toLocaleString()}</Text>
+                          {typeof mapSelection.item.distanceM === "number" ? (
+                            <Text style={styles.mutedSmall}>{(mapSelection.item.distanceM / 1000).toFixed(1)} km away</Text>
+                          ) : null}
+                          <Pressable
+                            style={styles.mapSelectionBtn}
+                            onPress={() => navigation.navigate("EventDetail", { id: mapSelection.item.id })}
+                          >
+                            <Text style={styles.mapSelectionBtnText}>Open event</Text>
+                          </Pressable>
+                        </>
+                      )}
+                    </View>
+                  ) : null}
                 </SectionCard>
                 {nearQuery.isLoading ? <LoadingState label="Loading nearby…" /> : null}
                 {nearQuery.error ? <ErrorState message={(nearQuery.error as Error).message} /> : null}
@@ -501,17 +534,26 @@ const styles = StyleSheet.create({
   nearSection: { gap: 14 },
   note: { color: colors.danger, fontSize: 12, marginHorizontal: 20 },
   privacyNote: { color: colors.muted, fontSize: 13, lineHeight: 19, marginBottom: 10 },
-  mapPlaceholder: {
-    minHeight: 120,
+  mapHint: { color: colors.muted, fontSize: 11, marginTop: 8, textAlign: "center" },
+  mapSelectionCard: {
+    marginTop: 12,
+    padding: 12,
     borderRadius: radii.control,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 16
+    borderColor: colors.borderSubtle,
+    backgroundColor: colors.subtleFill,
+    gap: 6
   },
-  mapPlaceholderText: { color: colors.accent, fontWeight: "700" },
+  mapSelectionTitle: { fontSize: 15, fontWeight: "700", color: colors.text },
+  mapSelectionBtn: {
+    alignSelf: "flex-start",
+    marginTop: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: radii.pill,
+    backgroundColor: colors.accent
+  },
+  mapSelectionBtnText: { color: colors.onAccent, fontWeight: "700", fontSize: 13 },
   clusterHeader: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", marginBottom: 4 },
   linkText: { color: colors.accent, fontSize: 12, fontWeight: "700" }
 });

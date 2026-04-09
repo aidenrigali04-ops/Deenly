@@ -23,12 +23,12 @@ const TOUR_SLIDES: { title: string; body: string }[] = [
     body: "Use the Create tab to share a post or reel, list a product or membership, or publish an event."
   },
   {
-    title: "Search",
-    body: "Tap search on Home or Market to find people, businesses, and events."
+    title: "Explore",
+    body: "Tap Explore on Home or Market to find people, businesses, and events."
   },
   {
     title: "Messages",
-    body: "Message people you find in Search. Start new chats from the Messages tab."
+    body: "Message people you find in Explore. Start new chats from the Messages tab."
   },
   {
     title: "Profile and account type",

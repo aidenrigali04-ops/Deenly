@@ -66,6 +66,7 @@ export function OnboardingChecklist({
   connect,
   productCount,
   publishedProductCount,
+  adCampaignCount,
   onNavigateTab,
   onConnectStripe,
   onOpenOnboarding,
@@ -75,6 +76,8 @@ export function OnboardingChecklist({
   connect: ConnectStatus | undefined;
   productCount: number;
   publishedProductCount: number;
+  /** At least one ad / boost campaign exists (draft or otherwise). */
+  adCampaignCount: number;
   onNavigateTab: (tab: CreatorHubTab) => void;
   onConnectStripe: () => void;
   onOpenOnboarding: () => void;
@@ -152,6 +155,17 @@ export function OnboardingChecklist({
           {productCount > 0 && publishedProductCount === 0 ? (
             <button type="button" className="btn-secondary px-3 py-1.5 text-xs" onClick={() => onNavigateTab("products")}>
               Publish in catalog
+            </button>
+          ) : null}
+        </CheckRow>
+        <CheckRow
+          done={adCampaignCount > 0}
+          title="Try a feed boost"
+          description="Promote a post or event in Discover—pay after review approves your creative."
+        >
+          {adCampaignCount === 0 ? (
+            <button type="button" className="btn-secondary px-3 py-1.5 text-xs" onClick={() => onNavigateTab("grow")}>
+              Open Grow
             </button>
           ) : null}
         </CheckRow>

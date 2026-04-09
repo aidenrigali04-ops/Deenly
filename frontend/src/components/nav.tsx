@@ -153,7 +153,7 @@ function NavLink({
 const feedRailLinks: RailLink[] = [
   { href: "/home", label: "Home", icon: "home" },
   { href: "/marketplace", label: "Marketplace", icon: "marketplace" },
-  { href: "/search", label: "Search", icon: "search" },
+  { href: "/search", label: "Explore", icon: "search", title: "Explore — search, map, and discovery" },
   { href: "/messages", label: "Messages", icon: "send" }
 ];
 

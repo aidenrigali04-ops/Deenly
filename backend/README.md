@@ -20,7 +20,9 @@ Production-focused Node/Express backend for the Deenly Muslim social platform.
 - `npm run dev`: local development server
 - `npm start`: production server
 - `npm run lint`: lint source and tests
-- `npm test`: unit + integration tests
+- `npm test`: unit + integration tests (integration runs only when `DATABASE_URL` is set; see below)
+- `npm run test:integration:local`: migrations up + full test run (requires `DATABASE_URL`; script: [`scripts/run-integration-local.sh`](scripts/run-integration-local.sh))
+- Manual QA after deploy: [`docs/SMOKE_TEST_CHECKLIST.md`](../docs/SMOKE_TEST_CHECKLIST.md) (repo root)
 - `npm run migrate:create -- migration_name`: generate migration
 - `npm run migrate:up`: apply pending migrations
 - `npm run migrate:down`: rollback latest migration

@@ -154,7 +154,6 @@ export function CreateScreen({ navigation }: Props) {
       }>("/users/me", { auth: true }),
     enabled: Boolean(sessionQuery.data?.id)
   });
-  const canCreateProducts = Boolean(profileQuery.data?.persona_capabilities?.can_create_products);
   const canPromoteProducts = Boolean(profileQuery.data?.persona_capabilities?.can_promote_products_in_posts);
   const persona = profileQuery.data?.profile_kind || null;
   const financialVariant = resolveVariant(String(sessionQuery.data?.id || "anon"), growthExperiments.financialPrompt);

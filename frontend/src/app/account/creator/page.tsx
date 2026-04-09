@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ApiError, apiRequest } from "@/lib/api";
 import { fetchSessionMe } from "@/lib/auth";
@@ -37,6 +37,15 @@ import {
 } from "@/lib/monetization";
 import { ErrorState, LoadingState } from "@/components/states";
 import { getPayoutSetupCopy, isPayoutSetupComplete } from "@/lib/payout-setup";
+import { fetchEventsByHost } from "@/lib/events";
+import {
+  createAdCampaign,
+  fetchBoostCatalog,
+  fetchCampaignAnalytics,
+  fetchMyAdCampaigns,
+  fetchMyAdsAnalyticsSummary,
+  startBoostCheckout
+} from "@/lib/ads";
 
 function parseUsdToMinor(raw: string): number | null {
   const cleaned = raw.replace(/[^0-9.]/g, "");
@@ -49,6 +58,25 @@ function parseUsdToMinor(raw: string): number | null {
   }
   const minor = Math.round(n * 100);
   return minor > 0 ? minor : null;
+}
+
+function AdCampaignStats({ campaignId }: { campaignId: number }) {
+  const q = useQuery({
+    queryKey: ["ad-campaign-analytics", campaignId],
+    queryFn: () => fetchCampaignAnalytics(campaignId),
+    staleTime: 30_000
+  });
+  if (q.isLoading) {
+    return <span className="text-muted">Stats…</span>;
+  }
+  if (q.isError) {
+    return <span className="text-rose-700">Could not load stats</span>;
+  }
+  return (
+    <span className="text-muted">
+      {q.data?.impressions ?? 0} impressions · {q.data?.clicks ?? 0} clicks
+    </span>
+  );
 }
 
 function triState(v: boolean | undefined, loading: boolean): string {
@@ -65,6 +93,7 @@ function triState(v: boolean | undefined, loading: boolean): string {
 }
 
 function AccountCreatorPageInner() {
+  const queryClient = useQueryClient();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -167,11 +196,137 @@ function AccountCreatorPageInner() {
   const profileKind = profileQuery.data?.profile_kind || "consumer";
   const canAccessCreatorHub = Boolean(profileQuery.data?.persona_capabilities?.can_access_creator_hub);
   const canManageMemberships = Boolean(profileQuery.data?.persona_capabilities?.can_manage_memberships);
-  const visibleTabs = useMemo<CreatorHubTab[]>(
-    () => (canManageMemberships ? [...CREATOR_HUB_TABS] : ["overview", "payouts", "products"]),
-    [canManageMemberships]
-  );
+  const visibleTabs = useMemo<CreatorHubTab[]>(() => {
+    if (!canAccessCreatorHub) {
+      return ["overview", "payouts", "products"];
+    }
+    if (canManageMemberships) {
+      return [...CREATOR_HUB_TABS];
+    }
+    return ["overview", "payouts", "products", "grow"];
+  }, [canAccessCreatorHub, canManageMemberships]);
   const activeTab: CreatorHubTab = visibleTabs.includes(requestedTab) ? requestedTab : "overview";
+
+  const [promoteTargetType, setPromoteTargetType] = useState<"post" | "event">("post");
+  const [promotePostId, setPromotePostId] = useState("");
+  const [promoteEventId, setPromoteEventId] = useState("");
+  const [promotePackageId, setPromotePackageId] = useState("feed_spotlight_7d");
+
+  const boostCatalogQuery = useQuery({
+    queryKey: ["ads-boost-catalog"],
+    queryFn: () => fetchBoostCatalog(),
+    enabled: Boolean(sessionQuery.data?.id && canAccessCreatorHub)
+  });
+  const myAdCampaignsQuery = useQuery({
+    queryKey: ["ads-campaigns-me"],
+    queryFn: () => fetchMyAdCampaigns(),
+    enabled: Boolean(
+      sessionQuery.data?.id && canAccessCreatorHub && (activeTab === "grow" || activeTab === "overview")
+    )
+  });
+  const adsSummaryQuery = useQuery({
+    queryKey: ["ads-analytics-summary"],
+    queryFn: () => fetchMyAdsAnalyticsSummary(),
+    enabled: Boolean(sessionQuery.data?.id && canAccessCreatorHub && activeTab === "grow")
+  });
+  const myPostsForPromoteQuery = useQuery({
+    queryKey: ["feed-author-posts-promote", sessionQuery.data?.id],
+    queryFn: () =>
+      apiRequest<{ items: { id: number | string; content?: string | null }[] }>(
+        `/feed?feedTab=for_you&authorId=${sessionQuery.data!.id}&limit=30`
+      ),
+    enabled: Boolean(
+      sessionQuery.data?.id && canAccessCreatorHub && activeTab === "grow" && promoteTargetType === "post"
+    )
+  });
+  const myEventsForPromoteQuery = useQuery({
+    queryKey: ["events-host-promote", sessionQuery.data?.id],
+    queryFn: () => fetchEventsByHost(sessionQuery.data!.id, { limit: 50 }),
+    enabled: Boolean(
+      sessionQuery.data?.id && canAccessCreatorHub && activeTab === "grow" && promoteTargetType === "event"
+    )
+  });
+
+  const createAdCampaignMutation = useMutation({
+    mutationFn: () => {
+      if (promoteTargetType === "post") {
+        const pid = Number(promotePostId);
+        if (!Number.isInteger(pid)) {
+          return Promise.reject(new Error("Choose a post to promote."));
+        }
+        return createAdCampaign({ postId: pid, packageId: promotePackageId });
+      }
+      const eid = Number(promoteEventId);
+      if (!Number.isInteger(eid)) {
+        return Promise.reject(new Error("Choose an event to promote."));
+      }
+      return createAdCampaign({ eventId: eid, packageId: promotePackageId });
+    },
+    onSuccess: async () => {
+      await myAdCampaignsQuery.refetch();
+      void queryClient.invalidateQueries({ queryKey: ["ads-analytics-summary"] });
+    }
+  });
+
+  const boostCheckoutMutation = useMutation({
+    mutationFn: (campaignId: number) => startBoostCheckout(campaignId),
+    onSuccess: (data) => {
+      if (typeof window !== "undefined" && data?.url) {
+        window.location.assign(data.url);
+      }
+    }
+  });
+
+  const promotePostOptions = useMemo(
+    () =>
+      (myPostsForPromoteQuery.data?.items || []).filter(
+        (item): item is { id: number; content?: string | null } => typeof item.id === "number"
+      ),
+    [myPostsForPromoteQuery.data?.items]
+  );
+
+  const promoteEventOptions = useMemo(
+    () =>
+      (myEventsForPromoteQuery.data?.items || []).filter((e) => e.status === "scheduled"),
+    [myEventsForPromoteQuery.data?.items]
+  );
+
+  useEffect(() => {
+    if (!sessionQuery.data?.id || !profileQuery.isSuccess || !canAccessCreatorHub) {
+      return;
+    }
+    const params = new URLSearchParams(searchParams.toString());
+    const pp = params.get("promotePost");
+    const pe = params.get("promoteEvent");
+    const pid = pp != null && pp !== "" ? Number(pp) : NaN;
+    const eid = pe != null && pe !== "" ? Number(pe) : NaN;
+    if (!Number.isInteger(pid) && !Number.isInteger(eid)) {
+      return;
+    }
+    if (Number.isInteger(pid)) {
+      setPromoteTargetType("post");
+      setPromotePostId(String(pid));
+      setPromoteEventId("");
+      setPromotePackageId("feed_spotlight_7d");
+      params.delete("promotePost");
+    } else {
+      setPromoteTargetType("event");
+      setPromoteEventId(String(eid));
+      setPromotePostId("");
+      setPromotePackageId("event_highlight_7d");
+      params.delete("promoteEvent");
+    }
+    params.set("tab", "grow");
+    const qs = params.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
+  }, [
+    sessionQuery.data?.id,
+    profileQuery.isSuccess,
+    canAccessCreatorHub,
+    searchParams.toString(),
+    pathname,
+    router
+  ]);
 
   const [stripeNotice, setStripeNotice] = useState<{
     variant: "success" | "error";
@@ -461,109 +616,330 @@ function AccountCreatorPageInner() {
 
   const growPanel = (
     <div className="space-y-6">
-      <section>
-        <h2 className="section-title text-sm">Shortcuts</h2>
-        <div className="mt-3 space-y-3">
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="min-w-[120px] flex-1">
-              <label className="text-xs text-muted" htmlFor="tier-monthly-usd">
-                New membership plan monthly (USD)
-              </label>
-              <input
-                id="tier-monthly-usd"
-                className="input mt-1 bg-white"
-                value={newTierMonthlyUsd}
-                onChange={(e) => setNewTierMonthlyUsd(e.target.value)}
-                inputMode="decimal"
-                aria-label="Monthly tier price in USD"
-              />
-            </div>
-            <button
-              className="btn-secondary shrink-0"
-              type="button"
-              onClick={() => {
-                const minor = parseUsdToMinor(newTierMonthlyUsd);
-                if (minor !== null) {
-                  createTierMutation.mutate(minor);
-                }
-              }}
-              disabled={createTierMutation.isPending || parseUsdToMinor(newTierMonthlyUsd) === null}
-            >
-              {createTierMutation.isPending ? "Creating..." : "Create plan"}
-            </button>
+      {adsSummaryQuery.isLoading ? (
+        <p className="text-xs text-muted">Loading boost summary…</p>
+      ) : adsSummaryQuery.data ? (
+        <section>
+          <div className="rounded-control border border-black/10 bg-surface px-3 py-3 text-xs">
+            <p className="font-semibold text-text">Boost performance (all campaigns)</p>
+            <p className="mt-1 text-muted">
+              {adsSummaryQuery.data.impressions} impressions · {adsSummaryQuery.data.clicks} clicks ·{" "}
+              {adsSummaryQuery.data.campaignCount} campaigns ({adsSummaryQuery.data.activeCampaigns} active)
+            </p>
           </div>
-            <div className="rounded-control border border-black/10 bg-white px-3 py-2 text-xs text-muted">
-              <p className="font-semibold text-text">Tier payout preview</p>
-              <p>Member pays: {newTierMinor ? formatMinorCurrency(newTierMinor, "usd") : "—"}/mo</p>
-              <p>
-                Platform fee ({(tierPlatformFeeBps / 100).toFixed(1)}%):{" "}
-                {tierPreview ? formatMinorCurrency(tierPreview.platformFeeMinor, "usd") : "—"}
-              </p>
-              <p>
-                Affiliate impact (up to 7.0%):{" "}
-                {tierPreview ? formatMinorCurrency(tierPreview.affiliateMinor, "usd") : "—"}
-              </p>
-              <p className="font-semibold text-text">
-                You receive (estimated):{" "}
-                {tierPreview ? formatMinorCurrency(tierPreview.creatorNetMinor, "usd") : "Enter valid amount"}
-              </p>
+        </section>
+      ) : null}
+      <section>
+        <h2 className="section-title text-sm">Promote in feed</h2>
+        <p className="mt-1 max-w-xl text-xs text-muted">
+          Start a draft campaign for a post or a scheduled event, pay the boost budget in Stripe, then moderators review.
+          Once funded and approved, your campaign can run in feed.
+        </p>
+        <div className="mt-3 space-y-3 rounded-control border border-black/10 bg-surface px-3 py-3">
+          <fieldset>
+            <legend className="text-xs text-muted">What to promote</legend>
+            <div className="mt-2 flex flex-wrap gap-4 text-xs text-text">
+              <label className="flex cursor-pointer items-center gap-2">
+                <input
+                  type="radio"
+                  name="promote-target-type"
+                  className="accent-sky-600"
+                  checked={promoteTargetType === "post"}
+                  onChange={() => {
+                    setPromoteTargetType("post");
+                    setPromoteEventId("");
+                    setPromotePackageId("feed_spotlight_7d");
+                  }}
+                />
+                Post
+              </label>
+              <label className="flex cursor-pointer items-center gap-2">
+                <input
+                  type="radio"
+                  name="promote-target-type"
+                  className="accent-sky-600"
+                  checked={promoteTargetType === "event"}
+                  onChange={() => {
+                    setPromoteTargetType("event");
+                    setPromotePostId("");
+                    setPromotePackageId("event_highlight_7d");
+                  }}
+                />
+                Scheduled event
+              </label>
             </div>
-          <button
-            className="btn-secondary"
-            type="button"
-            onClick={() => createAffiliateCodeMutation.mutate()}
-          >
-            {createAffiliateCodeMutation.isPending ? "Creating..." : "Create affiliate code"}
-          </button>
+          </fieldset>
+          {promoteTargetType === "post" ? (
+            <div>
+              <label className="text-xs text-muted" htmlFor="promote-post-select">
+                Your post
+              </label>
+              <select
+                id="promote-post-select"
+                className="input mt-1 w-full bg-white text-sm"
+                value={promotePostId}
+                onChange={(e) => setPromotePostId(e.target.value)}
+              >
+                <option value="">Select a post…</option>
+                {promotePostOptions.map((p) => (
+                  <option key={p.id} value={String(p.id)}>
+                    #{p.id}
+                    {p.content
+                      ? ` — ${String(p.content).slice(0, 56)}${String(p.content).length > 56 ? "…" : ""}`
+                      : ""}
+                  </option>
+                ))}
+              </select>
+              {myPostsForPromoteQuery.isLoading ? (
+                <p className="mt-1 text-xs text-muted">Loading your posts…</p>
+              ) : promotePostOptions.length === 0 ? (
+                <p className="mt-1 text-xs text-muted">
+                  No posts yet.{" "}
+                  <Link href="/create" className="text-sky-600 underline-offset-2 hover:underline">
+                    Create one
+                  </Link>
+                  .
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <div>
+              <label className="text-xs text-muted" htmlFor="promote-event-select">
+                Your event
+              </label>
+              <select
+                id="promote-event-select"
+                className="input mt-1 w-full bg-white text-sm"
+                value={promoteEventId}
+                onChange={(e) => setPromoteEventId(e.target.value)}
+              >
+                <option value="">Select a scheduled event…</option>
+                {promoteEventOptions.map((ev) => (
+                  <option key={ev.id} value={String(ev.id)}>
+                    {ev.title} · #
+                    {ev.id}
+                  </option>
+                ))}
+              </select>
+              {myEventsForPromoteQuery.isLoading ? (
+                <p className="mt-1 text-xs text-muted">Loading your events…</p>
+              ) : promoteEventOptions.length === 0 ? (
+                <p className="mt-1 text-xs text-muted">
+                  No scheduled events.{" "}
+                  <Link href="/create/event" className="text-sky-600 underline-offset-2 hover:underline">
+                    Create one
+                  </Link>
+                  .
+                </p>
+              ) : null}
+            </div>
+          )}
+          <div>
+            <label className="text-xs text-muted" htmlFor="promote-package-select">
+              Boost package
+            </label>
+            <select
+              id="promote-package-select"
+              className="input mt-1 w-full bg-white text-sm"
+              value={promotePackageId}
+              onChange={(e) => setPromotePackageId(e.target.value)}
+            >
+              {(boostCatalogQuery.data?.items || []).map((pkg) => (
+                <option key={pkg.id} value={pkg.id}>
+                  {pkg.label} ({formatMinorCurrency(pkg.suggestedBudgetMinor, pkg.currency)})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <button
+              type="button"
+              className="btn-primary px-3 py-1.5 text-xs"
+              disabled={createAdCampaignMutation.isPending}
+              onClick={() => createAdCampaignMutation.mutate()}
+            >
+              {createAdCampaignMutation.isPending ? "Creating…" : "Create draft campaign"}
+            </button>
+            {createAdCampaignMutation.isError ? (
+              <p className="text-xs text-rose-700">
+                {createAdCampaignMutation.error instanceof Error
+                  ? createAdCampaignMutation.error.message
+                  : "Could not create campaign"}
+              </p>
+            ) : null}
+          </div>
         </div>
       </section>
 
       <section>
-        <h2 className="section-title text-sm">Membership plans</h2>
+        <h2 className="section-title text-sm">Your ad campaigns</h2>
         <div className="mt-3 rounded-control border border-black/10 bg-surface px-3 py-2">
-          <div className="mt-2 space-y-2">
-            {(myTiersQuery.data?.items || []).slice(0, 20).map((tier) => (
-              <div key={tier.id} className="flex items-center justify-between gap-2 text-xs">
-                <span className="truncate">
-                  <span className="mr-1 rounded-pill border border-black/10 bg-surface px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
-                    Monthly
-                  </span>
-                  {tier.title} - {formatMinorCurrency(tier.monthly_price_minor, tier.currency)}/mo · {tier.status}
-                </span>
-                <button
-                  className="btn-secondary px-2 py-1"
-                  type="button"
-                  onClick={async () => {
-                    await publishTier(tier.id);
-                    await myTiersQuery.refetch();
-                  }}
+          {myAdCampaignsQuery.isLoading ? (
+            <p className="text-xs text-muted">Loading…</p>
+          ) : (
+            <div className="mt-2 space-y-3">
+              {(myAdCampaignsQuery.data?.items || []).map((c) => (
+                <div
+                  key={c.id}
+                  className="space-y-1 border-b border-black/5 pb-3 text-xs last:border-0 last:pb-0"
                 >
-                  Publish
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium text-text">
+                      #{c.id}
+                      {c.post_id != null ? ` · post ${c.post_id}` : ""}
+                      {c.event_id != null ? ` · event ${c.event_id}` : ""}
+                    </span>
+                    <span className="text-muted">
+                      {c.status} · review {c.review_status || "—"}
+                    </span>
+                  </div>
+                  <p className="text-muted">
+                    Budget {formatMinorCurrency(c.budget_minor, c.currency)}
+                    {c.boost_funded_at ? " · funded" : " · payment pending"}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {!c.boost_funded_at ? (
+                      <button
+                        type="button"
+                        className="btn-secondary px-2 py-1"
+                        disabled={boostCheckoutMutation.isPending}
+                        onClick={() => boostCheckoutMutation.mutate(c.id)}
+                      >
+                        {boostCheckoutMutation.isPending ? "Opening…" : "Pay budget (Stripe)"}
+                      </button>
+                    ) : null}
+                    <AdCampaignStats campaignId={c.id} />
+                  </div>
+                </div>
+              ))}
+              {myAdCampaignsQuery.data?.items?.length ? null : (
+                <p className="text-xs text-muted">No campaigns yet.</p>
+              )}
+            </div>
+          )}
+          {boostCheckoutMutation.isError ? (
+            <p className="mt-2 text-xs text-rose-700">
+              {boostCheckoutMutation.error instanceof ApiError
+                ? boostCheckoutMutation.error.message
+                : "Checkout is unavailable. Check Stripe and APP_BASE_URL."}
+            </p>
+          ) : null}
+        </div>
+      </section>
+
+      {canManageMemberships ? (
+        <>
+          <section>
+            <h2 className="section-title text-sm">Membership &amp; affiliates</h2>
+            <p className="mt-1 max-w-xl text-xs text-muted">Plans, payout preview, and referral codes.</p>
+            <div className="mt-3 space-y-3">
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="min-w-[120px] flex-1">
+                  <label className="text-xs text-muted" htmlFor="tier-monthly-usd">
+                    New membership plan monthly (USD)
+                  </label>
+                  <input
+                    id="tier-monthly-usd"
+                    className="input mt-1 bg-white"
+                    value={newTierMonthlyUsd}
+                    onChange={(e) => setNewTierMonthlyUsd(e.target.value)}
+                    inputMode="decimal"
+                    aria-label="Monthly tier price in USD"
+                  />
+                </div>
+                <button
+                  className="btn-secondary shrink-0"
+                  type="button"
+                  onClick={() => {
+                    const minor = parseUsdToMinor(newTierMonthlyUsd);
+                    if (minor !== null) {
+                      createTierMutation.mutate(minor);
+                    }
+                  }}
+                  disabled={createTierMutation.isPending || parseUsdToMinor(newTierMonthlyUsd) === null}
+                >
+                  {createTierMutation.isPending ? "Creating..." : "Create plan"}
                 </button>
               </div>
-            ))}
-            {myTiersQuery.data?.items?.length ? null : (
-              <p className="text-xs text-muted">No plans yet.</p>
-            )}
-          </div>
-        </div>
-      </section>
+              <div className="rounded-control border border-black/10 bg-white px-3 py-2 text-xs text-muted">
+                <p className="font-semibold text-text">Tier payout preview</p>
+                <p>Member pays: {newTierMinor ? formatMinorCurrency(newTierMinor, "usd") : "—"}/mo</p>
+                <p>
+                  Platform fee ({(tierPlatformFeeBps / 100).toFixed(1)}%):{" "}
+                  {tierPreview ? formatMinorCurrency(tierPreview.platformFeeMinor, "usd") : "—"}
+                </p>
+                <p>
+                  Affiliate impact (up to 7.0%):{" "}
+                  {tierPreview ? formatMinorCurrency(tierPreview.affiliateMinor, "usd") : "—"}
+                </p>
+                <p className="font-semibold text-text">
+                  You receive (estimated):{" "}
+                  {tierPreview ? formatMinorCurrency(tierPreview.creatorNetMinor, "usd") : "Enter valid amount"}
+                </p>
+              </div>
+              <button
+                className="btn-secondary"
+                type="button"
+                onClick={() => createAffiliateCodeMutation.mutate()}
+              >
+                {createAffiliateCodeMutation.isPending ? "Creating..." : "Create affiliate code"}
+              </button>
+            </div>
+          </section>
 
-      <section>
-        <h2 className="section-title text-sm">Affiliate codes</h2>
-        <div className="mt-3 rounded-control border border-black/10 bg-surface px-3 py-2">
-          <div className="mt-2 flex flex-wrap gap-2">
-            {(affiliateCodesQuery.data?.items || []).map((code) => (
-              <span key={code.id} className="rounded-pill border border-black/10 px-2 py-1 text-xs">
-                {code.code} ({code.uses_count})
-              </span>
-            ))}
-            {affiliateCodesQuery.data?.items?.length ? null : (
-              <p className="text-xs text-muted">No affiliate codes yet.</p>
-            )}
-          </div>
-        </div>
-      </section>
+          <section>
+            <h2 className="section-title text-sm">Membership plans</h2>
+            <div className="mt-3 rounded-control border border-black/10 bg-surface px-3 py-2">
+              <div className="mt-2 space-y-2">
+                {(myTiersQuery.data?.items || []).slice(0, 20).map((tier) => (
+                  <div key={tier.id} className="flex items-center justify-between gap-2 text-xs">
+                    <span className="truncate">
+                      <span className="mr-1 rounded-pill border border-black/10 bg-surface px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+                        Monthly
+                      </span>
+                      {tier.title} - {formatMinorCurrency(tier.monthly_price_minor, tier.currency)}/mo ·{" "}
+                      {tier.status}
+                    </span>
+                    <button
+                      className="btn-secondary px-2 py-1"
+                      type="button"
+                      onClick={async () => {
+                        await publishTier(tier.id);
+                        await myTiersQuery.refetch();
+                      }}
+                    >
+                      Publish
+                    </button>
+                  </div>
+                ))}
+                {myTiersQuery.data?.items?.length ? null : (
+                  <p className="text-xs text-muted">No plans yet.</p>
+                )}
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h2 className="section-title text-sm">Affiliate codes</h2>
+            <div className="mt-3 rounded-control border border-black/10 bg-surface px-3 py-2">
+              <div className="mt-2 flex flex-wrap gap-2">
+                {(affiliateCodesQuery.data?.items || []).map((code) => (
+                  <span key={code.id} className="rounded-pill border border-black/10 px-2 py-1 text-xs">
+                    {code.code} ({code.uses_count})
+                  </span>
+                ))}
+                {affiliateCodesQuery.data?.items?.length ? null : (
+                  <p className="text-xs text-muted">No affiliate codes yet.</p>
+                )}
+              </div>
+            </div>
+          </section>
+        </>
+      ) : (
+        <p className="text-xs text-muted">
+          Membership and affiliate shortcuts appear here when your profile can manage memberships.
+        </p>
+      )}
     </div>
   );
 
@@ -649,6 +1025,7 @@ function AccountCreatorPageInner() {
                 connect={connect}
                 productCount={productCount}
                 publishedProductCount={publishedProductCount}
+                adCampaignCount={(myAdCampaignsQuery.data?.items || []).length}
                 onNavigateTab={setTab}
                 onConnectStripe={() => connectAccountMutation.mutate()}
                 onOpenOnboarding={() => onboardingMutation.mutate()}
@@ -683,7 +1060,7 @@ function AccountCreatorPageInner() {
 
           {activeTab === "payouts" ? payoutsPanel(connect) : null}
           {activeTab === "products" ? productFormAndCatalog : null}
-          {activeTab === "grow" && canManageMemberships ? growPanel : null}
+          {activeTab === "grow" ? growPanel : null}
         </div>
         ) : null}
       </article>

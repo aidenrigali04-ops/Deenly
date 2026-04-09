@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { ApiError } from "@/lib/api";
+import { ApiError, apiRequest } from "@/lib/api";
 import { fetchSessionMe } from "@/lib/auth";
 import { createEventTicketCheckout } from "@/lib/monetization";
 import {
@@ -87,6 +87,13 @@ export default function EventDetailPage() {
   });
 
   const isHost = Boolean(eventQuery.data?.hostUserId === meQuery.data?.id);
+
+  const promoteHubQuery = useQuery({
+    queryKey: ["event-host-promote-persona"],
+    queryFn: () =>
+      apiRequest<{ persona_capabilities?: { can_access_creator_hub?: boolean } }>("/users/me", { auth: true }),
+    enabled: Boolean(meQuery.data?.id && eventQuery.data?.hostUserId === meQuery.data.id)
+  });
 
   const chatQuery = useQuery({
     queryKey: ["event-chat", eventId, inviteToken ?? null],
@@ -338,6 +345,18 @@ export default function EventDetailPage() {
           <p className="text-sm text-rose-700">
             {rsvpMutation.error instanceof ApiError ? rsvpMutation.error.message : "Could not update RSVP."}
           </p>
+        ) : null}
+        {isHost &&
+        data.status === "scheduled" &&
+        promoteHubQuery.data?.persona_capabilities?.can_access_creator_hub ? (
+          <div className="flex flex-wrap gap-2">
+            <Link
+              className="btn-secondary text-sm"
+              href={`/account/creator?tab=grow&promoteEvent=${eventId}`}
+            >
+              Promote in feed
+            </Link>
+          </div>
         ) : null}
       </div>
 

@@ -43,6 +43,7 @@ export default function PostDetailPage() {
   const queryClient = useQueryClient();
   const reducedMotion = useReducedMotion();
   const [reportReason, setReportReason] = useState("");
+  const [shareHint, setShareHint] = useState("");
   const [deleteError, setDeleteError] = useState("");
   const [mediaFailed, setMediaFailed] = useState(false);
   const [liked, setLiked] = useState(false);
@@ -61,6 +62,15 @@ export default function PostDetailPage() {
       Number.isFinite(postId) &&
       Boolean(sessionUser?.id) &&
       Boolean(postQuery.data && postQuery.data.author_id === sessionUser?.id)
+  });
+
+  const promotePersonaQuery = useQuery({
+    queryKey: ["post-author-promote-persona"],
+    queryFn: () =>
+      apiRequest<{ persona_capabilities?: { can_access_creator_hub?: boolean } }>("/users/me", { auth: true }),
+    enabled: Boolean(
+      sessionUser?.id && postQuery.data && postQuery.data.author_id === sessionUser.id
+    )
   });
 
   const viewMutation = useMutation({
@@ -203,6 +213,29 @@ export default function PostDetailPage() {
     }
   });
 
+  const sharePost = async () => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const url = `${window.location.origin}/posts/${postId}`;
+    const text = postQuery.data?.content ? String(postQuery.data.content).slice(0, 120) : "Post on Deenly";
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "Deenly", text, url });
+        return;
+      } catch {
+        /* user cancelled or share failed */
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareHint("Link copied to clipboard.");
+    } catch {
+      setShareHint("Copy the URL from your browser’s address bar to share.");
+    }
+    window.setTimeout(() => setShareHint(""), 4500);
+  };
+
   if (!Number.isFinite(postId)) {
     return <ErrorState message="Invalid post id." />;
   }
@@ -283,9 +316,22 @@ export default function PostDetailPage() {
           >
             Reflect Later
           </button>
+          <button type="button" className="btn-secondary" onClick={() => void sharePost()}>
+            Share
+          </button>
+          {shareHint ? <span className="text-xs text-muted">{shareHint}</span> : null}
           <Link className="btn-secondary" href={`/users/${post.author_id}`}>
             Author Profile
           </Link>
+          {sessionUser?.id === post.author_id &&
+          promotePersonaQuery.data?.persona_capabilities?.can_access_creator_hub ? (
+            <Link
+              className="btn-secondary"
+              href={`/account/creator?tab=grow&promotePost=${postId}`}
+            >
+              Promote in feed
+            </Link>
+          ) : null}
           {sessionUser?.id === post.author_id ? (
             <div className="flex min-w-0 flex-col gap-1">
               <button
@@ -371,6 +417,9 @@ export default function PostDetailPage() {
           reportMutation.mutate();
         }}
       >
+        <p className="text-xs text-muted">
+          Reports are reviewed by moderators. During beta we aim to triage serious safety issues within one business day.
+        </p>
         <label className="text-sm font-medium">Report post</label>
         <input
           className="input"

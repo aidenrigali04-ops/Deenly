@@ -51,12 +51,81 @@ function createPushNotifications({ db, logger }) {
       return { delivered: 0, suppressed: true, reason: "quiet_window" };
     }
 
-    // Provider-agnostic stub: delivery can be swapped with FCM/APNs/WebPush.
+    const accessToken = String(process.env.EXPO_ACCESS_TOKEN || "").trim();
+    let delivered = 0;
+
+    if (accessToken) {
+      let ExpoCtor;
+      try {
+        ({ Expo: ExpoCtor } = await import("expo-server-sdk"));
+      } catch (err) {
+        logger?.warn?.({ err }, "expo_server_sdk_import_failed");
+        ExpoCtor = null;
+      }
+
+      if (ExpoCtor) {
+        const expo = new ExpoCtor({ accessToken });
+        const bodyText =
+          typeof payload?.message === "string"
+            ? payload.message
+            : typeof payload?.body === "string"
+              ? payload.body
+              : String(type || "Notification");
+        const title = typeof payload?.title === "string" ? payload.title : "Deenly";
+        const data =
+          payload && typeof payload === "object" && !Array.isArray(payload) ? { type, ...payload } : { type };
+
+        const messages = [];
+        for (const row of tokens.rows) {
+          if (String(row.platform || "").toLowerCase() === "web") {
+            continue;
+          }
+          const t = String(row.token || "").trim();
+          if (!ExpoCtor.isExpoPushToken(t)) {
+            continue;
+          }
+          messages.push({
+            to: t,
+            sound: "default",
+            title,
+            body: bodyText,
+            data
+          });
+        }
+
+        if (messages.length > 0) {
+          const chunks = expo.chunkPushNotifications(messages);
+          for (const chunk of chunks) {
+            try {
+              const tickets = await expo.sendPushNotificationsAsync(chunk);
+              for (const ticket of tickets) {
+                if (ticket.status === "ok") {
+                  delivered += 1;
+                } else {
+                  logger?.warn?.({ userId, ticket }, "expo_push_ticket_error");
+                }
+              }
+            } catch (err) {
+              logger?.warn?.({ err, userId }, "expo_push_send_failed");
+            }
+          }
+        }
+      }
+    }
+
     logger.info(
-      { userId, type, tokenCount: tokens.rowCount, payload },
-      "push_delivery_enqueued"
+      {
+        userId,
+        type,
+        tokenCount: tokens.rowCount,
+        delivered,
+        expoConfigured: Boolean(accessToken),
+        payload
+      },
+      "push_delivery_complete"
     );
-    return { delivered: tokens.rowCount, suppressed: false };
+
+    return { delivered, suppressed: false };
   }
 
   return {

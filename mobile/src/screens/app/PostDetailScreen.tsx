@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Image, Linking, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppVideoView } from "../../components/AppVideoView";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -14,6 +14,7 @@ import { createGuestProductCheckout, createProductCheckout, formatMinorCurrency 
 import { ProductCheckoutSheet } from "../../components/ProductCheckoutSheet";
 import { hapticPrimary, hapticSuccess, hapticTap } from "../../lib/haptics";
 import { useSessionStore } from "../../store/session-store";
+import { getWebAppBaseUrl } from "../../lib/web-app";
 
 type PostDetail = FeedItem & {
   view_count?: number;
@@ -332,6 +333,15 @@ export function PostDetailScreen({ route, navigation }: Props) {
           >
             <Text style={styles.buttonText}>Author</Text>
           </Pressable>
+          <Pressable
+            style={styles.buttonSecondary}
+            onPress={() => {
+              const url = `${getWebAppBaseUrl().replace(/\/$/, "")}/posts/${postId}`;
+              void Share.share({ message: url, url }).catch(() => null);
+            }}
+          >
+            <Text style={styles.buttonText}>Share</Text>
+          </Pressable>
         </View>
         {sessionUser?.id === post.author_id ? (
           <Pressable
@@ -441,6 +451,9 @@ export function PostDetailScreen({ route, navigation }: Props) {
 
       <View style={styles.card}>
         <Text style={styles.label}>Report post</Text>
+        <Text style={styles.muted}>
+          Reports are reviewed by moderators. During beta we aim to triage serious safety issues within one business day.
+        </Text>
         <TextInput
           style={styles.inputSingle}
           placeholder="Reason"

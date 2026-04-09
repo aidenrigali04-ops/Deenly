@@ -803,3 +803,157 @@ paths:
       responses:
         "200":
           description: rsvps and pendingInvites arrays
+  /ads/boost-catalog:
+    get:
+      summary: List preset boost packages (suggested budgets and caps)
+      responses:
+        "200":
+          description: Catalog items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+  /ads/campaigns:
+    post:
+      summary: Create a draft ad campaign for a post or event
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                postId: { type: integer }
+                eventId: { type: integer }
+                packageId: { type: string }
+                budgetMinor: { type: integer }
+                dailyCapImpressions: { type: integer }
+      responses:
+        "201":
+          description: Campaign created
+        "429":
+          description: Too many requests (per-user rate limit)
+  /ads/campaigns/me:
+    get:
+      summary: List current user ad campaigns with review status
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Campaign rows
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+  /ads/campaigns/me/analytics-summary:
+    get:
+      summary: Aggregate impressions and clicks across the user campaigns
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Summary counts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  campaignCount: { type: integer }
+                  activeCampaigns: { type: integer }
+                  impressions: { type: integer }
+                  clicks: { type: integer }
+  /ads/campaigns/{id}/boost-checkout:
+    post:
+      summary: Start Stripe Checkout to fund boost budget (owner)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                returnClient:
+                  type: string
+                  enum: [web, mobile_app, app]
+                  description: web (default) uses APP_BASE_URL return pages; mobile_app uses the native deenly:// deep link back into the app after Checkout
+      responses:
+        "200":
+          description: Checkout session
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url: { type: string }
+                  sessionId: { type: string }
+        "400":
+          description: Invalid returnClient
+        "409":
+          description: Already funded or invalid state
+        "429":
+          description: Too many requests (per-user rate limit)
+  /ads/campaigns/{id}:
+    patch:
+      summary: Update campaign status, budget, or daily cap (owner)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: { type: string, enum: [draft, active, paused, ended] }
+                budgetMinor: { type: integer }
+                dailyCapImpressions: { type: integer }
+      responses:
+        "200":
+          description: Updated campaign
+  /ads/campaigns/{id}/analytics:
+    get:
+      summary: Per-campaign impression and click totals (owner)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Analytics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  campaignId: { type: integer }
+                  impressions: { type: integer }
+                  clicks: { type: integer }

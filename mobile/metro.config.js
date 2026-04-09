@@ -1,4 +1,4 @@
-const { getDefaultConfig } = require("expo/metro-config");
+const { getSentryExpoConfig } = require("@sentry/react-native/metro");
 
-/** Default Expo Metro config (onboarding options live under `src/lib/`). */
-module.exports = getDefaultConfig(__dirname);
+/** Metro + Sentry debug IDs for symbolicated native/JS stack traces on upload builds. */
+module.exports = getSentryExpoConfig(__dirname);

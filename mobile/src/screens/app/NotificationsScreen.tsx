@@ -61,6 +61,18 @@ function notificationTitle(item: NotificationItem): string {
     const hostName = payloadStr(p, "hostDisplayName");
     return hostName ? `${hostName} invited you to an event` : `${who} invited you to an event`;
   }
+  if (item.type === "ad_boost_live") {
+    return typeof p.title === "string" ? p.title : "Boost is live";
+  }
+  if (item.type === "ad_boost_approve_pay") {
+    return typeof p.title === "string" ? p.title : "Boost creative approved";
+  }
+  if (item.type === "ad_boost_payment_received") {
+    return typeof p.title === "string" ? p.title : "Boost payment received";
+  }
+  if (item.type === "ad_boost_rejected") {
+    return typeof p.title === "string" ? p.title : "Boost not approved";
+  }
   return item.type.replace(/_/g, " ");
 }
 
@@ -77,6 +89,18 @@ function notificationDetail(item: NotificationItem): string | null {
   }
   if (item.type === "event_invited") {
     return payloadStr(p, "title");
+  }
+  if (item.type === "ad_boost_live") {
+    return typeof p.message === "string" ? p.message : "Your feed boost is delivering.";
+  }
+  if (item.type === "ad_boost_approve_pay") {
+    return typeof p.message === "string" ? p.message : "Complete payment in Creator hub → Grow.";
+  }
+  if (item.type === "ad_boost_payment_received") {
+    return typeof p.message === "string" ? p.message : "Waiting on creative review before delivery.";
+  }
+  if (item.type === "ad_boost_rejected") {
+    return payloadStr(p, "notePreview") || (typeof p.message === "string" ? p.message : null);
   }
   return null;
 }
@@ -111,6 +135,11 @@ export function NotificationsScreen() {
         {query.data?.items.map((item) => {
           const detail = notificationDetail(item);
           const eventIdNav = item.type === "event_invited" ? payloadNum(item.payload, "eventId") : null;
+          const boostTap =
+            item.type === "ad_boost_live" ||
+            item.type === "ad_boost_approve_pay" ||
+            item.type === "ad_boost_payment_received" ||
+            item.type === "ad_boost_rejected";
           const inner = (
             <>
               <Text style={styles.title}>
@@ -122,6 +151,7 @@ export function NotificationsScreen() {
               {eventIdNav != null ? (
                 <Text style={styles.openHint}>Tap to open event</Text>
               ) : null}
+              {boostTap ? <Text style={styles.openHint}>Tap to open Promote in feed</Text> : null}
               {!item.is_read ? (
                 <Pressable
                   style={styles.buttonSecondary}
@@ -138,6 +168,17 @@ export function NotificationsScreen() {
                 key={item.id}
                 style={({ pressed }) => [styles.card, pressed ? styles.cardPressed : null]}
                 onPress={() => navigation.navigate("EventDetail", { id: eventIdNav })}
+              >
+                {inner}
+              </Pressable>
+            );
+          }
+          if (boostTap) {
+            return (
+              <Pressable
+                key={item.id}
+                style={({ pressed }) => [styles.card, pressed ? styles.cardPressed : null]}
+                onPress={() => navigation.navigate("PromotePost")}
               >
                 {inner}
               </Pressable>

@@ -15,7 +15,9 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.rizqly.app",
-      "associatedDomains": ["applinks:deenly.app"],
+      "associatedDomains": [
+        "applinks:deenly.app"
+      ],
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Deenly uses your location to show small businesses near you and to place your listing on the map.",
         "ITSAppUsesNonExemptEncryption": false,
@@ -36,7 +38,10 @@
               "pathPrefix": "/events"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ],
       "adaptiveIcon": {
@@ -80,7 +85,10 @@
           }
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-notifications",
+      "expo-web-browser",
+      "@sentry/react-native"
     ]
   }
 }

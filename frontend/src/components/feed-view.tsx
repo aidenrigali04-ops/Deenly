@@ -6,17 +6,22 @@ import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-q
 import { motion, useReducedMotion } from "framer-motion";
 import { apiRequest } from "@/lib/api";
 import { FeedCard } from "@/components/feed-card";
+import { FeedEventInlineCard } from "@/components/feed-event-inline-card";
 import { HomeStoriesRow } from "@/components/home-stories-row";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useSessionStore } from "@/store/session-store";
-import type { FeedItem } from "@/types";
+import type { FeedItem, FeedListItem } from "@/types";
 import { followUser, unfollowUser } from "@/lib/follows";
 
 type FeedResponse = {
-  items: FeedItem[];
+  items: FeedListItem[];
   nextCursor: string | null;
   hasMore: boolean;
 };
+
+function isFeedPostItem(item: FeedListItem): item is FeedItem {
+  return typeof item.id === "number";
+}
 
 type FeedTabId = "for_you" | "opportunities" | "marketplace";
 
@@ -166,7 +171,9 @@ export function FeedView({
           pages: current.pages.map((page) => ({
             ...page,
             items: page.items.map((item) =>
-              item.author_id === authorId ? { ...item, is_following_author: true } : item
+              isFeedPostItem(item) && item.author_id === authorId
+                ? { ...item, is_following_author: true }
+                : item
             )
           }))
         };
@@ -202,7 +209,9 @@ export function FeedView({
           pages: current.pages.map((page) => ({
             ...page,
             items: page.items.map((item) =>
-              item.author_id === authorId ? { ...item, is_following_author: false } : item
+              isFeedPostItem(item) && item.author_id === authorId
+                ? { ...item, is_following_author: false }
+                : item
             )
           }))
         };
@@ -378,15 +387,19 @@ export function FeedView({
 
           {reducedMotion ? (
             <div className={homeStyle ? "space-y-3" : "space-y-5"}>
-              {items.map((item) => (
-                <FeedCard
-                  key={item.id}
-                  item={item}
-                  layout={homeStyle ? "home" : "default"}
-                  onToggleFollow={toggleFollow}
-                  followBusy={busyAuthorId === item.author_id}
-                />
-              ))}
+              {items.map((item) =>
+                "card_type" in item && item.card_type === "event" ? (
+                  <FeedEventInlineCard key={item.id} item={item} />
+                ) : isFeedPostItem(item) ? (
+                  <FeedCard
+                    key={item.id}
+                    item={item}
+                    layout={homeStyle ? "home" : "default"}
+                    onToggleFollow={toggleFollow}
+                    followBusy={busyAuthorId === item.author_id}
+                  />
+                ) : null
+              )}
             </div>
           ) : (
             <motion.div
@@ -400,12 +413,16 @@ export function FeedView({
                   key={item.id}
                   variants={index < FEED_STAGGER_FIRST ? feedListItemVariants : feedListItemInstant}
                 >
-                  <FeedCard
-                    item={item}
-                    layout={homeStyle ? "home" : "default"}
-                    onToggleFollow={toggleFollow}
-                    followBusy={busyAuthorId === item.author_id}
-                  />
+                  {"card_type" in item && item.card_type === "event" ? (
+                    <FeedEventInlineCard item={item} />
+                  ) : isFeedPostItem(item) ? (
+                    <FeedCard
+                      item={item}
+                      layout={homeStyle ? "home" : "default"}
+                      onToggleFollow={toggleFollow}
+                      followBusy={busyAuthorId === item.author_id}
+                    />
+                  ) : null}
                 </motion.div>
               ))}
             </motion.div>

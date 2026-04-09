@@ -36,7 +36,7 @@ export function HomeTopBar({ onPressCreate, onPressAlerts, onPressSearch }: Prop
               onPress={onPressSearch}
               style={styles.sideHit}
               accessibilityRole="button"
-              accessibilityLabel="Search"
+              accessibilityLabel="Explore"
             >
               <Text style={styles.searchGlyph}>⌕</Text>
             </Pressable>

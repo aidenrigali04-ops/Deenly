@@ -198,8 +198,36 @@ function createFeedRouter({ db, config, mediaStorage }) {
     }));
   }
 
+  function mapSponsoredEventRow(row, viewerId) {
+    return {
+      id: row.event_row_id,
+      host_user_id: row.host_user_id,
+      host_display_name: row.host_display_name,
+      title: row.title,
+      description: row.description,
+      starts_at: row.starts_at,
+      ends_at: row.ends_at,
+      timezone: row.timezone,
+      is_online: row.is_online,
+      online_url: row.online_url,
+      address_display: row.address_display,
+      latitude: row.latitude != null ? Number(row.latitude) : null,
+      longitude: row.longitude != null ? Number(row.longitude) : null,
+      visibility: row.visibility,
+      capacity: row.capacity,
+      status: row.status,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      viewer_rsvp_status: row.viewer_rsvp_status || null,
+      rsvp_interested_count: Number(row.rsvp_interested_count || 0),
+      rsvp_going_count: Number(row.rsvp_going_count || 0),
+      can_join_chat: row.viewer_rsvp_status === "going" || row.host_user_id === viewerId,
+      event_rank_score: 0
+    };
+  }
+
   async function getSponsoredCampaign({ db, viewerId, feedTab }) {
-    const result = await db.query(
+    const postResult = await db.query(
       `SELECT ac.id AS campaign_id,
               ac.creator_user_id,
               ac.post_id,
@@ -258,7 +286,90 @@ function createFeedRouter({ db, config, mediaStorage }) {
        LIMIT 1`,
       [viewerId, feedTab]
     );
-    return result.rows[0] || null;
+    if (postResult.rows[0]) {
+      return { kind: "post", row: postResult.rows[0] };
+    }
+
+    if (feedTab !== "for_you") {
+      return null;
+    }
+
+    const eventResult = await db.query(
+      `SELECT ac.id AS campaign_id,
+              e.id AS event_row_id,
+              e.host_user_id,
+              e.title,
+              e.description,
+              e.starts_at,
+              e.ends_at,
+              e.timezone,
+              e.is_online,
+              e.online_url,
+              e.address_display,
+              e.latitude,
+              e.longitude,
+              e.visibility,
+              e.capacity,
+              e.status,
+              e.created_at,
+              e.updated_at,
+              pr.display_name AS host_display_name,
+              (
+                SELECT r.status
+                FROM event_rsvps r
+                WHERE r.event_id = e.id
+                  AND r.user_id = $1
+                LIMIT 1
+              ) AS viewer_rsvp_status,
+              (
+                SELECT COUNT(*)::int
+                FROM event_rsvps r
+                WHERE r.event_id = e.id
+                  AND r.status = 'interested'
+              ) AS rsvp_interested_count,
+              (
+                SELECT COUNT(*)::int
+                FROM event_rsvps r
+                WHERE r.event_id = e.id
+                  AND r.status = 'going'
+              ) AS rsvp_going_count
+       FROM ad_campaigns ac
+       JOIN events e ON e.id = ac.event_id
+       JOIN profiles pr ON pr.user_id = e.host_user_id
+       JOIN ad_creative_reviews acr ON acr.campaign_id = ac.id
+       WHERE ac.status = 'active'
+         AND acr.status = 'approved'
+         AND ac.spent_minor < ac.budget_minor
+         AND e.status = 'scheduled'
+         AND e.visibility = 'public'
+         AND e.starts_at >= NOW()
+         AND (
+           $1::int IS NULL
+           OR (
+             NOT EXISTS (
+               SELECT 1 FROM user_blocks ub
+               WHERE (ub.user_id = $1 AND ub.blocked_user_id = e.host_user_id)
+                  OR (ub.user_id = e.host_user_id AND ub.blocked_user_id = $1)
+             )
+             AND NOT EXISTS (
+               SELECT 1 FROM user_mutes um
+               WHERE um.user_id = $1 AND um.muted_user_id = e.host_user_id
+             )
+           )
+         )
+       ORDER BY ac.updated_at DESC, ac.id DESC
+       LIMIT 1`,
+      [viewerId]
+    );
+    if (!eventResult.rows[0]) {
+      return null;
+    }
+    const r = eventResult.rows[0];
+    return {
+      kind: "event",
+      campaign_id: r.campaign_id,
+      event: mapSponsoredEventRow(r, viewerId)
+    };
   }
 
   router.get(
@@ -674,45 +785,69 @@ function createFeedRouter({ db, config, mediaStorage }) {
         feedTab !== "reels" && !followingOnly && items.length >= adInsertEvery - 1;
       if (canInsertSponsored) {
         const sponsored = await getSponsoredCampaign({ db, viewerId, feedTab });
-        if (sponsored && !items.some((item) => Number(item.id) === Number(sponsored.post_id))) {
-          const sponsoredItem = {
-            id: sponsored.post_id,
-            author_id: sponsored.author_id,
-            post_type: sponsored.post_type,
-            content: sponsored.content,
-            media_url: mediaStorage?.resolveMediaUrl
-              ? mediaStorage.resolveMediaUrl({
-                  mediaKey: sponsored.media_url,
-                  mediaUrl: sponsored.media_url
-                })
-              : sponsored.media_url,
-            media_mime_type: sponsored.media_mime_type,
-            style_tag: sponsored.style_tag,
-            tags: sponsored.tags || [],
-            created_at: sponsored.created_at,
-            author_display_name: sponsored.author_display_name,
-            author_avatar_url: mediaStorage?.resolveMediaUrl
-              ? mediaStorage.resolveMediaUrl({
-                  mediaKey: sponsored.author_avatar_url,
-                  mediaUrl: sponsored.author_avatar_url
-                })
-              : sponsored.author_avatar_url,
-            benefited_count: 0,
-            comment_count: 0,
-            reflect_later_count: 0,
-            is_following_author: false,
-            liked_by_viewer: false,
-            is_business_post: sponsored.is_business_post,
-            cta_label: sponsored.cta_label,
-            cta_url: sponsored.cta_url,
-            audience_target: sponsored.audience_target,
-            business_category: sponsored.business_category,
-            sponsored: true,
-            sponsored_label: "Sponsored",
-            ad_campaign_id: sponsored.campaign_id
-          };
-          const insertIndex = Math.min(adInsertEvery - 1, items.length);
-          items = [...items.slice(0, insertIndex), sponsoredItem, ...items.slice(insertIndex)];
+        if (sponsored?.kind === "post") {
+          const row = sponsored.row;
+          if (!items.some((item) => Number(item.id) === Number(row.post_id))) {
+            const sponsoredItem = {
+              id: row.post_id,
+              author_id: row.author_id,
+              post_type: row.post_type,
+              content: row.content,
+              media_url: mediaStorage?.resolveMediaUrl
+                ? mediaStorage.resolveMediaUrl({
+                    mediaKey: row.media_url,
+                    mediaUrl: row.media_url
+                  })
+                : row.media_url,
+              media_mime_type: row.media_mime_type,
+              style_tag: row.style_tag,
+              tags: row.tags || [],
+              created_at: row.created_at,
+              author_display_name: row.author_display_name,
+              author_avatar_url: mediaStorage?.resolveMediaUrl
+                ? mediaStorage.resolveMediaUrl({
+                    mediaKey: row.author_avatar_url,
+                    mediaUrl: row.author_avatar_url
+                  })
+                : row.author_avatar_url,
+              benefited_count: 0,
+              comment_count: 0,
+              reflect_later_count: 0,
+              is_following_author: false,
+              liked_by_viewer: false,
+              is_business_post: row.is_business_post,
+              cta_label: row.cta_label,
+              cta_url: row.cta_url,
+              audience_target: row.audience_target,
+              business_category: row.business_category,
+              sponsored: true,
+              sponsored_label: "Sponsored",
+              ad_campaign_id: row.campaign_id
+            };
+            const insertIndex = Math.min(adInsertEvery - 1, items.length);
+            items = [...items.slice(0, insertIndex), sponsoredItem, ...items.slice(insertIndex)];
+          }
+        } else if (sponsored?.kind === "event") {
+          const evId = sponsored.event.id;
+          const already = items.some((item) => {
+            if (item.event && Number(item.event.id) === Number(evId)) {
+              return true;
+            }
+            return typeof item.id === "string" && item.id === `event-${evId}`;
+          });
+          if (!already) {
+            const sponsoredItem = {
+              id: `sponsored-event-${sponsored.campaign_id}`,
+              post_type: "event",
+              card_type: "event",
+              event: sponsored.event,
+              sponsored: true,
+              sponsored_label: "Sponsored",
+              ad_campaign_id: sponsored.campaign_id
+            };
+            const insertIndex = Math.min(adInsertEvery - 1, items.length);
+            items = [...items.slice(0, insertIndex), sponsoredItem, ...items.slice(insertIndex)];
+          }
         }
       }
       const nextCursor = hasMore ? encodeCursor(rows[rows.length - 1]) : null;

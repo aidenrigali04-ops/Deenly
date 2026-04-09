@@ -11,7 +11,7 @@ type TabName = "HomeTab" | "MarketplaceTab" | "MessagesTab" | "CreateTab" | "Acc
 const ROWS: ({ tab: TabName; title: string; subtitle: string } | { stack: "Search"; title: string; subtitle: string })[] = [
   { tab: "HomeTab", title: "Home", subtitle: "Main feed" },
   { tab: "MarketplaceTab", title: "Market", subtitle: "Browse listings" },
-  { stack: "Search", title: "Search", subtitle: "People, posts, and near me" },
+  { stack: "Search", title: "Explore", subtitle: "People, posts, and near me" },
   { tab: "MessagesTab", title: "Messages", subtitle: "Direct messages" },
   { tab: "CreateTab", title: "Create", subtitle: "Post, product, or event" },
   { tab: "AccountTab", title: "Profile", subtitle: "Your grid and products" }
