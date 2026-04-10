@@ -1,5 +1,6 @@
 import {
   Image,
+  Platform,
   Pressable,
   Share,
   StyleSheet,
@@ -17,9 +18,12 @@ import type { FeedItem } from "../types";
 import { formatMinorCurrency } from "../lib/monetization";
 import { hapticTap } from "../lib/haptics";
 
-const INK = "#0A0A0A";
-const CARD_RADIUS = 24;
-const BORDER = StyleSheet.hairlineWidth * 2;
+/* ── Design tokens ── */
+const PRIMARY = "#0F0E0D";
+const MUTED = "#8A8480";
+const HAIRLINE = "#EBEBEB";
+const CARD_BG = "#FFFFFF";
+const CARD_RADIUS = 16;
 
 function listingTitle(item: FeedItem) {
   if (item.attached_product_title?.trim()) {
@@ -99,7 +103,6 @@ export function MarketListingCard({
   const authorAvatarUri = resolveMediaUrl(item.author_avatar_url) || undefined;
   const isFollowing = Boolean(item.is_following_author);
   const isSelf = viewerUserId != null && item.author_id === viewerUserId;
-  const canMessage = Boolean(viewerUserId && !isSelf);
   const showFollow = Boolean(onToggleFollow && !isSelf);
 
   const priceStr = item.attached_product_id
@@ -120,8 +123,9 @@ export function MarketListingCard({
   };
 
   return (
-    <View style={[styles.card, compact && styles.cardCompact]}>
-      <View style={[styles.headerRow, compact && styles.headerRowCompact]}>
+    <View style={styles.card}>
+      {/* ── Header row ── */}
+      <View style={styles.headerRow}>
         <Pressable style={styles.headerLeft} onPress={onOpenSeller}>
           <View style={styles.avatar}>
             {authorAvatarUri ? (
@@ -136,7 +140,7 @@ export function MarketListingCard({
                 {item.author_display_name}
               </Text>
               {item.is_business_post ? (
-                <Ionicons name="checkmark-circle" size={18} color="#22C55E" style={styles.verified} />
+                <Ionicons name="checkmark-circle" size={16} color="#15999E" style={styles.verified} />
               ) : null}
             </View>
             <Text style={styles.dateLine} numberOfLines={1}>
@@ -157,6 +161,7 @@ export function MarketListingCard({
         ) : null}
       </View>
 
+      {/* ── Media area — full-bleed within card ── */}
       {canRenderMedia ? (
         isImageMedia(item) ? (
           <Image
@@ -178,43 +183,53 @@ export function MarketListingCard({
           />
         )
       ) : (
-        <LinearGradient colors={["#6D28D9", "#1E1B4B", "#0A0A0A"]} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={styles.mediaPlaceholder}>
+        <LinearGradient
+          colors={["#6D28D9", "#1E1B4B", "#0A0A0A"]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={styles.mediaPlaceholder}
+        >
           <Text style={styles.placeholderTitle}>{title}</Text>
           <Text style={styles.placeholderSub}>Tap View offer for details</Text>
         </LinearGradient>
       )}
 
-      <View style={[styles.metaBlock, compact && styles.metaBlockCompact]}>
-        <View style={styles.titleOfferRow}>
-          <Text style={styles.listingHeadline} numberOfLines={2}>
-            {subtitle}
+      {/* ── Footer row 1: username + product name | View Offer + price ── */}
+      <View style={styles.footerRow1}>
+        <View style={styles.footerLeft}>
+          <Text style={styles.footerAuthor} numberOfLines={1}>
+            {item.author_display_name}
           </Text>
-          <View style={styles.offerCol}>
-            <Pressable
-              style={styles.viewOfferBtn}
-              onPress={() => {
-                void hapticTap();
-                onViewListing();
-              }}
-            >
-              <Text style={styles.viewOfferBtnText}>View offer</Text>
-            </Pressable>
-            {priceLine ? <Text style={styles.priceUnder}>{priceLine}</Text> : null}
-          </View>
+          <Text style={styles.footerProductName} numberOfLines={1}>
+            {title}
+          </Text>
+        </View>
+        <View style={styles.offerCol}>
+          <Pressable
+            style={styles.viewOfferBtn}
+            onPress={() => {
+              void hapticTap();
+              onViewListing();
+            }}
+          >
+            <Text style={styles.viewOfferBtnText}>View Offer</Text>
+          </Pressable>
+          {priceLine ? <Text style={styles.priceUnder}>{priceLine}</Text> : null}
         </View>
       </View>
 
-      <View style={[styles.engageRow, compact && styles.engageRowCompact]}>
+      {/* ── Footer row 2: engagement bar ── */}
+      <View style={styles.engageRow}>
         <Pressable style={styles.engageItem} onPress={onHeart} disabled={!onLike || liking}>
-          <Ionicons name={liked ? "heart" : "heart-outline"} size={22} color={liked ? "#EF4444" : INK} />
+          <Ionicons name={liked ? "heart" : "heart-outline"} size={20} color={liked ? "#EF4444" : MUTED} />
           <Text style={styles.engageCount}>{benefitedCount}</Text>
         </Pressable>
         <Pressable style={styles.engageItem} onPress={() => onOpenPost?.()} disabled={!onOpenPost}>
-          <Ionicons name="chatbubble-outline" size={20} color={INK} />
+          <Ionicons name="chatbubble-outline" size={18} color={MUTED} />
           <Text style={styles.engageCount}>{item.comment_count || 0}</Text>
         </Pressable>
         <View style={styles.engageItem}>
-          <Ionicons name="star-outline" size={22} color={INK} />
+          <Ionicons name="star-outline" size={20} color={MUTED} />
           <Text style={styles.engageCount}>{MOCK_STAR}</Text>
         </View>
         <View style={styles.engageSpacer} />
@@ -231,64 +246,52 @@ export function MarketListingCard({
             });
           }}
         >
-          <Ionicons name="bookmark-outline" size={24} color={INK} />
+          <Ionicons name="bookmark-outline" size={20} color={MUTED} />
         </Pressable>
       </View>
-
-      {canMessage ? (
-        <Pressable
-          style={styles.messageLink}
-          onPress={() => {
-            void hapticTap();
-            onMessageSeller();
-          }}
-        >
-          <Text style={styles.messageLinkText}>Message seller</Text>
-        </Pressable>
-      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#FFFFFF",
-    borderColor: INK,
-    borderWidth: BORDER,
+    backgroundColor: CARD_BG,
     borderRadius: CARD_RADIUS,
-    overflow: "hidden"
+    overflow: "hidden",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8
+      },
+      android: { elevation: 3 },
+      default: {}
+    })
   },
-  cardCompact: {
-    borderRadius: 20
-  },
+
+  /* ── Header ── */
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 12,
-    gap: 10
-  },
-  headerRowCompact: {
     paddingHorizontal: 12,
     paddingTop: 12,
-    paddingBottom: 10
+    paddingBottom: 10,
+    gap: 10
   },
   headerLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
     flex: 1,
     minWidth: 0
   },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: BORDER,
-    borderColor: INK,
-    backgroundColor: "#F5F5F5",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#F0EFED",
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden"
@@ -298,9 +301,9 @@ const styles = StyleSheet.create({
     height: "100%"
   },
   avatarLetter: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: INK
+    fontSize: 15,
+    fontWeight: "600",
+    color: PRIMARY
   },
   headerText: {
     flex: 1,
@@ -309,12 +312,12 @@ const styles = StyleSheet.create({
   nameRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6
+    gap: 4
   },
   displayName: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: INK,
+    fontSize: 15,
+    fontWeight: "600",
+    color: PRIMARY,
     flexShrink: 1
   },
   verified: {
@@ -322,37 +325,41 @@ const styles = StyleSheet.create({
   },
   dateLine: {
     fontSize: 13,
-    color: "rgba(10,10,10,0.55)",
-    marginTop: 3,
-    fontWeight: "500"
+    color: MUTED,
+    marginTop: 2,
+    fontWeight: "400"
   },
   followPill: {
-    borderWidth: BORDER,
-    borderColor: INK,
+    borderWidth: 1,
+    borderColor: PRIMARY,
     borderRadius: 999,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: "#FFFFFF"
+    paddingHorizontal: 12,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent"
   },
   followPillFollowing: {
-    backgroundColor: "rgba(10,10,10,0.06)"
+    backgroundColor: "rgba(15,14,13,0.05)"
   },
   followPillText: {
     fontSize: 13,
-    fontWeight: "700",
-    color: INK
+    fontWeight: "600",
+    color: PRIMARY
   },
   followPillTextFollowing: {
-    fontWeight: "600"
+    fontWeight: "500"
   },
+
+  /* ── Media ── */
   media: {
     width: "100%",
-    aspectRatio: 4 / 5,
-    backgroundColor: "#F0F0F0"
+    aspectRatio: 1,
+    backgroundColor: "#F0EFED"
   },
   mediaPlaceholder: {
     width: "100%",
-    aspectRatio: 4 / 5,
+    aspectRatio: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
@@ -369,85 +376,79 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.75)",
     textAlign: "center"
   },
-  metaBlock: {
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 6
-  },
-  metaBlockCompact: {
-    paddingHorizontal: 12,
-    paddingTop: 12
-  },
-  titleOfferRow: {
+
+  /* ── Footer row 1 ── */
+  footerRow1: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 8,
     gap: 12
   },
-  listingHeadline: {
+  footerLeft: {
     flex: 1,
-    fontSize: 15,
-    fontWeight: "700",
-    color: INK,
-    lineHeight: 21
+    minWidth: 0,
+    gap: 2
+  },
+  footerAuthor: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: PRIMARY
+  },
+  footerProductName: {
+    fontSize: 13,
+    fontWeight: "400",
+    color: PRIMARY
   },
   offerCol: {
     alignItems: "flex-end",
-    gap: 6
+    gap: 4
   },
   viewOfferBtn: {
-    backgroundColor: INK,
+    backgroundColor: PRIMARY,
     borderRadius: 999,
-    paddingHorizontal: 18,
-    paddingVertical: 10
+    paddingHorizontal: 16,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center"
   },
   viewOfferBtnText: {
     color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "700"
+    fontSize: 14,
+    fontWeight: "600"
   },
   priceUnder: {
     fontSize: 13,
-    fontWeight: "700",
-    color: INK
+    fontWeight: "400",
+    color: MUTED
   },
+
+  /* ── Footer row 2: engagement ── */
   engageRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(10,10,10,0.12)"
-  },
-  engageRowCompact: {
-    paddingVertical: 8
+    paddingTop: 4,
+    paddingBottom: 12
   },
   engageItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
+    gap: 4,
     marginRight: 16
   },
   engageCount: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: INK
+    fontSize: 13,
+    fontWeight: "400",
+    color: MUTED
   },
   engageSpacer: {
     flex: 1
   },
   bookmarkHit: {
-    padding: 8,
+    padding: 6,
     marginRight: -4
-  },
-  messageLink: {
-    paddingHorizontal: 14,
-    paddingBottom: 14
-  },
-  messageLinkText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#156B75",
-    textDecorationLine: "underline"
   }
 });

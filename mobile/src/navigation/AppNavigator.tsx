@@ -144,7 +144,7 @@ function CreateTabFlow() {
 function AppTabs() {
   const insets = useSafeAreaInsets();
   const tabPadBottom = Math.max(insets.bottom, 14);
-  const horizontalInset = 18;
+  const horizontalInset = 16;
 
   return (
     <View style={{ flex: 1 }}>
@@ -160,20 +160,19 @@ function AppTabs() {
             bottom: tabPadBottom,
             backgroundColor: "#FFFFFF",
             borderTopWidth: 0,
-            borderWidth: StyleSheet.hairlineWidth * 2,
-            borderColor: "#0A0A0A",
-            borderRadius: 32,
+            borderWidth: 0,
+            borderRadius: 24,
             paddingTop: 8,
             paddingBottom: 10,
-            minHeight: 62,
-            elevation: 16,
+            minHeight: 64,
+            elevation: 8,
             shadowColor: "#000",
-            shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.12,
-            shadowRadius: 24
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.08,
+            shadowRadius: 16
           },
-        tabBarActiveTintColor: colors.accent,
-        tabBarInactiveTintColor: colors.muted,
+        tabBarActiveTintColor: "#0F0E0D",
+        tabBarInactiveTintColor: "#8A8480",
         tabBarActiveBackgroundColor: "transparent",
         tabBarShowLabel: true,
         tabBarLabel: ({ focused, color, children }) => (
@@ -205,7 +204,7 @@ function AppTabs() {
             style={{
               ...StyleSheet.absoluteFillObject,
               backgroundColor: "#FFFFFF",
-              borderRadius: 30,
+              borderRadius: 24,
               overflow: "hidden"
             }}
           />
@@ -236,7 +235,7 @@ function AppTabs() {
         name="MessagesTab"
         component={MessagesScreen}
         options={{
-          title: "Messages",
+          title: "Discover",
           tabBarIcon: ({ color, size, focused }) => (
             <NavTabIcon kind="send" color={color} size={size ?? 24} focused={focused} />
           )

@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { MarketplaceTopBar } from "../../components/MarketplaceTopBar";
-import { MarketplaceFeedPanel } from "../../components/MarketplaceFeedPanel";
+
 import { BottomTabScreenProps, useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CompositeScreenProps } from "@react-navigation/native";
@@ -287,15 +287,9 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
         ) : null}
 
         {feedVariant === "marketplace" ? (
-          <MarketplaceFeedPanel
-            onPressSearch={openSearch}
-            followingOnly={followingOnly}
-            onSetFollowingOnly={setFollowingOnly}
-            onPressNearMe={() => navigation.navigate("BusinessesNearMe")}
-            onPressEvents={openSearch}
-            showCreatorHub={canCreateProducts}
-            onPressCreatorHub={() => navigation.navigate("CreatorEconomy")}
-          />
+          <View style={[styles.storiesWrap, compact && styles.storiesWrapCompact]}>
+            <HomeStoriesRow />
+          </View>
         ) : null}
 
         {feedVariant === "home" ? (
@@ -351,7 +345,6 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
     followingOnly,
     items.length,
     navigation,
-    openSearch,
     visibleReminder,
     compact,
     canCreateProducts
@@ -517,13 +510,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.atmosphere
   },
   rootMarketplace: {
-    backgroundColor: "#FFFFFF"
+    backgroundColor: "#F9F8F6"
   },
   list: {
     flex: 1
   },
   listMarketplace: {
-    backgroundColor: "#FFFFFF"
+    backgroundColor: "#F9F8F6"
   },
   listContent: {
     paddingHorizontal: spacing.pagePaddingH,
@@ -536,8 +529,8 @@ const styles = StyleSheet.create({
     gap: 12
   },
   listContentMarketplace: {
-    paddingTop: 12,
-    gap: 18
+    paddingTop: 8,
+    gap: 12
   },
   headerBlock: {
     gap: 8,
