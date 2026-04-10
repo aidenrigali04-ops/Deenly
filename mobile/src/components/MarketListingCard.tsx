@@ -9,13 +9,17 @@ import {
 } from "react-native";
 import { useEffect, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { AppVideoView } from "./AppVideoView";
 import { formatFeedTimestamp, isImageMedia } from "./PostCard";
-import { colors, radii, shadows, spacing, type } from "../theme";
 import { resolveMediaUrl } from "../lib/media-url";
 import type { FeedItem } from "../types";
 import { formatMinorCurrency } from "../lib/monetization";
 import { hapticTap } from "../lib/haptics";
+
+const INK = "#0A0A0A";
+const CARD_RADIUS = 24;
+const BORDER = StyleSheet.hairlineWidth * 2;
 
 function listingTitle(item: FeedItem) {
   if (item.attached_product_title?.trim()) {
@@ -28,12 +32,23 @@ function listingTitle(item: FeedItem) {
   return "Listing";
 }
 
-function productTypeLabel(t: FeedItem["attached_product_type"]) {
-  if (t === "digital") return "Digital";
-  if (t === "service") return "Service";
-  if (t === "subscription") return "Membership";
-  return null;
+function listingSubtitle(item: FeedItem) {
+  const title = item.attached_product_title?.trim();
+  if (title && item.content?.trim()) {
+    const rest = item.content.trim();
+    if (rest.startsWith(title)) return rest.slice(title.length).trim() || item.author_display_name;
+  }
+  return item.author_display_name;
 }
+
+function formatListingDate(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+/** Design placeholder — no listing rating in API yet */
+const MOCK_STAR = "4.7";
 
 export function MarketListingCard({
   item,
@@ -41,7 +56,12 @@ export function MarketListingCard({
   onOpenSeller,
   onViewListing,
   onMessageSeller,
+  onOpenPost,
   onSave,
+  onToggleFollow,
+  followBusy = false,
+  onLike,
+  liking = false,
   mediaPlaybackActive = true
 }: {
   item: FeedItem;
@@ -49,15 +69,24 @@ export function MarketListingCard({
   onOpenSeller: () => void;
   onViewListing: () => void;
   onMessageSeller: () => void;
+  onOpenPost?: () => void;
   onSave?: () => void;
+  onToggleFollow?: (authorId: number, currentlyFollowing: boolean) => void;
+  followBusy?: boolean;
+  onLike?: () => void;
+  liking?: boolean;
   mediaPlaybackActive?: boolean;
 }) {
   const { height: viewportHeight } = useWindowDimensions();
   const compact = viewportHeight <= 700;
   const [mediaFailed, setMediaFailed] = useState(false);
+
   useEffect(() => {
     setMediaFailed(false);
   }, [item.id, item.media_url]);
+
+  const liked = Boolean(item.liked_by_viewer);
+  const benefitedCount = Number(item.benefited_count || 0);
 
   const mediaUri = resolveMediaUrl(item.media_url) || undefined;
   const canRenderMedia = Boolean(mediaUri) && !mediaFailed;
@@ -68,62 +97,65 @@ export function MarketListingCard({
     .map((part) => part[0]?.toUpperCase())
     .join("");
   const authorAvatarUri = resolveMediaUrl(item.author_avatar_url) || undefined;
+  const isFollowing = Boolean(item.is_following_author);
+  const isSelf = viewerUserId != null && item.author_id === viewerUserId;
+  const canMessage = Boolean(viewerUserId && !isSelf);
+  const showFollow = Boolean(onToggleFollow && !isSelf);
 
-  const sellerMeta = [
-    item.is_business_post ? "Business" : "Creator",
-    formatFeedTimestamp(item.created_at)
-  ]
-    .filter(Boolean)
-    .join(" · ");
-
-  const categoryLabel = item.business_category
-    ? item.business_category.replace(/_/g, " ")
+  const priceStr = item.attached_product_id
+    ? formatMinorCurrency(
+        Number(item.attached_product_price_minor || 0),
+        item.attached_product_currency || "usd"
+      )
     : null;
-  const typeLabel = productTypeLabel(item.attached_product_type);
-  const canMessage = Boolean(viewerUserId && item.author_id !== viewerUserId);
+  const priceLine =
+    item.attached_product_type === "subscription" && priceStr ? `${priceStr}/mo` : priceStr;
 
-  const audienceLabel =
-    item.audience_target === "b2b"
-      ? "B2B"
-      : item.audience_target === "b2c"
-        ? "B2C"
-        : item.audience_target === "both"
-          ? "B2B/B2C"
-          : null;
-  const metaParts = [categoryLabel, typeLabel, audienceLabel].filter(Boolean).join(" · ");
+  const title = listingTitle(item);
+  const subtitle = listingSubtitle(item);
+
+  const onHeart = () => {
+    if (!onLike) return;
+    onLike();
+  };
 
   return (
     <View style={[styles.card, compact && styles.cardCompact]}>
-      <Pressable style={[styles.sellerRow, compact && styles.sellerRowCompact]} onPress={onOpenSeller}>
-        <View style={styles.sellerAvatar}>
-          {authorAvatarUri ? (
-            <Image source={{ uri: authorAvatarUri }} style={styles.sellerAvatarImg} resizeMode="cover" />
-          ) : (
-            <Text style={styles.sellerAvatarText}>{initials || "U"}</Text>
-          )}
-        </View>
-        <View style={styles.sellerText}>
-          <Text style={styles.sellerName} numberOfLines={1}>
-            {item.author_display_name}
-          </Text>
-          <Text style={styles.sellerMeta} numberOfLines={1}>
-            {sellerMeta}
-          </Text>
-        </View>
-      </Pressable>
-
-      {item.is_business_post ? (
-        <View style={[styles.trustRow, compact && styles.trustRowCompact]}>
-          <View style={styles.trustChip}>
-            <Ionicons name="checkmark-circle" size={14} color={colors.success} />
-            <Text style={styles.trustChipText}>Verified business</Text>
+      <View style={[styles.headerRow, compact && styles.headerRowCompact]}>
+        <Pressable style={styles.headerLeft} onPress={onOpenSeller}>
+          <View style={styles.avatar}>
+            {authorAvatarUri ? (
+              <Image source={{ uri: authorAvatarUri }} style={styles.avatarImg} resizeMode="cover" />
+            ) : (
+              <Text style={styles.avatarLetter}>{initials || "U"}</Text>
+            )}
           </View>
-          <View style={[styles.trustChip, styles.trustChipNeutral]}>
-            <Ionicons name="location-outline" size={14} color={colors.muted} />
-            <Text style={styles.trustChipTextMuted}>Local</Text>
+          <View style={styles.headerText}>
+            <View style={styles.nameRow}>
+              <Text style={styles.displayName} numberOfLines={1}>
+                {item.author_display_name}
+              </Text>
+              {item.is_business_post ? (
+                <Ionicons name="checkmark-circle" size={18} color="#22C55E" style={styles.verified} />
+              ) : null}
+            </View>
+            <Text style={styles.dateLine} numberOfLines={1}>
+              {formatListingDate(item.created_at) || formatFeedTimestamp(item.created_at)}
+            </Text>
           </View>
-        </View>
-      ) : null}
+        </Pressable>
+        {showFollow ? (
+          <Pressable
+            style={[styles.followPill, isFollowing && styles.followPillFollowing]}
+            onPress={() => onToggleFollow?.(item.author_id, isFollowing)}
+            disabled={followBusy}
+          >
+            <Text style={[styles.followPillText, isFollowing && styles.followPillTextFollowing]}>
+              {followBusy ? "…" : isFollowing ? "Following" : "Follow"}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
 
       {canRenderMedia ? (
         isImageMedia(item) ? (
@@ -146,67 +178,48 @@ export function MarketListingCard({
           />
         )
       ) : (
-        <View style={styles.mediaPlaceholder}>
-          <Text style={styles.placeholderText}>
-            {item.media_url ? "Media unavailable." : "No image yet."}
-          </Text>
-        </View>
+        <LinearGradient colors={["#6D28D9", "#1E1B4B", "#0A0A0A"]} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={styles.mediaPlaceholder}>
+          <Text style={styles.placeholderTitle}>{title}</Text>
+          <Text style={styles.placeholderSub}>Tap View offer for details</Text>
+        </LinearGradient>
       )}
 
-      <View style={[styles.body, compact && styles.bodyCompact]}>
-        <View style={styles.titleRow}>
-          <Text style={styles.listingTitle} numberOfLines={2}>
-            {listingTitle(item)}
+      <View style={[styles.metaBlock, compact && styles.metaBlockCompact]}>
+        <View style={styles.titleOfferRow}>
+          <Text style={styles.listingHeadline} numberOfLines={2}>
+            {subtitle}
           </Text>
-          {item.attached_product_id ? (
-            <Text style={styles.price}>
-              {formatMinorCurrency(
-                Number(item.attached_product_price_minor || 0),
-                item.attached_product_currency || "usd"
-              )}
-            </Text>
-          ) : null}
+          <View style={styles.offerCol}>
+            <Pressable
+              style={styles.viewOfferBtn}
+              onPress={() => {
+                void hapticTap();
+                onViewListing();
+              }}
+            >
+              <Text style={styles.viewOfferBtnText}>View offer</Text>
+            </Pressable>
+            {priceLine ? <Text style={styles.priceUnder}>{priceLine}</Text> : null}
+          </View>
         </View>
-
-        {metaParts ? (
-          <Text style={styles.metadataLine} numberOfLines={2}>
-            {metaParts}
-          </Text>
-        ) : null}
-
-        {item.content && item.attached_product_title ? (
-          <Text style={styles.description} numberOfLines={2}>
-            {item.content}
-          </Text>
-        ) : null}
       </View>
 
-      <View style={[styles.ctaRow, compact && styles.ctaRowCompact]}>
-        <Pressable
-          style={styles.ctaBtn}
-          onPress={() => {
-            void hapticTap();
-            onViewListing();
-          }}
-        >
-          <Ionicons name="eye-outline" size={20} color={colors.muted} />
-          <Text style={styles.ctaLabel}>View</Text>
+      <View style={[styles.engageRow, compact && styles.engageRowCompact]}>
+        <Pressable style={styles.engageItem} onPress={onHeart} disabled={!onLike || liking}>
+          <Ionicons name={liked ? "heart" : "heart-outline"} size={22} color={liked ? "#EF4444" : INK} />
+          <Text style={styles.engageCount}>{benefitedCount}</Text>
         </Pressable>
-        <Pressable
-          style={[styles.ctaBtn, !canMessage && styles.ctaBtnDisabled]}
-          onPress={() => {
-            void hapticTap();
-            onMessageSeller();
-          }}
-          disabled={!canMessage}
-        >
-          <Ionicons name="chatbubble-outline" size={19} color={canMessage ? colors.accent : colors.mutedLight} />
-          <Text style={[styles.ctaLabel, canMessage && styles.ctaLabelAccent, !canMessage && styles.ctaLabelDisabled]}>
-            Message
-          </Text>
+        <Pressable style={styles.engageItem} onPress={() => onOpenPost?.()} disabled={!onOpenPost}>
+          <Ionicons name="chatbubble-outline" size={20} color={INK} />
+          <Text style={styles.engageCount}>{item.comment_count || 0}</Text>
         </Pressable>
+        <View style={styles.engageItem}>
+          <Ionicons name="star-outline" size={22} color={INK} />
+          <Text style={styles.engageCount}>{MOCK_STAR}</Text>
+        </View>
+        <View style={styles.engageSpacer} />
         <Pressable
-          style={styles.ctaBtn}
+          style={styles.bookmarkHit}
           onPress={() => {
             void hapticTap();
             if (onSave) {
@@ -214,196 +227,227 @@ export function MarketListingCard({
               return;
             }
             void Share.share({
-              message: `${listingTitle(item)} on Deenly\n${item.author_display_name}`
+              message: `${title} on Deenly\n${item.author_display_name}`
             });
           }}
         >
-          <Ionicons name="bookmark-outline" size={20} color={colors.muted} />
-          <Text style={styles.ctaLabel}>Save</Text>
+          <Ionicons name="bookmark-outline" size={24} color={INK} />
         </Pressable>
       </View>
+
+      {canMessage ? (
+        <Pressable
+          style={styles.messageLink}
+          onPress={() => {
+            void hapticTap();
+            onMessageSeller();
+          }}
+        >
+          <Text style={styles.messageLinkText}>Message seller</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.card,
-    borderColor: colors.border,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radii.card,
-    overflow: "hidden",
-    ...shadows.card
+    backgroundColor: "#FFFFFF",
+    borderColor: INK,
+    borderWidth: BORDER,
+    borderRadius: CARD_RADIUS,
+    overflow: "hidden"
   },
   cardCompact: {
-    borderRadius: radii.card
+    borderRadius: 20
   },
-  sellerRow: {
+  headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    paddingHorizontal: spacing.cardPadding,
-    paddingVertical: 12
-  },
-  sellerRowCompact: {
+    justifyContent: "space-between",
     paddingHorizontal: 14,
-    paddingVertical: 10
+    paddingTop: 14,
+    paddingBottom: 12,
+    gap: 10
   },
-  sellerAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 999,
-    borderColor: colors.border,
-    borderWidth: StyleSheet.hairlineWidth,
-    backgroundColor: colors.surface,
+  headerRowCompact: {
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 10
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+    minWidth: 0
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: BORDER,
+    borderColor: INK,
+    backgroundColor: "#F5F5F5",
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden"
   },
-  sellerAvatarImg: {
+  avatarImg: {
     width: "100%",
     height: "100%"
   },
-  sellerAvatarText: {
-    color: colors.text,
-    fontSize: 12,
-    fontWeight: "600"
+  avatarLetter: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: INK
   },
-  sellerText: {
+  headerText: {
     flex: 1,
     minWidth: 0
   },
-  sellerName: {
-    color: colors.text,
-    fontSize: 15,
-    fontWeight: "600"
-  },
-  sellerMeta: {
-    ...type.meta,
-    color: colors.mutedLight,
-    marginTop: 2
-  },
-  trustRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    paddingHorizontal: spacing.cardPadding,
-    paddingBottom: 10
-  },
-  trustRowCompact: {
-    paddingHorizontal: 14,
-    paddingBottom: 8
-  },
-  trustChip: {
+  nameRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: radii.pill,
-    backgroundColor: colors.accentMuted
+    gap: 6
   },
-  trustChipNeutral: {
-    backgroundColor: colors.subtleFill
+  displayName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: INK,
+    flexShrink: 1
   },
-  trustChipText: {
-    ...type.metaSm,
-    color: colors.accent,
+  verified: {
+    marginTop: 1
+  },
+  dateLine: {
+    fontSize: 13,
+    color: "rgba(10,10,10,0.55)",
+    marginTop: 3,
+    fontWeight: "500"
+  },
+  followPill: {
+    borderWidth: BORDER,
+    borderColor: INK,
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: "#FFFFFF"
+  },
+  followPillFollowing: {
+    backgroundColor: "rgba(10,10,10,0.06)"
+  },
+  followPillText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: INK
+  },
+  followPillTextFollowing: {
     fontWeight: "600"
-  },
-  trustChipTextMuted: {
-    ...type.metaSm,
-    color: colors.muted
   },
   media: {
     width: "100%",
-    aspectRatio: 4 / 3,
-    backgroundColor: colors.background
+    aspectRatio: 4 / 5,
+    backgroundColor: "#F0F0F0"
   },
   mediaPlaceholder: {
     width: "100%",
-    aspectRatio: 4 / 3,
+    aspectRatio: 4 / 5,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.background
+    padding: 24,
+    gap: 8
   },
-  placeholderText: {
-    ...type.meta,
-    color: colors.mutedLight
+  placeholderTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    textAlign: "center"
   },
-  body: {
-    paddingHorizontal: spacing.cardPadding,
-    paddingTop: 12,
-    paddingBottom: 4,
-    gap: 6
+  placeholderSub: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.75)",
+    textAlign: "center"
   },
-  bodyCompact: {
+  metaBlock: {
     paddingHorizontal: 14,
-    paddingTop: 10
+    paddingTop: 14,
+    paddingBottom: 6
   },
-  titleRow: {
+  metaBlockCompact: {
+    paddingHorizontal: 12,
+    paddingTop: 12
+  },
+  titleOfferRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
     gap: 12
   },
-  listingTitle: {
+  listingHeadline: {
     flex: 1,
-    minWidth: 0,
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: "600",
-    lineHeight: 22
-  },
-  price: {
-    color: colors.text,
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: "700",
-    letterSpacing: -0.2
+    color: INK,
+    lineHeight: 21
   },
-  metadataLine: {
-    ...type.meta,
-    color: colors.muted
+  offerCol: {
+    alignItems: "flex-end",
+    gap: 6
   },
-  description: {
-    ...type.meta,
-    color: colors.muted,
-    lineHeight: 18
+  viewOfferBtn: {
+    backgroundColor: INK,
+    borderRadius: 999,
+    paddingHorizontal: 18,
+    paddingVertical: 10
   },
-  ctaRow: {
+  viewOfferBtnText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700"
+  },
+  priceUnder: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: INK
+  },
+  engageRow: {
     flexDirection: "row",
-    alignItems: "stretch",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.cardPadding - 4,
-    paddingTop: 8,
-    paddingBottom: spacing.cardPadding
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(10,10,10,0.12)"
   },
-  ctaRowCompact: {
-    paddingHorizontal: 10,
+  engageRowCompact: {
+    paddingVertical: 8
+  },
+  engageItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginRight: 16
+  },
+  engageCount: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: INK
+  },
+  engageSpacer: {
+    flex: 1
+  },
+  bookmarkHit: {
+    padding: 8,
+    marginRight: -4
+  },
+  messageLink: {
+    paddingHorizontal: 14,
     paddingBottom: 14
   },
-  ctaBtn: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-    paddingVertical: 10,
-    minHeight: 44
-  },
-  ctaBtnDisabled: {
-    opacity: 0.45
-  },
-  ctaLabel: {
-    ...type.button,
-    fontSize: 14,
-    fontWeight: "500",
-    color: colors.muted
-  },
-  ctaLabelAccent: {
-    color: colors.accent,
-    fontWeight: "600"
-  },
-  ctaLabelDisabled: {
-    color: colors.mutedLight
+  messageLinkText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#156B75",
+    textDecorationLine: "underline"
   }
 });

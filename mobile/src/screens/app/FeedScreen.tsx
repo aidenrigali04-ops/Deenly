@@ -7,7 +7,6 @@ import {
   ListRenderItem,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -15,6 +14,8 @@ import {
   type ViewToken
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import { MarketplaceTopBar } from "../../components/MarketplaceTopBar";
+import { MarketplaceFeedPanel } from "../../components/MarketplaceFeedPanel";
 import { BottomTabScreenProps, useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CompositeScreenProps } from "@react-navigation/native";
@@ -28,7 +29,7 @@ import { MarketListingCard } from "../../components/MarketListingCard";
 import { isImageMedia, PostCard } from "../../components/PostCard";
 import { HomeTopBar } from "../../components/HomeTopBar";
 import { HomeStoriesRow } from "../../components/HomeStoriesRow";
-import { colors, primaryButtonOutline, radii, spacing, type } from "../../theme";
+import { colors, primaryButtonOutline, radii, spacing } from "../../theme";
 import type { FeedItem, FeedListItem } from "../../types";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 import { createGuestProductCheckout, createProductCheckout } from "../../lib/monetization";
@@ -266,10 +267,15 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
     parent?.navigate("Search");
   }, [navigation]);
 
+  const openReels = useCallback(() => {
+    const parent = navigation.getParent<NativeStackNavigationProp<RootStackParamList>>();
+    parent?.navigate("Reels");
+  }, [navigation]);
+
   const listHeader = useMemo(() => {
     return (
       <View style={[styles.headerBlock, compact && styles.headerBlockCompact]}>
-        {visibleReminder ? (
+        {feedVariant === "home" && visibleReminder ? (
           <View style={[styles.reminderBanner, compact && styles.reminderBannerCompact]}>
             <View style={styles.reminderRow}>
               <Text style={styles.reminderText}>Time for Salah</Text>
@@ -281,51 +287,15 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
         ) : null}
 
         {feedVariant === "marketplace" ? (
-          <View style={styles.marketHeader}>
-            <Text style={styles.marketPageTitle}>Market</Text>
-            <Text style={styles.marketOneLiner}>Browse creator offers and local businesses.</Text>
-            <Pressable style={styles.marketSearchBar} onPress={openSearch} accessibilityRole="search">
-              <Text style={styles.marketSearchPlaceholder}>Search products, people, and places</Text>
-            </Pressable>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.marketChipRow}
-            >
-              <Pressable
-                style={[styles.marketChip, !followingOnly && styles.marketChipOn]}
-                onPress={() => setFollowingOnly(false)}
-              >
-                <Text style={[styles.marketChipText, !followingOnly && styles.marketChipTextOn]}>All</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.marketChip, followingOnly && styles.marketChipOn]}
-                onPress={() => setFollowingOnly(true)}
-              >
-                <Text style={[styles.marketChipText, followingOnly && styles.marketChipTextOn]}>Following</Text>
-              </Pressable>
-              <Pressable style={styles.marketChip} onPress={() => navigation.navigate("BusinessesNearMe")}>
-                <Text style={styles.marketChipText}>Near me</Text>
-              </Pressable>
-              <Pressable style={styles.marketChip} onPress={openSearch}>
-                <Text style={styles.marketChipText}>Services</Text>
-              </Pressable>
-              <Pressable style={styles.marketChip} onPress={() => setFeedTab("marketplace")}>
-                <Text style={styles.marketChipText}>Products</Text>
-              </Pressable>
-              <Pressable style={styles.marketChip} onPress={() => navigation.navigate("Search")}>
-                <Text style={styles.marketChipText}>Events</Text>
-              </Pressable>
-              <Pressable style={styles.marketChip} onPress={openSearch}>
-                <Text style={styles.marketChipText}>Food</Text>
-              </Pressable>
-            </ScrollView>
-            {canCreateProducts ? (
-              <Pressable style={styles.marketSellerCue} onPress={() => navigation.navigate("CreatorEconomy")}>
-                <Text style={styles.marketSellerCueText}>Creator hub · sell on Deenly</Text>
-              </Pressable>
-            ) : null}
-          </View>
+          <MarketplaceFeedPanel
+            onPressSearch={openSearch}
+            followingOnly={followingOnly}
+            onSetFollowingOnly={setFollowingOnly}
+            onPressNearMe={() => navigation.navigate("BusinessesNearMe")}
+            onPressEvents={openSearch}
+            showCreatorHub={canCreateProducts}
+            onPressCreatorHub={() => navigation.navigate("CreatorEconomy")}
+          />
         ) : null}
 
         {feedVariant === "home" ? (
@@ -379,7 +349,6 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
     feedQuery,
     feedVariant,
     followingOnly,
-    setFeedTab,
     items.length,
     navigation,
     openSearch,
@@ -423,6 +392,17 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
               onMessageSeller={() =>
                 navigation.navigate("MessagesTab", { openUserId: post.author_id })
               }
+              onOpenPost={() => navigation.navigate("PostDetail", { id: post.id })}
+              onToggleFollow={(authorId, currentlyFollowing) =>
+                followMutation.mutate({ authorId, currentlyFollowing })
+              }
+              followBusy={
+                followMutation.isPending && followMutation.variables?.authorId === post.author_id
+              }
+              onLike={() =>
+                likeMutation.mutate({ postId: post.id, nextLiked: !post.liked_by_viewer })
+              }
+              liking={likeMutation.isPending && likeMutation.variables?.postId === post.id}
             />
           </View>
         );
@@ -487,9 +467,13 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
     );
   }, [feedQuery]);
 
+  /** Tab bar is a floating pill — extra scroll inset so last cards clear it */
+  const listBottomPad =
+    tabBarHeight + Math.max(insets.bottom, 8) + (compact ? 16 : 20) + 32;
+
   return (
-    <View style={styles.root}>
-      {feedVariant === "home" ? <StatusBar style="dark" /> : null}
+    <View style={[styles.root, feedVariant === "marketplace" && styles.rootMarketplace]}>
+      {feedVariant === "home" || feedVariant === "marketplace" ? <StatusBar style="dark" /> : null}
       {feedVariant === "home" ? (
         <HomeTopBar
           onPressCreate={() => navigation.navigate("CreateTab", { screen: "CreateHub" })}
@@ -497,16 +481,20 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
           onPressSearch={openSearch}
         />
       ) : null}
+      {feedVariant === "marketplace" ? (
+        <MarketplaceTopBar
+          onPressReels={openReels}
+          onPressSearch={openSearch}
+          onPressNotifications={openNotifications}
+        />
+      ) : null}
       <FlatList
-        style={styles.list}
+        style={[styles.list, feedVariant === "marketplace" && styles.listMarketplace]}
         contentContainerStyle={[
           styles.listContent,
           compact && styles.listContentCompact,
-          feedVariant === "marketplace" ? { paddingTop: insets.top + 10 } : null,
-          {
-            paddingBottom:
-              tabBarHeight + Math.max(insets.bottom, 8) + (compact ? 16 : 20)
-          }
+          feedVariant === "marketplace" && styles.listContentMarketplace,
+          { paddingBottom: listBottomPad }
         ]}
         data={items}
         keyExtractor={(item) => String(item.id)}
@@ -528,8 +516,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.atmosphere
   },
+  rootMarketplace: {
+    backgroundColor: "#FFFFFF"
+  },
   list: {
     flex: 1
+  },
+  listMarketplace: {
+    backgroundColor: "#FFFFFF"
   },
   listContent: {
     paddingHorizontal: spacing.pagePaddingH,
@@ -540,6 +534,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingBottom: 18,
     gap: 12
+  },
+  listContentMarketplace: {
+    paddingTop: 12,
+    gap: 18
   },
   headerBlock: {
     gap: 8,
@@ -590,86 +588,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600"
   },
-  marketHeader: {
-    paddingHorizontal: spacing.pagePaddingH,
-    paddingBottom: spacing.sectionGap,
-    gap: 12
-  },
-  marketPageTitle: {
-    ...type.navLargeTitle,
-    color: colors.text
-  },
-  marketOneLiner: {
-    fontSize: 15,
-    color: colors.muted,
-    lineHeight: 21,
-    letterSpacing: -0.2
-  },
-  marketSearchBar: {
-    minHeight: 48,
-    borderRadius: radii.control + 2,
-    borderWidth: 0,
-    backgroundColor: colors.surfaceField,
-    paddingHorizontal: 14,
-    justifyContent: "center"
-  },
-  marketSearchPlaceholder: {
-    fontSize: 15,
-    color: colors.mutedLight
-  },
-  marketChipRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 4
-  },
-  marketChip: {
-    height: 36,
-    paddingHorizontal: 14,
-    borderRadius: radii.pill,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  marketChipOn: {
-    backgroundColor: colors.accentTint,
-    borderWidth: 0
-  },
-  marketChipText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: colors.text
-  },
-  marketChipTextOn: {
-    color: colors.accentTextOnTint
-  },
-  marketSellerCue: {
-    alignSelf: "flex-start",
-    paddingVertical: 4
-  },
-  marketSellerCueText: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: colors.muted
-  },
   marketEmptyPanel: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.card,
-    borderWidth: 0,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 22,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: "#0A0A0A",
     padding: spacing.cardPaddingLg,
     gap: 12,
-    marginHorizontal: 4,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
-        shadowRadius: 2
-      },
-      android: { elevation: 1 }
-    })
+    marginHorizontal: 2
   },
   marketEmptyPanelCompact: {
     padding: 14,

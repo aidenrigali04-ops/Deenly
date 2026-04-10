@@ -17,7 +17,8 @@
     "test:watch": "jest --watch",
     "test:e2e:smoke": "node ./scripts/e2e-smoke.js",
     "doctor": "expo-doctor",
-    "verify:release-gates": "node ./scripts/verify-release-gates.js"
+    "verify:release-gates": "node ./scripts/verify-release-gates.js",
+    "postinstall": "node ./scripts/ensure-expo-log-box-symlink.js"
   },
   "dependencies": {
     "@expo/vector-icons": "~15.1.1",
@@ -67,7 +68,7 @@
     "eslint-config-expo": "^55.0.0",
     "expo-doctor": "^1.18.15-canary-20260327-0789fbc",
     "jest": "^29.7.0",
-    "jest-expo": "~55.0.15",
+    "jest-expo": "^47.0.1",
     "react-test-renderer": "^19.2.0",
     "typescript": "~5.9.2"
   },

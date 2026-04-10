@@ -3,7 +3,6 @@ import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Linking from "expo-linking";
 import { AtmosphereBackdrop } from "../components/AtmosphereBackdrop";
-import { TabBarGlassBackground } from "../components/TabBarGlassBackground";
 import {
   NavigationContainer,
   DefaultTheme,
@@ -144,8 +143,8 @@ function CreateTabFlow() {
 
 function AppTabs() {
   const insets = useSafeAreaInsets();
-  const tabPadBottom = Math.max(insets.bottom, 12);
-  const tabBarMinHeight = 56 + tabPadBottom;
+  const tabPadBottom = Math.max(insets.bottom, 14);
+  const horizontalInset = 18;
 
   return (
     <View style={{ flex: 1 }}>
@@ -155,13 +154,23 @@ function AppTabs() {
         screenOptions={{
           headerShown: false,
           tabBarStyle: {
-            backgroundColor: colors.surface,
-            borderTopWidth: StyleSheet.hairlineWidth,
-            borderTopColor: colors.borderSubtle,
+            position: "absolute",
+            left: horizontalInset,
+            right: horizontalInset,
+            bottom: tabPadBottom,
+            backgroundColor: "#FFFFFF",
+            borderTopWidth: 0,
+            borderWidth: StyleSheet.hairlineWidth * 2,
+            borderColor: "#0A0A0A",
+            borderRadius: 32,
             paddingTop: 8,
-            paddingBottom: tabPadBottom,
-            minHeight: Math.max(tabBarMinHeight, 72),
-            elevation: 0
+            paddingBottom: 10,
+            minHeight: 62,
+            elevation: 16,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.12,
+            shadowRadius: 24
           },
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.muted,
@@ -172,12 +181,12 @@ function AppTabs() {
             numberOfLines={1}
             ellipsizeMode="tail"
             style={{
-              fontSize: 12,
-              fontWeight: focused ? "600" : "500",
-              marginTop: 4,
+              fontSize: 11,
+              fontWeight: focused ? "700" : "600",
+              marginTop: 2,
               letterSpacing: 0,
               color,
-              opacity: focused ? 1 : 0.75,
+              opacity: focused ? 1 : 0.72,
               textAlign: "center"
             }}
           >
@@ -189,9 +198,18 @@ function AppTabs() {
         },
         tabBarIconStyle: { marginTop: 2 },
         tabBarItemStyle: {
-          paddingVertical: 4
+          paddingVertical: 2
         },
-        tabBarBackground: () => <TabBarGlassBackground />
+        tabBarBackground: () => (
+          <View
+            style={{
+              ...StyleSheet.absoluteFillObject,
+              backgroundColor: "#FFFFFF",
+              borderRadius: 30,
+              overflow: "hidden"
+            }}
+          />
+        )
       }}
     >
       <Tab.Screen
