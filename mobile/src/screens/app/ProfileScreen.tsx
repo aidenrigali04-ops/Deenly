@@ -41,7 +41,7 @@ type Props = CompositeScreenProps<
   NativeStackScreenProps<RootStackParamList>
 >;
 
-const AVATAR_SIZE = 86;
+const AVATAR_SIZE = 92;
 
 function normalizeWebsiteUrl(raw: string) {
   const t = raw.trim();
@@ -194,7 +194,7 @@ export function ProfileScreen({ navigation }: Props) {
           accessibilityRole="button"
           accessibilityLabel="Create post"
         >
-          <IconPlus color={colors.text} size={32} />
+          <IconPlus color={colors.text} size={26} />
         </Pressable>
         <View style={styles.topBarTitleWrap}>
           <Text style={styles.topBarUsername} numberOfLines={1}>
@@ -286,7 +286,7 @@ export function ProfileScreen({ navigation }: Props) {
             </View>
 
             <View style={[styles.insightsCard, compact && styles.insightsCardCompact]}>
-              <Text style={styles.insightsTitle}>Engagement</Text>
+              <Text style={styles.insightsTitle}>Engagement on Deenly</Text>
               <Text style={[styles.insightsSub, compact && styles.insightsSubCompact]}>
                 {p.likes_received_count} received · {p.likes_given_count} given
               </Text>
@@ -299,8 +299,8 @@ export function ProfileScreen({ navigation }: Props) {
               >
                 <Text style={styles.ctaButtonPrimaryText}>Edit profile</Text>
               </Pressable>
-              <Pressable style={[styles.ctaButton, styles.ctaButtonOutline, styles.ctaButtonFlex]} onPress={shareProfile}>
-                <Text style={styles.ctaButtonOutlineText}>Share</Text>
+              <Pressable style={[styles.ctaButton, styles.ctaButtonGhost, styles.ctaButtonFlex]} onPress={shareProfile}>
+                <Text style={styles.ctaButtonGhostText}>Share</Text>
               </Pressable>
             </View>
 
@@ -319,7 +319,7 @@ export function ProfileScreen({ navigation }: Props) {
             onPress={() => setActiveTab("posts")}
           >
             <View style={styles.tabInner}>
-              <IconGrid color={activeTab === "posts" ? colors.text : colors.muted} size={20} />
+              <IconGrid color={activeTab === "posts" ? colors.accent : colors.muted} size={20} />
               <Text style={[styles.tabLabel, compact && styles.tabLabelCompact, activeTab === "posts" ? styles.tabLabelActive : null]}>Posts</Text>
             </View>
           </Pressable>
@@ -329,8 +329,8 @@ export function ProfileScreen({ navigation }: Props) {
               onPress={() => setActiveTab("products")}
             >
               <View style={styles.tabInner}>
-                <IconShoppingBag color={activeTab === "products" ? colors.text : colors.muted} size={20} />
-                <Text style={[styles.tabLabel, compact && styles.tabLabelCompact, activeTab === "products" ? styles.tabLabelActive : null]}>Shop</Text>
+                <IconShoppingBag color={activeTab === "products" ? colors.accent : colors.muted} size={20} />
+                <Text style={[styles.tabLabel, compact && styles.tabLabelCompact, activeTab === "products" ? styles.tabLabelActive : null]}>Products</Text>
               </View>
             </Pressable>
           ) : null}
@@ -524,20 +524,20 @@ const styles = StyleSheet.create({
     minWidth: 72
   },
   statNumber: {
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 20,
+    fontWeight: "600",
     color: colors.text
   },
   statNumberCompact: {
-    fontSize: 16
+    fontSize: 18
   },
   statLabel: {
-    fontSize: 12,
-    color: colors.muted,
+    fontSize: 13,
+    color: colors.mutedLight,
     marginTop: 2
   },
   statLabelCompact: {
-    fontSize: 11
+    fontSize: 12
   },
   bioBlock: {
     paddingHorizontal: 16,
@@ -548,12 +548,12 @@ const styles = StyleSheet.create({
     paddingTop: 10
   },
   displayName: {
-    fontSize: 15,
-    fontWeight: "700",
+    fontSize: 18,
+    fontWeight: "600",
     color: colors.text
   },
   displayNameCompact: {
-    fontSize: 14
+    fontSize: 17
   },
   categoryLine: {
     fontSize: 13,
@@ -639,31 +639,32 @@ const styles = StyleSheet.create({
   },
   ctaButton: {
     borderRadius: radii.control,
-    paddingVertical: 12,
+    paddingVertical: 13,
+    minHeight: 44,
     alignItems: "center",
     justifyContent: "center"
   },
   ctaButtonPrimary: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.accent
   },
-  ctaButtonOutline: {
-    backgroundColor: colors.surface,
+  ctaButtonGhost: {
+    backgroundColor: "transparent",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle
+    borderColor: colors.border
   },
   ctaButtonFlex: {
     flex: 1
   },
   ctaButtonPrimaryText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
-    color: colors.onAccent,
+    color: colors.accent,
     letterSpacing: -0.2
   },
-  ctaButtonOutlineText: {
-    fontSize: 14,
+  ctaButtonGhostText: {
+    fontSize: 15,
     fontWeight: "600",
     color: colors.text,
     letterSpacing: -0.2
@@ -684,46 +685,38 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     marginTop: 18,
     marginHorizontal: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle,
-    borderRadius: radii.control,
-    backgroundColor: colors.surface,
-    padding: 4,
-    gap: 6
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border
   },
   tabBarCompact: {
-    marginTop: 14,
-    padding: 3,
-    gap: 4
+    marginTop: 14
   },
   tabItem: {
     flex: 1,
     alignItems: "center",
-    paddingVertical: 8,
-    borderRadius: radii.control,
-    borderBottomWidth: 0,
+    paddingVertical: 10,
+    borderBottomWidth: 2,
     borderBottomColor: "transparent"
   },
   tabItemCompact: {
-    paddingVertical: 7
+    paddingVertical: 8
   },
   tabItemActive: {
-    backgroundColor: colors.subtleFill,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle
+    borderBottomColor: colors.accent
   },
   tabInner: { alignItems: "center", gap: 4 },
   tabLabel: {
-    fontSize: 11,
-    fontWeight: "600",
+    fontSize: 12,
+    fontWeight: "500",
     color: colors.muted,
-    letterSpacing: 0.2
+    letterSpacing: 0
   },
   tabLabelCompact: {
-    fontSize: 10
+    fontSize: 11
   },
   tabLabelActive: {
-    color: colors.accent
+    color: colors.accent,
+    fontWeight: "600"
   },
   grid: {
     flexDirection: "row",

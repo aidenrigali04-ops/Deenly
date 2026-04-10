@@ -7,7 +7,7 @@ import { ApiError, apiRequest } from "../../lib/api";
 import { resolveMediaUrl } from "../../lib/media-url";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { enqueueMutation } from "../../lib/mutation-queue";
-import { colors } from "../../theme";
+import { colors, primaryButtonOutline } from "../../theme";
 import type { FeedItem } from "../../types";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { createGuestProductCheckout, createProductCheckout, formatMinorCurrency } from "../../lib/monetization";
@@ -445,7 +445,7 @@ export function PostDetailScreen({ route, navigation }: Props) {
             }
           }}
         >
-          <Text style={styles.buttonText}>Post comment</Text>
+          <Text style={styles.buttonPrimaryText}>Post comment</Text>
         </Pressable>
       </View>
 
@@ -576,10 +576,13 @@ const styles = StyleSheet.create({
     padding: 10
   },
   button: {
-    backgroundColor: colors.accent,
     borderRadius: 10,
     paddingVertical: 10,
-    alignItems: "center"
+    ...primaryButtonOutline
+  },
+  buttonPrimaryText: {
+    color: colors.accent,
+    fontWeight: "600"
   },
   buttonSecondary: {
     borderColor: colors.border,

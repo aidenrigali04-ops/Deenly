@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { StyleSheet, Text, View, type ViewStyle } from "react-native";
-import { colors, radii, shadows, spacing } from "../theme";
+import { colors, radii, shadows, spacing, type } from "../theme";
 
 export function TabScreenRoot({ children, style }: { children: ReactNode; style?: ViewStyle }) {
   return <View style={[styles.root, style]}>{children}</View>;
@@ -51,7 +51,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background
   },
   header: {
-    paddingHorizontal: spacing.screenHorizontal,
+    paddingHorizontal: spacing.pagePaddingH,
+    paddingTop: spacing.pagePaddingTop,
     paddingBottom: 8
   },
   headerTextRow: {
@@ -65,33 +66,32 @@ const styles = StyleSheet.create({
     gap: 6
   },
   title: {
-    fontSize: 26,
-    fontWeight: "800",
-    color: colors.text,
-    letterSpacing: -0.5
+    ...type.pageTitle,
+    fontSize: 32,
+    color: colors.text
   },
   subtitle: {
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: type.meta.fontSize,
+    lineHeight: 20,
     color: colors.muted,
-    fontWeight: "500"
+    fontWeight: "400"
   },
   headerRight: {
     paddingTop: 4
   },
   sectionCard: {
-    marginHorizontal: spacing.screenHorizontal,
+    marginHorizontal: spacing.pagePaddingH,
     backgroundColor: colors.card,
-    borderRadius: radii.panel,
+    borderRadius: radii.card,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.borderSubtle,
-    padding: 16,
+    padding: spacing.cardPadding,
     gap: 10
   },
   sectionTitle: {
-    fontSize: 15,
-    fontWeight: "700",
+    ...type.sectionTitle,
+    fontSize: 18,
     color: colors.text,
-    marginBottom: 2
+    marginBottom: 4
   }
 });

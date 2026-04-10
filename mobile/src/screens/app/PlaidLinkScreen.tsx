@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { apiRequest } from "../../lib/api";
-import { colors, radii } from "../../theme";
+import { colors, primaryButtonOutline, radii } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 
 type Props = NativeStackScreenProps<RootStackParamList, "PlaidLink">;
@@ -148,12 +148,12 @@ const styles = StyleSheet.create({
   },
   btn: {
     marginTop: 8,
-    backgroundColor: colors.accent,
     paddingHorizontal: 20,
     paddingVertical: 10,
-    borderRadius: radii.control
+    borderRadius: radii.control,
+    ...primaryButtonOutline
   },
-  btnText: { color: colors.onAccent, fontWeight: "700" },
+  btnText: { color: colors.accent, fontWeight: "700" },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.45)",

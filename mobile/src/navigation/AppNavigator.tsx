@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Linking from "expo-linking";
 import { AtmosphereBackdrop } from "../components/AtmosphereBackdrop";
@@ -16,7 +16,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchSessionMe } from "../lib/auth";
 import { getAccessToken } from "../lib/storage";
 import { useSessionStore } from "../store/session-store";
-import { colors, radii } from "../theme";
+import { colors } from "../theme";
 import { apiRequest } from "../lib/api";
 import { LoginScreen } from "../screens/auth/LoginScreen";
 import { SignupScreen } from "../screens/auth/SignupScreen";
@@ -144,8 +144,8 @@ function CreateTabFlow() {
 
 function AppTabs() {
   const insets = useSafeAreaInsets();
-  const tabPadBottom = Math.max(insets.bottom, 10);
-  const tabBarMinHeight = 52 + tabPadBottom;
+  const tabPadBottom = Math.max(insets.bottom, 12);
+  const tabBarMinHeight = 56 + tabPadBottom;
 
   return (
     <View style={{ flex: 1 }}>
@@ -156,27 +156,28 @@ function AppTabs() {
           headerShown: false,
           tabBarStyle: {
             backgroundColor: colors.atmosphere,
-            borderTopWidth: 0,
-            paddingTop: 6,
+            borderTopWidth: StyleSheet.hairlineWidth,
+            borderTopColor: colors.borderSubtle,
+            paddingTop: 8,
             paddingBottom: tabPadBottom,
-            minHeight: tabBarMinHeight,
+            minHeight: Math.max(tabBarMinHeight, 72),
             elevation: 0
           },
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.muted,
-        tabBarActiveBackgroundColor: colors.subtleFill,
+        tabBarActiveBackgroundColor: "transparent",
         tabBarShowLabel: true,
         tabBarLabel: ({ focused, color, children }) => (
           <Text
             numberOfLines={1}
             ellipsizeMode="tail"
             style={{
-              fontSize: 10,
-              fontWeight: focused ? "700" : "600",
-              marginBottom: 0,
-              letterSpacing: focused ? 0.2 : 0,
+              fontSize: 12,
+              fontWeight: focused ? "600" : "500",
+              marginTop: 4,
+              letterSpacing: 0,
               color,
-              opacity: focused ? 1 : 0.86,
+              opacity: focused ? 1 : 0.75,
               textAlign: "center"
             }}
           >
@@ -186,12 +187,9 @@ function AppTabs() {
         tabBarLabelStyle: {
           marginTop: 0
         },
-        tabBarIconStyle: { marginTop: 0 },
+        tabBarIconStyle: { marginTop: 2 },
         tabBarItemStyle: {
-          marginHorizontal: 2,
-          marginVertical: 4,
-          borderRadius: radii.pill,
-          paddingVertical: 2
+          paddingVertical: 4
         },
         tabBarBackground: () => <TabBarGlassBackground />
       }}
@@ -202,7 +200,7 @@ function AppTabs() {
         options={{
           title: "Home",
           tabBarIcon: ({ color, size, focused }) => (
-            <NavTabIcon kind="home" color={color} size={size ?? 22} focused={focused} />
+            <NavTabIcon kind="home" color={color} size={size ?? 24} focused={focused} />
           )
         }}
       />
@@ -212,7 +210,7 @@ function AppTabs() {
         options={{
           title: "Market",
           tabBarIcon: ({ color, size, focused }) => (
-            <NavTabIcon kind="marketplace" color={color} size={size ?? 22} focused={focused} />
+            <NavTabIcon kind="marketplace" color={color} size={size ?? 24} focused={focused} />
           )
         }}
       />
@@ -222,7 +220,7 @@ function AppTabs() {
         options={{
           title: "Messages",
           tabBarIcon: ({ color, size, focused }) => (
-            <NavTabIcon kind="send" color={color} size={size ?? 22} focused={focused} />
+            <NavTabIcon kind="send" color={color} size={size ?? 24} focused={focused} />
           )
         }}
       />
@@ -232,7 +230,7 @@ function AppTabs() {
         options={{
           title: "Create",
           tabBarIcon: ({ color, size, focused }) => (
-            <NavTabIcon kind="upload" color={color} size={size ?? 22} focused={focused} />
+            <NavTabIcon kind="upload" color={color} size={size ?? 24} focused={focused} />
           )
         }}
       />
@@ -242,7 +240,7 @@ function AppTabs() {
         options={{
           title: "Profile",
           tabBarIcon: ({ color, size, focused }) => (
-            <NavTabIcon kind="user" color={color} size={size ?? 22} focused={focused} />
+            <NavTabIcon kind="user" color={color} size={size ?? 24} focused={focused} />
           )
         }}
       />

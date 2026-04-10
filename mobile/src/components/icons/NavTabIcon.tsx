@@ -27,11 +27,11 @@ export function NavTabIcon({ kind, color, size = 24, focused = false }: Props) {
 
   const scale = focusAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [1, 1.08]
+    outputRange: [1, 1.02]
   });
   const translateY = focusAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, -1.5]
+    outputRange: [0, 0]
   });
   const opacity = focusAnim.interpolate({
     inputRange: [0, 1],

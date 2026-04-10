@@ -33,7 +33,7 @@ import {
   unmuteEventChatUser
 } from "../../lib/events";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
-import { colors, radii, shadows } from "../../theme";
+import { colors, primaryButtonOutline, radii, shadows } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 
 type Props = NativeStackScreenProps<RootStackParamList, "EventDetail">;
@@ -477,13 +477,11 @@ const styles = StyleSheet.create({
   rsvpRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   primaryBtn: {
     borderRadius: radii.control,
-    backgroundColor: colors.accent,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    alignItems: "center",
-    justifyContent: "center"
+    ...primaryButtonOutline
   },
-  primaryBtnText: { color: colors.onAccent, fontWeight: "700" },
+  primaryBtnText: { color: colors.accent, fontWeight: "700" },
   secondaryBtn: {
     borderRadius: radii.control,
     borderWidth: StyleSheet.hairlineWidth,
@@ -572,17 +570,15 @@ const styles = StyleSheet.create({
   },
   sendBtn: {
     borderRadius: radii.control,
-    backgroundColor: colors.accent,
     paddingHorizontal: 16,
     minHeight: 44,
-    justifyContent: "center",
-    alignItems: "center"
+    ...primaryButtonOutline
   },
   sendBtnDisabled: {
-    backgroundColor: "rgba(0,0,0,0.2)"
+    opacity: 0.45
   },
-  sendBtnText: { color: colors.onAccent, fontWeight: "700", fontSize: 15 },
-  sendBtnTextDisabled: { color: "rgba(255,255,255,0.65)" },
+  sendBtnText: { color: colors.accent, fontWeight: "700", fontSize: 15 },
+  sendBtnTextDisabled: { color: colors.muted },
   charHint: { fontSize: 11, color: colors.muted, alignSelf: "flex-end" },
   auditRow: {
     borderRadius: radii.control,

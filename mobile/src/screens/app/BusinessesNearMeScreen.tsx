@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { apiRequest } from "../../lib/api";
-import { colors, radii } from "../../theme";
+import { colors, primaryButtonOutline, radii } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 
 type BusinessNear = {
@@ -163,12 +163,11 @@ const styles = StyleSheet.create({
   sub: { fontSize: 14, color: colors.muted, lineHeight: 20 },
   actions: { gap: 8, marginTop: 4 },
   primary: {
-    backgroundColor: colors.accent,
     borderRadius: radii.control,
     paddingVertical: 12,
-    alignItems: "center"
+    ...primaryButtonOutline
   },
-  primaryText: { color: colors.onAccent, fontWeight: "700" },
+  primaryText: { color: colors.accent, fontWeight: "700" },
   secondary: {
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,

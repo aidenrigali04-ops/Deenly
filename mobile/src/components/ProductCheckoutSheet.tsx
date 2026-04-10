@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Animated, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { colors, radii } from "../theme";
+import { colors, primaryButtonOutline, radii } from "../theme";
 import { hapticPrimary, hapticTap } from "../lib/haptics";
 
 type Props = {
@@ -252,9 +252,9 @@ const styles = StyleSheet.create({
   },
   btnGhostText: { color: colors.text, fontSize: 15, fontWeight: "600" },
   btnPrimary: {
-    backgroundColor: colors.accent
+    ...primaryButtonOutline
   },
-  btnPrimaryText: { color: colors.onAccent, fontSize: 15, fontWeight: "600" },
+  btnPrimaryText: { color: colors.accent, fontSize: 15, fontWeight: "600" },
   btnPressed: { opacity: 0.82, transform: [{ scale: 0.99 }] },
   disabled: { opacity: 0.55 }
 });

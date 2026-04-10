@@ -1,11 +1,32 @@
-import { Image, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import {
+  Image,
+  Platform,
+  Pressable,
+  Share,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions
+} from "react-native";
 import { useEffect, useState } from "react";
 import { AppVideoView } from "./AppVideoView";
-import { colors, radii } from "../theme";
+import { colors, primaryButtonOutline, radii, shadows, spacing, type } from "../theme";
 import { resolveMediaUrl } from "../lib/media-url";
 import type { FeedItem } from "../types";
 import { formatMinorCurrency } from "../lib/monetization";
 import { hapticPrimary, hapticTap } from "../lib/haptics";
+
+export function formatFeedTimestamp(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) {
+    return "";
+  }
+  const diff = Date.now() - d.getTime();
+  if (diff >= 0 && diff < 86_400_000) {
+    return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  }
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
 
 export function isImageMedia(item: FeedItem) {
   if (item.media_mime_type?.startsWith("image/")) {
@@ -29,7 +50,8 @@ export function PostCard({
   onToggleFollow,
   followBusy = false,
   /** When false, video is paused and muted (e.g. off-screen in feed). Default true. */
-  mediaPlaybackActive = true
+  mediaPlaybackActive = true,
+  onOpenPost
 }: {
   item: FeedItem;
   onLike?: () => void;
@@ -42,6 +64,8 @@ export function PostCard({
   onToggleFollow?: (authorId: number, currentlyFollowing: boolean) => void;
   followBusy?: boolean;
   mediaPlaybackActive?: boolean;
+  /** Open full post (e.g. comments) */
+  onOpenPost?: () => void;
 }) {
   const { height: viewportHeight } = useWindowDimensions();
   const compact = viewportHeight <= 700;
@@ -67,6 +91,16 @@ export function PostCard({
   }, [item.liked_by_viewer, item.benefited_count]);
 
   if (layout === "home") {
+    const typeLabel =
+      item.post_type === "marketplace" ? "Marketplace" : item.post_type === "reel" ? "Reel" : "Post";
+    const metaLine = [
+      item.sponsored ? item.sponsored_label || "Sponsored" : null,
+      typeLabel,
+      formatFeedTimestamp(item.created_at)
+    ]
+      .filter(Boolean)
+      .join(" · ");
+
     return (
       <View style={[styles.homeCard, compact && styles.homeCardCompact]}>
         <View style={[styles.homeHeader, compact && styles.homeHeaderCompact]}>
@@ -78,17 +112,12 @@ export function PostCard({
                 <Text style={styles.homeAvatarText}>{initials || "U"}</Text>
               )}
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.homeAuthor}>{item.author_display_name}</Text>
-              <Text style={styles.homeSubtle}>
-                {item.sponsored ? `${item.sponsored_label || "Sponsored"} - ` : ""}
-                {item.post_type === "marketplace"
-                  ? "Marketplace"
-                  : item.post_type === "reel"
-                    ? "Reel"
-                    : "Post"}{" "}
-                -{" "}
-                {new Date(item.created_at).toLocaleString()}
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.homeAuthor} numberOfLines={1}>
+                {item.author_display_name}
+              </Text>
+              <Text style={styles.homeSubtle} numberOfLines={1}>
+                {metaLine}
               </Text>
             </View>
           </View>
@@ -99,12 +128,10 @@ export function PostCard({
               disabled={followBusy}
             >
               <Text style={[styles.followPillText, compact && styles.followPillTextCompact]}>
-                {followBusy ? "..." : isFollowing ? "Unfollow" : "Follow"}
+                {followBusy ? "…" : isFollowing ? "Following" : "Follow"}
               </Text>
             </Pressable>
-          ) : (
-            <Text style={styles.homeSubtle}>...</Text>
-          )}
+          ) : null}
         </View>
 
         {canRenderMedia ? (
@@ -135,9 +162,9 @@ export function PostCard({
           </View>
         )}
 
-        <View style={[styles.homeActionRow, compact && styles.homeActionRowCompact]}>
+        <View style={[styles.homeEngageRow, compact && styles.homeEngageRowCompact]}>
           <Pressable
-            style={[styles.homeActionPill, compact && styles.homeActionPillCompact, liked && styles.homeActionPillActive]}
+            style={styles.engageBtn}
             onPress={() => {
               const next = !liked;
               setLiked(next);
@@ -146,21 +173,40 @@ export function PostCard({
             }}
             disabled={liking}
           >
-            <Text style={[styles.homeActionPillText, compact && styles.homeActionPillTextCompact, liked && styles.homeActionPillTextActive]}>
+            <Text style={[styles.engageBtnText, liked && styles.engageBtnTextActive]}>
               {liked ? "Helpful" : "Mark helpful"}
             </Text>
           </Pressable>
-          <View style={styles.homeActionMetaRow}>
-            <Text style={[styles.homeActionMeta, compact && styles.homeActionMetaCompact]}>{benefitedCount} helpful</Text>
-            <Text style={[styles.homeActionMeta, compact && styles.homeActionMetaCompact]}>{item.comment_count || 0} comments</Text>
-          </View>
+          <Pressable style={styles.engageBtn} onPress={() => onOpenPost?.()} disabled={!onOpenPost}>
+            <Text style={[styles.engageBtnText, !onOpenPost && styles.engageBtnTextDisabled]}>
+              {item.comment_count || 0} comments
+            </Text>
+          </Pressable>
+          <Pressable
+            style={styles.engageBtn}
+            onPress={() => {
+              void Share.share({
+                message: `${item.author_display_name} on Deenly\n${(item.content || "").slice(0, 280)}`
+              });
+            }}
+          >
+            <Text style={styles.engageBtnText}>Share</Text>
+          </Pressable>
+          <Pressable style={styles.engageBtn} onPress={() => void hapticTap()}>
+            <Text style={styles.engageBtnText}>Save</Text>
+          </Pressable>
+        </View>
+        <View style={styles.homeHelpfulMeta}>
+          <Text style={styles.homeHelpfulMetaText}>
+            {benefitedCount} marked helpful
+          </Text>
         </View>
 
         <View style={[styles.homeCaptionWrap, compact && styles.homeCaptionWrapCompact]}>
           {item.attached_product_id ? (
             <View style={styles.monetizationChip}>
               <Text style={styles.monetizationChipText}>
-                {item.attached_product_title || "Creator product"} -{" "}
+                {item.attached_product_title || "Creator product"} ·{" "}
                 {formatMinorCurrency(
                   Number(item.attached_product_price_minor || 0),
                   item.attached_product_currency || "usd"
@@ -169,7 +215,7 @@ export function PostCard({
             </View>
           ) : null}
           <Text style={styles.content}>
-            <Text style={styles.homeAuthor}>{item.author_display_name} </Text>
+            <Text style={styles.captionAuthor}>{item.author_display_name} </Text>
             {item.content}
           </Text>
           {item.audience_target ? (
@@ -304,66 +350,62 @@ export function PostCard({
 const styles = StyleSheet.create({
   homeCard: {
     backgroundColor: colors.card,
-    borderColor: colors.borderSubtle,
+    borderColor: colors.border,
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radii.panel,
+    borderRadius: radii.card,
     overflow: "hidden",
-    ...Platform.select({
-      ios: {
-        shadowColor: colors.shadow,
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 1,
-        shadowRadius: 18
-      },
-      android: { elevation: 2 }
-    })
+    ...shadows.card
   },
   homeCardCompact: {
-    borderRadius: radii.control
+    borderRadius: radii.card
   },
   homeHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 14,
-    paddingVertical: 10
+    paddingHorizontal: spacing.cardPadding - 4,
+    paddingVertical: 12
   },
   homeHeaderCompact: {
     paddingHorizontal: 12,
-    paddingVertical: 8
+    paddingVertical: 10
   },
   followPill: {
     borderColor: colors.border,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    minHeight: 34,
+    justifyContent: "center",
     backgroundColor: colors.surface
   },
   followPillCompact: {
-    paddingHorizontal: 10,
-    paddingVertical: 5
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    minHeight: 32
   },
   followPillText: {
     color: colors.text,
-    fontSize: 12,
+    fontSize: type.meta.fontSize,
     fontWeight: "600"
   },
   followPillTextCompact: {
-    fontSize: 11
+    fontSize: 12
   },
   homeAuthorRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    flex: 1
+    gap: 10,
+    flex: 1,
+    minWidth: 0
   },
   homeAvatar: {
-    width: 28,
-    height: 28,
+    width: 38,
+    height: 38,
     borderRadius: 999,
     borderColor: colors.border,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center"
@@ -375,92 +417,83 @@ const styles = StyleSheet.create({
   },
   homeAvatarText: {
     color: colors.text,
-    fontSize: 10,
-    fontWeight: "700"
+    fontSize: 13,
+    fontWeight: "600"
   },
   homeAuthor: {
     color: colors.text,
-    fontSize: 14,
-    fontWeight: "700"
+    fontSize: 16,
+    fontWeight: "600"
   },
   homeSubtle: {
-    color: colors.muted,
-    fontSize: 11
+    color: colors.mutedLight,
+    fontSize: 13,
+    marginTop: 2
   },
   homeMedia: {
     width: "100%",
     aspectRatio: 4 / 5,
-    backgroundColor: "#f3f4f6"
+    backgroundColor: colors.background
   },
   homeMediaPlaceholder: {
     width: "100%",
     aspectRatio: 4 / 5,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#f3f4f6"
+    backgroundColor: colors.background
   },
-  homeActionRow: {
+  homeEngageRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 14,
+    paddingHorizontal: spacing.cardPadding - 4,
     paddingTop: 10,
-    paddingBottom: 8
+    paddingBottom: 4
   },
-  homeActionRowCompact: {
+  homeEngageRowCompact: {
     paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 6
+    paddingTop: 8
   },
-  homeActionPill: {
-    borderColor: colors.borderSubtle,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radii.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: colors.surface
+  engageBtn: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 8
   },
-  homeActionPillCompact: {
-    paddingHorizontal: 10,
-    paddingVertical: 5
-  },
-  homeActionPillActive: {
-    backgroundColor: colors.subtleFill,
-    borderColor: colors.accent
-  },
-  homeActionPillText: {
+  engageBtnText: {
+    ...type.meta,
     color: colors.text,
-    fontSize: 12,
     fontWeight: "600"
   },
-  homeActionPillTextCompact: {
-    fontSize: 11
-  },
-  homeActionPillTextActive: {
+  engageBtnTextActive: {
     color: colors.accent
   },
-  homeActionMetaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10
+  engageBtnTextDisabled: {
+    opacity: 0.45
   },
-  homeActionMeta: {
-    color: colors.muted,
-    fontSize: 11,
-    fontWeight: "500"
+  homeHelpfulMeta: {
+    paddingHorizontal: spacing.cardPadding - 4,
+    paddingBottom: 4
   },
-  homeActionMetaCompact: {
-    fontSize: 10
+  homeHelpfulMetaText: {
+    fontSize: 12,
+    color: colors.mutedLight
   },
   homeCaptionWrap: {
-    paddingHorizontal: 14,
-    paddingBottom: 14,
-    gap: 5
+    paddingHorizontal: spacing.cardPadding - 4,
+    paddingTop: 10,
+    paddingBottom: spacing.cardPadding,
+    gap: 6
   },
   homeCaptionWrapCompact: {
     paddingHorizontal: 12,
+    paddingTop: 8,
     paddingBottom: 12,
     gap: 4
+  },
+  captionAuthor: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: "600"
   },
   homeMetaText: {
     color: colors.muted,
@@ -557,19 +590,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface
   },
   buttonPrimary: {
-    borderColor: colors.accent,
-    borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.control,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: colors.accent
+    ...primaryButtonOutline
   },
   buttonText: {
     color: colors.text,
     fontWeight: "600"
   },
   buttonPrimaryText: {
-    color: colors.onAccent,
+    color: colors.accent,
     fontWeight: "700"
   },
   buttonDisabled: {

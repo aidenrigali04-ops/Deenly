@@ -7,7 +7,7 @@ import { ApiError } from "../../lib/api";
 import { assistPostText } from "../../lib/ai-assist";
 import { parseEventStartsAtInput } from "../../lib/event-starts-at";
 import { createEvent } from "../../lib/events";
-import { colors, radii } from "../../theme";
+import { colors, primaryButtonOutline, radii } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 
 function buildEventAssistDraft(
@@ -234,10 +234,9 @@ const styles = StyleSheet.create({
   error: { color: colors.danger, fontSize: 12 },
   primaryBtn: {
     borderRadius: radii.control,
-    backgroundColor: colors.accent,
     paddingVertical: 11,
-    alignItems: "center"
+    ...primaryButtonOutline
   },
   primaryBtnDisabled: { opacity: 0.7 },
-  primaryBtnText: { color: colors.onAccent, fontWeight: "700" }
+  primaryBtnText: { color: colors.accent, fontWeight: "700" }
 });

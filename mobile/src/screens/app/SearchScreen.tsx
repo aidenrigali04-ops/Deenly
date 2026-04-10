@@ -10,7 +10,7 @@ import { fetchEventsNear } from "../../lib/events";
 import { NearMeMap, type NearMapSelection } from "../../components/NearMeMap";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { SectionCard, TabScreenRoot } from "../../components/TabScreenChrome";
-import { colors, radii } from "../../theme";
+import { colors, primaryButtonOutline, radii, shadows } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 
 type UserItem = {
@@ -473,9 +473,14 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface
   },
-  modeChipOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+  modeChipOn: {
+    backgroundColor: colors.accentMuted,
+    borderColor: colors.accent,
+    borderWidth: 1.5,
+    ...shadows.accentGlowSoft
+  },
   modeChipText: { color: colors.text, fontWeight: "600", fontSize: 13 },
-  modeChipTextOn: { color: colors.onAccent },
+  modeChipTextOn: { color: colors.accent },
   searchRow: { flexDirection: "row", gap: 8 },
   flex1: { flex: 1 },
   hintPara: { color: colors.muted, fontSize: 14, lineHeight: 20 },
@@ -551,9 +556,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: radii.pill,
-    backgroundColor: colors.accent
+    ...primaryButtonOutline
   },
-  mapSelectionBtnText: { color: colors.onAccent, fontWeight: "700", fontSize: 13 },
+  mapSelectionBtnText: { color: colors.accent, fontWeight: "700", fontSize: 13 },
   clusterHeader: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", marginBottom: 4 },
   linkText: { color: colors.accent, fontSize: 12, fontWeight: "700" }
 });

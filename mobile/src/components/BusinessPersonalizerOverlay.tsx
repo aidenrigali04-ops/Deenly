@@ -4,7 +4,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ApiError, apiRequest } from "../lib/api";
-import { colors, radii } from "../theme";
+import { colors, primaryButtonOutline, radii } from "../theme";
 import type { RootStackParamList } from "../navigation/AppNavigator";
 import { applyMobileMeProfileAfterPreferencesPatch } from "../lib/apply-me-profile-preferences-response";
 
@@ -206,12 +206,11 @@ const styles = StyleSheet.create({
   secondaryBtnText: { color: colors.text, fontWeight: "600", fontSize: 15 },
   primary: {
     flex: 1,
-    backgroundColor: colors.accent,
     borderRadius: radii.control,
     paddingVertical: 12,
-    alignItems: "center"
+    ...primaryButtonOutline
   },
-  primaryText: { color: colors.onAccent, fontWeight: "700", fontSize: 15 },
+  primaryText: { color: colors.accent, fontWeight: "700", fontSize: 15 },
   linkBtn: { paddingVertical: 6, alignItems: "center" },
   linkBtnText: { color: colors.accent, fontWeight: "600", fontSize: 14 },
   ghost: { paddingVertical: 6, alignItems: "center" },

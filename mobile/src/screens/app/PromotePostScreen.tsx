@@ -18,7 +18,7 @@ import {
 } from "../../lib/ads";
 import { fetchEventsByHost, type EventRecord } from "../../lib/events";
 import { formatMinorCurrency } from "../../lib/monetization";
-import { colors, radii } from "../../theme";
+import { colors, primaryButtonOutline, radii } from "../../theme";
 
 type FeedRow = { id: number | string; content?: string | null };
 type PromoteTarget = "post" | "event";
@@ -337,13 +337,12 @@ const styles = StyleSheet.create({
     color: colors.muted
   },
   primaryBtn: {
-    backgroundColor: colors.accent,
     borderRadius: radii.control,
     paddingVertical: 12,
-    alignItems: "center"
+    ...primaryButtonOutline
   },
   primaryBtnText: {
-    color: "#fff",
+    color: colors.accent,
     fontWeight: "700",
     fontSize: 15
   },

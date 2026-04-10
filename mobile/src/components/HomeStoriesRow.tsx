@@ -1,6 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { colors } from "../theme";
+import { colors, radii, spacing } from "../theme";
 
 const storySeeds = [
   { id: "my-story", label: "Your story", initials: "+", isOwn: true },
@@ -9,6 +9,10 @@ const storySeeds = [
   { id: "s3", label: "SunnahPath", initials: "SP", isOwn: false },
   { id: "s4", label: "MercyNotes", initials: "MN", isOwn: false }
 ];
+
+/** Ring diameter — spec 68–72 */
+const RING = 70;
+const RING_PAD = 3;
 
 export function HomeStoriesRow() {
   return (
@@ -28,8 +32,8 @@ export function HomeStoriesRow() {
             <LinearGradient
               colors={
                 story.isOwn
-                  ? ["#111827", "#A78BFA", "#F472B6"]
-                  : ["#0ea5e9", "#38BDF8", "#4ADE80"]
+                  ? ["#4b5563", "#9ca3af", "#d8b4c4"]
+                  : ["#5b8a9e", "#7eb8c8", "#86b89a"]
               }
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
@@ -39,7 +43,7 @@ export function HomeStoriesRow() {
                 <Text style={styles.initials}>{story.initials}</Text>
               </View>
             </LinearGradient>
-            <Text style={styles.label} numberOfLines={1}>
+            <Text style={styles.label} numberOfLines={1} ellipsizeMode="tail">
               {story.label}
             </Text>
           </Pressable>
@@ -49,39 +53,38 @@ export function HomeStoriesRow() {
   );
 }
 
-const RING = 64;
-
 const styles = StyleSheet.create({
   section: {
     backgroundColor: colors.card,
     borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 20,
-    paddingVertical: 10,
-    paddingHorizontal: 8
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.card,
+    paddingVertical: 12,
+    paddingHorizontal: spacing.pagePaddingH - 8
   },
   row: {
     flexDirection: "row",
     alignItems: "flex-start",
-    paddingHorizontal: 4
+    paddingHorizontal: 6,
+    gap: 4
   },
   chip: {
     alignItems: "center",
-    width: 72,
-    marginRight: 12
+    width: 76,
+    marginRight: 8
   },
   ringOuter: {
     width: RING,
     height: RING,
     borderRadius: RING / 2,
-    padding: 3,
+    padding: RING_PAD,
     alignItems: "center",
     justifyContent: "center"
   },
   ringInner: {
-    width: RING - 6,
-    height: RING - 6,
-    borderRadius: (RING - 6) / 2,
+    width: RING - RING_PAD * 2,
+    height: RING - RING_PAD * 2,
+    borderRadius: (RING - RING_PAD * 2) / 2,
     backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center"
@@ -89,13 +92,13 @@ const styles = StyleSheet.create({
   initials: {
     color: colors.text,
     fontSize: 14,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   label: {
     marginTop: 6,
-    maxWidth: 68,
-    fontSize: 11,
-    color: colors.muted,
+    maxWidth: 72,
+    fontSize: 12,
+    color: colors.mutedLight,
     textAlign: "center"
   }
 });

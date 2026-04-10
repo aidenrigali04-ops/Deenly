@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { CompositeScreenProps, useRoute, type RouteProp } from "@react-navigation/native";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -8,7 +9,7 @@ import { apiRequest } from "../../lib/api";
 import { createOrOpenConversation, markConversationRead } from "../../lib/messages";
 import { ErrorState, LoadingState } from "../../components/States";
 import { SectionCard, TabScreenHeader, TabScreenRoot } from "../../components/TabScreenChrome";
-import { colors, radii } from "../../theme";
+import { colors, primaryButtonOutline, radii, spacing } from "../../theme";
 import { useTabSceneBottomPadding, useTabSceneTopPadding } from "../../hooks/useTabSceneInsets";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 import { useSessionStore } from "../../store/session-store";
@@ -158,32 +159,31 @@ export function MessagesScreen({ navigation }: Props) {
         contentContainerStyle={[styles.scrollContent, { paddingTop: topPad, paddingBottom: bottomPad }]}
         showsVerticalScrollIndicator={false}
       >
-        <TabScreenHeader
-          title="Messages"
-          subtitle="Direct conversations with people on Deenly."
-        />
+        <TabScreenHeader title="Messages" subtitle="Chats with people you connect with on Deenly." />
 
-        <SectionCard title="New message">
-          <Text style={styles.helper}>
-            Search by name or @username—the same people index as Search—or open a chat from someone&apos;s profile.
-          </Text>
-          <Text style={styles.miniLabel}>Find by name or username</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. ahmad or @username"
-            placeholderTextColor={colors.muted}
-            autoCapitalize="none"
-            autoCorrect={false}
-            value={usernameLookupInput}
-            onChangeText={setUsernameLookupInput}
-          />
+        <View style={styles.newMessageSection}>
+          <View style={styles.searchFieldWrap}>
+            <Ionicons name="search-outline" size={20} color={colors.muted} style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchField}
+              placeholder="Search name or @username"
+              placeholderTextColor={colors.mutedLight}
+              autoCapitalize="none"
+              autoCorrect={false}
+              value={usernameLookupInput}
+              onChangeText={setUsernameLookupInput}
+              onSubmitEditing={() => usernameLookupMutation.mutate(usernameLookupInput)}
+              returnKeyType="search"
+            />
+          </View>
+          <Text style={styles.searchHelper}>Matches the same people directory as Explore.</Text>
           <Pressable
-            style={styles.buttonSecondary}
+            style={styles.startChatBtn}
             onPress={() => usernameLookupMutation.mutate(usernameLookupInput)}
             disabled={usernameLookupMutation.isPending}
           >
-            <Text style={styles.buttonText}>
-              {usernameLookupMutation.isPending ? "Searching..." : "Search people"}
+            <Text style={styles.startChatBtnText}>
+              {usernameLookupMutation.isPending ? "Searching…" : "Start new chat"}
             </Text>
           </Pressable>
           {usernameLookupMutation.isError ? (
@@ -191,7 +191,7 @@ export function MessagesScreen({ navigation }: Props) {
           ) : null}
           {usernameLookupMutation.isSuccess ? (
             usernameLookupRows.length === 0 ? (
-              <Text style={styles.helper}>No users match that search.</Text>
+              <Text style={styles.searchHelper}>No users match that search.</Text>
             ) : (
               <View style={styles.lookupList}>
                 {usernameLookupRows.map((row) => (
@@ -212,7 +212,7 @@ export function MessagesScreen({ navigation }: Props) {
               </View>
             )
           ) : null}
-        </SectionCard>
+        </View>
 
         {conversationsQuery.isLoading ? <LoadingState label="Loading conversations..." /> : null}
         {conversationsQuery.error ? (
@@ -222,9 +222,16 @@ export function MessagesScreen({ navigation }: Props) {
         <SectionCard title="Inbox">
           {inboxEmpty ? (
             <View style={styles.emptyInbox}>
-              <Text style={styles.emptyInboxText}>No conversations yet. Start one above, or find people to message from Search.</Text>
+              <View style={styles.emptyIconCircle}>
+                <Ionicons name="chatbubbles-outline" size={32} color={colors.accent} />
+              </View>
+              <Text style={styles.emptyInboxTitle}>No conversations yet</Text>
+              <Text style={styles.emptyInboxText}>Start a chat from Explore or Market.</Text>
               <Pressable style={styles.findPeopleBtn} onPress={() => navigation.navigate("Search")}>
                 <Text style={styles.findPeopleBtnText}>Find people</Text>
+              </Pressable>
+              <Pressable style={styles.browseMarketLink} onPress={() => navigation.navigate("MarketplaceTab")}>
+                <Text style={styles.browseMarketLinkText}>Browse market</Text>
               </Pressable>
             </View>
           ) : (
@@ -303,9 +310,47 @@ export function MessagesScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  scrollContent: { gap: 14 },
-  helper: { color: colors.muted, fontSize: 13, lineHeight: 19 },
-  miniLabel: { fontSize: 12, fontWeight: "700", color: colors.text, marginBottom: 6 },
+  scrollContent: { gap: spacing.sectionGap },
+  newMessageSection: {
+    marginHorizontal: spacing.pagePaddingH,
+    gap: 10,
+    marginBottom: 8
+  },
+  searchFieldWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 48,
+    borderRadius: radii.control,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 12
+  },
+  searchIcon: { marginRight: 8 },
+  searchField: {
+    flex: 1,
+    fontSize: 16,
+    color: colors.text,
+    paddingVertical: 12
+  },
+  searchHelper: {
+    fontSize: 13,
+    color: colors.muted,
+    lineHeight: 18
+  },
+  startChatBtn: {
+    alignSelf: "flex-start",
+    minHeight: 42,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: radii.control,
+    ...primaryButtonOutline
+  },
+  startChatBtnText: {
+    color: colors.accent,
+    fontSize: 15,
+    fontWeight: "600"
+  },
   lookupError: { color: colors.danger, fontSize: 13, marginTop: 8 },
   lookupList: { marginTop: 10, gap: 0, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderSubtle, borderRadius: radii.control, overflow: "hidden" },
   lookupRow: {
@@ -323,7 +368,8 @@ const styles = StyleSheet.create({
     borderRadius: radii.control,
     color: colors.text,
     backgroundColor: colors.surface,
-    padding: 12
+    padding: 14,
+    fontSize: 16
   },
   buttonSecondary: {
     borderColor: colors.border,
@@ -335,16 +381,29 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface
   },
   buttonText: { color: colors.text, fontWeight: "600" },
-  emptyInbox: { gap: 12 },
-  emptyInboxText: { color: colors.muted, fontSize: 14, lineHeight: 21 },
-  findPeopleBtn: {
-    alignSelf: "flex-start",
-    backgroundColor: colors.accent,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: radii.control
+  emptyInbox: { gap: 12, alignItems: "center", paddingVertical: 8 },
+  emptyIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.accentMuted,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4
   },
-  findPeopleBtnText: { color: colors.onAccent, fontWeight: "700", fontSize: 14 },
+  emptyInboxTitle: { fontSize: 18, fontWeight: "600", color: colors.text },
+  emptyInboxText: { color: colors.muted, fontSize: 14, lineHeight: 21, textAlign: "center" },
+  findPeopleBtn: {
+    alignSelf: "stretch",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: radii.control,
+    marginTop: 4,
+    ...primaryButtonOutline
+  },
+  findPeopleBtnText: { color: colors.accent, fontWeight: "600", fontSize: 15 },
+  browseMarketLink: { paddingVertical: 8 },
+  browseMarketLinkText: { fontSize: 15, fontWeight: "600", color: colors.accent },
   inboxList: { gap: 0 },
   inboxRow: {
     flexDirection: "row",

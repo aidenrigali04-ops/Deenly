@@ -17,7 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ApiError } from "../../lib/api";
 import { fetchSessionMe, login } from "../../lib/auth";
 import { useSessionStore } from "../../store/session-store";
-import { authTheme } from "../../theme";
+import { authTheme, primaryButtonOutline } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Login">;
@@ -310,9 +310,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     height: 48,
     borderRadius: authTheme.radiusControl,
-    backgroundColor: authTheme.submitBg,
-    alignItems: "center",
-    justifyContent: "center"
+    ...primaryButtonOutline
   },
   submitPressed: {
     opacity: 0.92
@@ -322,8 +320,8 @@ const styles = StyleSheet.create({
   },
   submitText: {
     color: authTheme.submitText,
-    fontSize: 14,
-    fontWeight: "600"
+    fontSize: 15,
+    fontWeight: "700"
   },
   footerRow: {
     flexDirection: "row",

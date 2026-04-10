@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { colors } from "../../theme";
+import { colors, primaryButtonOutline } from "../../theme";
 
 const STORAGE_KEY = "deenly_mobile_dhikr_count_v1";
 
@@ -83,12 +83,12 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     borderRadius: 10,
-    backgroundColor: colors.accent,
     paddingHorizontal: 14,
-    paddingVertical: 10
+    paddingVertical: 10,
+    ...primaryButtonOutline
   },
   primaryText: {
-    color: colors.onAccent,
+    color: colors.accent,
     fontWeight: "700"
   },
   secondaryButton: {

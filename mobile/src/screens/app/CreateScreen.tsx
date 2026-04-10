@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   useWindowDimensions,
   View
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { pickVisualMedia } from "../../lib/pick-visual-media";
 import { AppVideoView } from "../../components/AppVideoView";
@@ -19,9 +20,9 @@ import {
   PostPublishSuccessOverlay,
   type PostPublishVariant
 } from "../../components/PostPublishSuccessOverlay";
+import { AccentSwitch } from "../../components/AccentSwitch";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTabSceneBottomPadding } from "../../hooks/useTabSceneInsets";
-import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
+import { BottomTabScreenProps, useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { CompositeScreenProps } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { ApiError, apiRequest } from "../../lib/api";
@@ -30,7 +31,7 @@ import { fetchSessionMe } from "../../lib/auth";
 import { attachProductToPost, fetchMyProducts, type CreatorProductRow } from "../../lib/monetization";
 import { fetchInstagramStatus, requestInstagramCrossPost } from "../../lib/instagram";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { colors, radii, shadows, spacing } from "../../theme";
+import { colors, primaryButtonOutline, radii, shadows, spacing, type } from "../../theme";
 import { resolveMediaUrl } from "../../lib/media-url";
 import {
   growthExperiments,
@@ -108,7 +109,8 @@ export function CreateScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { height: viewportHeight } = useWindowDimensions();
   const compact = viewportHeight <= 700;
-  const tabSceneBottomPad = useTabSceneBottomPadding(compact ? 12 : 18);
+  const tabBarHeight = useBottomTabBarHeight();
+  const stickyBottomInset = tabBarHeight + Math.max(insets.bottom, 10) + 10;
   const [postType, setPostType] = useState<"post" | "marketplace" | "reel">("post");
   const [content, setContent] = useState("");
   const [tagsInput, setTagsInput] = useState("");
@@ -135,6 +137,9 @@ export function CreateScreen({ navigation }: Props) {
   const [audienceTarget, setAudienceTarget] = useState<"b2b" | "b2c" | "both">("both");
   const [businessCategory, setBusinessCategory] = useState("");
   const [crossPostToInstagram, setCrossPostToInstagram] = useState(false);
+  const [tagsSectionOpen, setTagsSectionOpen] = useState(false);
+  const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
+  const [captionFocused, setCaptionFocused] = useState(false);
 
   const sessionQuery = useQuery({
     queryKey: ["mobile-create-session"],
@@ -197,6 +202,57 @@ export function CreateScreen({ navigation }: Props) {
     retry: false
   });
   const igConnected = Boolean(instagramQuery.data?.connected);
+
+  const showListingFields = useMemo(
+    () => canPromoteProducts && postType !== "reel" && (postType === "marketplace" || sellThis),
+    [canPromoteProducts, postType, sellThis]
+  );
+
+  const listingInlineProduct = useMemo(
+    () => showListingFields && selectedProductId == null,
+    [showListingFields, selectedProductId]
+  );
+
+  const canPublish = useMemo(() => {
+    if (postType === "reel") {
+      const m = selectedFile?.mimeType || "";
+      return Boolean(selectedFile && m.startsWith("video/"));
+    }
+    const hasBody = content.trim().length > 0 || Boolean(selectedFile);
+    if (!hasBody) {
+      return false;
+    }
+    if (listingInlineProduct) {
+      const price = Number(priceMinor);
+      if (!Number.isFinite(price) || price <= 0) {
+        return false;
+      }
+      if (productType === "digital" && !productFile) {
+        return false;
+      }
+    }
+    return true;
+  }, [postType, selectedFile, content, listingInlineProduct, priceMinor, productType, productFile]);
+
+  const showCharCount = content.length > 280;
+
+  const selectPostType = useCallback(
+    (t: "post" | "marketplace" | "reel") => {
+      setPostType(t);
+      if (t === "reel") {
+        setSellThis(false);
+        return;
+      }
+      if (t === "post") {
+        setSellThis(false);
+        return;
+      }
+      if (t === "marketplace") {
+        setSellThis(canPromoteProducts);
+      }
+    },
+    [canPromoteProducts]
+  );
 
   const handlePublishOverlayFinish = useCallback(() => {
     setPublishCelebration((c) => {
@@ -497,10 +553,22 @@ export function CreateScreen({ navigation }: Props) {
         style={[
           styles.headerBar,
           compact && styles.headerBarCompact,
-          { paddingTop: insets.top + (compact ? 6 : 8) }
+          { paddingTop: insets.top + (compact ? 4 : 6) }
         ]}
       >
-        <Text style={styles.headerTitle}>Create New Post</Text>
+        <View style={styles.headerSide}>
+          <Pressable
+            onPress={() => navigation.goBack()}
+            hitSlop={12}
+            style={({ pressed }) => [styles.headerBack, pressed && styles.pressableSoft]}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
+            <Ionicons name="chevron-back" size={24} color={colors.text} />
+          </Pressable>
+        </View>
+        <Text style={styles.headerTitle}>New post</Text>
+        <View style={styles.headerSide} />
       </View>
       <KeyboardAvoidingView
         style={styles.flex}
@@ -512,46 +580,102 @@ export function CreateScreen({ navigation }: Props) {
           contentContainerStyle={[
             styles.scrollContent,
             compact && styles.scrollContentCompact,
-            { paddingBottom: tabSceneBottomPad }
+            { paddingBottom: 20 }
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Pressable
-            onPress={pickMedia}
-            style={({ pressed }) => [
-              styles.mediaPreview,
-              compact && styles.mediaPreviewCompact,
-              pressed && styles.mediaPreviewPressed
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Add or change photo or video"
-            accessibilityHint="Choose from library, camera, or files"
-          >
-            {selectedFile && previewKind === "image" ? (
-              <Image
-                source={{ uri: selectedFile.uri }}
-                style={[styles.mediaPreviewFill, compact && styles.mediaPreviewFillCompact]}
-                resizeMode="contain"
-              />
+          <Text style={styles.segmentLabel}>Post type</Text>
+          <View style={[styles.typeRowWrap, compact && styles.typeRowWrapCompact]}>
+            {(
+              [
+                ["post", "Post"],
+                ["marketplace", "Marketplace"],
+                ["reel", "Reel"]
+              ] as const
+            ).map(([t, label]) => (
+              <Pressable
+                key={t}
+                onPress={() => selectPostType(t)}
+                style={({ pressed }) => [
+                  styles.segmentPill,
+                  postType === t ? styles.segmentPillActive : null,
+                  compact && styles.segmentPillCompact,
+                  pressed ? styles.pressableSoft : null
+                ]}
+              >
+                <Text style={[styles.segmentPillText, postType === t ? styles.segmentPillTextActive : null]}>
+                  {label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <View style={styles.mediaWrap}>
+            <Pressable
+              onPress={pickMedia}
+              style={({ pressed }) => [
+                styles.mediaPreview,
+                compact && styles.mediaPreviewCompact,
+                pressed && styles.mediaPreviewPressed
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Add or change photo or video"
+              accessibilityHint="Choose from library, camera, or files"
+            >
+              {selectedFile && previewKind === "image" ? (
+                <Image
+                  source={{ uri: selectedFile.uri }}
+                  style={[styles.mediaPreviewFill, compact && styles.mediaPreviewFillCompact]}
+                  resizeMode="cover"
+                />
+              ) : null}
+              {selectedFile && previewKind === "video" ? (
+                <AppVideoView
+                  key={selectedFile.uri}
+                  uri={selectedFile.uri}
+                  style={[styles.mediaPreviewFill, compact && styles.mediaPreviewFillCompact]}
+                  contentFit="cover"
+                  loop
+                  play
+                  muted
+                />
+              ) : null}
+              {!selectedFile ? (
+                <View style={styles.mediaEmpty}>
+                  <Ionicons name="cloud-upload-outline" size={36} color={colors.accent} />
+                  <Text style={styles.mediaEmptyTitle}>
+                    {postType === "reel" ? "Add video" : "Add photo or video"}
+                  </Text>
+                  <Text style={styles.mediaEmptyHint}>
+                    {postType === "reel"
+                      ? "Vertical video works best for reels."
+                      : postType === "marketplace"
+                        ? "Strong photos help your listing stand out."
+                        : "Optional for text posts"}
+                  </Text>
+                </View>
+              ) : null}
+            </Pressable>
+            {selectedFile ? (
+              <View style={styles.mediaActions}>
+                <Pressable
+                  onPress={pickMedia}
+                  style={({ pressed }) => [styles.mediaActionBtn, pressed && styles.pressableSoft]}
+                >
+                  <Ionicons name="image-outline" size={18} color={colors.text} />
+                  <Text style={styles.mediaActionText}>Replace</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setSelectedFile(null)}
+                  style={({ pressed }) => [styles.mediaActionBtn, pressed && styles.pressableSoft]}
+                >
+                  <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                  <Text style={[styles.mediaActionText, { color: colors.danger }]}>Remove</Text>
+                </Pressable>
+              </View>
             ) : null}
-            {selectedFile && previewKind === "video" ? (
-              <AppVideoView
-                key={selectedFile.uri}
-                uri={selectedFile.uri}
-                style={[styles.mediaPreviewFill, compact && styles.mediaPreviewFillCompact]}
-                contentFit="contain"
-                loop
-                play
-                muted
-              />
-            ) : null}
-            {!selectedFile ? (
-              <Text style={[styles.mediaPlaceholder, compact && styles.mediaPlaceholderCompact]}>
-                {postType === "reel" ? "Tap to add video (vertical works best)" : "Tap to add photo or video"}
-              </Text>
-            ) : null}
-          </Pressable>
+          </View>
 
           <View style={[styles.composerCard, compact && styles.composerCardCompact]}>
             <View style={[styles.identityRow, compact && styles.identityRowCompact]}>
@@ -568,42 +692,83 @@ export function CreateScreen({ navigation }: Props) {
                 {composerName}
               </Text>
             </View>
+            <Text style={styles.fieldLabel}>{postType === "marketplace" ? "Description" : "Caption"}</Text>
             <TextInput
-              style={[styles.inputComposer, compact && styles.inputComposerCompact]}
+              style={[
+                styles.inputComposer,
+                compact && styles.inputComposerCompact,
+                captionFocused && styles.inputComposerFocused
+              ]}
               multiline
-              placeholder="What's on your mind?"
+              placeholder={
+                postType === "marketplace" ? "Describe your listing…" : "What's on your mind?"
+              }
               placeholderTextColor={colors.composerMuted}
               value={content}
               onChangeText={setContent}
+              onFocus={() => setCaptionFocused(true)}
+              onBlur={() => setCaptionFocused(false)}
               textAlignVertical="top"
               accessibilityLabel="Post caption"
             />
-            <TextInput
-              style={[styles.inputComposerSingle, compact && styles.inputComposerSingleCompact]}
-              placeholder="Tags (comma separated)"
-              placeholderTextColor={colors.composerMuted}
-              value={tagsInput}
-              onChangeText={setTagsInput}
-            />
+            {showCharCount ? (
+              <Text style={styles.charCount}>{content.length} characters</Text>
+            ) : null}
+
+            <Pressable
+              onPress={() => setTagsSectionOpen((o) => !o)}
+              style={({ pressed }) => [styles.addonRow, pressed && styles.pressableSoft]}
+            >
+              <Ionicons name="pricetag-outline" size={20} color={colors.muted} />
+              <Text style={styles.addonRowLabel}>Add tags</Text>
+              {tagsInput.trim() ? (
+                <Text style={styles.addonRowMeta}>{tagsInput.split(",").filter(Boolean).length}</Text>
+              ) : null}
+              <Ionicons name={tagsSectionOpen ? "chevron-up" : "chevron-down"} size={20} color={colors.muted} />
+            </Pressable>
+            {tagsSectionOpen ? (
+              <View style={styles.tagsPanel}>
+                <Text style={styles.tagsHelper}>Comma-separated. Used for discovery.</Text>
+                <TextInput
+                  style={[styles.inputComposerSingle, compact && styles.inputComposerSingleCompact]}
+                  placeholder="e.g. halal, seattle, design"
+                  placeholderTextColor={colors.composerMuted}
+                  value={tagsInput}
+                  onChangeText={setTagsInput}
+                />
+              </View>
+            ) : null}
+
             <View style={styles.divider} />
-            {postType !== "reel" && canPromoteProducts ? (
-              <>
-                <View style={[styles.promoteRow, compact && styles.promoteRowCompact]}>
-                  <View style={styles.promoteTextBlock}>
-                    <Text style={[styles.promoteLabel, compact && styles.promoteLabelCompact]}>Promote</Text>
-                    <Text style={[styles.promoteHint, compact && styles.promoteHintCompact]}>
-                      Add pricing and offer details
-                    </Text>
-                  </View>
-                  <Switch
-                    value={sellThis}
-                    onValueChange={setSellThis}
-                    trackColor={{ false: colors.composerBorder, true: colors.accent }}
-                    thumbColor={Platform.OS === "android" ? colors.composerInputBg : undefined}
-                    accessibilityLabel="Promote this post"
-                  />
+            {postType === "marketplace" && !canPromoteProducts ? (
+              <Text style={[styles.promoteHint, compact && styles.promoteHintCompact]}>
+                Switch to Professional or Business in Settings to publish marketplace listings with pricing and delivery.
+              </Text>
+            ) : null}
+            {postType !== "reel" && canPromoteProducts && postType === "post" ? (
+              <View style={[styles.promoteRow, compact && styles.promoteRowCompact]}>
+                <View style={styles.promoteTextBlock}>
+                  <Text style={[styles.promoteLabel, compact && styles.promoteLabelCompact]}>Promote this post</Text>
+                  <Text style={[styles.promoteHint, compact && styles.promoteHintCompact]}>
+                    Add offer or pricing details for your audience
+                  </Text>
                 </View>
-                {sellThis ? (
+                <AccentSwitch
+                  value={sellThis}
+                  onValueChange={setSellThis}
+                  accessibilityLabel="Promote this post"
+                />
+              </View>
+            ) : null}
+            {postType !== "reel" && canPromoteProducts && postType === "marketplace" ? (
+              <View style={styles.marketplaceListingIntro}>
+                <Text style={styles.marketplaceListingTitle}>Listing details</Text>
+                <Text style={[styles.promoteHint, compact && styles.promoteHintCompact]}>
+                  Set price, category, and delivery for a new listing, or attach an existing product from More options.
+                </Text>
+              </View>
+            ) : null}
+            {showListingFields ? (
               <View style={[styles.promoteFields, compact && styles.promoteFieldsCompact]}>
                 {(myProductsQuery.data?.items || []).length > 0 ? (
                   <>
@@ -692,10 +857,13 @@ export function CreateScreen({ navigation }: Props) {
                     <View style={styles.dividerThin} />
               </>
             ) : null}
-                <SectionTitle>Pricing and type</SectionTitle>
+                <SectionTitle>{postType === "marketplace" ? "Price & product type" : "Pricing and type"}</SectionTitle>
+                {postType === "marketplace" ? (
+                  <Text style={styles.priceHelper}>USD, in cents (e.g. 2500 = $25.00).</Text>
+                ) : null}
                 <TextInput
                   style={[styles.inputComposerSingle, compact && styles.inputComposerSingleCompact]}
-                  placeholder="Price (minor units)"
+                  placeholder={postType === "marketplace" ? "Price in cents" : "Price (minor units)"}
                   placeholderTextColor={colors.composerMuted}
                   value={priceMinor}
                   onChangeText={setPriceMinor}
@@ -785,10 +953,10 @@ export function CreateScreen({ navigation }: Props) {
                     </Pressable>
                   ))}
                 </View>
-                <SectionTitle>Offer copy</SectionTitle>
+                <SectionTitle>{postType === "marketplace" ? "Title & offer copy" : "Offer copy"}</SectionTitle>
                 <TextInput
                   style={[styles.inputComposerSingle, compact && styles.inputComposerSingleCompact]}
-                  placeholder="Product title"
+                  placeholder={postType === "marketplace" ? "Listing title" : "Product title"}
                   placeholderTextColor={colors.composerMuted}
                   value={productTitle}
                   onChangeText={setProductTitle}
@@ -796,7 +964,9 @@ export function CreateScreen({ navigation }: Props) {
                 <TextInput
                   style={[styles.inputComposer, compact && styles.inputComposerCompact]}
                   multiline
-                  placeholder="Product or offer description"
+                  placeholder={
+                    postType === "marketplace" ? "Short offer summary (shown on your product card)" : "Product or offer description"
+                  }
                   placeholderTextColor={colors.composerMuted}
                   value={productDescription}
                   onChangeText={setProductDescription}
@@ -886,125 +1056,124 @@ export function CreateScreen({ navigation }: Props) {
                 />
               </View>
             ) : null}
-              </>
-            ) : postType === "reel" ? (
+            {postType === "reel" ? (
               <Text style={styles.muted}>
                 Reels use one video only. Open the Reels tab to watch full-screen reels.
               </Text>
-            ) : (
+            ) : !canPromoteProducts && postType === "post" ? (
               <Text style={[styles.promoteHint, compact && styles.promoteHintCompact]}>
                 Switch to Professional or Business in Settings to promote posts with products.
               </Text>
-            )}
-          </View>
+            ) : null}
 
-          <View style={[styles.moreSection, compact && styles.moreSectionCompact]}>
-            <Text style={styles.moreHeading}>Post type</Text>
-            <View style={[styles.typeRowWrap, compact && styles.typeRowWrapCompact]}>
-              {(
-                [
-                  ["post", "Post"],
-                  ["marketplace", "Marketplace"],
-                  ["reel", "Reel"]
-                ] as const
-              ).map(([type, label]) => (
-                <Pressable
-                  key={type}
-                  onPress={() => setPostType(type)}
-                  disabled={sellThis}
-                  style={({ pressed }) => [
-                    styles.chip,
-                    postType === type ? styles.chipActive : null,
-                    compact && styles.chipCompact,
-                    sellThis ? { opacity: 0.5 } : null,
-                    pressed && !sellThis ? styles.pressableSoft : null
-                  ]}
-                >
-                  <Text style={styles.chipText}>{label}</Text>
-                </Pressable>
-              ))}
-            </View>
-            <View style={styles.fileRow}>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.chip,
-                  crossPostToInstagram && igConnected ? styles.chipActive : null,
-                  compact && styles.chipCompact,
-                  pressed && igConnected ? styles.pressableSoft : null
-                ]}
-                onPress={() => {
-                  if (igConnected) {
-                    setCrossPostToInstagram((v) => !v);
-                  }
-                }}
-                disabled={!igConnected}
-              >
-                <Text style={styles.chipText}>Also share to Instagram</Text>
-              </Pressable>
-              {!igConnected ? (
-                <Text style={styles.muted}>Connect Instagram on Profile first.</Text>
-              ) : (
-                <Text style={styles.muted}>Runs after upload; needs public HTTPS media.</Text>
-              )}
-            </View>
-            {!sellThis && (myProductsQuery.data?.items || []).length > 0 ? (
-              <View style={styles.fileRow}>
-                <Text style={styles.muted}>Attach product (optional)</Text>
-                <View style={styles.typeRowWrap}>
-                  {(myProductsQuery.data?.items || []).slice(0, 8).map((item) => {
-                    const productId = Number(item.id);
-                    if (!productId) {
-                      return null;
-                    }
-                    return (
-                      <Pressable
-                        key={productId}
-                        onPress={() => setSelectedProductId(productId)}
-                        style={({ pressed }) => [
-                          styles.chip,
-                          selectedProductId === productId ? styles.chipActive : null,
-                          compact && styles.chipCompact,
-                          pressed ? styles.pressableSoft : null
-                        ]}
-                      >
-                        <Text style={styles.chipText}>{item.title || `Product ${productId}`}</Text>
-                      </Pressable>
-                    );
-                  })}
-                  {selectedProductId ? (
-                    <Pressable
-                      onPress={() => setSelectedProductId(null)}
-                      style={({ pressed }) => [styles.buttonSecondary, pressed && styles.pressableSoft]}
-                    >
-                      <Text style={styles.buttonText}>Clear</Text>
-                    </Pressable>
-                  ) : null}
+            <View style={styles.divider} />
+            <Pressable
+              onPress={() => setMoreOptionsOpen((o) => !o)}
+              style={({ pressed }) => [styles.addonRow, pressed && styles.pressableSoft]}
+            >
+              <Ionicons name="options-outline" size={20} color={colors.muted} />
+              <Text style={styles.addonRowLabel}>More options</Text>
+              <View style={{ flex: 1 }} />
+              <Ionicons name={moreOptionsOpen ? "chevron-up" : "chevron-down"} size={20} color={colors.muted} />
+            </Pressable>
+            {moreOptionsOpen ? (
+              <View style={styles.moreOptionsPanel}>
+                <View style={styles.crossPostBlock}>
+                  <View style={styles.crossPostTop}>
+                    <Ionicons name="logo-instagram" size={22} color={colors.text} />
+                    <View style={styles.crossPostTitles}>
+                      <Text style={styles.crossPostLabel}>Cross-post to Instagram</Text>
+                      <Text style={styles.muted}>
+                        {igConnected ? "Runs after upload when media is attached." : "Connect Instagram from your profile."}
+                      </Text>
+                    </View>
+                    {igConnected ? (
+                      <AccentSwitch
+                        value={crossPostToInstagram}
+                        onValueChange={setCrossPostToInstagram}
+                      />
+                    ) : (
+                      <Text style={styles.crossPostStatus}>Off</Text>
+                    )}
+                  </View>
                 </View>
+                {!sellThis && (myProductsQuery.data?.items || []).length > 0 ? (
+                  <View style={styles.attachProductBlock}>
+                    <Text style={styles.attachProductHeading}>Attach catalog product</Text>
+                    <Text style={styles.muted}>Optional — link an existing listing without creating a new product.</Text>
+                    <View style={[styles.typeRowWrap, compact && styles.typeRowWrapCompact]}>
+                      {(myProductsQuery.data?.items || []).slice(0, 8).map((item) => {
+                        const productId = Number(item.id);
+                        if (!productId) {
+                          return null;
+                        }
+                        return (
+                          <Pressable
+                            key={productId}
+                            onPress={() => setSelectedProductId(productId)}
+                            style={({ pressed }) => [
+                              styles.chipLight,
+                              selectedProductId === productId ? styles.chipLightActive : null,
+                              compact && styles.chipLightCompact,
+                              pressed ? styles.pressableSoft : null
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.chipLightText,
+                                selectedProductId === productId ? styles.chipLightTextActive : null
+                              ]}
+                            >
+                              {item.title || `Product ${productId}`}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                      {selectedProductId ? (
+                        <Pressable
+                          onPress={() => setSelectedProductId(null)}
+                          style={({ pressed }) => [
+                            styles.buttonSecondaryLight,
+                            compact && styles.buttonSecondaryLightCompact,
+                            pressed && styles.pressableSoft
+                          ]}
+                        >
+                          <Text style={styles.buttonSecondaryLightText}>Clear</Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  </View>
+                ) : null}
               </View>
             ) : null}
           </View>
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
+        </ScrollView>
+        <View
+          style={[
+            styles.stickyPublishWrap,
+            compact && styles.stickyPublishWrapCompact,
+            { paddingBottom: stickyBottomInset }
+          ]}
+        >
           <Pressable
             style={({ pressed }) => [
-              styles.button,
-              compact && styles.buttonCompact,
-              (isSubmitting || pressed) && styles.buttonPressed
+              styles.stickyPublishBtn,
+              compact && styles.stickyPublishBtnCompact,
+              (isSubmitting || pressed) && styles.buttonPressed,
+              !canPublish && styles.stickyPublishBtnDisabled
             ]}
             onPress={createPost}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !canPublish}
           >
-            <Text style={styles.buttonPrimaryText}>
-              {isSubmitting
-                ? "Publishing..."
-                : timeVariant === "value_copy"
-                  ? "Publish and start earning"
-                  : timeVariant === "fast_path"
-                    ? "Publish (fast)"
-                    : "Publish"}
-            </Text>
+            {isSubmitting ? (
+              <ActivityIndicator color={colors.accent} />
+            ) : (
+              <Text style={styles.buttonPrimaryText}>Publish</Text>
+            )}
           </Pressable>
-        </ScrollView>
+        </View>
       </KeyboardAvoidingView>
       <PostPublishSuccessOverlay
         visible={publishCelebration != null}
@@ -1018,95 +1187,172 @@ export function CreateScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.atmosphere
+    backgroundColor: colors.background
   },
   flex: {
     flex: 1
   },
   headerBar: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
     borderBottomColor: colors.borderSubtle,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    paddingBottom: 10,
-    paddingHorizontal: spacing.screenHorizontal,
+    paddingBottom: 8,
+    paddingHorizontal: spacing.pagePaddingH,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12
+    gap: 8,
+    minHeight: 48
   },
   headerBarCompact: {
-    paddingBottom: 8,
+    paddingBottom: 6,
     paddingHorizontal: 14
   },
+  headerSide: {
+    width: 40,
+    alignItems: "flex-start",
+    justifyContent: "center"
+  },
+  headerBack: {
+    paddingVertical: 4,
+    marginLeft: -4
+  },
   headerTitle: {
+    flex: 1,
+    textAlign: "center",
     color: colors.text,
-    fontSize: 19,
-    fontWeight: "700",
-    flexShrink: 1
+    fontSize: 20,
+    fontWeight: "600",
+    letterSpacing: -0.3
   },
   scrollContent: {
-    paddingHorizontal: spacing.screenHorizontal,
-    paddingTop: 12,
-    gap: 12
+    paddingHorizontal: spacing.pagePaddingH,
+    paddingTop: spacing.sectionGap - 8,
+    gap: spacing.sectionGap - 12
   },
   scrollContentCompact: {
     paddingHorizontal: 14,
-    paddingTop: 10,
+    paddingTop: 12,
+    gap: 12
+  },
+  segmentLabel: {
+    ...type.caption,
+    color: colors.muted,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    marginBottom: -4
+  },
+  segmentPill: {
+    borderColor: colors.border,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    minHeight: 40,
+    backgroundColor: colors.surface,
+    justifyContent: "center"
+  },
+  segmentPillCompact: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minHeight: 36
+  },
+  segmentPillActive: {
+    backgroundColor: colors.accentMuted,
+    borderColor: colors.accent
+  },
+  segmentPillDisabled: {
+    opacity: 0.4
+  },
+  segmentPillText: {
+    ...type.button,
+    fontSize: 14,
+    color: colors.text
+  },
+  segmentPillTextActive: {
+    color: colors.accent,
+    fontWeight: "700"
+  },
+  mediaWrap: {
     gap: 10
   },
   mediaPreview: {
-    minHeight: 220,
-    borderRadius: radii.panel,
-    borderWidth: 1,
-    borderColor: colors.mediaPreviewBorder,
-    backgroundColor: colors.mediaPreviewBg,
+    minHeight: 168,
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
     overflow: "hidden",
     alignItems: "center",
-    justifyContent: "center",
-    ...shadows.card
+    justifyContent: "center"
   },
   mediaPreviewCompact: {
-    minHeight: 176
+    minHeight: 140
   },
   mediaPreviewPressed: {
     opacity: 0.96
   },
   mediaPreviewFill: {
     width: "100%",
-    height: 220
+    height: 168
   },
   mediaPreviewFillCompact: {
-    height: 176
+    height: 140
   },
-  mediaPlaceholder: {
-    color: colors.composerMuted,
-    fontSize: 15,
-    padding: 20,
+  mediaEmpty: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+    gap: 8
+  },
+  mediaEmptyTitle: {
+    ...type.bodyStrong,
+    color: colors.text,
     textAlign: "center"
   },
-  mediaPlaceholderCompact: {
-    fontSize: 13,
-    padding: 14
+  mediaEmptyHint: {
+    ...type.meta,
+    color: colors.muted,
+    textAlign: "center",
+    lineHeight: 18
+  },
+  mediaActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 16
+  },
+  mediaActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minHeight: 44,
+    paddingVertical: 8
+  },
+  mediaActionText: {
+    ...type.button,
+    fontSize: 14,
+    color: colors.text
   },
   composerCard: {
     backgroundColor: colors.surface,
-    borderColor: colors.borderSubtle,
-    borderWidth: 1,
-    borderRadius: radii.panel,
-    padding: 14,
-    gap: 10,
+    borderColor: colors.border,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.card,
+    padding: spacing.cardPadding,
+    gap: 12,
     ...shadows.card
   },
   composerCardCompact: {
-    padding: 12,
-    gap: 8
+    padding: 14,
+    gap: 10
   },
   identityRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10
+    gap: 12
   },
   identityRowCompact: {
-    gap: 8
+    gap: 10
   },
   avatar: {
     width: 40,
@@ -1141,36 +1387,81 @@ const styles = StyleSheet.create({
   },
   composerName: {
     flex: 1,
-    color: colors.composerText,
-    fontSize: 16,
-    fontWeight: "700"
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: "600"
   },
   composerNameCompact: {
-    fontSize: 15
+    fontSize: 14
+  },
+  fieldLabel: {
+    ...type.meta,
+    fontWeight: "600",
+    color: colors.muted,
+    marginBottom: -4
   },
   inputComposer: {
-    minHeight: 120,
-    borderColor: colors.composerBorder,
-    borderWidth: 1,
-    borderRadius: 10,
-    color: colors.composerText,
-    backgroundColor: colors.composerInputBg,
-    padding: 12,
-    fontSize: 16
+    minHeight: 132,
+    borderColor: colors.border,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.control,
+    color: colors.text,
+    backgroundColor: colors.background,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    lineHeight: 22
+  },
+  inputComposerFocused: {
+    borderColor: colors.accent,
+    borderWidth: 1.5
   },
   inputComposerCompact: {
-    minHeight: 92,
-    padding: 10,
+    minHeight: 120,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     fontSize: 15
   },
+  charCount: {
+    ...type.metaSm,
+    color: colors.mutedLight,
+    alignSelf: "flex-end"
+  },
+  addonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    minHeight: 48,
+    paddingVertical: 6
+  },
+  addonRowLabel: {
+    ...type.button,
+    fontSize: 15,
+    color: colors.text,
+    flex: 1
+  },
+  addonRowMeta: {
+    ...type.meta,
+    color: colors.mutedLight,
+    marginRight: 4
+  },
+  tagsPanel: {
+    gap: 8,
+    paddingBottom: 4
+  },
+  tagsHelper: {
+    ...type.meta,
+    color: colors.muted
+  },
   inputComposerSingle: {
-    borderColor: colors.composerBorder,
-    borderWidth: 1,
-    borderRadius: 10,
-    color: colors.composerText,
-    backgroundColor: colors.composerInputBg,
+    borderColor: colors.border,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.control,
+    color: colors.text,
+    backgroundColor: colors.background,
     padding: 12,
-    fontSize: 15
+    fontSize: 15,
+    minHeight: 48
   },
   inputComposerSingleCompact: {
     paddingVertical: 9,
@@ -1224,6 +1515,21 @@ const styles = StyleSheet.create({
   promoteHintCompact: {
     fontSize: 11
   },
+  marketplaceListingIntro: {
+    gap: 6,
+    marginBottom: 4
+  },
+  marketplaceListingTitle: {
+    ...type.sectionTitle,
+    fontSize: 17,
+    color: colors.text
+  },
+  priceHelper: {
+    ...type.meta,
+    color: colors.muted,
+    marginTop: -4,
+    marginBottom: 2
+  },
   promoteFields: {
     gap: 8,
     marginTop: 4,
@@ -1263,8 +1569,10 @@ const styles = StyleSheet.create({
     paddingVertical: 5
   },
   chipLightActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent
+    backgroundColor: colors.accentMuted,
+    borderColor: colors.accent,
+    borderWidth: 1.5,
+    ...shadows.accentGlowSoft
   },
   chipLightText: {
     color: colors.composerText,
@@ -1272,7 +1580,7 @@ const styles = StyleSheet.create({
     fontWeight: "700"
   },
   chipLightTextActive: {
-    color: colors.onAccent
+    color: colors.accent
   },
   buttonSecondaryLight: {
     borderColor: colors.composerBorder,
@@ -1300,24 +1608,64 @@ const styles = StyleSheet.create({
     color: colors.composerMuted,
     fontSize: 11
   },
-  moreSection: {
+  moreOptionsPanel: {
+    gap: 16,
+    paddingTop: 4
+  },
+  crossPostBlock: {
+    paddingVertical: 4
+  },
+  crossPostTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12
+  },
+  crossPostTitles: {
+    flex: 1,
+    minWidth: 0,
+    gap: 4
+  },
+  crossPostLabel: {
+    ...type.button,
+    fontSize: 15,
+    color: colors.text
+  },
+  crossPostStatus: {
+    ...type.meta,
+    color: colors.muted
+  },
+  attachProductBlock: {
     gap: 10,
-    backgroundColor: colors.surface,
-    borderRadius: radii.panel,
-    borderColor: colors.borderSubtle,
-    borderWidth: 1,
-    padding: 12
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.borderSubtle
   },
-  moreSectionCompact: {
-    gap: 8,
-    padding: 10
+  attachProductHeading: {
+    ...type.meta,
+    fontWeight: "600",
+    color: colors.text
   },
-  moreHeading: {
-    color: colors.muted,
-    fontSize: 11,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.6
+  stickyPublishWrap: {
+    backgroundColor: colors.background,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.borderSubtle,
+    paddingHorizontal: spacing.pagePaddingH,
+    paddingTop: 12
+  },
+  stickyPublishWrapCompact: {
+    paddingHorizontal: 14,
+    paddingTop: 10
+  },
+  stickyPublishBtn: {
+    borderRadius: radii.card,
+    minHeight: 52,
+    ...primaryButtonOutline
+  },
+  stickyPublishBtnCompact: {
+    minHeight: 48
+  },
+  stickyPublishBtnDisabled: {
+    opacity: 0.45
   },
   chip: {
     borderColor: colors.border,
@@ -1339,21 +1687,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700"
   },
-  button: {
-    backgroundColor: colors.accent,
-    borderRadius: radii.control,
-    paddingVertical: 14,
-    alignItems: "center"
-  },
-  buttonCompact: {
-    paddingVertical: 12
-  },
   buttonPressed: {
     opacity: 0.9,
     transform: [{ scale: 0.995 }]
   },
   buttonPrimaryText: {
-    color: colors.onAccent,
+    color: colors.accent,
     fontWeight: "700",
     fontSize: 16
   },

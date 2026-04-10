@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { colors } from "../../theme";
+import { colors, primaryButtonOutline } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Welcome">;
@@ -45,13 +45,12 @@ const styles = StyleSheet.create({
     color: colors.muted
   },
   buttonPrimary: {
-    backgroundColor: colors.accent,
     borderRadius: 10,
     paddingVertical: 12,
-    alignItems: "center"
+    ...primaryButtonOutline
   },
   buttonPrimaryText: {
-    color: colors.onAccent,
+    color: colors.accent,
     fontWeight: "700"
   },
   buttonSecondary: {

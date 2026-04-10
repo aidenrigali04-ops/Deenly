@@ -17,7 +17,7 @@ import {
 } from "../../lib/monetization";
 import { apiRequest } from "../../lib/api";
 import { getPayoutSetupCopy, isPayoutSetupComplete } from "../../lib/payout-setup";
-import { colors, radii } from "../../theme";
+import { colors, primaryButtonOutline, radii } from "../../theme";
 
 function triState(value: boolean | undefined) {
   if (value === true) return "Yes";
@@ -297,13 +297,12 @@ const styles = StyleSheet.create({
     lineHeight: 20
   },
   addProductBtn: {
-    backgroundColor: colors.accent,
     borderRadius: radii.control,
     paddingVertical: 12,
-    alignItems: "center"
+    ...primaryButtonOutline
   },
   addProductBtnText: {
-    color: colors.onAccent,
+    color: colors.accent,
     fontSize: 16,
     fontWeight: "700"
   },

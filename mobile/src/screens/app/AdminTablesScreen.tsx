@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "../../lib/api";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
-import { colors } from "../../theme";
+import { colors, shadows } from "../../theme";
 
 const TABLES = [
   "users",
@@ -57,7 +57,7 @@ export function AdminTablesScreen() {
               style={[styles.chip, table === tableName ? styles.chipActive : null]}
               onPress={() => setTable(tableName)}
             >
-              <Text style={styles.chipText}>{tableName}</Text>
+              <Text style={[styles.chipText, table === tableName ? styles.chipTextActive : null]}>{tableName}</Text>
             </Pressable>
           ))}
         </View>
@@ -114,12 +114,18 @@ const styles = StyleSheet.create({
     paddingVertical: 6
   },
   chipActive: {
-    backgroundColor: colors.accent
+    backgroundColor: colors.accentMuted,
+    borderColor: colors.accent,
+    borderWidth: 1.5,
+    ...shadows.accentGlowSoft
   },
   chipText: {
     color: colors.text,
     fontSize: 12,
     fontWeight: "700"
+  },
+  chipTextActive: {
+    color: colors.accent
   },
   input: {
     borderColor: colors.border,

@@ -1,8 +1,12 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { BlurView } from "expo-blur";
+import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supportsNativeBlur } from "../lib/blur-support";
 import { colors } from "../theme";
+
+const ICON_SIZE = 24;
+const ICON_COLOR = colors.text;
 
 type Props = {
   onPressCreate: () => void;
@@ -14,7 +18,7 @@ export function HomeTopBar({ onPressCreate, onPressAlerts, onPressSearch }: Prop
   const insets = useSafeAreaInsets();
   const useBlur = supportsNativeBlur();
   return (
-    <View style={[styles.wrap, { paddingTop: insets.top + 8 }]} accessibilityRole="header">
+    <View style={[styles.wrap, { paddingTop: insets.top + 6 }]} accessibilityRole="header">
       {useBlur ? (
         <BlurView intensity={72} tint="light" style={StyleSheet.absoluteFill} />
       ) : (
@@ -25,9 +29,9 @@ export function HomeTopBar({ onPressCreate, onPressAlerts, onPressSearch }: Prop
           onPress={onPressCreate}
           style={styles.sideHit}
           accessibilityRole="button"
-          accessibilityLabel="Create post"
+          accessibilityLabel="Create"
         >
-          <Text style={styles.plus}>+</Text>
+          <Ionicons name="add-circle-outline" size={ICON_SIZE} color={ICON_COLOR} />
         </Pressable>
         <Text style={styles.wordmark}>Deenly</Text>
         <View style={styles.rightCluster}>
@@ -36,9 +40,9 @@ export function HomeTopBar({ onPressCreate, onPressAlerts, onPressSearch }: Prop
               onPress={onPressSearch}
               style={styles.sideHit}
               accessibilityRole="button"
-              accessibilityLabel="Explore"
+              accessibilityLabel="Search"
             >
-              <Text style={styles.searchGlyph}>⌕</Text>
+              <Ionicons name="search-outline" size={ICON_SIZE} color={ICON_COLOR} />
             </Pressable>
           ) : null}
           <Pressable
@@ -47,7 +51,7 @@ export function HomeTopBar({ onPressCreate, onPressAlerts, onPressSearch }: Prop
             accessibilityRole="button"
             accessibilityLabel="Notifications"
           >
-            <Text style={styles.heart}>♥</Text>
+            <Ionicons name="notifications-outline" size={ICON_SIZE} color={ICON_COLOR} />
           </Pressable>
         </View>
       </View>
@@ -59,20 +63,21 @@ const styles = StyleSheet.create({
   wrap: {
     overflow: "hidden",
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(0, 0, 0, 0.08)"
+    borderBottomColor: colors.border
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingBottom: 10,
+    paddingBottom: 8,
+    minHeight: 44,
     zIndex: 1
   },
   rightCluster: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 2
+    gap: 4
   },
   sideHit: {
     minWidth: 44,
@@ -80,25 +85,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center"
   },
-  searchGlyph: {
-    color: colors.text,
-    fontSize: 22,
-    fontWeight: "500"
-  },
-  plus: {
-    color: colors.text,
-    fontSize: 28,
-    fontWeight: "300",
-    lineHeight: 32
-  },
   wordmark: {
     color: colors.text,
     fontSize: 20,
-    fontWeight: "800",
+    fontWeight: "700",
     letterSpacing: -0.4
-  },
-  heart: {
-    color: colors.text,
-    fontSize: 22
   }
 });

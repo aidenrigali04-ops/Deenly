@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { ApiError, apiRequest } from "../../lib/api";
-import { colors, radii, shadows, spacing } from "../../theme";
+import { colors, primaryButtonOutline, radii, shadows, spacing } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 
 type Props = NativeStackScreenProps<RootStackParamList, "EditProfile">;
@@ -210,11 +210,10 @@ const styles = StyleSheet.create({
   error: { color: colors.danger, fontSize: 14, marginTop: 4 },
   saveBtn: {
     marginTop: 4,
-    backgroundColor: colors.accent,
     borderRadius: radii.control,
     paddingVertical: 15,
-    alignItems: "center"
+    ...primaryButtonOutline
   },
   saveBtnDisabled: { opacity: 0.55 },
-  saveBtnText: { color: colors.onAccent, fontSize: 16, fontWeight: "600", letterSpacing: -0.2 }
+  saveBtnText: { color: colors.accent, fontSize: 16, fontWeight: "600", letterSpacing: -0.2 }
 });

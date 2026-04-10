@@ -12,7 +12,7 @@ import {
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { apiRequest } from "../../lib/api";
 import { fetchCreatorProducts, formatMinorCurrency } from "../../lib/monetization";
-import { colors, radii } from "../../theme";
+import { colors, primaryButtonOutline, radii } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 
 type Business = {
@@ -192,13 +192,12 @@ const styles = StyleSheet.create({
   },
   secondaryText: { fontWeight: "600", color: colors.text },
   primary: {
-    backgroundColor: colors.accent,
     paddingVertical: 12,
     borderRadius: radii.control,
-    alignItems: "center"
+    ...primaryButtonOutline
   },
   primaryDisabled: { opacity: 0.45 },
-  primaryText: { color: colors.onAccent, fontWeight: "700" },
+  primaryText: { color: colors.accent, fontWeight: "700" },
   answer: { color: colors.text, lineHeight: 22, marginTop: 8 },
   muted: { color: colors.muted },
   err: { color: colors.danger }

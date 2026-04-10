@@ -14,7 +14,7 @@ import { ProductCheckoutSheet } from "../../components/ProductCheckoutSheet";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { hapticPrimary, hapticSuccess, hapticTap } from "../../lib/haptics";
 import { resolveMediaUrl } from "../../lib/media-url";
-import { colors, radii, shadows } from "../../theme";
+import { colors, primaryButtonOutline, radii, shadows } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { useSessionStore } from "../../store/session-store";
 
@@ -464,10 +464,9 @@ const styles = StyleSheet.create({
   buyHint: { fontSize: 12, color: colors.muted, marginTop: 2 },
   ctaHalf: { flex: 1, minWidth: 0 },
   button: {
-    backgroundColor: colors.accent,
     borderRadius: radii.control,
     paddingVertical: 12,
-    alignItems: "center"
+    ...primaryButtonOutline
   },
   buttonOutline: {
     borderRadius: radii.control,
@@ -480,7 +479,7 @@ const styles = StyleSheet.create({
   buttonOutlineText: { color: colors.accent, fontWeight: "700", fontSize: 15 },
   buttonPressed: { transform: [{ scale: 0.99 }] },
   buttonDisabled: { opacity: 0.45 },
-  buttonText: { color: colors.onAccent, fontWeight: "700", fontSize: 15 },
+  buttonText: { color: colors.accent, fontWeight: "700", fontSize: 15 },
   linkBtn: { paddingVertical: 4 },
   linkText: { color: colors.accent, fontWeight: "600", fontSize: 15 },
   hint: { fontSize: 13, color: colors.muted, fontStyle: "italic" },

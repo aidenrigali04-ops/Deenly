@@ -13,7 +13,7 @@ import {
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { ApiError, apiRequest } from "../../lib/api";
 import { assistPostText } from "../../lib/ai-assist";
-import { colors, radii } from "../../theme";
+import { colors, primaryButtonOutline, radii } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 
 type Props = NativeStackScreenProps<RootStackParamList, "AddBusiness">;
@@ -308,13 +308,12 @@ const styles = StyleSheet.create({
   warn: { color: colors.danger, fontSize: 13 },
   primary: {
     marginTop: 16,
-    backgroundColor: colors.accent,
     paddingVertical: 14,
     borderRadius: radii.control,
-    alignItems: "center"
+    ...primaryButtonOutline
   },
   primaryDisabled: { opacity: 0.45 },
-  primaryText: { color: colors.onAccent, fontWeight: "700" },
+  primaryText: { color: colors.accent, fontWeight: "700" },
   skip: { marginTop: 12, paddingVertical: 12, alignItems: "center" },
   skipText: { color: colors.muted, fontWeight: "600", fontSize: 15 }
 });

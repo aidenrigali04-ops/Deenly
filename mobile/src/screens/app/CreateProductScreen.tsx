@@ -38,7 +38,7 @@ import {
   type ProductImportDraft,
   type StripeProductImportRow
 } from "../../lib/monetization";
-import { colors, radii } from "../../theme";
+import { colors, primaryButtonOutline, radii } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 
 type UploadSignatureResponse = {
@@ -1256,13 +1256,12 @@ const styles = StyleSheet.create({
   error: { color: colors.danger, fontSize: 14, marginTop: 4 },
   btnPrimary: {
     marginTop: 16,
-    backgroundColor: colors.accent,
     borderRadius: radii.control,
     paddingVertical: 14,
-    alignItems: "center"
+    ...primaryButtonOutline
   },
   btnDisabled: { opacity: 0.6 },
-  btnPrimaryText: { color: colors.onAccent, fontSize: 16, fontWeight: "700" },
+  btnPrimaryText: { color: colors.accent, fontSize: 16, fontWeight: "700" },
   btnSecondary: {
     marginTop: 10,
     borderWidth: StyleSheet.hairlineWidth,
