@@ -9,7 +9,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
@@ -38,15 +37,32 @@ import {
   type ProductImportDraft,
   type StripeProductImportRow
 } from "../../lib/monetization";
-import { colors, primaryButtonOutline, radii } from "../../theme";
+import { colors, radii } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
+import {
+  FormCard,
+  SoftTextInput,
+  SoftTextArea,
+  StickyCtaBar,
+  UploadCard,
+  ChipRow,
+  EarningsPreviewCard,
+  CollapsibleSection,
+  SubtypeSegmentedControl,
+  AIHelperRow,
+} from "../../components/create";
 
+/* ── Design tokens ─────────────────────────────────────────── */
+const PAGE_BG = "#F9F8F6";
+const INPUT_FILL = "#F5F4F2";
+const HAIRLINE = "#EBEBEB";
+
+/* ── Types ─────────────────────────────────────────────────── */
 type UploadSignatureResponse = {
   uploadUrl: string;
   headers: Record<string, string>;
   key: string;
 };
-
 type Props = NativeStackScreenProps<RootStackParamList, "CreateProduct">;
 type EditableProductType = "digital" | "service";
 
@@ -63,10 +79,6 @@ function parseUsdToMinor(raw: string): number | null {
   if (!Number.isFinite(n) || n <= 0) return null;
   const minor = Math.round(n * 100);
   return minor > 0 ? minor : null;
-}
-
-function SectionLabel({ children }: { children: string }) {
-  return <Text style={styles.sectionLabel}>{children}</Text>;
 }
 
 function applyDraftToForm(
@@ -174,6 +186,7 @@ function applyProductDetailToForm(
   set.setSavedDraftId(p.id);
 }
 
+/* ── Success overlay ─────────────────────────────────────── */
 function SuccessCheckOverlay({
   visible,
   title,
@@ -187,21 +200,12 @@ function SuccessCheckOverlay({
   const fade = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (!visible) {
-      scale.setValue(0);
-      fade.setValue(0);
-      return;
-    }
+    if (!visible) { scale.setValue(0); fade.setValue(0); return; }
     fade.setValue(0);
     scale.setValue(0);
     Animated.parallel([
       Animated.timing(fade, { toValue: 1, duration: 180, useNativeDriver: true }),
-      Animated.spring(scale, {
-        toValue: 1,
-        friction: 7,
-        tension: 100,
-        useNativeDriver: true
-      })
+      Animated.spring(scale, { toValue: 1, friction: 7, tension: 100, useNativeDriver: true })
     ]).start();
   }, [visible, fade, scale]);
 
@@ -220,6 +224,7 @@ function SuccessCheckOverlay({
   );
 }
 
+/* ── Main component ──────────────────────────────────────── */
 type ListingKind = "product" | "membership";
 
 export function CreateProductScreen({ navigation, route }: Props) {
@@ -256,32 +261,20 @@ export function CreateProductScreen({ navigation, route }: Props) {
 
   const editProductId = route.params?.editProductId;
 
+  /* ── Initial draft hydration ── */
   useEffect(() => {
     const d = route.params?.initialDraft;
-    if (editProductId || !d || appliedInitialDraft.current) {
-      return;
-    }
+    if (editProductId || !d || appliedInitialDraft.current) return;
     appliedInitialDraft.current = true;
     applyDraftToForm(d, {
-      setTitle,
-      setDescription,
-      setCurrency,
-      setPriceUsd,
-      setPriceMinorOnly,
-      setUseMinorPrice,
-      setProductType,
-      setWebsiteUrl,
-      setServiceDetails,
-      setDeliveryMethod,
-      setAudienceTarget,
-      setBusinessCategory
+      setTitle, setDescription, setCurrency, setPriceUsd, setPriceMinorOnly,
+      setUseMinorPrice, setProductType, setWebsiteUrl, setServiceDetails,
+      setDeliveryMethod, setAudienceTarget, setBusinessCategory
     });
   }, [route.params?.initialDraft, editProductId]);
 
   const hydratedEditId = useRef<number | null>(null);
-  useEffect(() => {
-    hydratedEditId.current = null;
-  }, [editProductId]);
+  useEffect(() => { hydratedEditId.current = null; }, [editProductId]);
 
   const { data: editRow, isLoading: editLoading, isError: editError } = useQuery({
     queryKey: ["creator-product-edit", editProductId],
@@ -290,34 +283,18 @@ export function CreateProductScreen({ navigation, route }: Props) {
   });
 
   useEffect(() => {
-    if (!editProductId || !editRow || hydratedEditId.current === editProductId) {
-      return;
-    }
-    if (editRow.status !== "draft") {
-      hydratedEditId.current = editProductId;
-      return;
-    }
+    if (!editProductId || !editRow || hydratedEditId.current === editProductId) return;
+    if (editRow.status !== "draft") { hydratedEditId.current = editProductId; return; }
     hydratedEditId.current = editProductId;
     applyProductDetailToForm(editRow, {
-      setTitle,
-      setDescription,
-      setCurrency,
-      setPriceUsd,
-      setPriceMinorOnly,
-      setUseMinorPrice,
-      setProductType,
-      setWebsiteUrl,
-      setServiceDetails,
-      setDeliveryMethod,
-      setAudienceTarget,
-      setBusinessCategory,
-      setBoostTier,
-      setHasRemoteDelivery,
-      setDeliveryFile,
-      setSavedDraftId
+      setTitle, setDescription, setCurrency, setPriceUsd, setPriceMinorOnly,
+      setUseMinorPrice, setProductType, setWebsiteUrl, setServiceDetails,
+      setDeliveryMethod, setAudienceTarget, setBusinessCategory,
+      setBoostTier, setHasRemoteDelivery, setDeliveryFile, setSavedDraftId
     });
   }, [editProductId, editRow]);
 
+  /* ── Queries ── */
   const { data: myProducts } = useQuery({
     queryKey: ["mobile-create-my-products"],
     queryFn: () => fetchMyProducts({ limit: 50 })
@@ -337,13 +314,8 @@ export function CreateProductScreen({ navigation, route }: Props) {
   const canManageMembershipsCap = Boolean(capsQuery.data?.persona_capabilities?.can_manage_memberships);
 
   useEffect(() => {
-    if (editProductId) {
-      setListingKind("product");
-      return;
-    }
-    if (canManageMembershipsCap && !canCreateProductsCap) {
-      setListingKind("membership");
-    }
+    if (editProductId) { setListingKind("product"); return; }
+    if (canManageMembershipsCap && !canCreateProductsCap) setListingKind("membership");
   }, [editProductId, canManageMembershipsCap, canCreateProductsCap]);
 
   const draftItems = useMemo(
@@ -351,6 +323,7 @@ export function CreateProductScreen({ navigation, route }: Props) {
     [myProducts]
   );
 
+  /* ── Mutations ── */
   const createMutation = useMutation({
     mutationFn: createProduct,
     onSuccess: async () => {
@@ -359,7 +332,6 @@ export function CreateProductScreen({ navigation, route }: Props) {
       await queryClient.invalidateQueries({ queryKey: ["mobile-creator-catalog"] });
     }
   });
-
   const publishMutation = useMutation({
     mutationFn: publishProduct,
     onSuccess: async () => {
@@ -368,7 +340,6 @@ export function CreateProductScreen({ navigation, route }: Props) {
       await queryClient.invalidateQueries({ queryKey: ["mobile-creator-catalog"] });
     }
   });
-
   const createTierMutation = useMutation({
     mutationFn: createTier,
     onSuccess: async () => {
@@ -381,7 +352,6 @@ export function CreateProductScreen({ navigation, route }: Props) {
       await queryClient.invalidateQueries({ queryKey: ["mobile-creator-tiers"] });
     }
   });
-
   const patchMutation = useMutation({
     mutationFn: ({ id, body }: { id: number; body: Parameters<typeof patchProduct>[1] }) => patchProduct(id, body),
     onSuccess: async (_, { id }) => {
@@ -395,24 +365,17 @@ export function CreateProductScreen({ navigation, route }: Props) {
   const saveDraftPending = createMutation.isPending || patchMutation.isPending;
   const addProductPending = saveDraftPending || publishMutation.isPending;
 
+  /* ── Handlers ── */
   const generateServiceDescription = async () => {
     const k = serviceKeyPoints.trim();
-    if (k.length < 5) {
-      setServiceAssistErr("Add key points (bullets or short notes).");
-      return;
-    }
+    if (k.length < 5) { setServiceAssistErr("Add key points (bullets or short notes)."); return; }
     setServiceAssistErr("");
     setServiceAssistBusy(true);
     try {
       const lines = [
         title.trim() ? `Product title: ${title.trim()}` : null,
-        `Product type: ${productType}`,
-        "",
-        "Key points from creator:",
-        k
-      ]
-        .filter(Boolean)
-        .join("\n");
+        `Product type: ${productType}`, "", "Key points from creator:", k
+      ].filter(Boolean).join("\n");
       const res = await assistPostText(lines, "service_details_generate");
       setServiceDetails(res.suggestion);
     } catch (e) {
@@ -424,18 +387,13 @@ export function CreateProductScreen({ navigation, route }: Props) {
 
   const pickDeliveryFile = () => {
     pickVisualMedia({ kind: "product" }, (asset) => {
-      if (asset) {
-        setHasRemoteDelivery(false);
-        setDeliveryFile(asset);
-      }
+      if (asset) { setHasRemoteDelivery(false); setDeliveryFile(asset); }
     });
   };
 
   const readPriceMinor = (): number | null => {
     const cur = currency.toLowerCase();
-    if (cur === "usd" && !useMinorPrice) {
-      return parseUsdToMinor(priceUsd);
-    }
+    if (cur === "usd" && !useMinorPrice) return parseUsdToMinor(priceUsd);
     const raw = priceMinorOnly.replace(/\D/g, "");
     const parsed = raw ? Number.parseInt(raw, 10) : NaN;
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
@@ -443,32 +401,17 @@ export function CreateProductScreen({ navigation, route }: Props) {
 
   const priceErrorMessage = (): string => {
     const cur = currency.toLowerCase();
-    if (cur === "usd" && !useMinorPrice) {
-      return "Enter a valid price in USD (e.g. 9.99).";
-    }
+    if (cur === "usd" && !useMinorPrice) return "Enter a valid price in USD (e.g. 9.99).";
     return "Enter a valid price in minor units for this currency.";
   };
 
+  /* ── Earnings preview ── */
   const enabledBoostTierRows = useMemo(() => {
     const fromPolicy = connectStatus?.feePolicy?.tiers?.filter((t) => t.enabled);
-    if (fromPolicy && fromPolicy.length > 0) {
-      return fromPolicy;
-    }
+    if (fromPolicy && fromPolicy.length > 0) return fromPolicy;
     return [
-      {
-        key: "standard" as const,
-        label: "Standard",
-        platformFeeBps: BOOST_TIER_BPS.standard,
-        enabled: true,
-        description: "Default distribution placement."
-      },
-      {
-        key: "boosted" as const,
-        label: "Boosted",
-        platformFeeBps: BOOST_TIER_BPS.boosted,
-        enabled: true,
-        description: "Higher-priority distribution placement."
-      }
+      { key: "standard" as const, label: "Standard", platformFeeBps: BOOST_TIER_BPS.standard, enabled: true, description: "Default distribution placement." },
+      { key: "boosted" as const, label: "Boosted", platformFeeBps: BOOST_TIER_BPS.boosted, enabled: true, description: "Higher-priority distribution placement." }
     ];
   }, [connectStatus?.feePolicy?.tiers]);
   const selectedPlatformFeeBps = BOOST_TIER_BPS[boostTier] ?? BOOST_TIER_BPS.standard;
@@ -486,22 +429,14 @@ export function CreateProductScreen({ navigation, route }: Props) {
       ? estimateCreatorNet(membershipMonthlyMinor, tierPlatformFeeBps, 700, true)
       : null;
 
+  /* ── Publish membership ── */
   const onPublishMembership = async () => {
     setFormError("");
-    if (!canManageMembershipsCap) {
-      setFormError("Membership plans are not enabled for your profile.");
-      return;
-    }
+    if (!canManageMembershipsCap) { setFormError("Membership plans are not enabled for your profile."); return; }
     const t = title.trim();
-    if (t.length < 3) {
-      setFormError("Title must be at least 3 characters.");
-      return;
-    }
+    if (t.length < 3) { setFormError("Title must be at least 3 characters."); return; }
     const minor = parseUsdToMinor(priceUsd);
-    if (minor === null) {
-      setFormError("Enter a valid monthly USD amount.");
-      return;
-    }
+    if (minor === null) { setFormError("Enter a valid monthly USD amount."); return; }
     try {
       const tier = await createTierMutation.mutateAsync({
         title: t,
@@ -511,43 +446,26 @@ export function CreateProductScreen({ navigation, route }: Props) {
       });
       await publishTierMutation.mutateAsync(tier.id);
       setSuccessKind("added");
-      setTimeout(() => {
-        setSuccessKind(null);
-        navigation.goBack();
-      }, 1600);
+      setTimeout(() => { setSuccessKind(null); navigation.goBack(); }, 1600);
     } catch (e) {
       setFormError(e instanceof ApiError ? e.message : "Could not publish membership.");
     }
   };
 
+  /* ── Upload digital delivery ── */
   const uploadDigitalDeliveryFile = async (): Promise<string> => {
-    if (!deliveryFile) {
-      throw new Error("No delivery file.");
-    }
+    if (!deliveryFile) throw new Error("No delivery file.");
     const mimeType = deliveryFile.mimeType || "application/octet-stream";
     const mediaType = deriveMediaType(mimeType);
-    if (!mediaType) {
-      throw new Error("Delivery file must be an image or video.");
-    }
+    if (!mediaType) throw new Error("Delivery file must be an image or video.");
     const signature = await apiRequest<UploadSignatureResponse>("/media/upload-signature", {
       method: "POST",
       auth: true,
-      body: {
-        mediaType,
-        mimeType,
-        originalFilename: deliveryFile.name,
-        fileSizeBytes: deliveryFile.size || 1
-      }
+      body: { mediaType, mimeType, originalFilename: deliveryFile.name, fileSizeBytes: deliveryFile.size || 1 }
     });
     const blob = await (await fetch(deliveryFile.uri)).blob();
-    const uploaded = await fetch(signature.uploadUrl, {
-      method: "PUT",
-      headers: signature.headers,
-      body: blob
-    });
-    if (!uploaded.ok) {
-      throw new Error("Could not upload delivery file.");
-    }
+    const uploaded = await fetch(signature.uploadUrl, { method: "PUT", headers: signature.headers, body: blob });
+    if (!uploaded.ok) throw new Error("Could not upload delivery file.");
     return signature.key;
   };
 
@@ -557,8 +475,7 @@ export function CreateProductScreen({ navigation, route }: Props) {
     priceMinor,
     currency,
     productType,
-    serviceDetails:
-      productType === "digital" ? undefined : serviceDetails.trim() || undefined,
+    serviceDetails: productType === "digital" ? undefined : serviceDetails.trim() || undefined,
     deliveryMethod: deliveryMethod.trim().slice(0, 120) || undefined,
     websiteUrl: websiteUrl.trim() || undefined,
     audienceTarget,
@@ -566,28 +483,20 @@ export function CreateProductScreen({ navigation, route }: Props) {
     boostTier
   });
 
+  /* ── Save draft ── */
   const onSaveDraft = async () => {
     setFormError("");
     const t = title.trim();
-    if (t.length < 3) {
-      setFormError("Title must be at least 3 characters.");
-      return;
-    }
+    if (t.length < 3) { setFormError("Title must be at least 3 characters."); return; }
     const priceMinor = readPriceMinor();
-    if (priceMinor === null) {
-      setFormError(priceErrorMessage());
-      return;
-    }
-
+    if (priceMinor === null) { setFormError(priceErrorMessage()); return; }
     try {
       const common = buildCommonBody(t, priceMinor);
       if (savedDraftId) {
         await patchMutation.mutateAsync({ id: savedDraftId, body: { ...common, status: "draft" } });
       } else {
         const row = await createMutation.mutateAsync(common);
-        if (Number.isFinite(row.id)) {
-          setSavedDraftId(row.id);
-        }
+        if (Number.isFinite(row.id)) setSavedDraftId(row.id);
       }
       setSuccessKind("draft");
       setTimeout(() => setSuccessKind(null), 1500);
@@ -596,23 +505,16 @@ export function CreateProductScreen({ navigation, route }: Props) {
     }
   };
 
+  /* ── Add product (publish) ── */
   const onAddProduct = async () => {
     setFormError("");
     const t = title.trim();
-    if (t.length < 3) {
-      setFormError("Title must be at least 3 characters.");
-      return;
-    }
+    if (t.length < 3) { setFormError("Title must be at least 3 characters."); return; }
     const priceMinor = readPriceMinor();
-    if (priceMinor === null) {
-      setFormError(priceErrorMessage());
-      return;
-    }
+    if (priceMinor === null) { setFormError(priceErrorMessage()); return; }
     if (productType === "digital" && !deliveryFile && !hasRemoteDelivery) {
-      setFormError("Choose a delivery image or video before publishing.");
-      return;
+      setFormError("Choose a delivery image or video before publishing."); return;
     }
-
     try {
       let deliveryMediaKey: string | undefined;
       if (productType === "digital" && deliveryFile) {
@@ -620,33 +522,18 @@ export function CreateProductScreen({ navigation, route }: Props) {
         setHasRemoteDelivery(true);
         setDeliveryFile(null);
       }
-
       const base = buildCommonBody(t, priceMinor);
-
       let productId = savedDraftId;
       if (productId) {
-        await patchMutation.mutateAsync({
-          id: productId,
-          body: {
-            ...base,
-            ...(deliveryMediaKey ? { deliveryMediaKey } : {})
-          }
-        });
+        await patchMutation.mutateAsync({ id: productId, body: { ...base, ...(deliveryMediaKey ? { deliveryMediaKey } : {}) } });
       } else {
-        const row = await createMutation.mutateAsync({
-          ...base,
-          ...(deliveryMediaKey ? { deliveryMediaKey } : {})
-        });
+        const row = await createMutation.mutateAsync({ ...base, ...(deliveryMediaKey ? { deliveryMediaKey } : {}) });
         productId = row.id;
         setSavedDraftId(row.id);
       }
-
       await publishMutation.mutateAsync(productId);
       setSuccessKind("added");
-      setTimeout(() => {
-        setSuccessKind(null);
-        navigation.goBack();
-      }, 1600);
+      setTimeout(() => { setSuccessKind(null); navigation.goBack(); }, 1600);
     } catch (e) {
       setFormError(e instanceof ApiError ? e.message : "Could not add product.");
     }
@@ -654,636 +541,444 @@ export function CreateProductScreen({ navigation, route }: Props) {
 
   const editBlockedNonDraft = Boolean(editRow && editRow.status !== "draft");
 
+  /* ── Stripe import handler ── */
+  const handleStripeImport = (draft: ProductImportDraft) => {
+    applyDraftToForm(draft, {
+      setTitle, setDescription, setCurrency, setPriceUsd, setPriceMinorOnly,
+      setUseMinorPrice, setProductType, setWebsiteUrl, setServiceDetails,
+      setDeliveryMethod, setAudienceTarget, setBusinessCategory
+    });
+  };
+
+  /* ── Render ── */
   return (
-    <KeyboardAvoidingView
-      style={styles.root}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <SuccessCheckOverlay
         visible={successKind !== null}
-        title={
-          successKind === "added"
-            ? listingKind === "membership"
-              ? "Membership live"
-              : "Product added"
-            : "Draft saved"
-        }
-        subtitle={
-          successKind === "added"
-            ? listingKind === "membership"
-              ? "Supporters can subscribe from your profile."
-              : "Your catalog is updated."
-            : "Nothing was uploaded. Continue editing or publish when ready."
-        }
+        title={successKind === "added" ? (listingKind === "membership" ? "Membership live" : "Product added") : "Draft saved"}
+        subtitle={successKind === "added"
+          ? (listingKind === "membership" ? "Supporters can subscribe from your profile." : "Your catalog is updated.")
+          : "Nothing was uploaded. Continue editing or publish when ready."}
       />
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 24 }]}
+        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 120 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.lede}>
-          Publish goes live on your catalog. Save draft keeps work private—delivery uploads only when you publish.
-        </Text>
-
+        {/* ── Listing kind toggle ── */}
         {!editProductId ? (
-          <View style={styles.chipRow}>
+          <View style={styles.kindRow}>
             {canCreateProductsCap ? (
-              <>
-                <Pressable
-                  style={[styles.chip, listingKind === "product" && styles.chipOn]}
-                  onPress={() => setListingKind("product")}
-                >
-                  <Text style={[styles.chipText, listingKind === "product" && styles.chipTextOn]}>Product</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.chip, listingKind === "product" && productType === "digital" && styles.chipOn]}
-                  onPress={() => {
-                    setListingKind("product");
-                    setProductType("digital");
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      listingKind === "product" && productType === "digital" && styles.chipTextOn
-                    ]}
-                  >
-                    Digital
-                  </Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.chip, listingKind === "product" && productType === "service" && styles.chipOn]}
-                  onPress={() => {
-                    setListingKind("product");
-                    setProductType("service");
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      listingKind === "product" && productType === "service" && styles.chipTextOn
-                    ]}
-                  >
-                    Service
-                  </Text>
-                </Pressable>
-              </>
+              <Pressable
+                style={[styles.kindChip, listingKind === "product" && styles.kindChipActive]}
+                onPress={() => setListingKind("product")}
+              >
+                <Text style={[styles.kindChipText, listingKind === "product" && styles.kindChipTextActive]}>Product</Text>
+              </Pressable>
             ) : null}
             {canManageMembershipsCap ? (
               <Pressable
-                style={[styles.chip, listingKind === "membership" && styles.chipOn]}
+                style={[styles.kindChip, listingKind === "membership" && styles.kindChipActive]}
                 onPress={() => setListingKind("membership")}
               >
-                <Text style={[styles.chipText, listingKind === "membership" && styles.chipTextOn]}>
-                  Monthly membership
-                </Text>
+                <Text style={[styles.kindChipText, listingKind === "membership" && styles.kindChipTextActive]}>Membership</Text>
               </Pressable>
             ) : null}
           </View>
         ) : null}
 
+        {/* ═══ MEMBERSHIP FLOW ═══ */}
         {listingKind === "membership" && !editProductId ? (
           <>
-            <SectionLabel>Plan</SectionLabel>
-            <TextInput
-              style={styles.input}
-              placeholder="Plan title"
-              placeholderTextColor={colors.muted}
-              value={title}
-              onChangeText={setTitle}
-            />
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              placeholder="What members get each month"
-              placeholderTextColor={colors.muted}
-              value={description}
-              onChangeText={setDescription}
-              multiline
-            />
-            <SectionLabel>Monthly price (USD)</SectionLabel>
-            <TextInput
-              style={styles.input}
-              placeholder="9.99"
-              placeholderTextColor={colors.muted}
-              value={priceUsd}
-              onChangeText={setPriceUsd}
-              keyboardType="decimal-pad"
-            />
+            <FormCard>
+              <SoftTextInput label="Plan title" placeholder="Plan title" value={title} onChangeText={setTitle} />
+              <SoftTextArea label="Description" placeholder="What members get each month" value={description} onChangeText={setDescription} minHeight={100} />
+              <SoftTextInput label="Monthly price (USD)" placeholder="9.99" value={priceUsd} onChangeText={setPriceUsd} keyboardType="decimal-pad" />
+            </FormCard>
             {membershipPreview ? (
-              <View style={styles.previewCard}>
-                <Text style={styles.previewTitle}>Estimated payout / month</Text>
-                <Text style={styles.previewCopy}>
-                  Member pays {formatMinorCurrency(membershipMonthlyMinor || 0, "usd")}
-                </Text>
-                <Text style={styles.previewCopy}>
-                  After fees ~ {formatMinorCurrency(membershipPreview.creatorNetMinor, "usd")}
-                </Text>
-              </View>
-            ) : null}
+              <EarningsPreviewCard
+                buyerPays={formatMinorCurrency(membershipMonthlyMinor || 0, "usd")}
+                platformFee={formatMinorCurrency((membershipMonthlyMinor || 0) - membershipPreview.creatorNetMinor, "usd")}
+                platformFeeLabel="Fees"
+                youReceive={formatMinorCurrency(membershipPreview.creatorNetMinor, "usd")}
+              />
+            ) : (
+              <EarningsPreviewCard buyerPays={null} platformFee={null} youReceive={null} />
+            )}
             {formError ? <Text style={styles.error}>{formError}</Text> : null}
-            <Pressable
-              style={[
-                styles.btnPrimary,
-                (createTierMutation.isPending || publishTierMutation.isPending) && styles.btnDisabled
-              ]}
-              disabled={createTierMutation.isPending || publishTierMutation.isPending}
-              onPress={() => void onPublishMembership()}
-            >
-              <Text style={styles.btnPrimaryText}>
-                {publishTierMutation.isPending
-                  ? "Publishing…"
-                  : createTierMutation.isPending
-                    ? "Saving…"
-                    : "Publish membership"}
-              </Text>
-            </Pressable>
           </>
         ) : null}
 
+        {/* ═══ PRODUCT FLOW ═══ */}
         {listingKind === "product" || editProductId ? (
           <>
-        {editLoading ? (
-          <View style={styles.editLoadingRow}>
-            <ActivityIndicator color={colors.accent} />
-            <Text style={styles.editLoadingText}>Loading draft…</Text>
-          </View>
-        ) : null}
-        {editError ? <Text style={styles.error}>Could not open this draft.</Text> : null}
-        {editBlockedNonDraft ? (
-          <Text style={styles.error}>Only drafts can be edited here. Published products are managed from your profile.</Text>
-        ) : null}
+            {editLoading ? (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator color={colors.accent} />
+                <Text style={styles.loadingText}>Loading draft...</Text>
+              </View>
+            ) : null}
+            {editError ? <Text style={styles.error}>Could not open this draft.</Text> : null}
+            {editBlockedNonDraft ? (
+              <Text style={styles.error}>Only drafts can be edited here.</Text>
+            ) : null}
 
-        {draftItems.length > 0 && !editProductId ? (
-          <>
-            <SectionLabel>Drafts</SectionLabel>
-            <Text style={styles.importHint}>Tap to resume. Drafts never upload delivery files.</Text>
-            <View style={styles.stripeList}>
-              {draftItems.map((d) => (
+            {/* ── Stripe import (collapsed) ── */}
+            <FormCard>
+              <CollapsibleSection title="Import from Stripe">
+                <Text style={styles.helper}>After payout setup, import from your Stripe catalog by Product ID.</Text>
                 <Pressable
-                  key={d.id}
-                  style={styles.stripeRow}
-                  onPress={() => navigation.navigate("CreateProduct", { editProductId: d.id })}
+                  style={[styles.utilBtn, stripeBusy && styles.utilBtnDisabled]}
+                  onPress={() => {
+                    setImportNotice("");
+                    setStripeBusy(true);
+                    void (async () => {
+                      try {
+                        const r = await fetchStripeProductImportList({ limit: 40 });
+                        setStripeItems(r.items);
+                        if (r.items.length === 0) setImportNotice("No active Stripe prices found.");
+                      } catch (e) {
+                        setImportNotice(e instanceof ApiError ? e.message : "Could not load Stripe catalog.");
+                      } finally {
+                        setStripeBusy(false);
+                      }
+                    })();
+                  }}
+                  disabled={stripeBusy}
                 >
-                  <Text style={styles.stripeRowText} numberOfLines={2}>
-                    {d.title} · {formatMinorCurrency(Number(d.price_minor || 0), d.currency || "usd")}
-                  </Text>
+                  <Text style={styles.utilBtnText}>{stripeBusy ? "Loading Stripe..." : "Load Stripe prices"}</Text>
                 </Pressable>
-              ))}
-            </View>
-          </>
-        ) : null}
+                <SoftTextInput
+                  placeholder="prod_... (Stripe Product ID)"
+                  value={stripeProductIdInput}
+                  onChangeText={setStripeProductIdInput}
+                  autoCapitalize="none"
+                />
+                <Pressable
+                  style={[styles.utilBtn, stripePickBusy && styles.utilBtnDisabled]}
+                  disabled={stripePickBusy}
+                  onPress={() => {
+                    const sid = stripeProductIdInput.trim();
+                    if (!sid) { setImportNotice("Enter a Stripe Product ID (prod_...)."); return; }
+                    setImportNotice("");
+                    setStripePickBusy(true);
+                    void (async () => {
+                      try {
+                        const r = await importProductDraftFromStripeProductId(sid);
+                        if ("needsPriceSelection" in r && r.needsPriceSelection) {
+                          setStripeItems(r.items || []);
+                          setImportNotice(r.message || "Multiple prices found. Choose one below.");
+                          return;
+                        }
+                        if (!("draft" in r)) { setImportNotice("Stripe Product ID import failed."); return; }
+                        handleStripeImport(r.draft);
+                      } catch (e) {
+                        setImportNotice(e instanceof ApiError ? e.message : "Stripe import failed.");
+                      } finally {
+                        setStripePickBusy(false);
+                      }
+                    })();
+                  }}
+                >
+                  <Text style={styles.utilBtnText}>{stripePickBusy ? "Importing..." : "Import from Product ID"}</Text>
+                </Pressable>
+                {stripeItems.length > 0 ? (
+                  <View style={{ gap: 6 }}>
+                    {stripeItems.map((row) => (
+                      <Pressable
+                        key={row.stripePriceId}
+                        style={[styles.stripeRow, stripePickBusy && styles.utilBtnDisabled]}
+                        disabled={stripePickBusy}
+                        onPress={() => {
+                          setImportNotice("");
+                          setStripePickBusy(true);
+                          void (async () => {
+                            try {
+                              const r = await importProductDraftFromStripe({
+                                stripeProductId: row.stripeProductId,
+                                stripePriceId: row.stripePriceId
+                              });
+                              handleStripeImport(r.draft);
+                            } catch (e) {
+                              setImportNotice(e instanceof ApiError ? e.message : "Stripe import failed.");
+                            } finally {
+                              setStripePickBusy(false);
+                            }
+                          })();
+                        }}
+                      >
+                        <Text style={styles.stripeRowText} numberOfLines={2}>
+                          {row.title} · {formatMinorCurrency(row.priceMinor, row.currency)}
+                          {row.recurring ? ` / ${row.recurring.interval}` : ""}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
+                {importNotice ? <Text style={styles.importNotice}>{importNotice}</Text> : null}
+              </CollapsibleSection>
+            </FormCard>
 
-        <SectionLabel>Import</SectionLabel>
-        <Text style={styles.importHint}>
-          After payout setup is complete, you can import from your Stripe catalog by Product ID to auto-fill fields.
-        </Text>
-        <Pressable
-          style={[styles.btnSecondary, stripeBusy && styles.btnDisabled]}
-          onPress={() => {
-            setImportNotice("");
-            setStripeBusy(true);
-            void (async () => {
-              try {
-                const r = await fetchStripeProductImportList({ limit: 40 });
-                setStripeItems(r.items);
-                if (r.items.length === 0) {
-                  setImportNotice("No active Stripe prices found.");
-                }
-              } catch (e) {
-                setImportNotice(e instanceof ApiError ? e.message : "Could not load Stripe catalog.");
-              } finally {
-                setStripeBusy(false);
-              }
-            })();
-          }}
-          disabled={stripeBusy}
-        >
-          <Text style={styles.btnSecondaryText}>{stripeBusy ? "Loading Stripe…" : "Load Stripe prices"}</Text>
-        </Pressable>
-        <TextInput
-          style={styles.input}
-          placeholder="prod_... (Stripe Product ID)"
-          placeholderTextColor={colors.muted}
-          value={stripeProductIdInput}
-          onChangeText={setStripeProductIdInput}
-          autoCapitalize="none"
-        />
-        <Pressable
-          style={[styles.btnSecondary, stripePickBusy && styles.btnDisabled]}
-          disabled={stripePickBusy}
-          onPress={() => {
-            const stripeProductId = stripeProductIdInput.trim();
-            if (!stripeProductId) {
-              setImportNotice("Enter a Stripe Product ID (prod_...).");
-              return;
-            }
-            setImportNotice("");
-            setStripePickBusy(true);
-            void (async () => {
-              try {
-                const r = await importProductDraftFromStripeProductId(stripeProductId);
-                if ("needsPriceSelection" in r && r.needsPriceSelection) {
-                  setStripeItems(r.items || []);
-                  setImportNotice(r.message || "Multiple prices found. Choose one below.");
-                  return;
-                }
-                if (!("draft" in r)) {
-                  setImportNotice("Stripe Product ID import failed.");
-                  return;
-                }
-                applyDraftToForm(r.draft, {
-                  setTitle,
-                  setDescription,
-                  setCurrency,
-                  setPriceUsd,
-                  setPriceMinorOnly,
-                  setUseMinorPrice,
-                  setProductType,
-                  setWebsiteUrl,
-                  setServiceDetails,
-                  setDeliveryMethod,
-                  setAudienceTarget,
-                  setBusinessCategory
-                });
-              } catch (e) {
-                setImportNotice(e instanceof ApiError ? e.message : "Stripe Product ID import failed.");
-              } finally {
-                setStripePickBusy(false);
-              }
-            })();
-          }}
-        >
-          <Text style={styles.btnSecondaryText}>{stripePickBusy ? "Importing…" : "Import from Product ID"}</Text>
-        </Pressable>
-        {stripeItems.length > 0 ? (
-          <View style={styles.stripeList}>
-            {stripeItems.map((row) => (
-              <Pressable
-                key={row.stripePriceId}
-                style={[styles.stripeRow, stripePickBusy && styles.btnDisabled]}
-                disabled={stripePickBusy}
-                onPress={() => {
-                  setImportNotice("");
-                  setStripePickBusy(true);
-                  void (async () => {
-                    try {
-                      const r = await importProductDraftFromStripe({
-                        stripeProductId: row.stripeProductId,
-                        stripePriceId: row.stripePriceId
-                      });
-                      applyDraftToForm(r.draft, {
-                        setTitle,
-                        setDescription,
-                        setCurrency,
-                        setPriceUsd,
-                        setPriceMinorOnly,
-                        setUseMinorPrice,
-                        setProductType,
-                        setWebsiteUrl,
-                        setServiceDetails,
-                        setDeliveryMethod,
-                        setAudienceTarget,
-                        setBusinessCategory
-                      });
-                    } catch (e) {
-                      setImportNotice(e instanceof ApiError ? e.message : "Stripe import failed.");
-                    } finally {
-                      setStripePickBusy(false);
-                    }
-                  })();
-                }}
-              >
-                <Text style={styles.stripeRowText} numberOfLines={2}>
-                  {row.title} · {formatMinorCurrency(row.priceMinor, row.currency)}
-                  {row.recurring ? ` / ${row.recurring.interval}` : ""}
+            {/* ── Basics card ── */}
+            <FormCard>
+              <Text style={styles.cardHeading}>Basics</Text>
+              <SubtypeSegmentedControl
+                options={[
+                  { key: "digital", label: "Digital" },
+                  { key: "service", label: "Service" },
+                ]}
+                value={productType}
+                onChange={(k) => setProductType(k as EditableProductType)}
+              />
+              <SoftTextInput label="Title" placeholder="Product title" value={title} onChangeText={setTitle} maxLength={180} />
+              <SoftTextArea label="Description" placeholder="What buyers get" value={description} onChangeText={setDescription} minHeight={100} />
+
+              <Text style={styles.fieldLabel}>Audience</Text>
+              <ChipRow
+                items={[
+                  { key: "b2c", label: "Consumers" },
+                  { key: "b2b", label: "Businesses" },
+                  { key: "both", label: "Both" },
+                ]}
+                selected={audienceTarget}
+                onSelect={(k) => setAudienceTarget(k as "b2b" | "b2c" | "both")}
+              />
+
+              <Text style={styles.fieldLabel}>Category</Text>
+              <ChipRow
+                wrap
+                items={[
+                  { key: "tools_growth", label: "Tools" },
+                  { key: "professional_services", label: "Services" },
+                  { key: "digital_products", label: "Digital" },
+                  { key: "education_coaching", label: "Coaching" },
+                  { key: "lifestyle_inspiration", label: "Lifestyle" },
+                ]}
+                selected={businessCategory}
+                onSelect={(k) => setBusinessCategory((c) => (c === k ? "" : k))}
+              />
+            </FormCard>
+
+            {/* ── Media / Delivery card ── */}
+            <FormCard>
+              <Text style={styles.cardHeading}>Media & Delivery</Text>
+              {productType === "digital" ? (
+                <UploadCard
+                  height={140}
+                  uri={deliveryFile?.uri}
+                  mimeType={deliveryFile?.mimeType}
+                  title={hasRemoteDelivery ? "Delivery file attached" : "Add delivery file"}
+                  hint={hasRemoteDelivery ? "Tap to replace" : "Library, camera, or files"}
+                  icon="document-outline"
+                  onPress={pickDeliveryFile}
+                />
+              ) : (
+                <>
+                  <SoftTextArea
+                    label="Key points"
+                    placeholder="What you offer, who it is for, format..."
+                    value={serviceKeyPoints}
+                    onChangeText={setServiceKeyPoints}
+                    minHeight={80}
+                  />
+                  <AIHelperRow
+                    label="Generate concise draft"
+                    onPress={() => void generateServiceDescription()}
+                    busy={serviceAssistBusy}
+                  />
+                  {serviceAssistErr ? <Text style={styles.errorSmall}>{serviceAssistErr}</Text> : null}
+                  <SoftTextArea
+                    label="Service description"
+                    placeholder="Service description & value proposition"
+                    value={serviceDetails}
+                    onChangeText={setServiceDetails}
+                    minHeight={80}
+                  />
+                </>
+              )}
+              <SoftTextInput label="Delivery method" placeholder="Email, DM, etc." value={deliveryMethod} onChangeText={setDeliveryMethod} maxLength={120} />
+              <SoftTextInput label="Website" placeholder="https://..." value={websiteUrl} onChangeText={setWebsiteUrl} autoCapitalize="none" keyboardType="url" />
+            </FormCard>
+
+            {/* ── Pricing card ── */}
+            <FormCard>
+              <Text style={styles.cardHeading}>Pricing</Text>
+              <View style={styles.priceRow}>
+                <View style={styles.currencyWrap}>
+                  <SoftTextInput
+                    placeholder="usd"
+                    value={currency}
+                    onChangeText={(v) => setCurrency(v.trim().toLowerCase().slice(0, 3) || "usd")}
+                    autoCapitalize="characters"
+                    maxLength={3}
+                  />
+                </View>
+                <View style={styles.priceWrap}>
+                  {currency.toLowerCase() === "usd" && !useMinorPrice ? (
+                    <SoftTextInput placeholder="9.99" value={priceUsd} onChangeText={setPriceUsd} keyboardType="decimal-pad" />
+                  ) : (
+                    <SoftTextInput placeholder="Minor units" value={priceMinorOnly} onChangeText={setPriceMinorOnly} keyboardType="number-pad" />
+                  )}
+                </View>
+              </View>
+              <Pressable style={styles.toggleLink} onPress={() => setUseMinorPrice((x) => !x)}>
+                <Text style={styles.toggleLinkText}>
+                  {useMinorPrice ? "Using minor units" : "Using USD"} — tap to toggle
                 </Text>
               </Pressable>
-            ))}
-          </View>
-        ) : null}
-        {importNotice ? <Text style={styles.importNotice}>{importNotice}</Text> : null}
+            </FormCard>
 
-        <SectionLabel>Pricing & type</SectionLabel>
-        <TextInput
-          style={styles.input}
-          placeholder="Currency (usd, eur, …)"
-          placeholderTextColor={colors.muted}
-          value={currency}
-          onChangeText={(v) => setCurrency(v.trim().toLowerCase().slice(0, 3) || "usd")}
-          autoCapitalize="characters"
-          maxLength={3}
-        />
-        {currency.toLowerCase() === "usd" && !useMinorPrice ? (
-          <TextInput
-            style={styles.input}
-            placeholder="Price USD (e.g. 9.99)"
-            placeholderTextColor={colors.muted}
-            value={priceUsd}
-            onChangeText={setPriceUsd}
-            keyboardType="decimal-pad"
-          />
-        ) : (
-          <TextInput
-            style={styles.input}
-            placeholder="Price in minor units (smallest currency unit)"
-            placeholderTextColor={colors.muted}
-            value={priceMinorOnly}
-            onChangeText={setPriceMinorOnly}
-            keyboardType="number-pad"
-          />
-        )}
-        <Pressable
-          style={styles.chip}
-          onPress={() => setUseMinorPrice((x) => !x)}
-        >
-          <Text style={styles.chipText}>
-            {useMinorPrice ? "Using minor units" : "Using USD dollars"} — tap to toggle
-          </Text>
-        </Pressable>
-        <View style={styles.chipRow}>
-          {(["digital", "service"] as const).map((pt) => (
-            <Pressable
-              key={pt}
-              onPress={() => setProductType(pt)}
-              style={[styles.chip, productType === pt && styles.chipOn]}
-            >
-              <Text style={[styles.chipText, productType === pt && styles.chipTextOn]}>{pt}</Text>
-            </Pressable>
-          ))}
-        </View>
-        <Text style={styles.hintText}>Recurring offers are managed as Membership plans in Creator hub.</Text>
-
-        <SectionLabel>Marketplace boost</SectionLabel>
-        <View style={styles.chipRow}>
-          {enabledBoostTierRows.map(({ key, label, platformFeeBps }) => (
-            <Pressable
-              key={key}
-              onPress={() => setBoostTier(key)}
-              style={[styles.chip, boostTier === key && styles.chipOn]}
-            >
-              <Text style={[styles.chipText, boostTier === key && styles.chipTextOn]} numberOfLines={1}>
-                {label} {(platformFeeBps / 100).toFixed(1)}%
+            {/* ── Distribution / Boost card ── */}
+            <FormCard>
+              <Text style={styles.cardHeading}>Distribution & Boost</Text>
+              <ChipRow
+                items={enabledBoostTierRows.map(({ key, label, platformFeeBps }) => ({
+                  key,
+                  label: `${label} ${(platformFeeBps / 100).toFixed(1)}%`,
+                }))}
+                selected={boostTier}
+                onSelect={(k) => setBoostTier(k as MonetizationBoostTier)}
+              />
+              <Text style={styles.helper}>
+                Boost tiers are optional distribution upgrades. Start standard and change later.
               </Text>
-            </Pressable>
-          ))}
-        </View>
-        <Text style={styles.hintText}>Boost tiers are optional distribution upgrades. You can start standard and change later.</Text>
-        <View style={styles.previewCard}>
-          <Text style={styles.previewTitle}>Payout preview</Text>
-          <Text style={styles.previewCopy}>
-            Buyer pays: {previewPriceMinor ? formatMinorCurrency(previewPriceMinor, currency) : "—"}
-          </Text>
-          <Text style={styles.previewCopy}>
-            Platform fee ({(selectedPlatformFeeBps / 100).toFixed(1)}%):{" "}
-            {previewNumbers ? formatMinorCurrency(previewNumbers.platformFeeMinor, currency) : "—"}
-          </Text>
-          <Text style={styles.previewCopy}>
-            Affiliate impact (up to 7.0%):{" "}
-            {previewNumbers ? formatMinorCurrency(previewNumbers.affiliateMinor, currency) : "—"}
-          </Text>
-          <Text style={styles.previewNet}>
-            You receive (estimated):{" "}
-            {previewNumbers ? formatMinorCurrency(previewNumbers.creatorNetMinor, currency) : "Add valid price"}
-          </Text>
-        </View>
+            </FormCard>
 
-        <SectionLabel>Audience</SectionLabel>
-        <View style={styles.chipRow}>
-          {(
-            [
-              { k: "b2c" as const, l: "Consumers" },
-              { k: "b2b" as const, l: "Businesses" },
-              { k: "both" as const, l: "Both" }
-            ] as const
-          ).map(({ k, l }) => (
-            <Pressable
-              key={k}
-              onPress={() => setAudienceTarget(k)}
-              style={[styles.chip, audienceTarget === k && styles.chipOn]}
-            >
-              <Text style={[styles.chipText, audienceTarget === k && styles.chipTextOn]}>{l}</Text>
-            </Pressable>
-          ))}
-        </View>
-
-        <SectionLabel>Category (optional)</SectionLabel>
-        <View style={styles.chipRowWrap}>
-          {(
-            [
-              { k: "tools_growth", l: "Tools" },
-              { k: "professional_services", l: "Services" },
-              { k: "digital_products", l: "Digital" },
-              { k: "education_coaching", l: "Coaching" },
-              { k: "lifestyle_inspiration", l: "Lifestyle" }
-            ] as const
-          ).map(({ k, l }) => (
-            <Pressable
-              key={k}
-              onPress={() => setBusinessCategory((c) => (c === k ? "" : k))}
-              style={[styles.chip, businessCategory === k && styles.chipOn]}
-            >
-              <Text style={[styles.chipText, businessCategory === k && styles.chipTextOn]}>{l}</Text>
-            </Pressable>
-          ))}
-        </View>
-
-        <SectionLabel>Title</SectionLabel>
-        <TextInput
-          style={styles.input}
-          placeholder="Product title"
-          placeholderTextColor={colors.muted}
-          value={title}
-          onChangeText={setTitle}
-          maxLength={180}
-        />
-
-        <SectionLabel>Description</SectionLabel>
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          placeholder="What buyers get"
-          placeholderTextColor={colors.muted}
-          value={description}
-          onChangeText={setDescription}
-          multiline
-        />
-
-        <SectionLabel>Delivery</SectionLabel>
-        {productType === "digital" ? (
-          <Pressable style={styles.filePick} onPress={pickDeliveryFile}>
-            <Text style={styles.filePickText}>
-              {deliveryFile
-                ? deliveryFile.name || "File selected"
-                : hasRemoteDelivery
-                  ? "Delivery file attached — tap to replace"
-                  : "Tap to add delivery image or video — library, camera, or files"}
-            </Text>
-          </Pressable>
-        ) : (
-          <View style={{ gap: 8 }}>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              placeholder="Key points — what you offer, who it is for, format, length…"
-              placeholderTextColor={colors.muted}
-              value={serviceKeyPoints}
-              onChangeText={setServiceKeyPoints}
-              multiline
+            {/* ── Earnings preview ── */}
+            <EarningsPreviewCard
+              buyerPays={previewPriceMinor ? formatMinorCurrency(previewPriceMinor, currency) : null}
+              platformFee={previewNumbers ? formatMinorCurrency(previewNumbers.platformFeeMinor, currency) : null}
+              platformFeeLabel={`Platform fee (${(selectedPlatformFeeBps / 100).toFixed(1)}%)`}
+              affiliateImpact={previewNumbers ? formatMinorCurrency(previewNumbers.affiliateMinor, currency) : null}
+              youReceive={previewNumbers ? formatMinorCurrency(previewNumbers.creatorNetMinor, currency) : null}
             />
-            <Pressable
-              style={[styles.btnSecondary, serviceAssistBusy && styles.btnDisabled]}
-              onPress={() => void generateServiceDescription()}
-              disabled={serviceAssistBusy}
-            >
-              <Text style={styles.btnSecondaryText}>
-                {serviceAssistBusy ? "Generating…" : "Generate concise draft"}
-              </Text>
-            </Pressable>
-            {serviceAssistErr ? <Text style={styles.error}>{serviceAssistErr}</Text> : null}
-            <Text style={styles.importHint}>Concise draft fills the box below — edit as needed.</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              placeholder="Service description & value proposition"
-              placeholderTextColor={colors.muted}
-              value={serviceDetails}
-              onChangeText={setServiceDetails}
-              multiline
-            />
-          </View>
-        )}
-        <TextInput
-          style={styles.input}
-          placeholder="Delivery method (email, DM, etc.)"
-          placeholderTextColor={colors.muted}
-          value={deliveryMethod}
-          onChangeText={setDeliveryMethod}
-          maxLength={120}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Website https://…"
-          placeholderTextColor={colors.muted}
-          value={websiteUrl}
-          onChangeText={setWebsiteUrl}
-          autoCapitalize="none"
-          keyboardType="url"
-        />
 
-        {formError ? <Text style={styles.error}>{formError}</Text> : null}
+            {/* ── Drafts list ── */}
+            {draftItems.length > 0 && !editProductId ? (
+              <FormCard>
+                <CollapsibleSection title="Your drafts">
+                  <Text style={styles.helper}>Tap to resume editing a draft.</Text>
+                  {draftItems.map((d) => (
+                    <Pressable
+                      key={d.id}
+                      style={styles.stripeRow}
+                      onPress={() => navigation.navigate("CreateProduct", { editProductId: d.id })}
+                    >
+                      <Text style={styles.stripeRowText} numberOfLines={2}>
+                        {d.title} · {formatMinorCurrency(Number(d.price_minor || 0), d.currency || "usd")}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </CollapsibleSection>
+              </FormCard>
+            ) : null}
 
-        <Pressable
-          style={[styles.btnPrimary, (addProductPending || editLoading || editBlockedNonDraft) && styles.btnDisabled]}
-          onPress={() => void onAddProduct()}
-          disabled={addProductPending || editLoading || editBlockedNonDraft}
-        >
-          <Text style={styles.btnPrimaryText}>
-            {addProductPending
-              ? publishMutation.isPending
-                ? "Publishing…"
-                : "Preparing…"
-              : "Add product"}
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.btnSecondary, (saveDraftPending || editLoading || editBlockedNonDraft) && styles.btnDisabled]}
-          onPress={() => void onSaveDraft()}
-          disabled={saveDraftPending || editLoading || editBlockedNonDraft}
-        >
-          <Text style={styles.btnSecondaryText}>{saveDraftPending ? "Saving…" : "Save draft"}</Text>
-        </Pressable>
+            {formError ? <Text style={styles.error}>{formError}</Text> : null}
           </>
         ) : null}
       </ScrollView>
+
+      {/* ── Sticky CTA ── */}
+      {listingKind === "membership" && !editProductId ? (
+        <StickyCtaBar
+          primaryLabel={publishTierMutation.isPending ? "Publishing..." : createTierMutation.isPending ? "Saving..." : "Publish membership"}
+          onPrimary={() => void onPublishMembership()}
+          primaryDisabled={createTierMutation.isPending || publishTierMutation.isPending}
+          primaryLoading={createTierMutation.isPending || publishTierMutation.isPending}
+        />
+      ) : (listingKind === "product" || editProductId) ? (
+        <StickyCtaBar
+          primaryLabel={addProductPending ? (publishMutation.isPending ? "Publishing..." : "Preparing...") : "Add product"}
+          onPrimary={() => void onAddProduct()}
+          primaryDisabled={addProductPending || editLoading || editBlockedNonDraft}
+          primaryLoading={addProductPending}
+          secondaryLabel={saveDraftPending ? "Saving..." : "Save draft"}
+          onSecondary={() => void onSaveDraft()}
+          secondaryDisabled={saveDraftPending || editLoading || editBlockedNonDraft}
+        />
+      ) : null}
     </KeyboardAvoidingView>
   );
 }
 
+/* ── Styles ──────────────────────────────────────────────────── */
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
-  scroll: { padding: 16, gap: 10 },
-  lede: { color: colors.muted, fontSize: 14, lineHeight: 21, marginBottom: 10, letterSpacing: -0.2 },
-  sectionLabel: {
-    marginTop: 10,
-    fontSize: 11,
+  root: { flex: 1, backgroundColor: PAGE_BG },
+  scroll: { padding: 16, gap: 24 },
+  /* Kind toggle */
+  kindRow: { flexDirection: "row", gap: 8 },
+  kindChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: "#FFFFFF",
+  },
+  kindChipActive: {
+    backgroundColor: colors.accentMuted,
+  },
+  kindChipText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: colors.muted,
+  },
+  kindChipTextActive: {
     fontWeight: "600",
+    color: colors.accent,
+  },
+  /* Cards */
+  cardHeading: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: colors.text,
+    marginBottom: 4,
+  },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: "700",
     color: colors.muted,
     textTransform: "uppercase",
-    letterSpacing: 1
+    letterSpacing: 0.5,
+    marginTop: 4,
   },
-  input: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle,
-    borderRadius: radii.control,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: colors.text,
-    backgroundColor: colors.surface
+  helper: {
+    fontSize: 12,
+    color: colors.muted,
+    lineHeight: 18,
   },
-  textArea: { minHeight: 100, textAlignVertical: "top" },
-  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  chipRowWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: radii.pill,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle,
-    backgroundColor: colors.surface
+  /* Price row */
+  priceRow: {
+    flexDirection: "row",
+    gap: 10,
   },
-  chipOn: { borderColor: colors.accent, backgroundColor: colors.subtleFill },
-  chipText: { fontSize: 13, color: colors.muted, fontWeight: "600", textTransform: "capitalize" },
-  chipTextOn: { color: colors.text },
-  hintText: { fontSize: 12, color: colors.muted, lineHeight: 18, marginTop: 2 },
-  previewCard: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle,
-    borderRadius: radii.control,
-    backgroundColor: colors.surface,
-    paddingHorizontal: 12,
+  currencyWrap: { width: 80 },
+  priceWrap: { flex: 1 },
+  toggleLink: { paddingVertical: 4 },
+  toggleLinkText: { fontSize: 13, color: colors.accent, fontWeight: "500" },
+  /* Utility buttons */
+  utilBtn: {
     paddingVertical: 10,
-    gap: 4
-  },
-  previewTitle: { fontSize: 12, color: colors.muted, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
-  previewCopy: { fontSize: 13, color: colors.muted },
-  previewNet: { fontSize: 14, color: colors.text, fontWeight: "700", marginTop: 2 },
-  filePick: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle,
-    borderRadius: radii.control,
-    padding: 14,
-    backgroundColor: colors.surface
-  },
-  filePickText: { fontSize: 14, color: colors.accent, fontWeight: "600" },
-  error: { color: colors.danger, fontSize: 14, marginTop: 4 },
-  btnPrimary: {
-    marginTop: 16,
-    borderRadius: radii.control,
-    paddingVertical: 14,
-    ...primaryButtonOutline
-  },
-  btnDisabled: { opacity: 0.6 },
-  btnPrimaryText: { color: colors.accent, fontSize: 16, fontWeight: "700" },
-  btnSecondary: {
-    marginTop: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle,
-    borderRadius: radii.control,
-    paddingVertical: 12,
     paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: INPUT_FILL,
     alignItems: "center",
-    backgroundColor: colors.surface
   },
-  btnSecondaryText: { fontSize: 14, fontWeight: "700", color: colors.accent },
-  importHint: { fontSize: 12, color: colors.muted, lineHeight: 18 },
-  stripeList: { gap: 6 },
+  utilBtnDisabled: { opacity: 0.5 },
+  utilBtnText: { fontSize: 14, fontWeight: "600", color: colors.accent },
+  /* Stripe rows */
   stripeRow: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle,
-    borderRadius: radii.control,
+    borderRadius: 12,
     padding: 12,
-    backgroundColor: colors.surface
+    backgroundColor: INPUT_FILL,
   },
   stripeRowText: { fontSize: 13, color: colors.text, fontWeight: "600" },
-  importNotice: { fontSize: 13, color: colors.accent, marginTop: 4 },
+  importNotice: { fontSize: 13, color: colors.accent },
+  /* Loading */
+  loadingRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  loadingText: { fontSize: 14, color: colors.muted },
+  /* Errors */
+  error: { color: colors.danger, fontSize: 14 },
+  errorSmall: { fontSize: 12, color: colors.danger },
+  /* Overlay */
   overlayBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
@@ -1297,16 +992,14 @@ const styles = StyleSheet.create({
     width: "100%",
     paddingVertical: 32,
     paddingHorizontal: 24,
-    borderRadius: radii.panel,
-    backgroundColor: colors.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
   },
   checkCircle: {
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: colors.subtleFill,
+    backgroundColor: colors.accentMuted,
     borderWidth: 2,
     borderColor: colors.accent,
     alignItems: "center",
@@ -1319,7 +1012,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.text,
     textAlign: "center",
-    letterSpacing: -0.4
   },
   overlaySubtitle: {
     fontSize: 14,
@@ -1327,9 +1019,5 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 10,
     lineHeight: 21,
-    letterSpacing: -0.1,
-    paddingHorizontal: 8
   },
-  editLoadingRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 },
-  editLoadingText: { fontSize: 14, color: colors.muted }
 });
