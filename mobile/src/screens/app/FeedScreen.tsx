@@ -29,7 +29,7 @@ import { MarketListingCard } from "../../components/MarketListingCard";
 import { isImageMedia, PostCard } from "../../components/PostCard";
 import { HomeTopBar } from "../../components/HomeTopBar";
 import { HomeStoriesRow } from "../../components/HomeStoriesRow";
-import { colors, primaryButtonOutline, radii, spacing } from "../../theme";
+import { colors, radii, spacing } from "../../theme";
 import type { FeedItem, FeedListItem } from "../../types";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 import { createGuestProductCheckout, createProductCheckout } from "../../lib/monetization";
@@ -83,14 +83,6 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
       ),
     enabled: feedVariant === "home"
   });
-
-  const marketplaceCapsQuery = useQuery({
-    queryKey: ["mobile-marketplace-me-caps"],
-    queryFn: () =>
-      apiRequest<{ persona_capabilities?: { can_create_products?: boolean } }>("/users/me", { auth: true }),
-    enabled: feedVariant === "marketplace"
-  });
-  const canCreateProducts = Boolean(marketplaceCapsQuery.data?.persona_capabilities?.can_create_products);
 
   useEffect(() => {
     if (feedVariant !== "home") {
@@ -305,36 +297,8 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
             onRetry={() => feedQuery.refetch()}
           />
         ) : null}
-        {!feedQuery.isLoading && !feedQuery.error && items.length === 0 ? (
-          feedVariant === "marketplace" ? (
-            <View style={[styles.marketEmptyPanel, compact && styles.marketEmptyPanelCompact]}>
-              <Text style={styles.marketEmptyTitle}>No marketplace posts yet</Text>
-              <Text style={styles.marketEmptySub}>
-                Listings from creators you follow appear here. Widen the feed or check the home tab for more activity.
-              </Text>
-              {followingOnly ? (
-                <Pressable style={styles.marketEmptyBtn} onPress={() => setFollowingOnly(false)}>
-                  <Text style={styles.marketEmptyBtnText}>Show all posts</Text>
-                </Pressable>
-              ) : (
-                <Pressable style={styles.marketEmptyBtn} onPress={() => navigation.navigate("HomeTab")}>
-                  <Text style={styles.marketEmptyBtnText}>Go to Home</Text>
-                </Pressable>
-              )}
-              {canCreateProducts ? (
-                <Pressable style={styles.marketEmptyTertiary} onPress={() => navigation.navigate("CreatorEconomy")}>
-                  <Text style={styles.marketEmptyTertiaryText}>Open Creator hub</Text>
-                </Pressable>
-              ) : null}
-              {followingOnly ? (
-                <Pressable style={styles.marketEmptyTertiary} onPress={() => navigation.navigate("HomeTab")}>
-                  <Text style={styles.marketEmptyTertiaryText}>Go to Home</Text>
-                </Pressable>
-              ) : null}
-            </View>
-          ) : (
-            <EmptyState title="No posts yet" subtitle="Create the first post." />
-          )
+        {!feedQuery.isLoading && !feedQuery.error && items.length === 0 && feedVariant !== "marketplace" ? (
+          <EmptyState title="No posts yet" subtitle="Create the first post." />
         ) : null}
       </View>
     );
@@ -342,12 +306,9 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
     acknowledgeReminder,
     feedQuery,
     feedVariant,
-    followingOnly,
     items.length,
-    navigation,
     visibleReminder,
-    compact,
-    canCreateProducts
+    compact
   ]);
 
   const renderItem: ListRenderItem<FeedListItem> = useCallback(
@@ -469,7 +430,7 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
       {feedVariant === "home" || feedVariant === "marketplace" ? <StatusBar style="dark" /> : null}
       {feedVariant === "home" ? (
         <HomeTopBar
-          onPressCreate={() => navigation.navigate("CreateTab", { screen: "CreateHub" })}
+          onPressReels={openReels}
           onPressAlerts={openNotifications}
           onPressSearch={openSearch}
         />
@@ -580,47 +541,6 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 12,
     fontWeight: "600"
-  },
-  marketEmptyPanel: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 22,
-    borderWidth: StyleSheet.hairlineWidth * 2,
-    borderColor: "#0A0A0A",
-    padding: spacing.cardPaddingLg,
-    gap: 12,
-    marginHorizontal: 2
-  },
-  marketEmptyPanelCompact: {
-    padding: 14,
-    gap: 10
-  },
-  marketEmptyTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: colors.text
-  },
-  marketEmptySub: {
-    fontSize: 14,
-    lineHeight: 21,
-    color: colors.muted
-  },
-  marketEmptyBtn: {
-    alignSelf: "stretch",
-    ...primaryButtonOutline
-  },
-  marketEmptyBtnText: {
-    color: colors.onAccent,
-    fontWeight: "600",
-    fontSize: 15
-  },
-  marketEmptyTertiary: {
-    alignSelf: "center",
-    paddingVertical: 6
-  },
-  marketEmptyTertiaryText: {
-    color: colors.muted,
-    fontWeight: "500",
-    fontSize: 15
   },
   storiesWrap: {
     marginTop: 16,

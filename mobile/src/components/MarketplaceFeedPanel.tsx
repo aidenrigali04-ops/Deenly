@@ -1,5 +1,4 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 
 const INK = "#0A0A0A";
 
@@ -9,8 +8,6 @@ type Props = {
   onSetFollowingOnly: (value: boolean) => void;
   onPressNearMe: () => void;
   onPressEvents: () => void;
-  onPressCreatorHub?: () => void;
-  showCreatorHub?: boolean;
 };
 
 /**
@@ -21,27 +18,18 @@ export function MarketplaceFeedPanel({
   followingOnly,
   onSetFollowingOnly,
   onPressNearMe,
-  onPressEvents,
-  onPressCreatorHub,
-  showCreatorHub
+  onPressEvents
 }: Props) {
   return (
     <View style={styles.panel}>
-      <LinearGradient
-        colors={["#FDE047", "#FB7185", "#C084FC", "#60A5FA"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.searchGradient}
+      <Pressable
+        style={styles.searchBar}
+        onPress={onPressSearch}
+        accessibilityRole="search"
+        accessibilityLabel="Search products, people, and places"
       >
-        <Pressable
-          style={styles.searchInner}
-          onPress={onPressSearch}
-          accessibilityRole="search"
-          accessibilityLabel="Search products, people, and places"
-        >
-          <Text style={styles.searchPlaceholder}>Search products, people, places</Text>
-        </Pressable>
-      </LinearGradient>
+        <Text style={styles.searchPlaceholder}>Search products, people, places</Text>
+      </Pressable>
 
       <View style={styles.chipRow}>
         <Pressable
@@ -64,11 +52,6 @@ export function MarketplaceFeedPanel({
         </Pressable>
       </View>
 
-      {showCreatorHub && onPressCreatorHub ? (
-        <Pressable onPress={onPressCreatorHub} style={styles.hubLink}>
-          <Text style={styles.hubLinkText}>Creator hub · sell on Deenly</Text>
-        </Pressable>
-      ) : null}
     </View>
   );
 }
@@ -82,21 +65,19 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 14
   },
-  searchGradient: {
-    borderRadius: 999,
-    padding: 2,
-    alignSelf: "stretch"
-  },
-  searchInner: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 999,
-    minHeight: 48,
+  searchBar: {
+    backgroundColor: "#F5F4F2",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#EBEBEB",
+    height: 48,
     paddingHorizontal: 18,
-    justifyContent: "center"
+    justifyContent: "center",
+    alignSelf: "stretch"
   },
   searchPlaceholder: {
     fontSize: 15,
-    color: "rgba(10,10,10,0.45)",
+    color: "#8A8480",
     fontWeight: "500"
   },
   chipRow: {
@@ -124,14 +105,4 @@ const styles = StyleSheet.create({
   chipTextOnDark: {
     color: "#FFFFFF"
   },
-  hubLink: {
-    alignSelf: "flex-start",
-    paddingVertical: 2
-  },
-  hubLinkText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "rgba(10,10,10,0.55)",
-    textDecorationLine: "underline"
-  }
 });

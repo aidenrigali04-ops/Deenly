@@ -9,11 +9,11 @@ const storySeeds = [
   { id: "s4", label: "MercyNotes", initials: "MN", isOwn: false }
 ];
 
-/** Circle sizes */
-const RING_OUTER = 72;
-const RING_BORDER = 2.5;
-const RING_GAP = 2;
-const AVATAR_SIZE = RING_OUTER - (RING_BORDER + RING_GAP) * 2;
+/** Circle sizes — subtle Instagram-style story indicator */
+const RING_OUTER = 68;
+const RING_BORDER = 2;
+const RING_GAP = 1;
+const AVATAR_SIZE = 62;
 
 export function HomeStoriesRow() {
   return (
@@ -38,7 +38,7 @@ export function HomeStoriesRow() {
             ) : (
               /* Other stories: gradient ring (warm pink-to-yellow) */
               <LinearGradient
-                colors={["#F9CE34", "#EE2A7B", "#6228D7"]}
+                colors={["#F5C842", "#E8608A", "#C084FC"]}
                 start={{ x: 0, y: 1 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.gradientRing}
@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
     width: RING_OUTER,
     height: RING_OUTER,
     borderRadius: RING_OUTER / 2,
-    padding: RING_BORDER + RING_GAP,
+    padding: (RING_OUTER - AVATAR_SIZE) / 2,
     alignItems: "center",
     justifyContent: "center"
   },
