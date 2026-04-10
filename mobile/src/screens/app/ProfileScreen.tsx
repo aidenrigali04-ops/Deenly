@@ -21,7 +21,7 @@ import { fetchSessionMe } from "../../lib/auth";
 import { apiRequest } from "../../lib/api";
 import { fetchMyProducts, formatMinorCurrency } from "../../lib/monetization";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
-import { colors, radii } from "../../theme";
+import { colors, radii, type as typeStyles } from "../../theme";
 import type { FeedItem } from "../../types";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 import { resolveMediaUrl } from "../../lib/media-url";
@@ -444,8 +444,7 @@ const styles = StyleSheet.create({
     maxWidth: "50%"
   },
   topBarUsername: {
-    fontSize: 15,
-    fontWeight: "700",
+    ...typeStyles.navChromeTitle,
     color: colors.text
   },
   scroll: {
@@ -548,12 +547,12 @@ const styles = StyleSheet.create({
     paddingTop: 10
   },
   displayName: {
-    fontSize: 18,
-    fontWeight: "600",
+    ...typeStyles.sectionTitle,
     color: colors.text
   },
   displayNameCompact: {
-    fontSize: 17
+    fontSize: 19,
+    lineHeight: 24
   },
   categoryLine: {
     fontSize: 13,

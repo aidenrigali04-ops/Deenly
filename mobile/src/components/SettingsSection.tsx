@@ -1,6 +1,6 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { colors, radii, shadows } from "../theme";
+import { colors, radii, type } from "../theme";
 
 type SettingsRowProps = {
   title: string;
@@ -28,6 +28,7 @@ export function SettingsRow({
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [styles.row, !isLast && styles.rowBorder, pressed && styles.rowPressed]}
+      android_ripple={{ color: "rgba(0,0,0,0.08)" }}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? title}
     >
@@ -56,7 +57,7 @@ export function SettingsSection({ title, children }: SettingsSectionProps) {
   return (
     <View style={styles.section}>
       {title ? <Text style={styles.sectionTitle}>{title}</Text> : null}
-      <View style={[styles.card, shadows.card]}>
+      <View style={styles.card}>
         {React.Children.map(items, (child, index) => {
           if (!React.isValidElement(child)) {
             return child;
@@ -77,19 +78,16 @@ const styles = StyleSheet.create({
     gap: 8
   },
   sectionTitle: {
-    fontSize: 11,
-    fontWeight: "600",
+    ...type.sectionLabel,
     color: colors.muted,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginLeft: 2,
-    marginBottom: 2
+    marginLeft: 4,
+    marginBottom: 6
   },
   card: {
-    borderRadius: radii.panel,
+    borderRadius: radii.grouped,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.borderSubtle,
-    backgroundColor: colors.card,
+    backgroundColor: colors.surface,
     overflow: "hidden"
   },
   row: {
@@ -105,7 +103,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.borderSubtle
   },
   rowPressed: {
-    backgroundColor: colors.subtleFill
+    backgroundColor: colors.statePressed
   },
   rowText: {
     flex: 1,

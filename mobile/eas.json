@@ -13,7 +13,8 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://deenly-production.up.railway.app/api/v1"
+        "EXPO_PUBLIC_API_BASE_URL": "https://deenly-production.up.railway.app/api/v1",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "production": {
@@ -25,7 +26,8 @@
         "gradleCommand": ":app:bundleRelease"
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://deenly-production.up.railway.app/api/v1"
+        "EXPO_PUBLIC_API_BASE_URL": "https://deenly-production.up.railway.app/api/v1",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     }
   },

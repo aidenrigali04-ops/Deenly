@@ -9,7 +9,7 @@ import { fetchBusinessesNear } from "../../lib/businesses";
 import { fetchEventsNear } from "../../lib/events";
 import { NearMeMap, type NearMapSelection } from "../../components/NearMeMap";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
-import { SectionCard, TabScreenRoot } from "../../components/TabScreenChrome";
+import { SectionCard, TabScreenHeader, TabScreenRoot } from "../../components/TabScreenChrome";
 import { colors, primaryButtonOutline, radii } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 
@@ -62,7 +62,6 @@ const FALLBACK = { lat: 40.7128, lng: -74.006 };
 
 export function SearchScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const topPad = 12;
   const bottomPad = insets.bottom + 24;
   const [mode, setMode] = useState<Mode>("search");
   const [q, setQ] = useState("");
@@ -163,19 +162,25 @@ export function SearchScreen({ navigation }: Props) {
     <TabScreenRoot>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingTop: topPad, paddingBottom: bottomPad }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: insets.top + 4, paddingBottom: bottomPad }
+        ]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.introRow}>
-          <Text style={styles.introText}>Find people, posts, and places near you.</Text>
-          {canUseBusinessDirectoryTools ? (
-            <Pressable style={styles.headerLink} onPress={() => navigation.navigate("AddBusiness")}>
-              <Text style={styles.headerLinkText}>Add business</Text>
-            </Pressable>
-          ) : null}
-        </View>
+        <TabScreenHeader
+          title="Explore"
+          subtitle="Find people, posts, and places near you."
+          headerRight={
+            canUseBusinessDirectoryTools ? (
+              <Pressable style={styles.headerLink} onPress={() => navigation.navigate("AddBusiness")}>
+                <Text style={styles.headerLinkText}>Add business</Text>
+              </Pressable>
+            ) : undefined
+          }
+        />
 
-        <SectionCard>
+        <SectionCard elevated>
           <Text style={styles.panelLabel}>Mode</Text>
           <View style={styles.modeRow}>
             <Pressable style={[styles.modeChip, mode === "search" ? styles.modeChipOn : null]} onPress={() => setMode("search")}>
@@ -189,7 +194,7 @@ export function SearchScreen({ navigation }: Props) {
 
         {mode === "search" ? (
           <>
-            <SectionCard title="Look up">
+            <SectionCard title="Look up" elevated>
               <View style={styles.searchRow}>
                 <TextInput
                   style={[styles.input, styles.flex1]}
@@ -280,7 +285,7 @@ export function SearchScreen({ navigation }: Props) {
             {geoLoading ? <LoadingState label="Finding your area…" /> : null}
             {!geoLoading && geo ? (
               <>
-                <SectionCard title="Your area">
+                <SectionCard title="Your area" elevated>
                   <Text style={styles.privacyNote}>
                     We use approximate location to list nearby businesses and events. Exact coordinates are not shared on your profile.
                   </Text>
@@ -446,24 +451,9 @@ export function SearchScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { gap: 14 },
-  introRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 12,
-    paddingHorizontal: 4,
-    marginBottom: 4
-  },
-  introText: {
-    flex: 1,
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.muted,
-    fontWeight: "500"
-  },
   headerLink: { paddingVertical: 6, paddingHorizontal: 4 },
   headerLinkText: { color: colors.accent, fontWeight: "700", fontSize: 13 },
-  panelLabel: { fontSize: 12, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.6 },
+  panelLabel: { fontSize: 13, fontWeight: "600", color: colors.muted, letterSpacing: -0.1 },
   modeRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, alignItems: "center" },
   modeChip: {
     paddingHorizontal: 14,
@@ -493,12 +483,12 @@ const styles = StyleSheet.create({
   shortcutTitle: { fontSize: 15, fontWeight: "700", color: colors.text },
   shortcutSub: { fontSize: 13, color: colors.muted, lineHeight: 18 },
   input: {
-    borderColor: colors.border,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radii.control,
+    borderWidth: 0,
+    borderRadius: radii.control + 2,
     color: colors.text,
-    backgroundColor: colors.surface,
-    padding: 10
+    backgroundColor: colors.surfaceField,
+    paddingVertical: 12,
+    paddingHorizontal: 14
   },
   buttonSecondary: {
     borderColor: colors.border,

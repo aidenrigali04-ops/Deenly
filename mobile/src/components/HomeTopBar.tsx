@@ -3,7 +3,7 @@ import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supportsNativeBlur } from "../lib/blur-support";
-import { colors } from "../theme";
+import { colors, type as typeStyles } from "../theme";
 
 const ICON_SIZE = 24;
 const ICON_COLOR = colors.text;
@@ -87,8 +87,6 @@ const styles = StyleSheet.create({
   },
   wordmark: {
     color: colors.text,
-    fontSize: 20,
-    fontWeight: "700",
-    letterSpacing: -0.4
+    ...typeStyles.navChromeTitle
   }
 });

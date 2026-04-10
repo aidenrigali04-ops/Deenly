@@ -197,9 +197,10 @@ export function MessagesScreen({ navigation }: Props) {
                 {usernameLookupRows.map((row) => (
                   <Pressable
                     key={row.user_id}
-                    style={styles.lookupRow}
+                    style={({ pressed }) => [styles.lookupRow, pressed && styles.rowPressed]}
                     onPress={() => createConversation.mutate(row.user_id)}
                     disabled={createConversation.isPending}
+                    android_ripple={{ color: "rgba(0,0,0,0.06)" }}
                   >
                     <Text style={styles.lookupRowName} numberOfLines={1}>
                       {row.display_name}
@@ -239,8 +240,13 @@ export function MessagesScreen({ navigation }: Props) {
               {conversations.map((item) => (
                 <Pressable
                   key={item.conversation_id}
-                  style={[styles.inboxRow, selectedConversationId === item.conversation_id ? styles.inboxRowActive : null]}
+                  style={({ pressed }) => [
+                    styles.inboxRow,
+                    selectedConversationId === item.conversation_id ? styles.inboxRowActive : null,
+                    pressed && styles.rowPressed
+                  ]}
                   onPress={() => setSelectedConversationId(item.conversation_id)}
+                  android_ripple={{ color: "rgba(0,0,0,0.06)" }}
                 >
                   <View style={styles.inboxRowAvatar}>
                     <Text style={styles.inboxRowAvatarText}>
@@ -320,11 +326,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     minHeight: 48,
-    borderRadius: radii.button,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    paddingHorizontal: 12
+    borderRadius: radii.control + 2,
+    borderWidth: 0,
+    backgroundColor: colors.surfaceField,
+    paddingHorizontal: 14
   },
   searchIcon: { marginRight: 8 },
   searchField: {
@@ -350,14 +355,23 @@ const styles = StyleSheet.create({
     fontWeight: "600"
   },
   lookupError: { color: colors.danger, fontSize: 13, marginTop: 8 },
-  lookupList: { marginTop: 10, gap: 0, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderSubtle, borderRadius: radii.control, overflow: "hidden" },
+  lookupList: {
+    marginTop: 10,
+    gap: 0,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderSubtle,
+    borderRadius: radii.grouped,
+    overflow: "hidden",
+    backgroundColor: colors.surface
+  },
   lookupRow: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.borderSubtle,
     backgroundColor: colors.surface
   },
+  rowPressed: { backgroundColor: colors.statePressed },
   lookupRowName: { fontSize: 15, fontWeight: "700", color: colors.text },
   lookupRowSub: { fontSize: 12, color: colors.muted, marginTop: 2 },
   input: {
@@ -409,10 +423,7 @@ const styles = StyleSheet.create({
     gap: 12
   },
   inboxRowActive: {
-    backgroundColor: colors.subtleFill,
-    marginHorizontal: -8,
-    paddingHorizontal: 8,
-    borderRadius: radii.control
+    backgroundColor: colors.accentTint
   },
   inboxRowAvatar: {
     width: 44,
@@ -442,17 +453,18 @@ const styles = StyleSheet.create({
   chevron: { fontSize: 22, color: colors.muted, fontWeight: "300" },
   threadStack: { gap: 8 },
   message: {
-    borderColor: colors.border,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radii.control,
-    padding: 10,
+    borderWidth: 0,
+    borderRadius: radii.control + 2,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     gap: 4,
     alignSelf: "flex-start",
-    maxWidth: "92%"
+    maxWidth: "92%",
+    backgroundColor: colors.surfaceSecondary
   },
   messageMine: {
     alignSelf: "flex-end",
-    backgroundColor: colors.surface
+    backgroundColor: colors.accentTint
   },
   muted: { color: colors.muted, fontSize: 12 },
   body: { color: colors.text }

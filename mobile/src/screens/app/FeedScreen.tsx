@@ -596,20 +596,20 @@ const styles = StyleSheet.create({
     gap: 12
   },
   marketPageTitle: {
-    ...type.pageTitle,
+    ...type.navLargeTitle,
     color: colors.text
   },
   marketOneLiner: {
-    fontSize: 14,
+    fontSize: 15,
     color: colors.muted,
-    lineHeight: 20
+    lineHeight: 21,
+    letterSpacing: -0.2
   },
   marketSearchBar: {
     minHeight: 48,
-    borderRadius: radii.button,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderRadius: radii.control + 2,
+    borderWidth: 0,
+    backgroundColor: colors.surfaceField,
     paddingHorizontal: 14,
     justifyContent: "center"
   },

@@ -31,14 +31,23 @@ export function TabScreenHeader({
 export function SectionCard({
   title: sectionTitle,
   children,
-  style
+  style,
+  /** Use for dense stacks (e.g. search) where a soft lift helps scanning */
+  elevated = false
 }: {
   title?: string;
   children: ReactNode;
   style?: ViewStyle;
+  elevated?: boolean;
 }) {
   return (
-    <View style={[styles.sectionCard, shadows.card, style]}>
+    <View
+      style={[
+        styles.sectionCard,
+        elevated ? [styles.sectionCardElevated, shadows.card] : styles.sectionCardInset,
+        style
+      ]}
+    >
       {sectionTitle ? <Text style={styles.sectionTitle}>{sectionTitle}</Text> : null}
       {children}
     </View>
@@ -53,7 +62,7 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: spacing.pagePaddingH,
     paddingTop: spacing.pagePaddingTop,
-    paddingBottom: 8
+    paddingBottom: 10
   },
   headerTextRow: {
     flexDirection: "row",
@@ -66,30 +75,40 @@ const styles = StyleSheet.create({
     gap: 6
   },
   title: {
-    ...type.pageTitle,
+    ...type.navLargeTitle,
     color: colors.text
   },
   subtitle: {
-    fontSize: type.meta.fontSize,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 21,
     color: colors.muted,
-    fontWeight: "400"
+    fontWeight: "400",
+    letterSpacing: -0.2
   },
   headerRight: {
     paddingTop: 4
   },
   sectionCard: {
     marginHorizontal: spacing.pagePaddingH,
-    backgroundColor: colors.card,
-    borderRadius: radii.card,
-    borderWidth: 0,
     padding: spacing.cardPaddingLg,
-    gap: 10,
-    ...shadows.card
+    gap: 12
+  },
+  sectionCardInset: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.grouped,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderSubtle
+  },
+  sectionCardElevated: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.grouped,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderSubtle
   },
   sectionTitle: {
     ...type.sectionTitle,
     color: colors.text,
-    marginBottom: 4
+    marginBottom: 2,
+    letterSpacing: -0.3
   }
 });

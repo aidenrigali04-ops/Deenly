@@ -3,8 +3,6 @@ import { BlurView } from "expo-blur";
 import { supportsNativeBlur } from "../lib/blur-support";
 import { colors } from "../theme";
 
-const BORDER = "rgba(17, 17, 17, 0.06)";
-
 /**
  * Frosted tab bar (native blur on iOS dev/standalone only; Expo Go / Android / web use fill).
  */
@@ -30,6 +28,6 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: BORDER
+    backgroundColor: colors.borderSubtle
   }
 });

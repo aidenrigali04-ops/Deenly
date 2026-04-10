@@ -1,22 +1,27 @@
 import { Platform, type TextStyle, type ViewStyle } from "react-native";
 
 /**
- * Deenly mobile design system — warm neutrals, teal accent (#156B75), semantic tokens.
- * Primary actions: filled accent. Secondary: accent tint fill. Tertiary: text-only / links.
+ * Deenly mobile design system — hybrid: iOS-like grouped canvas + hairlines, M3-like tonal fields
+ * and flat filled buttons. Teal accent (#156B75).
  */
 export const colors = {
-  background: "#F6F5F2",
-  backgroundSubtle: "#FBFBF9",
+  /** Tab / settings canvas (iOS grouped style) */
+  background: "#F2F2F7",
+  backgroundSubtle: "#FAFAFA",
   atmosphere: "transparent",
   surface: "#FFFFFF",
   card: "#FFFFFF",
-  surfaceSecondary: "#F8F8F6",
-  surfaceTinted: "#EEF6F5",
+  /** Secondary blocks, message bubbles (other) */
+  surfaceSecondary: "#E5E5EA",
+  /** Teal-tinted highlight areas */
+  surfaceTinted: "#E8F2F3",
+  /** Filled search / text fields (Material tonal) */
+  surfaceField: "#EBEBF0",
 
-  border: "rgba(17, 17, 17, 0.06)",
-  borderSubtle: "rgba(17, 17, 17, 0.06)",
-  borderInteractive: "rgba(17, 17, 17, 0.08)",
-  borderFocus: "rgba(21, 107, 117, 0.28)",
+  border: "rgba(60, 60, 67, 0.18)",
+  borderSubtle: "rgba(60, 60, 67, 0.12)",
+  borderInteractive: "rgba(60, 60, 67, 0.22)",
+  borderFocus: "rgba(21, 107, 117, 0.35)",
 
   text: "#111111",
   muted: "#666666",
@@ -36,34 +41,38 @@ export const colors = {
   warning: "#B7791F",
   danger: "#C0392B",
 
-  shadow: "rgba(0, 0, 0, 0.04)",
-  subtleFill: "rgba(21, 107, 117, 0.08)",
+  shadow: "rgba(0, 0, 0, 0.06)",
+  subtleFill: "rgba(21, 107, 117, 0.1)",
+  /** List / control press (M3 state layer, light) */
+  statePressed: "rgba(0, 0, 0, 0.05)",
 
   createHeaderBar: "#0A0A0A",
-  composerBg: "#EEF6F5",
+  composerBg: "#E8F2F3",
   composerText: "#111111",
   composerMuted: "#666666",
   composerInputBg: "#FFFFFF",
   composerBorder: "rgba(17,17,17,0.08)",
   mediaPreviewBg: "#FFFFFF",
   mediaPreviewBorder: "rgba(17,17,17,0.08)",
-  glassFill: "rgba(255, 255, 255, 0.92)",
+  glassFill: "rgba(255, 255, 255, 0.88)",
   glassFillStrong: "#FFFFFF"
 };
 
 export const atmosphereGradient = {
-  colors: ["#F0EFE9", "#F4F3EF", "#F6F5F2"] as const,
-  start: { x: 0.1, y: 0 },
-  end: { x: 0.9, y: 1 }
+  colors: ["#EBEBF0", "#EFEFF4", "#F2F2F7"] as const,
+  start: { x: 0.2, y: 0 },
+  end: { x: 0.8, y: 1 }
 };
 
-/** control 12 (inputs/chips), button 14, card 20, sheet 24 */
+/** control 12, button 14, grouped panels 14, sheet 20 */
 export const radii = {
   control: 12,
   button: 14,
-  card: 20,
-  panel: 20,
-  sheet: 24,
+  /** Inset grouped sections (settings-style) */
+  grouped: 14,
+  card: 16,
+  panel: 16,
+  sheet: 20,
   pill: 999
 };
 
@@ -99,14 +108,15 @@ export const shadows = {
     android: {},
     default: {}
   }),
+  /** Feed / product cards on canvas — soft diffuse lift */
   card: Platform.select({
     ios: {
       shadowColor: "#000",
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.03,
-      shadowRadius: 2
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.06,
+      shadowRadius: 14
     },
-    android: { elevation: 1 },
+    android: { elevation: 2 },
     default: {}
   }),
   /** Soft chip / switch halo — keep minimal */
@@ -141,9 +151,15 @@ export const spacing = {
 };
 
 export const type = {
-  displayLarge: { fontSize: 34, fontWeight: "600" as const, letterSpacing: -0.5, lineHeight: 40 },
-  pageTitle: { fontSize: 30, fontWeight: "600" as const, letterSpacing: -0.4, lineHeight: 36 },
-  sectionTitle: { fontSize: 22, fontWeight: "600" as const, letterSpacing: -0.2, lineHeight: 28 },
+  displayLarge: { fontSize: 34, fontWeight: "700" as const, letterSpacing: -0.8, lineHeight: 40 },
+  /** Tab roots — Apple large-title feel */
+  navLargeTitle: { fontSize: 32, fontWeight: "700" as const, letterSpacing: -0.6, lineHeight: 38 },
+  /** Center title in fixed top chrome (Home bar, Profile @handle) — same family, bar-safe size */
+  navChromeTitle: { fontSize: 22, fontWeight: "700" as const, letterSpacing: -0.55, lineHeight: 26 },
+  pageTitle: { fontSize: 28, fontWeight: "700" as const, letterSpacing: -0.5, lineHeight: 34 },
+  sectionTitle: { fontSize: 20, fontWeight: "600" as const, letterSpacing: -0.25, lineHeight: 26 },
+  /** Grouped list section labels (sentence case, not all-caps) */
+  sectionLabel: { fontSize: 13, fontWeight: "600" as const, letterSpacing: -0.1, lineHeight: 16 },
   cardTitle: { fontSize: 18, fontWeight: "600" as const, lineHeight: 24 },
   body: { fontSize: 16, fontWeight: "400" as const, lineHeight: 22 },
   bodyStrong: { fontSize: 16, fontWeight: "500" as const, lineHeight: 22 },
@@ -154,17 +170,16 @@ export const type = {
   caption: { fontSize: 12, fontWeight: "500" as const }
 };
 
-/** One primary CTA per screen — filled accent, optional soft lift */
+/** One primary CTA — Material-style filled (flat, no drop shadow) */
 export const primaryButton: ViewStyle = {
   backgroundColor: colors.accent,
   borderRadius: radii.button,
   minHeight: 50,
-  paddingHorizontal: 18,
+  paddingHorizontal: 20,
   paddingVertical: 12,
   alignItems: "center",
   justifyContent: "center",
-  borderWidth: 0,
-  ...shadows.low
+  borderWidth: 0
 };
 
 export const primaryButtonLabel: TextStyle = {
