@@ -197,11 +197,9 @@ export function MarketListingCard({
       {/* ── Footer row 1: username + product name | View Offer + price ── */}
       <View style={styles.footerRow1}>
         <View style={styles.footerLeft}>
-          <Text style={styles.footerAuthor} numberOfLines={1}>
-            {item.author_display_name}
-          </Text>
-          <Text style={styles.footerProductName} numberOfLines={1}>
-            {title}
+          <Text numberOfLines={1}>
+            <Text style={styles.footerAuthor}>{item.author_display_name}</Text>
+            <Text style={styles.footerProductName}>{" "}{title}</Text>
           </Text>
         </View>
         <View style={styles.offerCol}>
@@ -258,6 +256,8 @@ const styles = StyleSheet.create({
     backgroundColor: CARD_BG,
     borderRadius: CARD_RADIUS,
     overflow: "hidden",
+    marginHorizontal: 16,
+    marginBottom: 12,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
@@ -275,9 +275,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 12,
-    paddingTop: 12,
-    paddingBottom: 10,
+    padding: 12,
     gap: 10
   },
   headerLeft: {
@@ -330,10 +328,10 @@ const styles = StyleSheet.create({
     fontWeight: "400"
   },
   followPill: {
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: PRIMARY,
     borderRadius: 999,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     height: 32,
     alignItems: "center",
     justifyContent: "center",
@@ -343,8 +341,8 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(15,14,13,0.05)"
   },
   followPillText: {
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 15,
+    fontWeight: "500",
     color: PRIMARY
   },
   followPillTextFollowing: {
@@ -382,9 +380,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    paddingHorizontal: 12,
-    paddingTop: 12,
-    paddingBottom: 8,
+    padding: 12,
     gap: 12
   },
   footerLeft: {
@@ -409,20 +405,21 @@ const styles = StyleSheet.create({
   viewOfferBtn: {
     backgroundColor: PRIMARY,
     borderRadius: 999,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     height: 34,
     alignItems: "center",
     justifyContent: "center"
   },
   viewOfferBtnText: {
     color: "#FFFFFF",
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600"
   },
   priceUnder: {
     fontSize: 13,
     fontWeight: "400",
-    color: MUTED
+    color: MUTED,
+    textAlign: "right"
   },
 
   /* ── Footer row 2: engagement ── */
@@ -430,14 +427,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 12,
-    paddingTop: 4,
     paddingBottom: 12
   },
   engageItem: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginRight: 16
+    marginRight: 8
   },
   engageCount: {
     fontSize: 13,

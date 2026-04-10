@@ -7,14 +7,15 @@ import { colors, type as typeStyles } from "../theme";
 
 const ICON_SIZE = 24;
 const ICON_COLOR = colors.text;
+const INK = "#0F0E0D";
 
 type Props = {
-  onPressCreate: () => void;
+  onPressReels: () => void;
   onPressAlerts: () => void;
   onPressSearch?: () => void;
 };
 
-export function HomeTopBar({ onPressCreate, onPressAlerts, onPressSearch }: Props) {
+export function HomeTopBar({ onPressReels, onPressAlerts, onPressSearch }: Props) {
   const insets = useSafeAreaInsets();
   const useBlur = supportsNativeBlur();
   return (
@@ -26,12 +27,14 @@ export function HomeTopBar({ onPressCreate, onPressAlerts, onPressSearch }: Prop
       )}
       <View style={styles.row}>
         <Pressable
-          onPress={onPressCreate}
+          onPress={onPressReels}
           style={styles.sideHit}
           accessibilityRole="button"
-          accessibilityLabel="Create"
+          accessibilityLabel="Reels"
         >
-          <Ionicons name="add-circle-outline" size={ICON_SIZE} color={ICON_COLOR} />
+          <View style={styles.reelsBox}>
+            <Ionicons name="play" size={14} color={INK} style={{ marginLeft: 1 }} />
+          </View>
         </Pressable>
         <Text style={styles.wordmark}>Deenly</Text>
         <View style={styles.rightCluster}>
@@ -84,6 +87,16 @@ const styles = StyleSheet.create({
     minHeight: 44,
     alignItems: "center",
     justifyContent: "center"
+  },
+  reelsBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: INK,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF"
   },
   wordmark: {
     color: colors.text,
