@@ -1,8 +1,11 @@
 import NetInfo from "@react-native-community/netinfo";
 import * as Device from "expo-device";
 import { Platform } from "react-native";
+import { ApiError } from "./api-error";
 import { getApiBaseUrl } from "./api-base-url";
 import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "./storage";
+
+export { ApiError };
 
 let cachedApiBaseUrl: string | null = null;
 function apiBaseUrl(): string {
@@ -20,15 +23,6 @@ type RequestOptions = {
   timeoutMs?: number;
   retries?: number;
 };
-
-export class ApiError extends Error {
-  status: number;
-
-  constructor(message: string, status: number) {
-    super(message);
-    this.status = status;
-  }
-}
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
