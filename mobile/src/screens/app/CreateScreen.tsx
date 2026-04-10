@@ -31,7 +31,7 @@ import { fetchSessionMe } from "../../lib/auth";
 import { attachProductToPost, fetchMyProducts, type CreatorProductRow } from "../../lib/monetization";
 import { fetchInstagramStatus, requestInstagramCrossPost } from "../../lib/instagram";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { colors, primaryButtonOutline, radii, shadows, spacing, type } from "../../theme";
+import { colors, radii, shadows, spacing, type as typo } from "../../theme";
 import { resolveMediaUrl } from "../../lib/media-url";
 import {
   growthExperiments,
@@ -40,7 +40,23 @@ import {
   trackClientExperimentEvent
 } from "../../lib/experiments";
 import type { AppTabParamList, CreateTabStackParamList, RootStackParamList } from "../../navigation/AppNavigator";
+import {
+  CreateAppBar,
+  FormCard,
+  SoftTextArea,
+  SoftTextInput,
+  UploadCard,
+  StickyCtaBar,
+  CollapsibleSection,
+  ChipRow,
+} from "../../components/create";
 
+/* ── Design tokens ─────────────────────────────────────────── */
+const PAGE_BG = "#F9F8F6";
+const INPUT_FILL = "#F5F4F2";
+const HAIRLINE = "#EBEBEB";
+
+/* ── Types ─────────────────────────────────────────────────── */
 type CreatePostResponse = { id: number };
 type UploadSignatureResponse = {
   uploadUrl: string;
@@ -53,17 +69,9 @@ type Props = CompositeScreenProps<
 >;
 
 function deriveMediaType(mimeType: string): "image" | "video" | null {
-  if (mimeType.startsWith("image/")) {
-    return "image";
-  }
-  if (mimeType.startsWith("video/")) {
-    return "video";
-  }
+  if (mimeType.startsWith("image/")) return "image";
+  if (mimeType.startsWith("video/")) return "video";
   return null;
-}
-
-function SectionTitle({ children }: { children: string }) {
-  return <Text style={styles.sectionTitle}>{children}</Text>;
 }
 
 function applyCatalogProductToPromoteForm(
@@ -104,13 +112,13 @@ function applyCatalogProductToPromoteForm(
   set.setServiceAssistErr("");
 }
 
+/* ── Component ─────────────────────────────────────────────── */
 export function CreateScreen({ navigation }: Props) {
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
   const { height: viewportHeight } = useWindowDimensions();
   const compact = viewportHeight <= 700;
   const tabBarHeight = useBottomTabBarHeight();
-  const stickyBottomInset = tabBarHeight + Math.max(insets.bottom, 10) + 10;
   const [postType, setPostType] = useState<"post" | "marketplace" | "reel">("post");
   const [content, setContent] = useState("");
   const [tagsInput, setTagsInput] = useState("");
@@ -137,10 +145,8 @@ export function CreateScreen({ navigation }: Props) {
   const [audienceTarget, setAudienceTarget] = useState<"b2b" | "b2c" | "both">("both");
   const [businessCategory, setBusinessCategory] = useState("");
   const [crossPostToInstagram, setCrossPostToInstagram] = useState(false);
-  const [tagsSectionOpen, setTagsSectionOpen] = useState(false);
-  const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
-  const [captionFocused, setCaptionFocused] = useState(false);
 
+  /* ── Queries ── */
   const sessionQuery = useQuery({
     queryKey: ["mobile-create-session"],
     queryFn: () => fetchSessionMe()
@@ -167,24 +173,16 @@ export function CreateScreen({ navigation }: Props) {
   const composerName = useMemo(() => {
     const p = profileQuery.data;
     const s = sessionQuery.data;
-    if (p?.display_name?.trim()) {
-      return p.display_name.trim();
-    }
-    if (s?.username?.trim()) {
-      return s.username.trim();
-    }
-    if (s?.email) {
-      return s.email.split("@")[0] || "You";
-    }
+    if (p?.display_name?.trim()) return p.display_name.trim();
+    if (s?.username?.trim()) return s.username.trim();
+    if (s?.email) return s.email.split("@")[0] || "You";
     return "You";
   }, [profileQuery.data, sessionQuery.data]);
 
   const avatarUri = resolveMediaUrl(profileQuery.data?.avatar_url) || undefined;
 
   const previewMime = useMemo(() => {
-    if (!selectedFile) {
-      return null;
-    }
+    if (!selectedFile) return null;
     const fallback = selectedFile.name?.toLowerCase().match(/\.(png|jpe?g|webp|gif)$/)
       ? "image/jpeg"
       : "video/mp4";
@@ -219,75 +217,40 @@ export function CreateScreen({ navigation }: Props) {
       return Boolean(selectedFile && m.startsWith("video/"));
     }
     const hasBody = content.trim().length > 0 || Boolean(selectedFile);
-    if (!hasBody) {
-      return false;
-    }
+    if (!hasBody) return false;
     if (listingInlineProduct) {
       const price = Number(priceMinor);
-      if (!Number.isFinite(price) || price <= 0) {
-        return false;
-      }
-      if (productType === "digital" && !productFile) {
-        return false;
-      }
+      if (!Number.isFinite(price) || price <= 0) return false;
+      if (productType === "digital" && !productFile) return false;
     }
     return true;
   }, [postType, selectedFile, content, listingInlineProduct, priceMinor, productType, productFile]);
 
-  const showCharCount = content.length > 280;
-
   const selectPostType = useCallback(
     (t: "post" | "marketplace" | "reel") => {
       setPostType(t);
-      if (t === "reel") {
-        setSellThis(false);
-        return;
-      }
-      if (t === "post") {
-        setSellThis(false);
-        return;
-      }
-      if (t === "marketplace") {
-        setSellThis(canPromoteProducts);
-      }
+      if (t === "reel") { setSellThis(false); return; }
+      if (t === "post") { setSellThis(false); return; }
+      if (t === "marketplace") setSellThis(canPromoteProducts);
     },
     [canPromoteProducts]
   );
 
   const handlePublishOverlayFinish = useCallback(() => {
     setPublishCelebration((c) => {
-      if (c?.postId != null) {
-        navigation.navigate("PostDetail", { id: c.postId });
-      }
+      if (c?.postId != null) navigation.navigate("PostDetail", { id: c.postId });
       return null;
     });
   }, [navigation]);
 
-  useEffect(() => {
-    if (sellThis) {
-      setPostType("marketplace");
-    }
-  }, [sellThis]);
+  /* ── Side effects ── */
+  useEffect(() => { if (sellThis) setPostType("marketplace"); }, [sellThis]);
+  useEffect(() => { if (postType === "reel") setSellThis(false); }, [postType]);
+  useEffect(() => { if (!canPromoteProducts && sellThis) setSellThis(false); }, [canPromoteProducts, sellThis]);
 
   useEffect(() => {
-    if (postType === "reel") {
-      setSellThis(false);
-    }
-  }, [postType]);
-
-  useEffect(() => {
-    if (!canPromoteProducts && sellThis) {
-      setSellThis(false);
-    }
-  }, [canPromoteProducts, sellThis]);
-
-  useEffect(() => {
-    if (!canPromoteProducts) {
-      return;
-    }
-    if (!shouldShowExperimentPrompt({ experimentId: growthExperiments.financialPrompt, persona })) {
-      return;
-    }
+    if (!canPromoteProducts) return;
+    if (!shouldShowExperimentPrompt({ experimentId: growthExperiments.financialPrompt, persona })) return;
     void trackClientExperimentEvent({
       eventName: "offer_attach_prompt_shown",
       persona,
@@ -299,19 +262,16 @@ export function CreateScreen({ navigation }: Props) {
     });
   }, [canPromoteProducts, persona, financialVariant]);
 
+  /* ── Handlers ── */
   const pickMedia = () => {
     pickVisualMedia(postType === "reel" ? { kind: "reel" } : { kind: "post" }, (asset) => {
-      if (asset) {
-        setSelectedFile(asset);
-      }
+      if (asset) setSelectedFile(asset);
     });
   };
 
   const pickProductFile = () => {
     pickVisualMedia({ kind: "product" }, (asset) => {
-      if (asset) {
-        setProductFile(asset);
-      }
+      if (asset) setProductFile(asset);
     });
   };
 
@@ -330,9 +290,7 @@ export function CreateScreen({ navigation }: Props) {
         "",
         "Key points from creator:",
         k
-      ]
-        .filter(Boolean)
-        .join("\n");
+      ].filter(Boolean).join("\n");
       const res = await assistPostText(lines, "service_details_generate");
       setServiceDetails(res.suggestion);
     } catch (e) {
@@ -342,47 +300,29 @@ export function CreateScreen({ navigation }: Props) {
     }
   };
 
+  /* ── Publish ── */
   const createPost = async () => {
     setIsSubmitting(true);
     setError("");
     try {
       if (postType === "reel") {
-        if (!selectedFile) {
-          throw new Error("Select a video for your reel.");
-        }
+        if (!selectedFile) throw new Error("Select a video for your reel.");
         const m = selectedFile.mimeType || "";
-        if (!m.startsWith("video/")) {
-          throw new Error("Reels require a video file.");
-        }
+        if (!m.startsWith("video/")) throw new Error("Reels require a video file.");
       }
-
-      if (crossPostToInstagram && !selectedFile) {
-        throw new Error("Attach image or video to cross-post to Instagram.");
-      }
-
+      if (crossPostToInstagram && !selectedFile) throw new Error("Attach image or video to cross-post to Instagram.");
       const meIdForPost = sessionQuery.data?.id;
-      if (crossPostToInstagram && !meIdForPost) {
-        throw new Error("Sign in to cross-post to Instagram.");
-      }
-
+      if (crossPostToInstagram && !meIdForPost) throw new Error("Sign in to cross-post to Instagram.");
       const inlineSellThisProduct = Boolean(sellThis && selectedProductId == null);
-      if (inlineSellThisProduct && !meIdForPost) {
-        throw new Error("Sign in to publish a post with a new product.");
-      }
-      if (selectedProductId != null && !meIdForPost) {
-        throw new Error("Sign in to attach a product to your post.");
-      }
+      if (inlineSellThisProduct && !meIdForPost) throw new Error("Sign in to publish a post with a new product.");
+      if (selectedProductId != null && !meIdForPost) throw new Error("Sign in to attach a product to your post.");
 
       let deliveryMediaKey: string | undefined;
       if (inlineSellThisProduct && productType === "digital") {
-        if (!productFile) {
-          throw new Error("Select a delivery file for digital product.");
-        }
+        if (!productFile) throw new Error("Select a delivery file for digital product.");
         const productMimeType = productFile.mimeType || "application/octet-stream";
         const productMediaType = deriveMediaType(productMimeType);
-        if (!productMediaType) {
-          throw new Error("Digital delivery file must be image or video.");
-        }
+        if (!productMediaType) throw new Error("Digital delivery file must be image or video.");
         const signature = await apiRequest<UploadSignatureResponse>("/media/upload-signature", {
           method: "POST",
           auth: true,
@@ -400,21 +340,17 @@ export function CreateScreen({ navigation }: Props) {
           headers: signature.headers,
           body: productFileBlob
         });
-        if (!productUploadResponse.ok) {
-          throw new Error("Unable to upload product delivery file.");
-        }
+        if (!productUploadResponse.ok) throw new Error("Unable to upload product delivery file.");
         deliveryMediaKey = signature.key;
       }
+
       const post = await apiRequest<CreatePostResponse>("/posts", {
         method: "POST",
         auth: true,
         body: {
           postType,
           content,
-          tags: tagsInput
-            .split(",")
-            .map((tag) => tag.trim())
-            .filter(Boolean),
+          tags: tagsInput.split(",").map((tag) => tag.trim()).filter(Boolean),
           isBusinessPost: sellThis,
           sellThis: inlineSellThisProduct,
           audienceTarget: sellThis ? audienceTarget : "both",
@@ -422,27 +358,20 @@ export function CreateScreen({ navigation }: Props) {
           productType,
           priceMinor: inlineSellThisProduct ? Number(priceMinor) : undefined,
           productTitle: inlineSellThisProduct && productTitle.trim() ? productTitle.trim() : undefined,
-          productDescription:
-            inlineSellThisProduct && productDescription.trim() ? productDescription.trim() : undefined,
+          productDescription: inlineSellThisProduct && productDescription.trim() ? productDescription.trim() : undefined,
           serviceDetails: inlineSellThisProduct && serviceDetails.trim() ? serviceDetails.trim() : undefined,
           deliveryMethod: inlineSellThisProduct && deliveryMethod.trim() ? deliveryMethod.trim() : undefined,
           websiteUrl: inlineSellThisProduct && websiteUrl.trim() ? websiteUrl.trim() : undefined,
           deliveryMediaKey,
-          ...(postType === "reel" && selectedFile
-            ? { mediaMimeType: selectedFile.mimeType || "video/mp4" }
-            : {})
+          ...(postType === "reel" && selectedFile ? { mediaMimeType: selectedFile.mimeType || "video/mp4" } : {})
         }
       });
 
       if (selectedFile) {
-        const fallbackMime = selectedFile.name?.toLowerCase().match(/\.(png|jpe?g|webp|gif)$/)
-          ? "image/jpeg"
-          : "video/mp4";
+        const fallbackMime = selectedFile.name?.toLowerCase().match(/\.(png|jpe?g|webp|gif)$/) ? "image/jpeg" : "video/mp4";
         const mimeType = selectedFile.mimeType || fallbackMime;
         const mediaType = deriveMediaType(mimeType);
-        if (!mediaType) {
-          throw new Error("Only image and video uploads are supported.");
-        }
+        if (!mediaType) throw new Error("Only image and video uploads are supported.");
 
         const signature = await apiRequest<UploadSignatureResponse>("/media/upload-signature", {
           method: "POST",
@@ -454,18 +383,14 @@ export function CreateScreen({ navigation }: Props) {
             fileSizeBytes: selectedFile.size || 1
           }
         });
-
         const fileResponse = await fetch(selectedFile.uri);
         const fileBlob = await fileResponse.blob();
-
         const uploadResponse = await fetch(signature.uploadUrl, {
           method: "PUT",
           headers: signature.headers,
           body: fileBlob
         });
-        if (!uploadResponse.ok) {
-          throw new Error("Unable to upload selected media.");
-        }
+        if (!uploadResponse.ok) throw new Error("Unable to upload selected media.");
 
         await apiRequest(`/media/posts/${post.id}/attach`, {
           method: "POST",
@@ -479,11 +404,7 @@ export function CreateScreen({ navigation }: Props) {
         });
 
         if (crossPostToInstagram) {
-          try {
-            await requestInstagramCrossPost(post.id);
-          } catch {
-            /* non-blocking */
-          }
+          try { await requestInstagramCrossPost(post.id); } catch { /* non-blocking */ }
         }
       }
       if (selectedProductId) {
@@ -547,46 +468,34 @@ export function CreateScreen({ navigation }: Props) {
     }
   };
 
+  /* ── Derived ── */
+  const isReel = postType === "reel";
+  const ctaLabel = isReel ? "Publish reel" : "Publish";
+  const uploadHeight = isReel ? 280 : 230;
+  const uploadTitle = isReel ? "Upload video" : "Add photo or video";
+  const uploadHint = isReel
+    ? "Vertical video works best for reels"
+    : postType === "marketplace"
+      ? "Strong photos help your listing stand out"
+      : "Optional for text posts";
+
+  /* ── Render ── */
   return (
     <View style={styles.root}>
-      <View
-        style={[
-          styles.headerBar,
-          compact && styles.headerBarCompact,
-          { paddingTop: insets.top + (compact ? 4 : 6) }
-        ]}
-      >
-        <View style={styles.headerSide}>
-          <Pressable
-            onPress={() => navigation.goBack()}
-            hitSlop={12}
-            style={({ pressed }) => [styles.headerBack, pressed && styles.pressableSoft]}
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-          >
-            <Ionicons name="chevron-back" size={24} color={colors.text} />
-          </Pressable>
-        </View>
-        <Text style={styles.headerTitle}>New post</Text>
-        <View style={styles.headerSide} />
-      </View>
+      <CreateAppBar title="New post" onBack={() => navigation.goBack()} />
+
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
         <ScrollView
           style={styles.flex}
-          contentContainerStyle={[
-            styles.scrollContent,
-            compact && styles.scrollContentCompact,
-            { paddingBottom: 20 }
-          ]}
+          contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.segmentLabel}>Post type</Text>
-          <View style={[styles.typeRowWrap, compact && styles.typeRowWrapCompact]}>
+          {/* ── Post type selector ── */}
+          <View style={styles.segmentWrap}>
             {(
               [
                 ["post", "Post"],
@@ -597,161 +506,70 @@ export function CreateScreen({ navigation }: Props) {
               <Pressable
                 key={t}
                 onPress={() => selectPostType(t)}
-                style={({ pressed }) => [
-                  styles.segmentPill,
-                  postType === t ? styles.segmentPillActive : null,
-                  compact && styles.segmentPillCompact,
-                  pressed ? styles.pressableSoft : null
-                ]}
+                style={[styles.segPill, postType === t && styles.segPillActive]}
               >
-                <Text style={[styles.segmentPillText, postType === t ? styles.segmentPillTextActive : null]}>
+                <Text style={[styles.segPillText, postType === t && styles.segPillTextActive]}>
                   {label}
                 </Text>
               </Pressable>
             ))}
           </View>
 
-          <View style={styles.mediaWrap}>
-            <Pressable
-              onPress={pickMedia}
-              style={({ pressed }) => [
-                styles.mediaPreview,
-                compact && styles.mediaPreviewCompact,
-                pressed && styles.mediaPreviewPressed
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="Add or change photo or video"
-              accessibilityHint="Choose from library, camera, or files"
-            >
-              {selectedFile && previewKind === "image" ? (
-                <Image
-                  source={{ uri: selectedFile.uri }}
-                  style={[styles.mediaPreviewFill, compact && styles.mediaPreviewFillCompact]}
-                  resizeMode="cover"
-                />
-              ) : null}
-              {selectedFile && previewKind === "video" ? (
-                <AppVideoView
-                  key={selectedFile.uri}
-                  uri={selectedFile.uri}
-                  style={[styles.mediaPreviewFill, compact && styles.mediaPreviewFillCompact]}
-                  contentFit="cover"
-                  loop
-                  play
-                  muted
-                />
-              ) : null}
-              {!selectedFile ? (
-                <View style={styles.mediaEmpty}>
-                  <Ionicons name="cloud-upload-outline" size={36} color={colors.accent} />
-                  <Text style={styles.mediaEmptyTitle}>
-                    {postType === "reel" ? "Add video" : "Add photo or video"}
-                  </Text>
-                  <Text style={styles.mediaEmptyHint}>
-                    {postType === "reel"
-                      ? "Vertical video works best for reels."
-                      : postType === "marketplace"
-                        ? "Strong photos help your listing stand out."
-                        : "Optional for text posts"}
-                  </Text>
-                </View>
-              ) : null}
-            </Pressable>
-            {selectedFile ? (
-              <View style={styles.mediaActions}>
-                <Pressable
-                  onPress={pickMedia}
-                  style={({ pressed }) => [styles.mediaActionBtn, pressed && styles.pressableSoft]}
-                >
-                  <Ionicons name="image-outline" size={18} color={colors.text} />
-                  <Text style={styles.mediaActionText}>Replace</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => setSelectedFile(null)}
-                  style={({ pressed }) => [styles.mediaActionBtn, pressed && styles.pressableSoft]}
-                >
-                  <Ionicons name="trash-outline" size={18} color={colors.danger} />
-                  <Text style={[styles.mediaActionText, { color: colors.danger }]}>Remove</Text>
-                </Pressable>
-              </View>
-            ) : null}
-          </View>
+          {/* ── Media upload ── */}
+          <UploadCard
+            height={uploadHeight}
+            uri={selectedFile?.uri}
+            mimeType={previewMime}
+            isVideo={previewKind === "video"}
+            title={uploadTitle}
+            hint={uploadHint}
+            icon="cloud-upload-outline"
+            onPress={pickMedia}
+            onReplace={selectedFile ? pickMedia : undefined}
+            onRemove={selectedFile ? () => setSelectedFile(null) : undefined}
+          />
 
-          <View style={[styles.composerCard, compact && styles.composerCardCompact]}>
-            <View style={[styles.identityRow, compact && styles.identityRowCompact]}>
+          {/* ── Reel: cover selection placeholder ── */}
+          {isReel && selectedFile ? (
+            <View style={styles.coverRow}>
+              <Ionicons name="film-outline" size={18} color={colors.muted} />
+              <Text style={styles.coverText}>Cover frame auto-selected from first frame</Text>
+            </View>
+          ) : null}
+
+          {/* ── Composer card ── */}
+          <FormCard>
+            {/* Identity row */}
+            <View style={styles.identityRow}>
               {avatarUri ? (
-                <Image source={{ uri: avatarUri }} style={[styles.avatar, compact && styles.avatarCompact]} resizeMode="cover" />
+                <Image source={{ uri: avatarUri }} style={styles.avatar} resizeMode="cover" />
               ) : (
-                <View style={[styles.avatarFallback, compact && styles.avatarFallbackCompact]}>
-                  <Text style={[styles.avatarFallbackText, compact && styles.avatarFallbackTextCompact]}>
-                    {composerName.slice(0, 1).toUpperCase()}
-                  </Text>
+                <View style={styles.avatarFallback}>
+                  <Text style={styles.avatarText}>{composerName.slice(0, 1).toUpperCase()}</Text>
                 </View>
               )}
-              <Text style={[styles.composerName, compact && styles.composerNameCompact]} numberOfLines={1}>
-                {composerName}
-              </Text>
+              <Text style={styles.composerName} numberOfLines={1}>{composerName}</Text>
             </View>
-            <Text style={styles.fieldLabel}>{postType === "marketplace" ? "Description" : "Caption"}</Text>
-            <TextInput
-              style={[
-                styles.inputComposer,
-                compact && styles.inputComposerCompact,
-                captionFocused && styles.inputComposerFocused
-              ]}
-              multiline
-              placeholder={
-                postType === "marketplace" ? "Describe your listing…" : "What's on your mind?"
-              }
-              placeholderTextColor={colors.composerMuted}
+
+            <SoftTextArea
+              label={postType === "marketplace" ? "Description" : "Caption"}
+              placeholder={postType === "marketplace" ? "Describe your listing..." : "What's on your mind?"}
               value={content}
               onChangeText={setContent}
-              onFocus={() => setCaptionFocused(true)}
-              onBlur={() => setCaptionFocused(false)}
-              textAlignVertical="top"
-              accessibilityLabel="Post caption"
+              minHeight={isReel ? 80 : 120}
             />
-            {showCharCount ? (
+            {content.length > 280 ? (
               <Text style={styles.charCount}>{content.length} characters</Text>
             ) : null}
+          </FormCard>
 
-            <Pressable
-              onPress={() => setTagsSectionOpen((o) => !o)}
-              style={({ pressed }) => [styles.addonRow, pressed && styles.pressableSoft]}
-            >
-              <Ionicons name="pricetag-outline" size={20} color={colors.muted} />
-              <Text style={styles.addonRowLabel}>Add tags</Text>
-              {tagsInput.trim() ? (
-                <Text style={styles.addonRowMeta}>{tagsInput.split(",").filter(Boolean).length}</Text>
-              ) : null}
-              <Ionicons name={tagsSectionOpen ? "chevron-up" : "chevron-down"} size={20} color={colors.muted} />
-            </Pressable>
-            {tagsSectionOpen ? (
-              <View style={styles.tagsPanel}>
-                <Text style={styles.tagsHelper}>Comma-separated. Used for discovery.</Text>
-                <TextInput
-                  style={[styles.inputComposerSingle, compact && styles.inputComposerSingleCompact]}
-                  placeholder="e.g. halal, seattle, design"
-                  placeholderTextColor={colors.composerMuted}
-                  value={tagsInput}
-                  onChangeText={setTagsInput}
-                />
-              </View>
-            ) : null}
-
-            <View style={styles.divider} />
-            {postType === "marketplace" && !canPromoteProducts ? (
-              <Text style={[styles.promoteHint, compact && styles.promoteHintCompact]}>
-                Switch to Professional or Business in Settings to publish marketplace listings with pricing and delivery.
-              </Text>
-            ) : null}
-            {postType !== "reel" && canPromoteProducts && postType === "post" ? (
-              <View style={[styles.promoteRow, compact && styles.promoteRowCompact]}>
-                <View style={styles.promoteTextBlock}>
-                  <Text style={[styles.promoteLabel, compact && styles.promoteLabelCompact]}>Promote this post</Text>
-                  <Text style={[styles.promoteHint, compact && styles.promoteHintCompact]}>
-                    Add offer or pricing details for your audience
-                  </Text>
+          {/* ── Promote toggle (post mode, if eligible) ── */}
+          {postType === "post" && canPromoteProducts ? (
+            <FormCard>
+              <View style={styles.promoteRow}>
+                <View style={styles.promoteTextWrap}>
+                  <Text style={styles.promoteLabel}>Promote this post</Text>
+                  <Text style={styles.promoteHint}>Add offer or pricing details</Text>
                 </View>
                 <AccentSwitch
                   value={sellThis}
@@ -759,422 +577,309 @@ export function CreateScreen({ navigation }: Props) {
                   accessibilityLabel="Promote this post"
                 />
               </View>
-            ) : null}
-            {postType !== "reel" && canPromoteProducts && postType === "marketplace" ? (
-              <View style={styles.marketplaceListingIntro}>
-                <Text style={styles.marketplaceListingTitle}>Listing details</Text>
-                <Text style={[styles.promoteHint, compact && styles.promoteHintCompact]}>
-                  Set price, category, and delivery for a new listing, or attach an existing product from More options.
-                </Text>
-              </View>
-            ) : null}
-            {showListingFields ? (
-              <View style={[styles.promoteFields, compact && styles.promoteFieldsCompact]}>
-                {(myProductsQuery.data?.items || []).length > 0 ? (
-                  <>
-                    <SectionTitle>Attach catalog product</SectionTitle>
-                    <Text style={styles.helperLight}>
-                      Choose a listing first — we fill pricing, type, audience, offer copy, and delivery from that
-                      product. No duplicate product is created when you attach.
-                    </Text>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.attachChipsScrollContent}
-                      style={styles.attachChipsScroll}
-                    >
-                      {(myProductsQuery.data?.items || []).map((item) => {
-                        const productId = Number(item.id);
-                        if (!productId) {
-                          return null;
-                        }
-                        return (
-                          <Pressable
-                            key={productId}
-                            onPress={() => {
-                              setSelectedProductId(productId);
-                              applyCatalogProductToPromoteForm(item, {
-                                setProductType,
-                                setPriceMinor,
-                                setProductTitle,
-                                setProductDescription,
-                                setServiceDetails,
-                                setServiceKeyPoints,
-                                setDeliveryMethod,
-                                setWebsiteUrl,
-                                setAudienceTarget,
-                                setBusinessCategory,
-                                setProductFile,
-                                setServiceAssistErr
-                              });
-                            }}
-                            style={({ pressed }) => [
-                              styles.chipLight,
-                              selectedProductId === productId ? styles.chipLightActive : null,
-                              compact && styles.chipLightCompact,
-                              pressed ? styles.pressableSoft : null
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.chipLightText,
-                                selectedProductId === productId ? styles.chipLightTextActive : null
-                              ]}
-                              numberOfLines={1}
-                            >
-                              {item.title || `Product ${productId}`}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </ScrollView>
-                    {selectedProductId ? (
-                      <Pressable
-                        onPress={() => {
-                          setSelectedProductId(null);
-                          setProductType("digital");
-                          setPriceMinor("");
-                          setProductTitle("");
-                          setProductDescription("");
-                          setServiceDetails("");
-                          setServiceKeyPoints("");
-                          setDeliveryMethod("");
-                          setWebsiteUrl("");
-                          setAudienceTarget("both");
-                          setBusinessCategory("");
-                          setProductFile(null);
-                          setServiceAssistErr("");
-                        }}
-                        style={({ pressed }) => [
-                          styles.buttonSecondaryLight,
-                          compact && styles.buttonSecondaryLightCompact,
-                          pressed && styles.pressableSoft
-                        ]}
-                      >
-                        <Text style={styles.buttonSecondaryLightText}>Clear attached product</Text>
-                      </Pressable>
-                    ) : null}
-                    <View style={styles.dividerThin} />
-              </>
-            ) : null}
-                <SectionTitle>{postType === "marketplace" ? "Price & product type" : "Pricing and type"}</SectionTitle>
-                {postType === "marketplace" ? (
-                  <Text style={styles.priceHelper}>USD, in cents (e.g. 2500 = $25.00).</Text>
-                ) : null}
-                <TextInput
-                  style={[styles.inputComposerSingle, compact && styles.inputComposerSingleCompact]}
-                  placeholder={postType === "marketplace" ? "Price in cents" : "Price (minor units)"}
-                  placeholderTextColor={colors.composerMuted}
-                  value={priceMinor}
-                  onChangeText={setPriceMinor}
-                  keyboardType="number-pad"
-                />
-                <View style={[styles.typeRowWrap, compact && styles.typeRowWrapCompact]}>
-                  {(["digital", "service"] as const).map((type) => (
-                    <Pressable
-                      key={type}
-                      onPress={() => setProductType(type)}
-                      style={({ pressed }) => [
-                        styles.chipLight,
-                        productType === type ? styles.chipLightActive : null,
-                        compact && styles.chipLightCompact,
-                        pressed && styles.pressableSoft
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.chipLightText,
-                          productType === type ? styles.chipLightTextActive : null
-                        ]}
-                      >
-                        {type}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-                <Text style={[styles.promoteHint, compact && styles.promoteHintCompact]}>
-                  For monthly recurring offers, create a Membership plan in Creator hub.
-                </Text>
-                <SectionTitle>Who it is for</SectionTitle>
-                <View style={[styles.typeRowWrap, compact && styles.typeRowWrapCompact]}>
-                  {([
-                    { key: "b2c", label: "Consumers" },
-                    { key: "b2b", label: "Businesses" },
-                    { key: "both", label: "Both" }
-                  ] as const).map((item) => (
-                    <Pressable
-                      key={item.key}
-                      onPress={() => setAudienceTarget(item.key)}
-                      style={({ pressed }) => [
-                        styles.chipLight,
-                        audienceTarget === item.key ? styles.chipLightActive : null,
-                        compact && styles.chipLightCompact,
-                        pressed && styles.pressableSoft
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.chipLightText,
-                          audienceTarget === item.key ? styles.chipLightTextActive : null
-                        ]}
-                      >
-                        {item.label}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-                <SectionTitle>Category</SectionTitle>
-                <View style={[styles.typeRowWrap, compact && styles.typeRowWrapCompact]}>
-                  {([
-                    { key: "tools_growth", label: "Tools" },
-                    { key: "professional_services", label: "Services" },
-                    { key: "digital_products", label: "Digital" },
-                    { key: "education_coaching", label: "Coaching" },
-                    { key: "lifestyle_inspiration", label: "Lifestyle" }
-                  ] as const).map((item) => (
-                    <Pressable
-                      key={item.key}
-                      onPress={() => setBusinessCategory(item.key)}
-                      style={({ pressed }) => [
-                        styles.chipLight,
-                        businessCategory === item.key ? styles.chipLightActive : null,
-                        compact && styles.chipLightCompact,
-                        pressed && styles.pressableSoft
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.chipLightText,
-                          businessCategory === item.key ? styles.chipLightTextActive : null
-                        ]}
-                      >
-                        {item.label}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-                <SectionTitle>{postType === "marketplace" ? "Title & offer copy" : "Offer copy"}</SectionTitle>
-                <TextInput
-                  style={[styles.inputComposerSingle, compact && styles.inputComposerSingleCompact]}
-                  placeholder={postType === "marketplace" ? "Listing title" : "Product title"}
-                  placeholderTextColor={colors.composerMuted}
-                  value={productTitle}
-                  onChangeText={setProductTitle}
-                />
-                <TextInput
-                  style={[styles.inputComposer, compact && styles.inputComposerCompact]}
-                  multiline
-                  placeholder={
-                    postType === "marketplace" ? "Short offer summary (shown on your product card)" : "Product or offer description"
-                  }
-                  placeholderTextColor={colors.composerMuted}
-                  value={productDescription}
-                  onChangeText={setProductDescription}
-                  textAlignVertical="top"
-                />
-                <SectionTitle>Delivery</SectionTitle>
-                {productType === "digital" ? (
-                  <View style={styles.fileRow}>
-                    {selectedProductId ? (
-                      <Text style={styles.mutedLight}>
-                        Delivery media is stored on the attached catalog product — no upload needed for this post.
-                      </Text>
-                    ) : (
-                      <>
-                        <Pressable
-                          style={({ pressed }) => [
-                            styles.buttonSecondaryLight,
-                            compact && styles.buttonSecondaryLightCompact,
-                            pressed && styles.pressableSoft
-                          ]}
-                          onPress={pickProductFile}
-                        >
-                          <Text style={styles.buttonSecondaryLightText}>Upload delivery file</Text>
-                        </Pressable>
-                        {productFile ? (
-                          <Text style={styles.mutedLight} numberOfLines={1}>
-                            {productFile.name}
-                          </Text>
-                        ) : null}
-                      </>
-                    )}
-                  </View>
-                ) : (
-                  <View style={{ gap: 8 }}>
-                    <TextInput
-                      style={[styles.inputComposer, compact && styles.inputComposerCompact]}
-                      multiline
-                      placeholder="Key points — what you offer, who it is for…"
-                      placeholderTextColor={colors.composerMuted}
-                      value={serviceKeyPoints}
-                      onChangeText={setServiceKeyPoints}
-                      textAlignVertical="top"
-                    />
-                    <Pressable
-                      style={({ pressed }) => [
-                        styles.buttonSecondaryLight,
-                        compact && styles.buttonSecondaryLightCompact,
-                        serviceAssistBusy && { opacity: 0.6 },
-                        pressed && !serviceAssistBusy ? styles.pressableSoft : null
-                      ]}
-                      onPress={() => void generateServiceDescriptionForSell()}
-                      disabled={serviceAssistBusy}
-                    >
-                      <Text style={styles.buttonSecondaryLightText}>
-                        {serviceAssistBusy ? "Generating…" : "Generate concise draft"}
-                      </Text>
-                    </Pressable>
-                    {serviceAssistErr ? (
-                      <Text style={[styles.mutedLight, { color: colors.danger }]}>{serviceAssistErr}</Text>
-                    ) : null}
-                    <Text style={styles.helperLight}>Edit the concise draft below before posting.</Text>
-                    <TextInput
-                      style={[styles.inputComposer, compact && styles.inputComposerCompact]}
-                      multiline
-                      placeholder="Service description & value proposition"
-                      placeholderTextColor={colors.composerMuted}
-                      value={serviceDetails}
-                      onChangeText={setServiceDetails}
-                      textAlignVertical="top"
-                    />
-                  </View>
-                )}
-                <TextInput
-                  style={[styles.inputComposerSingle, compact && styles.inputComposerSingleCompact]}
-                  placeholder="Delivery method (email, DM, booking call)"
-                  placeholderTextColor={colors.composerMuted}
-                  value={deliveryMethod}
-                  onChangeText={setDeliveryMethod}
-                />
-                <TextInput
-                  style={[styles.inputComposerSingle, compact && styles.inputComposerSingleCompact]}
-                  placeholder="Website URL (https://...)"
-                  placeholderTextColor={colors.composerMuted}
-                  value={websiteUrl}
-                  onChangeText={setWebsiteUrl}
-                  autoCapitalize="none"
-                />
-              </View>
-            ) : null}
-            {postType === "reel" ? (
-              <Text style={styles.muted}>
-                Reels use one video only. Open the Reels tab to watch full-screen reels.
-              </Text>
-            ) : !canPromoteProducts && postType === "post" ? (
-              <Text style={[styles.promoteHint, compact && styles.promoteHintCompact]}>
-                Switch to Professional or Business in Settings to promote posts with products.
-              </Text>
-            ) : null}
+            </FormCard>
+          ) : null}
 
-            <View style={styles.divider} />
-            <Pressable
-              onPress={() => setMoreOptionsOpen((o) => !o)}
-              style={({ pressed }) => [styles.addonRow, pressed && styles.pressableSoft]}
-            >
-              <Ionicons name="options-outline" size={20} color={colors.muted} />
-              <Text style={styles.addonRowLabel}>More options</Text>
-              <View style={{ flex: 1 }} />
-              <Ionicons name={moreOptionsOpen ? "chevron-up" : "chevron-down"} size={20} color={colors.muted} />
-            </Pressable>
-            {moreOptionsOpen ? (
-              <View style={styles.moreOptionsPanel}>
-                <View style={styles.crossPostBlock}>
-                  <View style={styles.crossPostTop}>
-                    <Ionicons name="logo-instagram" size={22} color={colors.text} />
-                    <View style={styles.crossPostTitles}>
-                      <Text style={styles.crossPostLabel}>Cross-post to Instagram</Text>
-                      <Text style={styles.muted}>
-                        {igConnected ? "Runs after upload when media is attached." : "Connect Instagram from your profile."}
-                      </Text>
-                    </View>
-                    {igConnected ? (
-                      <AccentSwitch
-                        value={crossPostToInstagram}
-                        onValueChange={setCrossPostToInstagram}
-                      />
-                    ) : (
-                      <Text style={styles.crossPostStatus}>Off</Text>
-                    )}
-                  </View>
-                </View>
-                {!sellThis && (myProductsQuery.data?.items || []).length > 0 ? (
-                  <View style={styles.attachProductBlock}>
-                    <Text style={styles.attachProductHeading}>Attach catalog product</Text>
-                    <Text style={styles.muted}>Optional — link an existing listing without creating a new product.</Text>
-                    <View style={[styles.typeRowWrap, compact && styles.typeRowWrapCompact]}>
-                      {(myProductsQuery.data?.items || []).slice(0, 8).map((item) => {
-                        const productId = Number(item.id);
-                        if (!productId) {
-                          return null;
-                        }
-                        return (
-                          <Pressable
-                            key={productId}
-                            onPress={() => setSelectedProductId(productId)}
-                            style={({ pressed }) => [
-                              styles.chipLight,
-                              selectedProductId === productId ? styles.chipLightActive : null,
-                              compact && styles.chipLightCompact,
-                              pressed ? styles.pressableSoft : null
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.chipLightText,
-                                selectedProductId === productId ? styles.chipLightTextActive : null
-                              ]}
-                            >
-                              {item.title || `Product ${productId}`}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                      {selectedProductId ? (
+          {/* ── Marketplace listing header ── */}
+          {postType === "marketplace" && canPromoteProducts ? (
+            <FormCard>
+              <Text style={styles.cardHeading}>Listing details</Text>
+              <Text style={styles.cardSubtext}>
+                Set price, category, and delivery for a new listing, or attach an existing product from More options.
+              </Text>
+            </FormCard>
+          ) : null}
+
+          {/* ── Listing fields (marketplace / promoted) ── */}
+          {showListingFields ? (
+            <FormCard>
+              {/* Attach catalog product chips */}
+              {(myProductsQuery.data?.items || []).length > 0 ? (
+                <>
+                  <Text style={styles.fieldLabel}>Attach catalog product</Text>
+                  <Text style={styles.helperLight}>
+                    Choose a listing first — pricing, type, and delivery pre-fill from that product.
+                  </Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.chipScrollContent}
+                  >
+                    {(myProductsQuery.data?.items || []).map((item) => {
+                      const pid = Number(item.id);
+                      if (!pid) return null;
+                      return (
                         <Pressable
-                          onPress={() => setSelectedProductId(null)}
-                          style={({ pressed }) => [
-                            styles.buttonSecondaryLight,
-                            compact && styles.buttonSecondaryLightCompact,
-                            pressed && styles.pressableSoft
-                          ]}
+                          key={pid}
+                          onPress={() => {
+                            setSelectedProductId(pid);
+                            applyCatalogProductToPromoteForm(item, {
+                              setProductType,
+                              setPriceMinor,
+                              setProductTitle,
+                              setProductDescription,
+                              setServiceDetails,
+                              setServiceKeyPoints,
+                              setDeliveryMethod,
+                              setWebsiteUrl,
+                              setAudienceTarget,
+                              setBusinessCategory,
+                              setProductFile,
+                              setServiceAssistErr
+                            });
+                          }}
+                          style={[styles.attachChip, selectedProductId === pid && styles.attachChipActive]}
                         >
-                          <Text style={styles.buttonSecondaryLightText}>Clear</Text>
+                          <Text
+                            style={[styles.attachChipText, selectedProductId === pid && styles.attachChipTextActive]}
+                            numberOfLines={1}
+                          >
+                            {item.title || `Product ${pid}`}
+                          </Text>
                         </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                  {selectedProductId ? (
+                    <Pressable
+                      onPress={() => {
+                        setSelectedProductId(null);
+                        setProductType("digital");
+                        setPriceMinor("");
+                        setProductTitle("");
+                        setProductDescription("");
+                        setServiceDetails("");
+                        setServiceKeyPoints("");
+                        setDeliveryMethod("");
+                        setWebsiteUrl("");
+                        setAudienceTarget("both");
+                        setBusinessCategory("");
+                        setProductFile(null);
+                        setServiceAssistErr("");
+                      }}
+                      style={styles.clearLink}
+                    >
+                      <Text style={styles.clearLinkText}>Clear attached product</Text>
+                    </Pressable>
+                  ) : null}
+                  <View style={styles.thinDivider} />
+                </>
+              ) : null}
+
+              {/* Price & type */}
+              <Text style={styles.fieldLabel}>Price & product type</Text>
+              {postType === "marketplace" ? (
+                <Text style={styles.helperLight}>USD, in cents (e.g. 2500 = $25.00).</Text>
+              ) : null}
+              <SoftTextInput
+                placeholder={postType === "marketplace" ? "Price in cents" : "Price (minor units)"}
+                value={priceMinor}
+                onChangeText={setPriceMinor}
+                keyboardType="number-pad"
+              />
+              <ChipRow
+                items={[
+                  { key: "digital", label: "Digital" },
+                  { key: "service", label: "Service" },
+                ]}
+                selected={productType}
+                onSelect={(k) => setProductType(k as "digital" | "service")}
+              />
+
+              {/* Audience */}
+              <Text style={styles.fieldLabel}>Who it is for</Text>
+              <ChipRow
+                items={[
+                  { key: "b2c", label: "Consumers" },
+                  { key: "b2b", label: "Businesses" },
+                  { key: "both", label: "Both" },
+                ]}
+                selected={audienceTarget}
+                onSelect={(k) => setAudienceTarget(k as "b2b" | "b2c" | "both")}
+              />
+
+              {/* Category */}
+              <Text style={styles.fieldLabel}>Category</Text>
+              <ChipRow
+                wrap
+                items={[
+                  { key: "tools_growth", label: "Tools" },
+                  { key: "professional_services", label: "Services" },
+                  { key: "digital_products", label: "Digital" },
+                  { key: "education_coaching", label: "Coaching" },
+                  { key: "lifestyle_inspiration", label: "Lifestyle" },
+                ]}
+                selected={businessCategory}
+                onSelect={setBusinessCategory}
+              />
+
+              {/* Title & description */}
+              <Text style={styles.fieldLabel}>Title & offer copy</Text>
+              <SoftTextInput
+                placeholder={postType === "marketplace" ? "Listing title" : "Product title"}
+                value={productTitle}
+                onChangeText={setProductTitle}
+              />
+              <SoftTextArea
+                placeholder={postType === "marketplace" ? "Short offer summary" : "Product description"}
+                value={productDescription}
+                onChangeText={setProductDescription}
+                minHeight={80}
+              />
+
+              {/* Delivery */}
+              <Text style={styles.fieldLabel}>Delivery</Text>
+              {productType === "digital" ? (
+                <View style={styles.deliveryBlock}>
+                  {selectedProductId ? (
+                    <Text style={styles.helperLight}>
+                      Delivery media is stored on the attached catalog product — no upload needed.
+                    </Text>
+                  ) : (
+                    <>
+                      <Pressable style={styles.uploadDeliveryBtn} onPress={pickProductFile}>
+                        <Ionicons name="cloud-upload-outline" size={18} color={colors.accent} />
+                        <Text style={styles.uploadDeliveryText}>Upload delivery file</Text>
+                      </Pressable>
+                      {productFile ? (
+                        <Text style={styles.helperLight} numberOfLines={1}>{productFile.name}</Text>
                       ) : null}
-                    </View>
-                  </View>
+                    </>
+                  )}
+                </View>
+              ) : (
+                <View style={{ gap: 8 }}>
+                  <SoftTextArea
+                    placeholder="Key points — what you offer, who it is for..."
+                    value={serviceKeyPoints}
+                    onChangeText={setServiceKeyPoints}
+                    minHeight={80}
+                  />
+                  <Pressable
+                    style={[styles.aiBtn, serviceAssistBusy && { opacity: 0.6 }]}
+                    onPress={() => void generateServiceDescriptionForSell()}
+                    disabled={serviceAssistBusy}
+                  >
+                    <Ionicons name="sparkles-outline" size={16} color={colors.accent} />
+                    <Text style={styles.aiBtnText}>
+                      {serviceAssistBusy ? "Generating..." : "Generate concise draft"}
+                    </Text>
+                  </Pressable>
+                  {serviceAssistErr ? <Text style={styles.errorSmall}>{serviceAssistErr}</Text> : null}
+                  <SoftTextArea
+                    placeholder="Service description & value proposition"
+                    value={serviceDetails}
+                    onChangeText={setServiceDetails}
+                    minHeight={80}
+                  />
+                </View>
+              )}
+              <SoftTextInput
+                placeholder="Delivery method (email, DM, booking call)"
+                value={deliveryMethod}
+                onChangeText={setDeliveryMethod}
+              />
+              <SoftTextInput
+                placeholder="Website URL (https://...)"
+                value={websiteUrl}
+                onChangeText={setWebsiteUrl}
+                autoCapitalize="none"
+              />
+            </FormCard>
+          ) : null}
+
+          {/* ── Reel hint ── */}
+          {isReel ? (
+            <Text style={styles.helperLight}>
+              Reels use one video only. Open the Reels tab to watch full-screen reels.
+            </Text>
+          ) : null}
+
+          {/* ── More options (collapsed) ── */}
+          <FormCard>
+            <CollapsibleSection title="More options">
+              {/* Tags */}
+              <View style={styles.addonRow}>
+                <Ionicons name="pricetag-outline" size={20} color={colors.muted} />
+                <Text style={styles.addonLabel}>Tags</Text>
+                {tagsInput.trim() ? (
+                  <Text style={styles.addonMeta}>{tagsInput.split(",").filter(Boolean).length}</Text>
                 ) : null}
               </View>
-            ) : null}
-          </View>
+              <SoftTextInput
+                placeholder="e.g. halal, seattle, design (comma-separated)"
+                value={tagsInput}
+                onChangeText={setTagsInput}
+              />
+
+              {/* Instagram cross-post */}
+              <View style={styles.crossPostRow}>
+                <Ionicons name="logo-instagram" size={22} color={colors.text} />
+                <View style={styles.crossPostText}>
+                  <Text style={styles.addonLabel}>Cross-post to Instagram</Text>
+                  <Text style={styles.helperLight}>
+                    {igConnected ? "Runs after upload when media is attached." : "Connect Instagram from your profile."}
+                  </Text>
+                </View>
+                {igConnected ? (
+                  <AccentSwitch value={crossPostToInstagram} onValueChange={setCrossPostToInstagram} />
+                ) : (
+                  <Text style={styles.helperLight}>Off</Text>
+                )}
+              </View>
+
+              {/* Attach product from more options (non-sell mode) */}
+              {!sellThis && postType !== "reel" && (myProductsQuery.data?.items || []).length > 0 ? (
+                <>
+                  <View style={styles.thinDivider} />
+                  <Text style={styles.fieldLabel}>Attach catalog product</Text>
+                  <Text style={styles.helperLight}>Optional — link an existing listing without creating a new product.</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.chipScrollContent}
+                  >
+                    {(myProductsQuery.data?.items || []).slice(0, 8).map((item) => {
+                      const pid = Number(item.id);
+                      if (!pid) return null;
+                      return (
+                        <Pressable
+                          key={pid}
+                          onPress={() => setSelectedProductId(pid)}
+                          style={[styles.attachChip, selectedProductId === pid && styles.attachChipActive]}
+                        >
+                          <Text
+                            style={[styles.attachChipText, selectedProductId === pid && styles.attachChipTextActive]}
+                            numberOfLines={1}
+                          >
+                            {item.title || `Product ${pid}`}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                  {selectedProductId ? (
+                    <Pressable onPress={() => setSelectedProductId(null)} style={styles.clearLink}>
+                      <Text style={styles.clearLinkText}>Clear</Text>
+                    </Pressable>
+                  ) : null}
+                </>
+              ) : null}
+            </CollapsibleSection>
+          </FormCard>
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </ScrollView>
-        <View
-          style={[
-            styles.stickyPublishWrap,
-            compact && styles.stickyPublishWrapCompact,
-            { paddingBottom: stickyBottomInset }
-          ]}
-        >
-          <Pressable
-            style={({ pressed }) => [
-              styles.stickyPublishBtn,
-              compact && styles.stickyPublishBtnCompact,
-              (isSubmitting || pressed) && styles.buttonPressed,
-              !canPublish && styles.stickyPublishBtnDisabled
-            ]}
-            onPress={createPost}
-            disabled={isSubmitting || !canPublish}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color={colors.accent} />
-            ) : (
-              <Text style={styles.buttonPrimaryText}>Publish</Text>
-            )}
-          </Pressable>
-        </View>
+
+        {/* ── Sticky CTA ── */}
+        <StickyCtaBar
+          primaryLabel={ctaLabel}
+          onPrimary={createPost}
+          primaryDisabled={!canPublish}
+          primaryLoading={isSubmitting}
+        />
       </KeyboardAvoidingView>
+
       <PostPublishSuccessOverlay
         visible={publishCelebration != null}
         variant={publishCelebration?.variant ?? "post"}
@@ -1184,541 +889,242 @@ export function CreateScreen({ navigation }: Props) {
   );
 }
 
+/* ── Styles ──────────────────────────────────────────────────── */
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.background
+    backgroundColor: PAGE_BG,
   },
-  flex: {
-    flex: 1
+  flex: { flex: 1 },
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 24,
+    gap: 24,
   },
-  headerBar: {
-    backgroundColor: colors.background,
-    borderBottomColor: colors.borderSubtle,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    paddingBottom: 8,
-    paddingHorizontal: spacing.pagePaddingH,
+  /* Segment control */
+  segmentWrap: {
+    flexDirection: "row",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 999,
+    padding: 4,
+    gap: 8,
+  },
+  segPill: {
+    flex: 1,
+    height: 40,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  segPillActive: {
+    backgroundColor: colors.accentMuted,
+  },
+  segPillText: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: colors.muted,
+  },
+  segPillTextActive: {
+    fontWeight: "600",
+    color: colors.accent,
+  },
+  /* Cover row (reels) */
+  coverRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    minHeight: 48
+    paddingHorizontal: 4,
   },
-  headerBarCompact: {
-    paddingBottom: 6,
-    paddingHorizontal: 14
-  },
-  headerSide: {
-    width: 40,
-    alignItems: "flex-start",
-    justifyContent: "center"
-  },
-  headerBack: {
-    paddingVertical: 4,
-    marginLeft: -4
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: "center",
-    color: colors.text,
-    fontSize: 20,
-    fontWeight: "600",
-    letterSpacing: -0.3
-  },
-  scrollContent: {
-    paddingHorizontal: spacing.pagePaddingH,
-    paddingTop: spacing.sectionGap - 8,
-    gap: spacing.sectionGap - 12
-  },
-  scrollContentCompact: {
-    paddingHorizontal: 14,
-    paddingTop: 12,
-    gap: 12
-  },
-  segmentLabel: {
-    ...type.caption,
+  coverText: {
+    fontSize: 13,
     color: colors.muted,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-    marginBottom: -4
   },
-  segmentPill: {
-    borderColor: colors.border,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radii.pill,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    minHeight: 40,
-    backgroundColor: colors.surface,
-    justifyContent: "center"
-  },
-  segmentPillCompact: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    minHeight: 36
-  },
-  segmentPillActive: {
-    backgroundColor: colors.accentMuted,
-    borderColor: colors.accent
-  },
-  segmentPillDisabled: {
-    opacity: 0.4
-  },
-  segmentPillText: {
-    ...type.button,
-    fontSize: 14,
-    color: colors.text
-  },
-  segmentPillTextActive: {
-    color: colors.accent,
-    fontWeight: "700"
-  },
-  mediaWrap: {
-    gap: 10
-  },
-  mediaPreview: {
-    minHeight: 168,
-    borderRadius: 20,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    overflow: "hidden",
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  mediaPreviewCompact: {
-    minHeight: 140
-  },
-  mediaPreviewPressed: {
-    opacity: 0.96
-  },
-  mediaPreviewFill: {
-    width: "100%",
-    height: 168
-  },
-  mediaPreviewFillCompact: {
-    height: 140
-  },
-  mediaEmpty: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 28,
-    paddingHorizontal: 20,
-    gap: 8
-  },
-  mediaEmptyTitle: {
-    ...type.bodyStrong,
-    color: colors.text,
-    textAlign: "center"
-  },
-  mediaEmptyHint: {
-    ...type.meta,
-    color: colors.muted,
-    textAlign: "center",
-    lineHeight: 18
-  },
-  mediaActions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 16
-  },
-  mediaActionBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    minHeight: 44,
-    paddingVertical: 8
-  },
-  mediaActionText: {
-    ...type.button,
-    fontSize: 14,
-    color: colors.text
-  },
-  composerCard: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radii.card,
-    padding: spacing.cardPadding,
-    gap: 12,
-    ...shadows.card
-  },
-  composerCardCompact: {
-    padding: 14,
-    gap: 10
-  },
+  /* Identity */
   identityRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12
-  },
-  identityRowCompact: {
-    gap: 10
+    gap: 12,
   },
   avatar: {
     width: 40,
     height: 40,
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.composerBorder
-  },
-  avatarCompact: {
-    width: 34,
-    height: 34
   },
   avatarFallback: {
     width: 40,
     height: 40,
     borderRadius: 999,
-    backgroundColor: colors.composerBorder,
+    backgroundColor: INPUT_FILL,
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
   },
-  avatarFallbackCompact: {
-    width: 34,
-    height: 34
-  },
-  avatarFallbackText: {
-    color: colors.composerText,
+  avatarText: {
     fontSize: 16,
-    fontWeight: "700"
-  },
-  avatarFallbackTextCompact: {
-    fontSize: 14
+    fontWeight: "700",
+    color: colors.text,
   },
   composerName: {
     flex: 1,
-    color: colors.text,
     fontSize: 15,
-    fontWeight: "600"
-  },
-  composerNameCompact: {
-    fontSize: 14
-  },
-  fieldLabel: {
-    ...type.meta,
     fontWeight: "600",
-    color: colors.muted,
-    marginBottom: -4
-  },
-  inputComposer: {
-    minHeight: 132,
-    borderColor: colors.border,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radii.control,
     color: colors.text,
-    backgroundColor: colors.background,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    lineHeight: 22
-  },
-  inputComposerFocused: {
-    borderColor: colors.accent,
-    borderWidth: 1.5
-  },
-  inputComposerCompact: {
-    minHeight: 120,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15
   },
   charCount: {
-    ...type.metaSm,
+    fontSize: 12,
+    fontWeight: "500",
     color: colors.mutedLight,
-    alignSelf: "flex-end"
+    alignSelf: "flex-end",
   },
-  addonRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    minHeight: 48,
-    paddingVertical: 6
-  },
-  addonRowLabel: {
-    ...type.button,
-    fontSize: 15,
-    color: colors.text,
-    flex: 1
-  },
-  addonRowMeta: {
-    ...type.meta,
-    color: colors.mutedLight,
-    marginRight: 4
-  },
-  tagsPanel: {
-    gap: 8,
-    paddingBottom: 4
-  },
-  tagsHelper: {
-    ...type.meta,
-    color: colors.muted
-  },
-  inputComposerSingle: {
-    borderColor: colors.border,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radii.control,
-    color: colors.text,
-    backgroundColor: colors.background,
-    padding: 12,
-    fontSize: 15,
-    minHeight: 48
-  },
-  inputComposerSingleCompact: {
-    paddingVertical: 9,
-    paddingHorizontal: 10,
-    fontSize: 14
-  },
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.borderSubtle,
-    marginVertical: 4
-  },
-  dividerThin: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.borderSubtle,
-    marginVertical: 10
-  },
-  attachChipsScroll: { maxHeight: 48, marginBottom: 2 },
-  attachChipsScrollContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 4,
-    paddingRight: 8
-  },
+  /* Promote */
   promoteRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 12
+    gap: 12,
   },
-  promoteRowCompact: {
-    gap: 8
-  },
-  promoteTextBlock: {
-    flex: 1,
-    minWidth: 0
-  },
+  promoteTextWrap: { flex: 1, minWidth: 0 },
   promoteLabel: {
-    color: colors.composerText,
     fontSize: 16,
-    fontWeight: "700"
-  },
-  promoteLabelCompact: {
-    fontSize: 15
+    fontWeight: "700",
+    color: colors.text,
   },
   promoteHint: {
-    color: colors.composerMuted,
     fontSize: 12,
-    marginTop: 2
-  },
-  promoteHintCompact: {
-    fontSize: 11
-  },
-  marketplaceListingIntro: {
-    gap: 6,
-    marginBottom: 4
-  },
-  marketplaceListingTitle: {
-    ...type.sectionTitle,
-    fontSize: 17,
-    color: colors.text
-  },
-  priceHelper: {
-    ...type.meta,
     color: colors.muted,
-    marginTop: -4,
-    marginBottom: 2
-  },
-  promoteFields: {
-    gap: 8,
-    marginTop: 4,
-    paddingTop: 2
-  },
-  promoteFieldsCompact: {
-    gap: 7,
     marginTop: 2,
-    paddingTop: 0
   },
-  sectionTitle: {
-    color: colors.composerText,
+  /* Card heading */
+  cardHeading: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  cardSubtext: {
+    fontSize: 12,
+    color: colors.muted,
+  },
+  /* Field labels */
+  fieldLabel: {
     fontSize: 12,
     fontWeight: "700",
+    color: colors.muted,
     textTransform: "uppercase",
     letterSpacing: 0.5,
-    marginTop: 6
-  },
-  typeRowWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8
-  },
-  typeRowWrapCompact: {
-    gap: 6
-  },
-  chipLight: {
-    borderColor: colors.composerBorder,
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: colors.composerInputBg
-  },
-  chipLightCompact: {
-    paddingHorizontal: 9,
-    paddingVertical: 5
-  },
-  chipLightActive: {
-    backgroundColor: colors.accentMuted,
-    borderColor: colors.accent,
-    borderWidth: 1.5,
-    ...shadows.accentGlowSoft
-  },
-  chipLightText: {
-    color: colors.composerText,
-    fontSize: 12,
-    fontWeight: "700"
-  },
-  chipLightTextActive: {
-    color: colors.accent
-  },
-  buttonSecondaryLight: {
-    borderColor: colors.composerBorder,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    alignSelf: "flex-start",
-    backgroundColor: colors.composerInputBg
-  },
-  buttonSecondaryLightCompact: {
-    paddingHorizontal: 10,
-    paddingVertical: 7
-  },
-  buttonSecondaryLightText: {
-    color: colors.composerText,
-    fontWeight: "700",
-    fontSize: 14
-  },
-  mutedLight: {
-    color: colors.composerMuted,
-    fontSize: 12
+    marginTop: 4,
   },
   helperLight: {
-    color: colors.composerMuted,
-    fontSize: 11
+    fontSize: 12,
+    color: colors.muted,
   },
-  moreOptionsPanel: {
-    gap: 16,
-    paddingTop: 4
-  },
-  crossPostBlock: {
-    paddingVertical: 4
-  },
-  crossPostTop: {
+  /* Chips */
+  chipScrollContent: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12
+    gap: 8,
+    paddingVertical: 4,
   },
-  crossPostTitles: {
+  attachChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: HAIRLINE,
+  },
+  attachChipActive: {
+    backgroundColor: colors.accentMuted,
+    borderColor: colors.accent,
+  },
+  attachChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  attachChipTextActive: {
+    color: colors.accent,
+  },
+  clearLink: {
+    paddingVertical: 4,
+    alignSelf: "flex-start",
+  },
+  clearLinkText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.accent,
+  },
+  thinDivider: {
+    height: 1,
+    backgroundColor: HAIRLINE,
+    marginVertical: 4,
+  },
+  /* Delivery */
+  deliveryBlock: { gap: 8 },
+  uploadDeliveryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: INPUT_FILL,
+    alignSelf: "flex-start",
+  },
+  uploadDeliveryText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.accent,
+  },
+  /* AI assist */
+  aiBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 6,
+    alignSelf: "flex-start",
+  },
+  aiBtnText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: colors.accent,
+  },
+  errorSmall: {
+    fontSize: 12,
+    color: colors.danger,
+  },
+  /* Addon rows */
+  addonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    minHeight: 40,
+  },
+  addonLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.text,
+    flex: 1,
+  },
+  addonMeta: {
+    fontSize: 13,
+    color: colors.mutedLight,
+  },
+  /* Cross-post */
+  crossPostRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 4,
+  },
+  crossPostText: {
     flex: 1,
     minWidth: 0,
-    gap: 4
+    gap: 4,
   },
-  crossPostLabel: {
-    ...type.button,
-    fontSize: 15,
-    color: colors.text
-  },
-  crossPostStatus: {
-    ...type.meta,
-    color: colors.muted
-  },
-  attachProductBlock: {
-    gap: 10,
-    paddingTop: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.borderSubtle
-  },
-  attachProductHeading: {
-    ...type.meta,
-    fontWeight: "600",
-    color: colors.text
-  },
-  stickyPublishWrap: {
-    backgroundColor: colors.background,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.borderSubtle,
-    paddingHorizontal: spacing.pagePaddingH,
-    paddingTop: 12
-  },
-  stickyPublishWrapCompact: {
-    paddingHorizontal: 14,
-    paddingTop: 10
-  },
-  stickyPublishBtn: {
-    borderRadius: radii.card,
-    minHeight: 52,
-    ...primaryButtonOutline
-  },
-  stickyPublishBtnCompact: {
-    minHeight: 48
-  },
-  stickyPublishBtnDisabled: {
-    opacity: 0.45
-  },
-  chip: {
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6
-  },
-  chipCompact: {
-    paddingHorizontal: 9,
-    paddingVertical: 5
-  },
-  chipActive: {
-    backgroundColor: colors.subtleFill,
-    borderColor: colors.accent
-  },
-  chipText: {
-    color: colors.text,
-    fontSize: 12,
-    fontWeight: "700"
-  },
-  buttonPressed: {
-    opacity: 0.9,
-    transform: [{ scale: 0.995 }]
-  },
-  buttonPrimaryText: {
-    color: colors.accent,
-    fontWeight: "700",
-    fontSize: 16
-  },
-  buttonSecondary: {
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: radii.control,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: colors.surface
-  },
-  buttonText: {
-    color: colors.text,
-    fontWeight: "700"
-  },
-  fileRow: {
-    gap: 8
-  },
-  muted: {
-    color: colors.muted,
-    fontSize: 12
-  },
+  /* Error */
   error: {
-    color: colors.danger
+    color: colors.danger,
+    fontSize: 14,
   },
-  pressableSoft: {
-    opacity: 0.86
-  }
 });

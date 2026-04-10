@@ -1,5 +1,12 @@
 import { useCallback, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View
+} from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { PostPublishSuccessOverlay } from "../../components/PostPublishSuccessOverlay";
@@ -7,9 +14,23 @@ import { ApiError } from "../../lib/api";
 import { assistPostText } from "../../lib/ai-assist";
 import { parseEventStartsAtInput } from "../../lib/event-starts-at";
 import { createEvent } from "../../lib/events";
-import { colors, primaryButtonOutline, radii } from "../../theme";
+import { colors } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
+import {
+  FormCard,
+  SoftTextInput,
+  SoftTextArea,
+  StickyCtaBar,
+  UploadCard,
+  SubtypeSegmentedControl,
+  AIHelperRow,
+  CollapsibleSection,
+} from "../../components/create";
 
+/* ── Design tokens ─────────────────────────────────────────── */
+const PAGE_BG = "#F9F8F6";
+
+/* ── Helper ────────────────────────────────────────────────── */
 function buildEventAssistDraft(
   title: string,
   description: string,
@@ -18,18 +39,10 @@ function buildEventAssistDraft(
   onlineUrl: string
 ) {
   const lines = [`Title: ${title.trim()}`];
-  if (startsAtInput.trim()) {
-    lines.push(`Start time (as entered): ${startsAtInput.trim()}`);
-  }
-  if (addressDisplay.trim()) {
-    lines.push(`Location: ${addressDisplay.trim()}`);
-  }
-  if (onlineUrl.trim()) {
-    lines.push(`Online: ${onlineUrl.trim()}`);
-  }
-  if (description.trim()) {
-    lines.push(`Notes: ${description.trim()}`);
-  }
+  if (startsAtInput.trim()) lines.push(`Start time (as entered): ${startsAtInput.trim()}`);
+  if (addressDisplay.trim()) lines.push(`Location: ${addressDisplay.trim()}`);
+  if (onlineUrl.trim()) lines.push(`Online: ${onlineUrl.trim()}`);
+  if (description.trim()) lines.push(`Notes: ${description.trim()}`);
   return lines.join("\n");
 }
 
@@ -40,52 +53,45 @@ export function CreateEventScreen({ navigation }: Props) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [startsAtInput, setStartsAtInput] = useState("");
+  const [endsAtInput, setEndsAtInput] = useState("");
+  const [locationType, setLocationType] = useState<"in_person" | "online">("in_person");
   const [addressDisplay, setAddressDisplay] = useState("");
   const [onlineUrl, setOnlineUrl] = useState("");
   const [createdEventId, setCreatedEventId] = useState<number | null>(null);
 
   const handleEventCelebrationFinish = useCallback(() => {
     setCreatedEventId((id) => {
-      if (id != null) {
-        navigation.replace("EventDetail", { id });
-      }
+      if (id != null) navigation.replace("EventDetail", { id });
       return null;
     });
   }, [navigation]);
 
+  /* ── AI polish ── */
   const assistMutation = useMutation({
     mutationFn: async () => {
       const draft = buildEventAssistDraft(title, description, startsAtInput, addressDisplay, onlineUrl);
       const res = await assistPostText(draft, "event_listing");
       return res.suggestion;
     },
-    onSuccess: (suggestion) => {
-      setDescription(suggestion);
-    }
+    onSuccess: (suggestion) => setDescription(suggestion)
   });
 
   const canPolishDescription =
     title.trim().length >= 3 &&
-    Boolean(
-      description.trim() ||
-        startsAtInput.trim() ||
-        addressDisplay.trim() ||
-        onlineUrl.trim()
-    );
+    Boolean(description.trim() || startsAtInput.trim() || addressDisplay.trim() || onlineUrl.trim());
 
+  /* ── Create event ── */
   const createMutation = useMutation({
     mutationFn: async () => {
       const t = title.trim();
-      if (t.length < 3) {
-        throw new Error("Title must be at least 3 characters.");
-      }
+      if (t.length < 3) throw new Error("Title must be at least 3 characters.");
       const startsAt = parseEventStartsAtInput(startsAtInput);
       return createEvent({
         title: t,
         description: description.trim() || null,
         startsAt: startsAt.toISOString(),
         addressDisplay: addressDisplay.trim() || null,
-        isOnline: Boolean(onlineUrl.trim()),
+        isOnline: locationType === "online" || Boolean(onlineUrl.trim()),
         onlineUrl: onlineUrl.trim() || null,
         visibility: "public",
         source: "mobile_create"
@@ -96,147 +102,216 @@ export function CreateEventScreen({ navigation }: Props) {
       setTitle("");
       setDescription("");
       setStartsAtInput("");
+      setEndsAtInput("");
       setAddressDisplay("");
       setOnlineUrl("");
       setCreatedEventId(event.id);
     }
   });
 
+  const canCreate = title.trim().length >= 3;
+
   return (
-    <View style={styles.wrapper}>
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.heading}>Create event</Text>
-      <Text style={styles.subtle}>Quick setup for discovery, RSVP, and event chat.</Text>
-      <View style={styles.card}>
-        <TextInput
-          style={styles.input}
-          placeholder="Title"
-          placeholderTextColor={colors.muted}
-          value={title}
-          onChangeText={setTitle}
-          maxLength={180}
-        />
-        <TextInput
-          style={[styles.input, styles.description]}
-          placeholder="Description (optional)"
-          placeholderTextColor={colors.muted}
-          multiline
-          value={description}
-          onChangeText={setDescription}
-          maxLength={4000}
-        />
-        <Pressable
-          style={[
-            styles.secondaryBtn,
-            (!canPolishDescription || assistMutation.isPending) && styles.secondaryBtnDisabled
-          ]}
-          disabled={!canPolishDescription || assistMutation.isPending}
-          onPress={() => assistMutation.mutate()}
+    <View style={styles.root}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <ScrollView
+          style={styles.flex}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.secondaryBtnText}>
-            {assistMutation.isPending ? "Polishing…" : "Polish description"}
-          </Text>
-        </Pressable>
-        {assistMutation.isError ? (
-          <Text style={styles.error}>
-            {assistMutation.error instanceof ApiError
-              ? assistMutation.error.message
-              : "Could not polish. Try again."}
-          </Text>
-        ) : null}
-        <Text style={styles.microHint}>
-          Add title plus time, place, link, or rough notes—then polish into a clear description.
-        </Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Starts at (e.g. 2026-04-18 18:30 or 12:30)"
-          placeholderTextColor={colors.muted}
-          value={startsAtInput}
-          onChangeText={setStartsAtInput}
+          {/* ── Event Basics ── */}
+          <FormCard>
+            <Text style={styles.cardHeading}>Event basics</Text>
+            <SoftTextInput
+              label="Title"
+              placeholder="Event title"
+              value={title}
+              onChangeText={setTitle}
+              maxLength={180}
+            />
+            <UploadCard
+              height={120}
+              title="Cover photo (optional)"
+              hint="Add a cover image for your event"
+              icon="image-outline"
+              onPress={() => {}}
+            />
+            <SoftTextInput
+              label="Short summary (optional)"
+              placeholder="A brief subtitle for your event"
+              value=""
+              onChangeText={() => {}}
+            />
+          </FormCard>
+
+          {/* ── Schedule ── */}
+          <FormCard>
+            <Text style={styles.cardHeading}>Schedule</Text>
+            <SoftTextInput
+              label="Starts"
+              placeholder="e.g. 2026-04-18 18:30 or 12:30"
+              value={startsAtInput}
+              onChangeText={setStartsAtInput}
+            />
+            <SoftTextInput
+              label="Ends (optional)"
+              placeholder="e.g. 2026-04-18 20:00"
+              value={endsAtInput}
+              onChangeText={setEndsAtInput}
+            />
+            <Text style={styles.helper}>Time zone is detected automatically from your device.</Text>
+          </FormCard>
+
+          {/* ── Location (conditional) ── */}
+          <FormCard>
+            <Text style={styles.cardHeading}>Location</Text>
+            <SubtypeSegmentedControl
+              options={[
+                { key: "in_person", label: "In-person" },
+                { key: "online", label: "Online" },
+              ]}
+              value={locationType}
+              onChange={(k) => setLocationType(k as "in_person" | "online")}
+            />
+            {locationType === "in_person" ? (
+              <SoftTextInput
+                label="Address"
+                placeholder="Street address or venue name"
+                value={addressDisplay}
+                onChangeText={setAddressDisplay}
+                maxLength={500}
+              />
+            ) : (
+              <SoftTextInput
+                label="Meeting URL"
+                placeholder="https://zoom.us/... or similar"
+                value={onlineUrl}
+                onChangeText={setOnlineUrl}
+                autoCapitalize="none"
+                keyboardType="url"
+                maxLength={2000}
+              />
+            )}
+          </FormCard>
+
+          {/* ── Description / Tools ── */}
+          <FormCard>
+            <Text style={styles.cardHeading}>Description</Text>
+            <SoftTextArea
+              placeholder="Tell people about your event..."
+              value={description}
+              onChangeText={setDescription}
+              minHeight={120}
+              maxLength={4000}
+            />
+            <AIHelperRow
+              label="Improve with AI"
+              onPress={() => assistMutation.mutate()}
+              busy={assistMutation.isPending}
+              disabled={!canPolishDescription}
+            />
+            {assistMutation.isError ? (
+              <Text style={styles.errorSmall}>
+                {assistMutation.error instanceof ApiError
+                  ? assistMutation.error.message
+                  : "Could not polish. Try again."}
+              </Text>
+            ) : null}
+            <Text style={styles.helper}>
+              Add title plus time, place, link, or rough notes — then polish into a clear description.
+            </Text>
+          </FormCard>
+
+          {/* ── Event options (collapsed) ── */}
+          <FormCard>
+            <CollapsibleSection title="Event options">
+              <Text style={styles.helper}>RSVP limit, public/private, and event chat settings.</Text>
+              <View style={styles.optionRow}>
+                <Text style={styles.optionLabel}>Public event</Text>
+                <Text style={styles.optionValue}>Yes</Text>
+              </View>
+              <View style={styles.optionRow}>
+                <Text style={styles.optionLabel}>Event chat</Text>
+                <Text style={styles.optionValue}>Enabled</Text>
+              </View>
+            </CollapsibleSection>
+          </FormCard>
+
+          {/* ── Errors ── */}
+          {createMutation.error ? (
+            <Text style={styles.error}>
+              {createMutation.error instanceof Error
+                ? createMutation.error.message
+                : "Could not create event."}
+            </Text>
+          ) : null}
+        </ScrollView>
+
+        {/* ── Sticky CTA ── */}
+        <StickyCtaBar
+          primaryLabel={createMutation.isPending ? "Creating..." : "Create event"}
+          onPrimary={() => createMutation.mutate()}
+          primaryDisabled={!canCreate}
+          primaryLoading={createMutation.isPending}
         />
-        <TextInput
-          style={styles.input}
-          placeholder="Address (optional)"
-          placeholderTextColor={colors.muted}
-          value={addressDisplay}
-          onChangeText={setAddressDisplay}
-          maxLength={500}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Online URL (optional)"
-          placeholderTextColor={colors.muted}
-          value={onlineUrl}
-          onChangeText={setOnlineUrl}
-          autoCapitalize="none"
-          keyboardType="url"
-          maxLength={2000}
-        />
-        {createMutation.error ? (
-          <Text style={styles.error}>
-            {createMutation.error instanceof Error
-              ? createMutation.error.message
-              : "Could not create event."}
-          </Text>
-        ) : null}
-        <Pressable
-          style={[styles.primaryBtn, createMutation.isPending ? styles.primaryBtnDisabled : null]}
-          onPress={() => createMutation.mutate()}
-          disabled={createMutation.isPending || title.trim().length < 3}
-        >
-          <Text style={styles.primaryBtnText}>{createMutation.isPending ? "Creating..." : "Create event"}</Text>
-        </Pressable>
-      </View>
-    </ScrollView>
-    <PostPublishSuccessOverlay
-      visible={createdEventId != null}
-      variant="event"
-      onFinish={handleEventCelebrationFinish}
-    />
+      </KeyboardAvoidingView>
+
+      <PostPublishSuccessOverlay
+        visible={createdEventId != null}
+        variant="event"
+        onFinish={handleEventCelebrationFinish}
+      />
     </View>
   );
 }
 
+/* ── Styles ──────────────────────────────────────────────────── */
 const styles = StyleSheet.create({
-  wrapper: { flex: 1 },
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: 14, gap: 10, paddingBottom: 36 },
-  heading: { color: colors.text, fontSize: 24, fontWeight: "700" },
-  subtle: { color: colors.muted, fontSize: 13 },
-  card: {
-    borderRadius: radii.panel,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
-    padding: 12,
-    gap: 10
+  root: {
+    flex: 1,
+    backgroundColor: PAGE_BG,
   },
-  input: {
-    borderRadius: radii.control,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+  flex: { flex: 1 },
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 24,
+    gap: 24,
+  },
+  cardHeading: {
+    fontSize: 17,
+    fontWeight: "600",
     color: colors.text,
-    padding: 10
+    marginBottom: 4,
   },
-  description: { minHeight: 96, textAlignVertical: "top" },
-  secondaryBtn: {
-    borderRadius: radii.control,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    paddingVertical: 10,
-    alignItems: "center"
+  helper: {
+    fontSize: 12,
+    color: colors.muted,
+    lineHeight: 18,
   },
-  secondaryBtnDisabled: { opacity: 0.45 },
-  secondaryBtnText: { fontWeight: "600", color: colors.text },
-  microHint: { color: colors.muted, fontSize: 12 },
-  error: { color: colors.danger, fontSize: 12 },
-  primaryBtn: {
-    borderRadius: radii.control,
-    paddingVertical: 11,
-    ...primaryButtonOutline
+  error: {
+    color: colors.danger,
+    fontSize: 14,
   },
-  primaryBtnDisabled: { opacity: 0.7 },
-  primaryBtnText: { color: colors.accent, fontWeight: "700" }
+  errorSmall: {
+    fontSize: 12,
+    color: colors.danger,
+  },
+  optionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    minHeight: 44,
+    paddingVertical: 4,
+  },
+  optionLabel: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: colors.text,
+  },
+  optionValue: {
+    fontSize: 14,
+    color: colors.muted,
+  },
 });

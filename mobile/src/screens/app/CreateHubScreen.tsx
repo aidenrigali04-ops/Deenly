@@ -7,8 +7,11 @@ import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { AppTabParamList, CreateTabStackParamList, RootStackParamList } from "../../navigation/AppNavigator";
 import { useTabSceneBottomPadding } from "../../hooks/useTabSceneInsets";
-import { colors, radii, spacing, type } from "../../theme";
+import { colors, spacing, type } from "../../theme";
 import { hapticTap } from "../../lib/haptics";
+
+/* ── Design tokens ─────────────────────────────────────────── */
+const PAGE_BG = "#F9F8F6";
 
 type Props = CompositeScreenProps<
   NativeStackScreenProps<CreateTabStackParamList, "CreateHub">,
@@ -91,7 +94,7 @@ export function CreateHubScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.atmosphere,
+    backgroundColor: PAGE_BG,
     paddingHorizontal: spacing.pagePaddingH,
     gap: spacing.sectionGap
   },
@@ -116,10 +119,8 @@ const styles = StyleSheet.create({
     minHeight: 92,
     paddingVertical: 16,
     paddingHorizontal: spacing.cardPadding,
-    borderRadius: radii.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
     gap: 14
   },
   optionCardPressed: {
@@ -129,7 +130,7 @@ const styles = StyleSheet.create({
   iconBox: {
     width: 40,
     height: 40,
-    borderRadius: radii.control,
+    borderRadius: 12,
     backgroundColor: colors.accentMuted,
     alignItems: "center",
     justifyContent: "center"
