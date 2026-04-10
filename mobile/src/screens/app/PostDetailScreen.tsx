@@ -581,7 +581,7 @@ const styles = StyleSheet.create({
     ...primaryButtonOutline
   },
   buttonPrimaryText: {
-    color: colors.accent,
+    color: colors.onAccent,
     fontWeight: "600"
   },
   buttonSecondary: {

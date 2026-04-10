@@ -28,7 +28,7 @@ import { MarketListingCard } from "../../components/MarketListingCard";
 import { isImageMedia, PostCard } from "../../components/PostCard";
 import { HomeTopBar } from "../../components/HomeTopBar";
 import { HomeStoriesRow } from "../../components/HomeStoriesRow";
-import { colors, primaryButtonOutline, radii, spacing } from "../../theme";
+import { colors, primaryButtonOutline, radii, spacing, type } from "../../theme";
 import type { FeedItem, FeedListItem } from "../../types";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 import { createGuestProductCheckout, createProductCheckout } from "../../lib/monetization";
@@ -352,13 +352,19 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
                 <Pressable style={styles.marketEmptyBtn} onPress={() => setFollowingOnly(false)}>
                   <Text style={styles.marketEmptyBtnText}>Show all posts</Text>
                 </Pressable>
-              ) : null}
-              <Pressable style={styles.marketEmptyBtnSecondary} onPress={() => navigation.navigate("HomeTab")}>
-                <Text style={styles.marketEmptyBtnSecondaryText}>Go to Home</Text>
-              </Pressable>
+              ) : (
+                <Pressable style={styles.marketEmptyBtn} onPress={() => navigation.navigate("HomeTab")}>
+                  <Text style={styles.marketEmptyBtnText}>Go to Home</Text>
+                </Pressable>
+              )}
               {canCreateProducts ? (
-                <Pressable style={styles.marketEmptyBtnSecondary} onPress={() => navigation.navigate("CreatorEconomy")}>
-                  <Text style={styles.marketEmptyBtnSecondaryText}>Open Creator hub</Text>
+                <Pressable style={styles.marketEmptyTertiary} onPress={() => navigation.navigate("CreatorEconomy")}>
+                  <Text style={styles.marketEmptyTertiaryText}>Open Creator hub</Text>
+                </Pressable>
+              ) : null}
+              {followingOnly ? (
+                <Pressable style={styles.marketEmptyTertiary} onPress={() => navigation.navigate("HomeTab")}>
+                  <Text style={styles.marketEmptyTertiaryText}>Go to Home</Text>
                 </Pressable>
               ) : null}
             </View>
@@ -590,10 +596,8 @@ const styles = StyleSheet.create({
     gap: 12
   },
   marketPageTitle: {
-    fontSize: 32,
-    fontWeight: "700",
-    color: colors.text,
-    letterSpacing: -0.6
+    ...type.pageTitle,
+    color: colors.text
   },
   marketOneLiner: {
     fontSize: 14,
@@ -601,8 +605,8 @@ const styles = StyleSheet.create({
     lineHeight: 20
   },
   marketSearchBar: {
-    minHeight: 46,
-    borderRadius: radii.control,
+    minHeight: 48,
+    borderRadius: radii.button,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     backgroundColor: colors.surface,
@@ -620,18 +624,18 @@ const styles = StyleSheet.create({
     paddingVertical: 4
   },
   marketChip: {
-    height: 34,
+    height: 36,
     paddingHorizontal: 14,
     borderRadius: radii.pill,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderColor: colors.borderSubtle,
     backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center"
   },
   marketChipOn: {
-    backgroundColor: colors.accentMuted,
-    borderColor: colors.accent
+    backgroundColor: colors.accentTint,
+    borderWidth: 0
   },
   marketChipText: {
     fontSize: 13,
@@ -639,7 +643,7 @@ const styles = StyleSheet.create({
     color: colors.text
   },
   marketChipTextOn: {
-    color: colors.accent
+    color: colors.accentTextOnTint
   },
   marketSellerCue: {
     alignSelf: "flex-start",
@@ -647,25 +651,24 @@ const styles = StyleSheet.create({
   },
   marketSellerCueText: {
     fontSize: 13,
-    fontWeight: "600",
-    color: colors.accent
+    fontWeight: "500",
+    color: colors.muted
   },
   marketEmptyPanel: {
     backgroundColor: colors.surface,
-    borderRadius: radii.panel,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle,
-    padding: 16,
+    borderRadius: radii.card,
+    borderWidth: 0,
+    padding: spacing.cardPaddingLg,
     gap: 12,
     marginHorizontal: 4,
     ...Platform.select({
       ios: {
-        shadowColor: colors.shadow,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 1,
-        shadowRadius: 12
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.03,
+        shadowRadius: 2
       },
-      android: { elevation: 2 }
+      android: { elevation: 1 }
     })
   },
   marketEmptyPanelCompact: {
@@ -673,8 +676,8 @@ const styles = StyleSheet.create({
     gap: 10
   },
   marketEmptyTitle: {
-    fontSize: 17,
-    fontWeight: "700",
+    fontSize: 18,
+    fontWeight: "600",
     color: colors.text
   },
   marketEmptySub: {
@@ -683,30 +686,22 @@ const styles = StyleSheet.create({
     color: colors.muted
   },
   marketEmptyBtn: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: radii.control,
+    alignSelf: "stretch",
     ...primaryButtonOutline
   },
   marketEmptyBtnText: {
-    color: colors.accent,
-    fontWeight: "700",
-    fontSize: 14
-  },
-  marketEmptyBtnSecondary: {
-    alignSelf: "flex-start",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: radii.control,
-    backgroundColor: colors.card
-  },
-  marketEmptyBtnSecondaryText: {
-    color: colors.text,
+    color: colors.onAccent,
     fontWeight: "600",
-    fontSize: 14
+    fontSize: 15
+  },
+  marketEmptyTertiary: {
+    alignSelf: "center",
+    paddingVertical: 6
+  },
+  marketEmptyTertiaryText: {
+    color: colors.muted,
+    fontWeight: "500",
+    fontSize: 15
   },
   storiesWrap: {
     marginTop: 16,

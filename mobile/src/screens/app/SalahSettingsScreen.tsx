@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { fetchPrayerSettings, updatePrayerSettings } from "../../lib/prayer";
-import { colors, shadows } from "../../theme";
+import { colors } from "../../theme";
 
 export function SalahSettingsScreen() {
   const [saving, setSaving] = useState(false);
@@ -187,13 +187,11 @@ const styles = StyleSheet.create({
     paddingVertical: 6
   },
   choiceActive: {
-    backgroundColor: colors.accentMuted,
-    borderColor: colors.accent,
-    borderWidth: 1.5,
-    ...shadows.accentGlowSoft
+    backgroundColor: colors.accentTint,
+    borderWidth: 0
   },
   choiceText: { color: colors.text, fontSize: 12, fontWeight: "600" },
-  choiceTextActive: { color: colors.accent },
+  choiceTextActive: { color: colors.accentTextOnTint },
   input: {
     borderWidth: 1,
     borderColor: colors.border,

@@ -215,5 +215,5 @@ const styles = StyleSheet.create({
     ...primaryButtonOutline
   },
   saveBtnDisabled: { opacity: 0.55 },
-  saveBtnText: { color: colors.accent, fontSize: 16, fontWeight: "600", letterSpacing: -0.2 }
+  saveBtnText: { color: colors.onAccent, fontSize: 16, fontWeight: "600", letterSpacing: -0.2 }
 });

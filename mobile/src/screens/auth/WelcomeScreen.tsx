@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { colors, primaryButtonOutline } from "../../theme";
+import { colors, primaryButtonOutline, radii, secondaryButton } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Welcome">;
@@ -34,34 +34,31 @@ const styles = StyleSheet.create({
   brand: {
     color: colors.accent,
     fontSize: 34,
-    fontWeight: "800"
+    fontWeight: "600",
+    letterSpacing: -0.5
   },
   title: {
     color: colors.text,
-    fontSize: 20,
-    fontWeight: "700"
+    fontSize: 22,
+    fontWeight: "600",
+    lineHeight: 28
   },
   subtitle: {
     color: colors.muted
   },
   buttonPrimary: {
-    borderRadius: 10,
-    paddingVertical: 12,
+    borderRadius: radii.button,
     ...primaryButtonOutline
   },
   buttonPrimaryText: {
-    color: colors.accent,
-    fontWeight: "700"
+    color: colors.onAccent,
+    fontWeight: "600"
   },
   buttonSecondary: {
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: "center"
+    ...secondaryButton
   },
   buttonSecondaryText: {
-    color: colors.text,
-    fontWeight: "700"
+    color: colors.accentTextOnTint,
+    fontWeight: "600"
   }
 });

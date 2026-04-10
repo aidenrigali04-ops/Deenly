@@ -67,7 +67,6 @@ const styles = StyleSheet.create({
   },
   title: {
     ...type.pageTitle,
-    fontSize: 32,
     color: colors.text
   },
   subtitle: {
@@ -83,14 +82,13 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.pagePaddingH,
     backgroundColor: colors.card,
     borderRadius: radii.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle,
-    padding: spacing.cardPadding,
-    gap: 10
+    borderWidth: 0,
+    padding: spacing.cardPaddingLg,
+    gap: 10,
+    ...shadows.card
   },
   sectionTitle: {
     ...type.sectionTitle,
-    fontSize: 18,
     color: colors.text,
     marginBottom: 4
   }

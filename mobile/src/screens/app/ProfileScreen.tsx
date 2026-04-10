@@ -695,7 +695,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     paddingVertical: 10,
-    borderBottomWidth: 2,
+    borderBottomWidth: 1.5,
     borderBottomColor: "transparent"
   },
   tabItemCompact: {

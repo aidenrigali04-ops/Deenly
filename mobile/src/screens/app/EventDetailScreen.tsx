@@ -33,7 +33,7 @@ import {
   unmuteEventChatUser
 } from "../../lib/events";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
-import { colors, primaryButtonOutline, radii, shadows } from "../../theme";
+import { colors, primaryButtonOutline, radii, secondaryButton, shadows } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 
 type Props = NativeStackScreenProps<RootStackParamList, "EventDetail">;
@@ -453,7 +453,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     padding: 10,
     borderRadius: radii.control,
-    backgroundColor: "rgba(14, 165, 233, 0.12)",
+    backgroundColor: colors.accentTint,
     color: colors.text,
     fontSize: 12,
     lineHeight: 16
@@ -481,7 +481,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     ...primaryButtonOutline
   },
-  primaryBtnText: { color: colors.accent, fontWeight: "700" },
+  primaryBtnText: { color: colors.onAccent, fontWeight: "600" },
   secondaryBtn: {
     borderRadius: radii.control,
     borderWidth: StyleSheet.hairlineWidth,
@@ -569,15 +569,14 @@ const styles = StyleSheet.create({
     lineHeight: 22
   },
   sendBtn: {
-    borderRadius: radii.control,
-    paddingHorizontal: 16,
+    ...secondaryButton,
     minHeight: 44,
-    ...primaryButtonOutline
+    paddingHorizontal: 14
   },
   sendBtnDisabled: {
     opacity: 0.45
   },
-  sendBtnText: { color: colors.accent, fontWeight: "700", fontSize: 15 },
+  sendBtnText: { color: colors.accentTextOnTint, fontWeight: "600", fontSize: 15 },
   sendBtnTextDisabled: { color: colors.muted },
   charHint: { fontSize: 11, color: colors.muted, alignSelf: "flex-end" },
   auditRow: {

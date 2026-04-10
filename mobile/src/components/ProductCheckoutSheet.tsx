@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
   btnPrimary: {
     ...primaryButtonOutline
   },
-  btnPrimaryText: { color: colors.accent, fontSize: 15, fontWeight: "600" },
+  btnPrimaryText: { color: colors.onAccent, fontSize: 15, fontWeight: "600" },
   btnPressed: { opacity: 0.82, transform: [{ scale: 0.99 }] },
   disabled: { opacity: 0.55 }
 });

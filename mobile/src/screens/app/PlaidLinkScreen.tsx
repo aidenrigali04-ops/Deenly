@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.control,
     ...primaryButtonOutline
   },
-  btnText: { color: colors.accent, fontWeight: "700" },
+  btnText: { color: colors.onAccent, fontWeight: "600" },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.45)",

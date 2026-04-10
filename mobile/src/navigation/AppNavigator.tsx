@@ -155,7 +155,7 @@ function AppTabs() {
         screenOptions={{
           headerShown: false,
           tabBarStyle: {
-            backgroundColor: colors.atmosphere,
+            backgroundColor: colors.surface,
             borderTopWidth: StyleSheet.hairlineWidth,
             borderTopColor: colors.borderSubtle,
             paddingTop: 8,

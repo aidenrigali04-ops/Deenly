@@ -7,7 +7,7 @@ import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { AppTabParamList, CreateTabStackParamList, RootStackParamList } from "../../navigation/AppNavigator";
 import { useTabSceneBottomPadding } from "../../hooks/useTabSceneInsets";
-import { colors, spacing, type } from "../../theme";
+import { colors, radii, shadows, spacing, type } from "../../theme";
 import { hapticTap } from "../../lib/haptics";
 
 /* ── Design tokens ─────────────────────────────────────────── */
@@ -34,13 +34,13 @@ function OptionRow({ icon, title, description, onPress }: OptionRowProps) {
       accessibilityLabel={title}
     >
       <View style={styles.iconBox}>
-        <Ionicons name={icon} size={22} color={colors.accent} />
+        <Ionicons name={icon} size={20} color={colors.muted} />
       </View>
       <View style={styles.optionText}>
         <Text style={styles.optionTitle}>{title}</Text>
         <Text style={styles.optionDescription}>{description}</Text>
       </View>
-      <Ionicons name="chevron-forward" size={20} color={colors.mutedLight} />
+      <Ionicons name="chevron-forward" size={18} color={colors.mutedLight} />
     </Pressable>
   );
 }
@@ -99,10 +99,8 @@ const styles = StyleSheet.create({
     gap: spacing.sectionGap
   },
   title: {
-    fontSize: 32,
-    fontWeight: "700",
-    color: colors.text,
-    letterSpacing: -0.6
+    ...type.pageTitle,
+    color: colors.text
   },
   subtitle: {
     fontSize: 15,
@@ -116,22 +114,24 @@ const styles = StyleSheet.create({
   optionCard: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: 92,
+    minHeight: 88,
     paddingVertical: 16,
-    paddingHorizontal: spacing.cardPadding,
-    borderRadius: 16,
-    backgroundColor: "#FFFFFF",
-    gap: 14
+    paddingHorizontal: spacing.cardPaddingLg,
+    borderRadius: radii.card,
+    borderWidth: 0,
+    backgroundColor: colors.surface,
+    gap: 14,
+    ...shadows.card
   },
   optionCardPressed: {
-    backgroundColor: colors.accentMuted,
-    transform: [{ scale: 0.98 }]
+    backgroundColor: colors.surfaceSecondary,
+    transform: [{ scale: 0.99 }]
   },
   iconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: colors.accentMuted,
+    width: 36,
+    height: 36,
+    borderRadius: radii.control,
+    backgroundColor: colors.accentTint,
     alignItems: "center",
     justifyContent: "center"
   },

@@ -37,7 +37,7 @@ import {
   type ProductImportDraft,
   type StripeProductImportRow
 } from "../../lib/monetization";
-import { colors, radii } from "../../theme";
+import { colors } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import {
   FormCard,
@@ -960,7 +960,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 12,
     backgroundColor: INPUT_FILL,
-    alignItems: "center",
+    alignItems: "center"
   },
   utilBtnDisabled: { opacity: 0.5 },
   utilBtnText: { fontSize: 14, fontWeight: "600", color: colors.accent },

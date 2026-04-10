@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "../../lib/api";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
-import { colors, shadows } from "../../theme";
+import { colors } from "../../theme";
 
 const TABLES = [
   "users",
@@ -114,10 +114,8 @@ const styles = StyleSheet.create({
     paddingVertical: 6
   },
   chipActive: {
-    backgroundColor: colors.accentMuted,
-    borderColor: colors.accent,
-    borderWidth: 1.5,
-    ...shadows.accentGlowSoft
+    backgroundColor: colors.accentTint,
+    borderWidth: 0
   },
   chipText: {
     color: colors.text,
@@ -125,7 +123,7 @@ const styles = StyleSheet.create({
     fontWeight: "700"
   },
   chipTextActive: {
-    color: colors.accent
+    color: colors.accentTextOnTint
   },
   input: {
     borderColor: colors.border,

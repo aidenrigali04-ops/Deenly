@@ -4,7 +4,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "../../lib/api";
 import { applyMobileMeProfileAfterPreferencesPatch } from "../../lib/apply-me-profile-preferences-response";
-import { colors, primaryButtonOutline, radii, shadows } from "../../theme";
+import { colors, primaryButtonOutline, radii } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 // Metro cannot bundle `../shared/` from this app — use `lib/onboarding-options` (mirror of repo `shared/`).
 import {
@@ -290,10 +290,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8
   },
   chipActive: {
-    backgroundColor: colors.accentMuted,
-    borderColor: colors.accent,
-    borderWidth: 1.5,
-    ...shadows.accentGlowSoft
+    backgroundColor: colors.accentTint,
+    borderWidth: 0
   },
   chipDisabled: {
     opacity: 0.45
@@ -304,7 +302,7 @@ const styles = StyleSheet.create({
     fontSize: 13
   },
   chipTextActive: {
-    color: colors.accent
+    color: colors.accentTextOnTint
   },
   button: {
     marginTop: 20,
@@ -313,8 +311,8 @@ const styles = StyleSheet.create({
     ...primaryButtonOutline
   },
   buttonText: {
-    color: colors.accent,
-    fontWeight: "700",
+    color: colors.onAccent,
+    fontWeight: "600",
     fontSize: 16
   },
   linkBack: {

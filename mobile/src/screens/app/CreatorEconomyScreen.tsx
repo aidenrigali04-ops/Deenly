@@ -302,9 +302,9 @@ const styles = StyleSheet.create({
     ...primaryButtonOutline
   },
   addProductBtnText: {
-    color: colors.accent,
+    color: colors.onAccent,
     fontSize: 16,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   promoteBtn: {
     borderWidth: StyleSheet.hairlineWidth,

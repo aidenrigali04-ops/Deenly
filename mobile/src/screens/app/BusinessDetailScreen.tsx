@@ -197,7 +197,7 @@ const styles = StyleSheet.create({
     ...primaryButtonOutline
   },
   primaryDisabled: { opacity: 0.45 },
-  primaryText: { color: colors.accent, fontWeight: "700" },
+  primaryText: { color: colors.onAccent, fontWeight: "600" },
   answer: { color: colors.text, lineHeight: 22, marginTop: 8 },
   muted: { color: colors.muted },
   err: { color: colors.danger }

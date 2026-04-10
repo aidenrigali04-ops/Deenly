@@ -464,22 +464,20 @@ const styles = StyleSheet.create({
   buyHint: { fontSize: 12, color: colors.muted, marginTop: 2 },
   ctaHalf: { flex: 1, minWidth: 0 },
   button: {
-    borderRadius: radii.control,
+    borderRadius: radii.button,
     paddingVertical: 12,
     ...primaryButtonOutline
   },
   buttonOutline: {
-    borderRadius: radii.control,
+    borderRadius: radii.button,
     paddingVertical: 12,
     alignItems: "center",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.accent,
-    backgroundColor: colors.surface
+    backgroundColor: colors.accentTint
   },
-  buttonOutlineText: { color: colors.accent, fontWeight: "700", fontSize: 15 },
+  buttonOutlineText: { color: colors.accentTextOnTint, fontWeight: "600", fontSize: 15 },
   buttonPressed: { transform: [{ scale: 0.99 }] },
   buttonDisabled: { opacity: 0.45 },
-  buttonText: { color: colors.accent, fontWeight: "700", fontSize: 15 },
+  buttonText: { color: colors.onAccent, fontWeight: "600", fontSize: 15 },
   linkBtn: { paddingVertical: 4 },
   linkText: { color: colors.accent, fontWeight: "600", fontSize: 15 },
   hint: { fontSize: 13, color: colors.muted, fontStyle: "italic" },

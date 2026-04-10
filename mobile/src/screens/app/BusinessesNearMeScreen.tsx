@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     ...primaryButtonOutline
   },
-  primaryText: { color: colors.accent, fontWeight: "700" },
+  primaryText: { color: colors.onAccent, fontWeight: "600" },
   secondary: {
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,

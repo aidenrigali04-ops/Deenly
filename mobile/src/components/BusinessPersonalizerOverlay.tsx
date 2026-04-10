@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     ...primaryButtonOutline
   },
-  primaryText: { color: colors.accent, fontWeight: "700", fontSize: 15 },
+  primaryText: { color: colors.onAccent, fontWeight: "600", fontSize: 15 },
   linkBtn: { paddingVertical: 6, alignItems: "center" },
   linkBtnText: { color: colors.accent, fontWeight: "600", fontSize: 14 },
   ghost: { paddingVertical: 6, alignItems: "center" },

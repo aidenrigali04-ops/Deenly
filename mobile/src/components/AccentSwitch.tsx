@@ -11,9 +11,9 @@ export function AccentSwitch({ value, style, ...rest }: Props) {
     <View style={[styles.wrap, value ? styles.wrapOn : null, style]}>
       <Switch
         value={value}
-        trackColor={{ false: colors.border, true: colors.accent }}
+        trackColor={{ false: colors.surfaceSecondary, true: colors.accent }}
         thumbColor={Platform.OS === "android" ? colors.surface : undefined}
-        ios_backgroundColor={colors.border}
+        ios_backgroundColor={colors.surfaceSecondary}
         {...rest}
       />
     </View>
@@ -28,9 +28,9 @@ const styles = StyleSheet.create({
     ...Platform.select({
       ios: {
         shadowColor: colors.accent,
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.4,
-        shadowRadius: 10
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.18,
+        shadowRadius: 6
       },
       android: {
         ...shadows.switchGlowAndroid

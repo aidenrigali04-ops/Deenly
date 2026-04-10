@@ -14,7 +14,7 @@ import {
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { apiRequest } from "../../lib/api";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
-import { colors, radii, shadows } from "../../theme";
+import { colors, radii } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { useSessionStore } from "../../store/session-store";
 import type { FeedItem } from "../../types";
@@ -434,13 +434,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface
   },
   buttonActive: {
-    backgroundColor: colors.accentMuted,
-    borderColor: colors.accent,
-    borderWidth: 1.5,
-    ...shadows.accentGlowSoft
+    backgroundColor: colors.accentTint,
+    borderWidth: 0
   },
   buttonText: { color: colors.text, fontWeight: "600" },
-  buttonTextActive: { color: colors.accent },
+  buttonTextActive: { color: colors.accentTextOnTint },
   productTile: {
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,

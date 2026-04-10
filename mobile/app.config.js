@@ -1,15 +1,15 @@
-const appJson = require("./app.json");
-
 /**
- * Dynamic Expo config: merges static app.json with optional Android Google Maps API key
+ * Dynamic Expo config: extends static app.json and injects optional Android Google Maps API key
  * (set GOOGLE_MAPS_ANDROID_API_KEY in EAS secrets for production Android builds).
  */
-module.exports = () => {
+module.exports = ({ config }) => {
   const mapsKey = process.env.GOOGLE_MAPS_ANDROID_API_KEY?.trim() ?? "";
-  const expo = { ...appJson.expo };
-  const android = { ...expo.android };
+  const android = { ...config.android };
   if (mapsKey) {
     android.config = { ...(android.config || {}), googleMaps: { apiKey: mapsKey } };
   }
-  return { expo: { ...expo, android } };
+  return {
+    ...config,
+    android
+  };
 };

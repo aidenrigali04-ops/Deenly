@@ -590,7 +590,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface
   },
   buttonPrimary: {
-    borderRadius: radii.control,
+    borderRadius: radii.button,
     paddingHorizontal: 12,
     paddingVertical: 8,
     ...primaryButtonOutline
@@ -600,8 +600,8 @@ const styles = StyleSheet.create({
     fontWeight: "600"
   },
   buttonPrimaryText: {
-    color: colors.accent,
-    fontWeight: "700"
+    color: colors.onAccent,
+    fontWeight: "600"
   },
   buttonDisabled: {
     opacity: 0.6

@@ -31,7 +31,7 @@ import { fetchSessionMe } from "../../lib/auth";
 import { attachProductToPost, fetchMyProducts, type CreatorProductRow } from "../../lib/monetization";
 import { fetchInstagramStatus, requestInstagramCrossPost } from "../../lib/instagram";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { colors, radii, shadows, spacing, type as typo } from "../../theme";
+import { colors, primaryButtonOutline, radii, spacing, type as typo } from "../../theme";
 import { resolveMediaUrl } from "../../lib/media-url";
 import {
   growthExperiments,
@@ -1012,7 +1012,61 @@ const styles = StyleSheet.create({
     color: colors.muted,
     textTransform: "uppercase",
     letterSpacing: 0.5,
-    marginTop: 4,
+    marginTop: 4
+  },
+  typeRowWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
+  },
+  typeRowWrapCompact: {
+    gap: 6
+  },
+  chipLight: {
+    borderColor: colors.composerBorder,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: colors.composerInputBg
+  },
+  chipLightCompact: {
+    paddingHorizontal: 9,
+    paddingVertical: 5
+  },
+  chipLightActive: {
+    backgroundColor: colors.accentTint,
+    borderWidth: 0
+  },
+  chipLightText: {
+    color: colors.composerText,
+    fontSize: 12,
+    fontWeight: "700"
+  },
+  chipLightTextActive: {
+    color: colors.accentTextOnTint
+  },
+  buttonSecondaryLight: {
+    borderColor: colors.composerBorder,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    alignSelf: "flex-start",
+    backgroundColor: colors.composerInputBg
+  },
+  buttonSecondaryLightCompact: {
+    paddingHorizontal: 10,
+    paddingVertical: 7
+  },
+  buttonSecondaryLightText: {
+    color: colors.composerText,
+    fontWeight: "700",
+    fontSize: 14
+  },
+  mutedLight: {
+    color: colors.composerMuted,
+    fontSize: 12
   },
   helperLight: {
     fontSize: 12,
@@ -1120,7 +1174,97 @@ const styles = StyleSheet.create({
   crossPostText: {
     flex: 1,
     minWidth: 0,
-    gap: 4,
+    gap: 4
+  },
+  crossPostLabel: {
+    ...typo.button,
+    fontSize: 15,
+    color: colors.text
+  },
+  crossPostStatus: {
+    ...typo.meta,
+    color: colors.muted
+  },
+  attachProductBlock: {
+    gap: 10,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.borderSubtle
+  },
+  attachProductHeading: {
+    ...typo.meta,
+    fontWeight: "600",
+    color: colors.text
+  },
+  stickyPublishWrap: {
+    backgroundColor: colors.background,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.borderSubtle,
+    paddingHorizontal: spacing.pagePaddingH,
+    paddingTop: 12
+  },
+  stickyPublishWrapCompact: {
+    paddingHorizontal: 14,
+    paddingTop: 10
+  },
+  stickyPublishBtn: {
+    borderRadius: radii.button,
+    minHeight: 52,
+    ...primaryButtonOutline
+  },
+  stickyPublishBtnCompact: {
+    minHeight: 48
+  },
+  stickyPublishBtnDisabled: {
+    opacity: 0.45
+  },
+  chip: {
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6
+  },
+  chipCompact: {
+    paddingHorizontal: 9,
+    paddingVertical: 5
+  },
+  chipActive: {
+    backgroundColor: colors.accentTint,
+    borderWidth: 0
+  },
+  chipText: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: "700"
+  },
+  buttonPressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.995 }]
+  },
+  buttonPrimaryText: {
+    color: colors.onAccent,
+    fontWeight: "600",
+    fontSize: 16
+  },
+  buttonSecondary: {
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radii.control,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: colors.surface
+  },
+  buttonText: {
+    color: colors.text,
+    fontWeight: "700"
+  },
+  fileRow: {
+    gap: 8
+  },
+  muted: {
+    color: colors.muted,
+    fontSize: 12
   },
   /* Error */
   error: {

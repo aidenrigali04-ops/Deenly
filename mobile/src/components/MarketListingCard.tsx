@@ -115,7 +115,7 @@ export function MarketListingCard({
       {item.is_business_post ? (
         <View style={[styles.trustRow, compact && styles.trustRowCompact]}>
           <View style={styles.trustChip}>
-            <Ionicons name="checkmark-circle" size={14} color={colors.accent} />
+            <Ionicons name="checkmark-circle" size={14} color={colors.success} />
             <Text style={styles.trustChipText}>Verified business</Text>
           </View>
           <View style={[styles.trustChip, styles.trustChipNeutral]}>
@@ -189,7 +189,7 @@ export function MarketListingCard({
             onViewListing();
           }}
         >
-          <Ionicons name="eye-outline" size={20} color={colors.accent} />
+          <Ionicons name="eye-outline" size={20} color={colors.muted} />
           <Text style={styles.ctaLabel}>View</Text>
         </Pressable>
         <Pressable
@@ -201,7 +201,9 @@ export function MarketListingCard({
           disabled={!canMessage}
         >
           <Ionicons name="chatbubble-outline" size={19} color={canMessage ? colors.accent : colors.mutedLight} />
-          <Text style={[styles.ctaLabel, !canMessage && styles.ctaLabelDisabled]}>Message</Text>
+          <Text style={[styles.ctaLabel, canMessage && styles.ctaLabelAccent, !canMessage && styles.ctaLabelDisabled]}>
+            Message
+          </Text>
         </Pressable>
         <Pressable
           style={styles.ctaBtn}
@@ -216,7 +218,7 @@ export function MarketListingCard({
             });
           }}
         >
-          <Ionicons name="bookmark-outline" size={20} color={colors.accent} />
+          <Ionicons name="bookmark-outline" size={20} color={colors.muted} />
           <Text style={styles.ctaLabel}>Save</Text>
         </Pressable>
       </View>
@@ -394,7 +396,12 @@ const styles = StyleSheet.create({
   ctaLabel: {
     ...type.button,
     fontSize: 14,
-    color: colors.accent
+    fontWeight: "500",
+    color: colors.muted
+  },
+  ctaLabelAccent: {
+    color: colors.accent,
+    fontWeight: "600"
   },
   ctaLabelDisabled: {
     color: colors.mutedLight

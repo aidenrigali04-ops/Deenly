@@ -3,7 +3,7 @@ import { BlurView } from "expo-blur";
 import { supportsNativeBlur } from "../lib/blur-support";
 import { colors } from "../theme";
 
-const BORDER = "rgba(0, 0, 0, 0.08)";
+const BORDER = "rgba(17, 17, 17, 0.06)";
 
 /**
  * Frosted tab bar (native blur on iOS dev/standalone only; Expo Go / Android / web use fill).
@@ -15,7 +15,7 @@ export function TabBarGlassBackground() {
       {useBlur ? (
         <BlurView intensity={58} tint="light" style={StyleSheet.absoluteFill} />
       ) : (
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.glassFillStrong }]} />
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.surface }]} />
       )}
       <View style={styles.topHairline} />
     </View>

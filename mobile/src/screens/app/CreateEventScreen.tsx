@@ -313,5 +313,5 @@ const styles = StyleSheet.create({
   optionValue: {
     fontSize: 14,
     color: colors.muted,
-  },
+  }
 });

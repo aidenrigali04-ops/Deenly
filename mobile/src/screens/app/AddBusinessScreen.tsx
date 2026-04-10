@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
     ...primaryButtonOutline
   },
   primaryDisabled: { opacity: 0.45 },
-  primaryText: { color: colors.accent, fontWeight: "700" },
+  primaryText: { color: colors.onAccent, fontWeight: "600" },
   skip: { marginTop: 12, paddingVertical: 12, alignItems: "center" },
   skipText: { color: colors.muted, fontWeight: "600", fontSize: 15 }
 });

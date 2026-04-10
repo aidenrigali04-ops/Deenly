@@ -9,7 +9,7 @@ import { apiRequest } from "../../lib/api";
 import { createOrOpenConversation, markConversationRead } from "../../lib/messages";
 import { ErrorState, LoadingState } from "../../components/States";
 import { SectionCard, TabScreenHeader, TabScreenRoot } from "../../components/TabScreenChrome";
-import { colors, primaryButtonOutline, radii, spacing } from "../../theme";
+import { colors, primaryButtonOutline, radii, secondaryButton, spacing } from "../../theme";
 import { useTabSceneBottomPadding, useTabSceneTopPadding } from "../../hooks/useTabSceneInsets";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 import { useSessionStore } from "../../store/session-store";
@@ -223,7 +223,7 @@ export function MessagesScreen({ navigation }: Props) {
           {inboxEmpty ? (
             <View style={styles.emptyInbox}>
               <View style={styles.emptyIconCircle}>
-                <Ionicons name="chatbubbles-outline" size={32} color={colors.accent} />
+                <Ionicons name="chatbubbles-outline" size={28} color={colors.accentTextOnTint} />
               </View>
               <Text style={styles.emptyInboxTitle}>No conversations yet</Text>
               <Text style={styles.emptyInboxText}>Start a chat from Explore or Market.</Text>
@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     minHeight: 48,
-    borderRadius: radii.control,
+    borderRadius: radii.button,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     backgroundColor: colors.surface,
@@ -340,14 +340,12 @@ const styles = StyleSheet.create({
   },
   startChatBtn: {
     alignSelf: "flex-start",
-    minHeight: 42,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: radii.control,
-    ...primaryButtonOutline
+    ...secondaryButton,
+    minHeight: 44,
+    paddingVertical: 10
   },
   startChatBtnText: {
-    color: colors.accent,
+    color: colors.accentTextOnTint,
     fontSize: 15,
     fontWeight: "600"
   },
@@ -383,10 +381,10 @@ const styles = StyleSheet.create({
   buttonText: { color: colors.text, fontWeight: "600" },
   emptyInbox: { gap: 12, alignItems: "center", paddingVertical: 8 },
   emptyIconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.accentMuted,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.accentTint,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 4
@@ -395,15 +393,12 @@ const styles = StyleSheet.create({
   emptyInboxText: { color: colors.muted, fontSize: 14, lineHeight: 21, textAlign: "center" },
   findPeopleBtn: {
     alignSelf: "stretch",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: radii.control,
     marginTop: 4,
     ...primaryButtonOutline
   },
-  findPeopleBtnText: { color: colors.accent, fontWeight: "600", fontSize: 15 },
+  findPeopleBtnText: { color: colors.onAccent, fontWeight: "600", fontSize: 15 },
   browseMarketLink: { paddingVertical: 8 },
-  browseMarketLinkText: { fontSize: 15, fontWeight: "600", color: colors.accent },
+  browseMarketLinkText: { fontSize: 15, fontWeight: "500", color: colors.muted },
   inboxList: { gap: 0 },
   inboxRow: {
     flexDirection: "row",

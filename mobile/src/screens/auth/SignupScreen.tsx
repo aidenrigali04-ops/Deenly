@@ -4,7 +4,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { ApiError } from "../../lib/api";
 import { fetchSessionMe, signup } from "../../lib/auth";
 import { useSessionStore } from "../../store/session-store";
-import { colors, primaryButtonOutline } from "../../theme";
+import { colors, primaryButtonOutline, radii } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Signup">;
@@ -105,13 +105,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface
   },
   button: {
-    borderRadius: 10,
-    paddingVertical: 12,
+    borderRadius: radii.button,
     ...primaryButtonOutline
   },
   buttonText: {
-    color: colors.accent,
-    fontWeight: "700"
+    color: colors.onAccent,
+    fontWeight: "600"
   },
   error: {
     color: colors.danger

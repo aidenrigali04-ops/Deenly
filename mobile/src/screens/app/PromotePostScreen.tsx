@@ -322,15 +322,16 @@ const styles = StyleSheet.create({
     maxWidth: "100%"
   },
   chipOn: {
-    borderColor: colors.accent,
-    backgroundColor: colors.subtleFill
+    borderWidth: 0,
+    backgroundColor: colors.accentTint
   },
   chipText: {
     fontSize: 12,
     color: colors.text
   },
   chipTextOn: {
-    fontWeight: "600"
+    fontWeight: "600",
+    color: colors.accentTextOnTint
   },
   chipSub: {
     fontSize: 11,
@@ -342,8 +343,8 @@ const styles = StyleSheet.create({
     ...primaryButtonOutline
   },
   primaryBtnText: {
-    color: colors.accent,
-    fontWeight: "700",
+    color: colors.onAccent,
+    fontWeight: "600",
     fontSize: 15
   },
   secondaryBtn: {

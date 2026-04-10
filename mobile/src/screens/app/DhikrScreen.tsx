@@ -88,8 +88,8 @@ const styles = StyleSheet.create({
     ...primaryButtonOutline
   },
   primaryText: {
-    color: colors.accent,
-    fontWeight: "700"
+    color: colors.onAccent,
+    fontWeight: "600"
   },
   secondaryButton: {
     borderRadius: 10,
