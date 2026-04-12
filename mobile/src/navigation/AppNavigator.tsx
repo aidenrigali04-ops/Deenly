@@ -74,12 +74,8 @@ export type AppTabParamList = {
   HomeTab: undefined;
   MarketplaceTab: undefined;
   MessagesTab: { openUserId?: number };
-  AccountTab: undefined;
-  FeedTab: undefined;
   CreateTab: NavigatorScreenParams<CreateTabStackParamList> | undefined;
-  ReflectTab: undefined;
-  InboxTab: undefined;
-  ProfileTab: undefined;
+  AccountTab: undefined;
 };
 
 export type RootStackParamList = {

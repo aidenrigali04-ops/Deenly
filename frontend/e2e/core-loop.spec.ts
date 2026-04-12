@@ -66,11 +66,42 @@ async function dismissBizOverlayFromBrowserSession(request: APIRequestContext, p
   });
 }
 
+/** App shell polls prayer status; a fixed top banner intercepts clicks (e.g. Search). Stub for deterministic e2e. */
+async function stubPrayerStatusNoReminder(page: Page) {
+  await page.route(
+    (url) =>
+      url.pathname.includes("/notifications/prayer-status") &&
+      !url.pathname.includes("/prayer-status/ack"),
+    async (route) => {
+      if (route.request().method() !== "GET") {
+        await route.continue();
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          isQuietWindow: false,
+          activePrayer: null,
+          activePrayerAt: null,
+          nextPrayer: null,
+          nextPrayerAt: null,
+          reminderPrayer: null,
+          reminderKey: null,
+          shouldRemind: false,
+          reminderText: null
+        })
+      });
+    }
+  );
+}
+
 test("core loop: signup/login, create+upload, feed pagination, interact/follow/report", async ({
   page,
   request,
   baseURL
 }) => {
+  await stubPrayerStatusNoReminder(page);
   const timestamp = Date.now();
   const password = "StrongPass123";
 
@@ -139,6 +170,18 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
   await page.getByRole("button", { name: "Log In" }).click();
   await expect(page).toHaveURL(/\/home$/);
   await dismissBizOverlayFromBrowserSession(request, page);
+
+  const viewerFeedLogin = await request.post(`${backendBaseUrl}/auth/login`, {
+    data: { email: `viewer-${timestamp}@example.com`, password }
+  });
+  expect(viewerFeedLogin.ok()).toBeTruthy();
+  const viewerFeedToken = ((await viewerFeedLogin.json()) as { tokens: { accessToken: string } }).tokens
+    .accessToken;
+  const followCreatorRes = await request.post(`${backendBaseUrl}/follows/${creator.user.id}`, {
+    headers: { Authorization: `Bearer ${viewerFeedToken}` }
+  });
+  expect(followCreatorRes.ok()).toBeTruthy();
+
   await page.getByRole("link", { name: "Search" }).first().click();
   await expect(page).toHaveURL(/\/search/);
   await page.goto(`${baseURL}/home`);
@@ -166,17 +209,24 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
     .toBe(true);
 
   // Load more lives on the home feed (FeedView), not the account profile grid.
+  // Home uses layout="home" cards: post deep-link is "View discussion", not "Open post".
+  // Default saved tab may be Marketplace (no text-only seed posts); force "For You".
   await page.goto(`${baseURL}/home`);
-  await expect(page.getByRole("button", { name: "Load more" })).toBeVisible();
-  const postLinks = page.getByRole("link", { name: "Open post" });
+  await page.getByRole("button", { name: "For You" }).click();
+  await expect(page.getByRole("button", { name: "Load more" })).toBeVisible({ timeout: 20_000 });
+  const postLinks = page.getByRole("link", { name: "View discussion" });
   const initialPostCount = await postLinks.count();
+  expect(initialPostCount).toBeGreaterThan(0);
   await page.getByRole("button", { name: "Load more" }).click();
   await expect
-    .poll(async () => postLinks.count(), { timeout: 10000 })
+    .poll(async () => postLinks.count(), { timeout: 15_000 })
     .toBeGreaterThan(initialPostCount);
 
   await page.goto(`${baseURL}/users/${creator.user.id}`);
   await expect(page.getByText(/Likes received:/)).toBeVisible();
+  // Viewer already follows creator (API, for a populated For You feed); reset then exercise follow UI.
+  await page.getByRole("button", { name: "Unfollow" }).click();
+  await expect(page.getByRole("button", { name: "Follow", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Follow", exact: true }).click();
   await expect(page.getByText(/now following/i)).toBeVisible();
 
@@ -244,10 +294,20 @@ test("admin feedback loop: owner access, tables, and operations form", async ({
   page,
   request,
   baseURL
-}) => {
+}, testInfo) => {
+  const adminEmail = process.env.E2E_ADMIN_OWNER_EMAIL?.trim();
+  if (!adminEmail) {
+    testInfo.skip(
+      true,
+      "Set E2E_ADMIN_OWNER_EMAIL to match ADMIN_OWNER_EMAIL and NEXT_PUBLIC_ADMIN_OWNER_EMAIL (see .github/workflows/frontend-e2e.yml)."
+    );
+    return;
+  }
+
+  await stubPrayerStatusNoReminder(page);
   const timestamp = Date.now();
   const password = "StrongPass123";
-  const adminEmail = process.env.E2E_ADMIN_OWNER_EMAIL || "aidenrigali04@gmail.com";
+  const adminPassword = process.env.E2E_ADMIN_PASSWORD?.trim() || password;
   const target = await ensureUser(request, {
     email: `target-e2e-${timestamp}@example.com`,
     username: `target_e2e_${timestamp}`,
@@ -258,13 +318,13 @@ test("admin feedback loop: owner access, tables, and operations form", async ({
   const adminSession = await ensureUser(request, {
     email: adminEmail,
     username: `admin_e2e_${timestamp}`,
-    password,
+    password: adminPassword,
     displayName: "Admin Owner"
   });
   const adminToken = adminSession.tokens.accessToken as string;
   await dismissBusinessOnboardingViaApi(request, adminToken);
 
-  await loginViaUi(page, String(baseURL), adminEmail, password);
+  await loginViaUi(page, String(baseURL), adminEmail, adminPassword);
   await expect(page.getByRole("link", { name: "Admin" })).toBeVisible();
 
   await page.goto(`${baseURL}/admin`);
