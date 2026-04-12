@@ -7,6 +7,7 @@ const { createAnalytics } = require("./services/analytics");
 const { createMediaStorage } = require("./services/media-storage");
 const { createPushNotifications } = require("./services/push-notifications");
 const { createMonetizationGateway } = require("./services/monetization-gateway");
+const { createWebSocketService } = require("./services/websocket");
 
 dotenv.config();
 
@@ -32,6 +33,9 @@ const server = app.listen(config.port, listenHost, () => {
   logger.info({ port: config.port, host: listenHost }, "server_started");
 });
 
+const wsService = createWebSocketService({ server, config, db, logger });
+app.locals.wsService = wsService;
+
 let shuttingDown = false;
 async function shutdown(signal) {
   if (shuttingDown) {
@@ -48,6 +52,7 @@ async function shutdown(signal) {
     }
 
     try {
+      wsService.close();
       await db.close();
       logger.info("server_shutdown_complete");
       process.exit(0);

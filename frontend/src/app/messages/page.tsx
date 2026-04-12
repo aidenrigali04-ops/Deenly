@@ -4,7 +4,15 @@ import { FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState, Suspe
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/api";
-import { createOrOpenConversation, markConversationRead } from "@/lib/messages";
+import {
+  createOrOpenConversation,
+  markConversationRead,
+  editMessage,
+  deleteMessage,
+  archiveConversation,
+  unarchiveConversation,
+  getReadStatus
+} from "@/lib/messages";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { UserSearchInput } from "@/components/UserSearchInput";
 import { useSessionStore } from "@/store/session-store";
@@ -24,9 +32,14 @@ type MessageItem = {
   id: number;
   sender_id: number;
   sender_display_name: string;
-  body: string;
+  body: string | null;
   created_at: string;
+  edited_at?: string | null;
+  is_unsent?: boolean;
 };
+
+const EDIT_WINDOW_MS = 15 * 60 * 1000;
+const UNSEND_WINDOW_MS = 5 * 60 * 1000;
 
 function formatMessageTime(dateStr: string): string {
   const date = new Date(dateStr);
@@ -51,6 +64,14 @@ function getDateKey(dateStr: string): string {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
 
+function canEdit(msg: MessageItem): boolean {
+  return Date.now() - new Date(msg.created_at).getTime() < EDIT_WINDOW_MS;
+}
+
+function canUnsend(msg: MessageItem): boolean {
+  return Date.now() - new Date(msg.created_at).getTime() < UNSEND_WINDOW_MS;
+}
+
 function MessagesPageInner() {
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -60,6 +81,10 @@ function MessagesPageInner() {
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
   const [messageBody, setMessageBody] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+  const [editBody, setEditBody] = useState("");
+  const [contextMenuId, setContextMenuId] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const withUserIdRaw = searchParams.get("with");
@@ -94,8 +119,11 @@ function MessagesPageInner() {
   }, [withUserId, currentUserId, router]);
 
   const conversationsQuery = useQuery({
-    queryKey: ["messages-conversations"],
-    queryFn: () => apiRequest<{ items: ConversationItem[] }>("/messages/conversations?limit=25", { auth: true }),
+    queryKey: ["messages-conversations", showArchived],
+    queryFn: () => apiRequest<{ items: ConversationItem[] }>(
+      `/messages/conversations?limit=25${showArchived ? "&archived=true" : ""}`,
+      { auth: true }
+    ),
     refetchInterval: pageVisible ? 10_000 : false,
   });
 
@@ -127,6 +155,15 @@ function MessagesPageInner() {
     refetchInterval: pageVisible && selectedConversationId ? 3_000 : false,
   });
 
+  const readStatusQuery = useQuery({
+    queryKey: ["messages-read-status", selectedConversationId],
+    queryFn: () => getReadStatus(selectedConversationId!),
+    enabled: Boolean(selectedConversationId),
+    refetchInterval: pageVisible && selectedConversationId ? 5_000 : false,
+  });
+
+  const peerLastReadId = readStatusQuery.data?.lastReadMessageId ?? null;
+
   const orderedMessages = useMemo(() => {
     const list = messagesQuery.data?.items || [];
     return [...list].sort((a, b) => a.id - b.id);
@@ -136,7 +173,7 @@ function MessagesPageInner() {
     if (!selectedConversationId || !messagesQuery.data?.items?.length) return;
     const maxId = Math.max(...messagesQuery.data.items.map((m) => m.id));
     void markConversationRead(selectedConversationId, maxId).then(() => {
-      queryClient.invalidateQueries({ queryKey: ["messages-conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["messages-conversations", false] });
     });
   }, [selectedConversationId, messagesQuery.data?.items, queryClient]);
 
@@ -147,7 +184,7 @@ function MessagesPageInner() {
   const createConversation = useMutation({
     mutationFn: (participantUserId: number) => createOrOpenConversation(participantUserId),
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["messages-conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["messages-conversations", false] });
       setSelectedConversationId(result.conversationId);
     }
   });
@@ -183,11 +220,48 @@ function MessagesPageInner() {
     },
     onSettled: (_data, _error, payload) => {
       queryClient.invalidateQueries({ queryKey: ["messages-thread", payload.conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["messages-conversations", false] });
+    }
+  });
+
+  const editMutation = useMutation({
+    mutationFn: (p: { conversationId: number; messageId: number; body: string }) =>
+      editMessage(p.conversationId, p.messageId, p.body),
+    onSuccess: () => {
+      setEditingMessageId(null);
+      setEditBody("");
+      queryClient.invalidateQueries({ queryKey: ["messages-thread", selectedConversationId] });
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (p: { conversationId: number; messageId: number; mode: "unsend" | "delete_for_me" }) =>
+      deleteMessage(p.conversationId, p.messageId, p.mode),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["messages-thread", selectedConversationId] });
+      queryClient.invalidateQueries({ queryKey: ["messages-conversations", false] });
+    }
+  });
+
+  const archiveMutation = useMutation({
+    mutationFn: (conversationId: number) =>
+      showArchived ? unarchiveConversation(conversationId) : archiveConversation(conversationId),
+    onSuccess: () => {
+      setSelectedConversationId(null);
       queryClient.invalidateQueries({ queryKey: ["messages-conversations"] });
     }
   });
 
-  // Build messages with date separators interspersed
+  // Find last message sent by current user for read receipt display
+  const lastSentMessageId = useMemo(() => {
+    for (let i = orderedMessages.length - 1; i >= 0; i--) {
+      if (orderedMessages[i].sender_id === currentUserId && orderedMessages[i].id > 0) {
+        return orderedMessages[i].id;
+      }
+    }
+    return null;
+  }, [orderedMessages, currentUserId]);
+
   const messagesWithSeparators = useMemo(() => {
     const result: Array<{ type: "message"; message: MessageItem } | { type: "date"; label: string; key: string }> = [];
     let lastDateKey = "";
@@ -203,13 +277,21 @@ function MessagesPageInner() {
   }, [orderedMessages]);
 
   return (
-    <section className="messages-shell">
+    <section className="messages-shell" onClick={() => setContextMenuId(null)}>
       <aside className="messages-sidebar">
         <header className="messages-sidebar-header">
           <div className="flex items-center justify-between">
             <h1 className="text-base font-semibold">Messages</h1>
+            <button
+              className="text-xs text-muted hover:text-text transition"
+              onClick={() => { setShowArchived(!showArchived); setSelectedConversationId(null); }}
+            >
+              {showArchived ? "Inbox" : "Archived"}
+            </button>
           </div>
-          <p className="text-xs text-muted">Direct messages with other members.</p>
+          <p className="text-xs text-muted">
+            {showArchived ? "Archived conversations." : "Direct messages with other members."}
+          </p>
           <input
             className="messages-search"
             placeholder="Search conversations"
@@ -217,10 +299,12 @@ function MessagesPageInner() {
             onChange={(event) => setSearchTerm(event.target.value)}
             aria-label="Search conversations"
           />
-          <UserSearchInput
-            onSelectUser={(userId) => createConversation.mutate(userId)}
-            isPending={createConversation.isPending}
-          />
+          {!showArchived && (
+            <UserSearchInput
+              onSelectUser={(userId) => createConversation.mutate(userId)}
+              isPending={createConversation.isPending}
+            />
+          )}
         </header>
 
         <div className="messages-conversation-list">
@@ -266,7 +350,7 @@ function MessagesPageInner() {
             );
           })}
           {!conversationsQuery.isLoading && !conversationsQuery.error && visibleConversations.length === 0 ? (
-            <EmptyState title="No conversations yet" />
+            <EmptyState title={showArchived ? "No archived conversations" : "No conversations yet"} />
           ) : null}
         </div>
       </aside>
@@ -279,6 +363,13 @@ function MessagesPageInner() {
                 <h2 className="truncate text-base font-semibold">{selectedConversation.other_display_name}</h2>
                 <p className="truncate text-xs text-muted">@{selectedConversation.other_username}</p>
               </div>
+              <button
+                className="shrink-0 rounded-control border border-black/10 px-3 py-1.5 text-xs text-muted hover:text-text transition"
+                onClick={() => archiveMutation.mutate(selectedConversation.conversation_id)}
+                disabled={archiveMutation.isPending}
+              >
+                {showArchived ? "Unarchive" : "Archive"}
+              </button>
             </header>
 
             <div className="messages-thread-body">
@@ -295,15 +386,114 @@ function MessagesPageInner() {
                 const message = entry.message;
                 const isMine = currentUserId ? message.sender_id === currentUserId : false;
                 const isOptimistic = message.id < 0;
+                const isEditing = editingMessageId === message.id;
+                const showReadReceipt = isMine && message.id === lastSentMessageId && peerLastReadId !== null && peerLastReadId >= message.id;
+
+                if (message.is_unsent) {
+                  return (
+                    <div key={message.id} className={`messages-bubble-wrap ${isMine ? "messages-bubble-wrap-mine" : ""}`}>
+                      <div className="messages-bubble border-dashed opacity-50">
+                        <p className="messages-bubble-text italic text-muted">This message was unsent</p>
+                      </div>
+                    </div>
+                  );
+                }
+
                 return (
                   <div
                     key={message.id}
                     className={`messages-bubble-wrap ${isMine ? "messages-bubble-wrap-mine" : ""}`}
                   >
-                    <div className={`messages-bubble ${isMine ? "messages-bubble-mine" : ""} ${isOptimistic ? "opacity-70" : ""}`}>
+                    <div
+                      className={`messages-bubble ${isMine ? "messages-bubble-mine" : ""} ${isOptimistic ? "opacity-70" : ""} relative group`}
+                      onContextMenu={(e) => {
+                        if (isMine && !isOptimistic) {
+                          e.preventDefault();
+                          setContextMenuId(contextMenuId === message.id ? null : message.id);
+                        }
+                      }}
+                    >
                       <p className="messages-bubble-author">{message.sender_display_name}</p>
-                      <p className="messages-bubble-text">{message.body}</p>
-                      <p className="messages-bubble-time">{formatMessageTime(message.created_at)}</p>
+
+                      {isEditing ? (
+                        <form
+                          className="mt-1 flex gap-1"
+                          onSubmit={(e: FormEvent) => {
+                            e.preventDefault();
+                            if (!editBody.trim() || !selectedConversationId) return;
+                            editMutation.mutate({ conversationId: selectedConversationId, messageId: message.id, body: editBody.trim() });
+                          }}
+                        >
+                          <input
+                            className="flex-1 rounded border border-white/30 bg-white/10 px-2 py-1 text-sm"
+                            value={editBody}
+                            onChange={(e) => setEditBody(e.target.value)}
+                            autoFocus
+                          />
+                          <button type="submit" className="text-xs font-semibold" disabled={editMutation.isPending}>
+                            {editMutation.isPending ? "..." : "Save"}
+                          </button>
+                          <button type="button" className="text-xs" onClick={() => setEditingMessageId(null)}>
+                            Cancel
+                          </button>
+                        </form>
+                      ) : (
+                        <p className="messages-bubble-text">{message.body}</p>
+                      )}
+
+                      <p className="messages-bubble-time">
+                        {formatMessageTime(message.created_at)}
+                        {message.edited_at ? <span className="ml-1 italic">(edited)</span> : null}
+                      </p>
+
+                      {showReadReceipt && (
+                        <p className="messages-bubble-time font-medium">Read</p>
+                      )}
+
+                      {/* Context menu for own messages */}
+                      {isMine && !isOptimistic && contextMenuId === message.id && (
+                        <div
+                          className="absolute right-0 top-full z-30 mt-1 min-w-[140px] rounded-control border border-black/10 bg-card py-1 shadow-soft"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {canEdit(message) && (
+                            <button
+                              className="block w-full px-3 py-1.5 text-left text-xs hover:bg-black/[0.04]"
+                              onClick={() => {
+                                setEditingMessageId(message.id);
+                                setEditBody(message.body || "");
+                                setContextMenuId(null);
+                              }}
+                            >
+                              Edit
+                            </button>
+                          )}
+                          {canUnsend(message) && (
+                            <button
+                              className="block w-full px-3 py-1.5 text-left text-xs text-rose-600 hover:bg-black/[0.04]"
+                              onClick={() => {
+                                if (selectedConversationId) {
+                                  deleteMutation.mutate({ conversationId: selectedConversationId, messageId: message.id, mode: "unsend" });
+                                }
+                                setContextMenuId(null);
+                              }}
+                            >
+                              Unsend
+                            </button>
+                          )}
+                          <button
+                            className="block w-full px-3 py-1.5 text-left text-xs hover:bg-black/[0.04]"
+                            onClick={() => {
+                              if (selectedConversationId) {
+                                deleteMutation.mutate({ conversationId: selectedConversationId, messageId: message.id, mode: "delete_for_me" });
+                              }
+                              setContextMenuId(null);
+                            }}
+                          >
+                            Delete for me
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );

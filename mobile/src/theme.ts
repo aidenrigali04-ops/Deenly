@@ -13,10 +13,17 @@ export const colors = {
   border: "rgba(0, 0, 0, 0.1)",
   /** Hairlines inside grouped lists (SaaS-style separators) */
   borderSubtle: "rgba(0, 0, 0, 0.06)",
-  text: "#111111",
-  muted: "#6b7280",
+  /** Barely visible dividers for conversation items */
+  borderFaint: "rgba(0, 0, 0, 0.03)",
+  text: "#1C1C1E",
+  muted: "#8E8E93",
   accent: "#000000",
   onAccent: "#ffffff",
+  /** Apple-style blue for interactive indicators, send, unread */
+  brand: "#0A84FF",
+  brandSubtle: "rgba(10, 132, 255, 0.06)",
+  /** iOS systemGray6 — borderless fill for inputs, other bubbles */
+  fill: "#F2F2F7",
   danger: "#dc2626",
   success: "#16a34a",
   shadow: "rgba(15, 23, 42, 0.08)",
@@ -44,8 +51,9 @@ export const atmosphereGradient = {
 
 /** Radii aligned with web `rounded-panel` / `rounded-control` / `rounded-pill`. */
 export const radii = {
-  panel: 16,
+  panel: 24,
   control: 12,
+  bubble: 20,
   pill: 999
 };
 
@@ -59,6 +67,16 @@ export const shadows = {
       shadowRadius: 10
     },
     android: { elevation: 2 },
+    default: {}
+  }),
+  elevated: Platform.select({
+    ios: {
+      shadowColor: "#0f172a",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.08,
+      shadowRadius: 16
+    },
+    android: { elevation: 4 },
     default: {}
   })
 };
