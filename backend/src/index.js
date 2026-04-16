@@ -7,6 +7,7 @@ const { createAnalytics } = require("./services/analytics");
 const { createMediaStorage } = require("./services/media-storage");
 const { createPushNotifications } = require("./services/push-notifications");
 const { createMonetizationGateway } = require("./services/monetization-gateway");
+const { createRewardJobs } = require("./cron/reward-jobs");
 
 dotenv.config();
 
@@ -32,6 +33,24 @@ const server = app.listen(config.port, listenHost, () => {
   logger.info({ port: config.port, host: listenHost }, "server_started");
 });
 
+// Preload rewards config cache and start background jobs.
+const rewardJobs = createRewardJobs({
+  logger,
+  streakService: app.locals.streakService,
+  tierService: app.locals.tierService,
+  referralService: app.locals.referralService,
+  boostService: app.locals.boostService,
+  challengeService: app.locals.challengeService,
+  trustService: app.locals.trustService,
+  config,
+});
+if (app.locals.rewardConfig && typeof app.locals.rewardConfig.preload === "function") {
+  app.locals.rewardConfig.preload().catch((err) => {
+    logger.error({ err }, "reward_config.preload_failed");
+  });
+}
+rewardJobs.start();
+
 let shuttingDown = false;
 async function shutdown(signal) {
   if (shuttingDown) {
@@ -39,6 +58,12 @@ async function shutdown(signal) {
   }
   shuttingDown = true;
   logger.info({ signal }, "server_shutdown_started");
+
+  try {
+    rewardJobs.stop();
+  } catch (err) {
+    logger.warn({ err }, "reward_jobs.stop_failed");
+  }
 
   server.close(async (err) => {
     if (err) {

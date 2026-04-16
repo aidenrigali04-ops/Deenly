@@ -31,6 +31,22 @@ const { createAiRouter } = require("./modules/ai/routes");
 const { createBusinessesRouter } = require("./modules/businesses/routes");
 const { createEventsRouter } = require("./modules/events/routes");
 const { createGeocodeRouter } = require("./modules/geocode/routes");
+const { createRewardsRouter } = require("./modules/rewards/routes");
+const { createReferralsRouter } = require("./modules/referrals/routes");
+const { createBoostsRouter } = require("./modules/boosts/routes");
+const { createRewardConfigService } = require("./services/reward-config");
+const { createRewardRulesEngine } = require("./services/reward-rules-engine");
+const { createRewardLedgerService } = require("./services/reward-ledger");
+const { createTierService } = require("./services/reward-tiers");
+const { createStreakService } = require("./services/reward-streaks");
+const { createChallengeService } = require("./services/reward-challenges");
+const { createReferralService } = require("./services/reward-referrals");
+const { createTrustService } = require("./services/reward-trust");
+const { createBoostService } = require("./services/reward-boosts");
+const { createRankingService } = require("./services/reward-ranking");
+const { createCheckoutService } = require("./services/reward-checkout");
+const { createRewardNotificationsService } = require("./services/reward-notifications");
+const { createAdminService } = require("./services/reward-admin");
 const { createInstagramCrossPostOrchestrator } = require("./services/instagram-graph");
 const { createMetrics } = require("./observability/metrics");
 const { createMonetizationGateway } = require("./services/monetization-gateway");
@@ -87,6 +103,107 @@ function createApp({
   app.locals.pushNotifications = pushNotifications || null;
   app.locals.monetizationGateway = monetizationGateway || createMonetizationGateway({ config });
   app.locals.plaidSellerBank = createPlaidSellerBankService({ db, config, logger });
+
+  // ---------- Rewards & Growth Engine wiring ----------
+  const rewardConfig = createRewardConfigService({ db });
+  const rulesEngine = createRewardRulesEngine({ rewardConfig });
+  const ledgerService = createRewardLedgerService({
+    db,
+    config,
+    rewardConfig,
+    analytics: app.locals.analytics,
+    logger,
+  });
+  const tierService = createTierService({
+    db,
+    rewardConfig,
+    rulesEngine,
+    ledgerService,
+    analytics: app.locals.analytics,
+    logger,
+  });
+  const streakService = createStreakService({
+    db,
+    rewardConfig,
+    rulesEngine,
+    ledgerService,
+    analytics: app.locals.analytics,
+    logger,
+  });
+  const challengeService = createChallengeService({
+    db,
+    rewardConfig,
+    ledgerService,
+    analytics: app.locals.analytics,
+    logger,
+  });
+  const referralService = createReferralService({
+    db,
+    ledgerService,
+    rewardConfig,
+    analytics: app.locals.analytics,
+    logger,
+  });
+  const trustService = createTrustService({
+    db,
+    rewardConfig,
+    ledgerService,
+    analytics: app.locals.analytics,
+    logger,
+  });
+  const boostService = createBoostService({
+    db,
+    rewardConfig,
+    trustService,
+    ledgerService,
+    analytics: app.locals.analytics,
+    logger,
+  });
+  const rankingService = createRankingService({
+    boostService,
+    trustService,
+    rewardConfig,
+    logger,
+  });
+  const checkoutService = createCheckoutService({
+    db,
+    ledgerService,
+    rulesEngine,
+    tierService,
+    streakService,
+    rewardConfig,
+    analytics: app.locals.analytics,
+    logger,
+  });
+  const rewardNotifications = createRewardNotificationsService({
+    pushService: app.locals.pushNotifications,
+    db,
+    rewardConfig,
+    logger,
+  });
+  const adminService = createAdminService({
+    db,
+    ledgerService,
+    trustService,
+    referralService,
+    rewardConfig,
+    notificationsService: rewardNotifications,
+    analytics: app.locals.analytics,
+    logger,
+  });
+
+  app.locals.rewardConfig = rewardConfig;
+  app.locals.ledgerService = ledgerService;
+  app.locals.tierService = tierService;
+  app.locals.streakService = streakService;
+  app.locals.challengeService = challengeService;
+  app.locals.referralService = referralService;
+  app.locals.trustService = trustService;
+  app.locals.boostService = boostService;
+  app.locals.rankingService = rankingService;
+  app.locals.checkoutService = checkoutService;
+  app.locals.rewardNotifications = rewardNotifications;
+  app.locals.adminService = adminService;
 
   const instagramCrossPost = createInstagramCrossPostOrchestrator({
     db,
@@ -325,6 +442,30 @@ function createApp({
   );
   apiRouter.use("/geocode", createGeocodeRouter());
   apiRouter.use("/ai", aiWriteLimiter, createAiRouter({ config, db, logger }));
+
+  apiRouter.use(
+    "/rewards",
+    createRewardsRouter({
+      db,
+      config,
+      analytics: app.locals.analytics,
+      ledgerService,
+      tierService,
+      streakService,
+      challengeService,
+      checkoutService,
+      adminService,
+      rewardConfig,
+    })
+  );
+  apiRouter.use(
+    "/referrals",
+    createReferralsRouter({ db, config, referralService, adminService })
+  );
+  apiRouter.use(
+    "/boosts",
+    createBoostsRouter({ db, config, boostService })
+  );
 
   app.use("/api", apiRouter);
   app.use("/api/v1", apiRouter);
