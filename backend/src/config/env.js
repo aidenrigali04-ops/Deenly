@@ -299,6 +299,7 @@ function loadEnv(envSource = process.env) {
     eventsCreateEnabled: parseBoolean(envSource.EVENTS_CREATE_ENABLED, true),
     eventsChatEnabled: parseBoolean(envSource.EVENTS_CHAT_ENABLED, true),
     growthExperimentsEnabled: parseBoolean(envSource.GROWTH_EXPERIMENTS_ENABLED, true),
+    rewardCronEnabled: parseBoolean(envSource.REWARD_CRON_ENABLED, process.env.NODE_ENV !== "test"),
     eventsChatGraceHours: parsePositiveInt(envSource.EVENTS_CHAT_GRACE_HOURS, 24, "EVENTS_CHAT_GRACE_HOURS"),
     rolloutStage: String(envSource.ROLLOUT_STAGE || "read").trim().toLowerCase(),
     rolloutCohortPercent: parsePositiveInt(envSource.ROLLOUT_COHORT_PERCENT, 10, "ROLLOUT_COHORT_PERCENT"),
