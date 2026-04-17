@@ -46,24 +46,35 @@ function LedgerRow({ row }: { row: RewardsLedgerEntryDto }) {
         ? "text-rose-800"
         : "text-text";
   const prefix = tone === "earn" ? "+" : "";
+  const toneBg =
+    tone === "earn" ? "bg-emerald-500/90" : tone === "spend" ? "bg-rose-500/90" : "bg-black/20";
   return (
-    <li className="flex flex-col gap-1 border-b border-black/10 py-3 last:border-0">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <span className={`font-semibold tabular-nums ${deltaClass}`}>
+    <li className="rounded-control border border-transparent px-3 py-3 transition hover:border-black/[0.06] hover:bg-black/[0.02]">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <span
+            className={`mt-1.5 h-2 w-2 shrink-0 rounded-pill ${toneBg}`}
+            aria-hidden
+            title={row.entryKind}
+          />
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-text">
+              <span className="text-muted">{row.entryKind}</span>
+              {row.reason ? (
+                <>
+                  <span className="text-muted"> · </span>
+                  <span>{row.reason}</span>
+                </>
+              ) : null}
+            </p>
+            <p className="mt-1 text-xs text-muted">{formatLedgerWhen(row.createdAt)}</p>
+          </div>
+        </div>
+        <span className={`shrink-0 text-right text-base font-semibold tabular-nums tracking-tight ${deltaClass}`}>
           {prefix}
           {formatPointsDisplay(row.deltaPoints)}
         </span>
-        <span className="text-xs text-muted">{formatLedgerWhen(row.createdAt)}</span>
       </div>
-      <p className="text-sm text-text">
-        <span className="text-muted">{row.entryKind}</span>
-        {row.reason ? (
-          <>
-            {" · "}
-            <span className="font-medium">{row.reason}</span>
-          </>
-        ) : null}
-      </p>
     </li>
   );
 }
@@ -143,30 +154,40 @@ export default function AccountRewardsPage() {
             Referrals
           </Link>
         </p>
-        <h1 className="page-header-title mt-4 text-xl sm:text-2xl">Rewards wallet</h1>
+        <h1 className="page-header-title mt-4 text-xl sm:text-2xl">Rewards</h1>
         <p className="page-header-subtitle text-xs sm:text-sm">
-          Your Deenly points balance and recent activity. Points may apply at checkout when buying eligible products.
+          Points balance and activity. Eligible products may let you earn or redeem at checkout.
         </p>
       </header>
 
-      <div className="surface-card px-4 py-5 sm:px-6">
-        <p className="text-xs uppercase tracking-wide text-muted">Balance</p>
-        <p className="mt-1 text-3xl font-semibold tabular-nums tracking-tight text-text">
-          {formatPointsDisplay(wallet.balancePoints)}{" "}
-          <span className="text-lg font-medium text-muted">{wallet.currencyCode}</span>
-        </p>
-        {wallet.lastCatalogCheckoutRedemptionAt ? (
-          <p className="mt-3 text-sm text-muted">
-            Last catalog redemption:{" "}
-            <span className="text-text">{formatLedgerWhen(wallet.lastCatalogCheckoutRedemptionAt)}</span>
-          </p>
-        ) : (
-          <p className="mt-3 text-sm text-muted">No catalog redemptions yet.</p>
-        )}
+      <div className="surface-card overflow-hidden p-0 shadow-soft">
+        <div className="h-1 bg-gradient-to-r from-sky-500 via-violet-500 to-emerald-500 opacity-[0.85]" aria-hidden />
+        <div className="grid gap-6 px-4 py-5 sm:grid-cols-[1fr_auto] sm:items-end sm:px-6 sm:py-6">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">Available balance</p>
+            <p className="mt-2 text-4xl font-semibold tabular-nums tracking-tight text-text sm:text-[2.75rem]">
+              {formatPointsDisplay(wallet.balancePoints)}
+            </p>
+            <p className="mt-1 text-sm font-medium text-muted">{wallet.currencyCode}</p>
+          </div>
+          <div className="rounded-control border border-black/[0.06] bg-black/[0.02] px-4 py-3 sm:min-w-[200px]">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Last redemption</p>
+            {wallet.lastCatalogCheckoutRedemptionAt ? (
+              <p className="mt-2 text-sm font-medium leading-snug text-text">
+                {formatLedgerWhen(wallet.lastCatalogCheckoutRedemptionAt)}
+              </p>
+            ) : (
+              <p className="mt-2 text-sm text-muted">None yet</p>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="surface-card px-4 py-5 sm:px-6">
-        <h2 className="text-sm font-semibold text-text">History</h2>
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <h2 className="text-sm font-semibold text-text">Activity</h2>
+          <span className="text-[11px] font-medium uppercase tracking-wide text-muted">Ledger</span>
+        </div>
         {ledgerInfinite.isLoading ? <p className="mt-3 text-sm text-muted">Loading history…</p> : null}
         {showLedgerError ? (
           <p className="mt-3 text-sm text-rose-700">{(ledgerError as Error).message}</p>
@@ -178,7 +199,7 @@ export default function AccountRewardsPage() {
           <p className="mt-3 text-sm text-muted">No ledger entries yet.</p>
         ) : null}
         {ledgerRows.length > 0 ? (
-          <ul className="mt-2">
+          <ul className="mt-4 space-y-1 rounded-panel border border-black/[0.06] bg-surface/60 p-2">
             {ledgerRows.map((row) => (
               <LedgerRow key={row.id} row={row} />
             ))}

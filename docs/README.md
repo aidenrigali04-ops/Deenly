@@ -1,15 +1,21 @@
 # Deenly documentation index
 
-Core product and engineering references. **Rewards + Growth Engine** planning lives in the files below (implementation not started; see TODOs inside each).
+Core product and engineering references. **Rewards + Growth Engine**: buyer read APIs, referrals, checkout redemption, and admin surfaces are **partially implemented** — see [api-contracts.md](./api-contracts.md) for what is published; deeper planning and TODOs remain in the other docs.
 
 | Document | Purpose |
 | -------- | ------- |
 | [architecture.md](./architecture.md) | System boundaries, packages, Rewards vs analytics vs monetization |
-| [schema.md](./schema.md) | Planned and existing data concepts (Rewards tables TBD in migrations) |
-| [api-contracts.md](./api-contracts.md) | Planned REST contracts under `/api/v1` (stubs only) |
-| [testing-strategy.md](./testing-strategy.md) | How we test; Rewards-specific gates to add |
+| [schema.md](./schema.md) | Planned and existing data concepts (migrations are source of truth for applied schema) |
+| [api-contracts.md](./api-contracts.md) | Published `/api/v1` contracts (tables + descriptions; OpenAPI fragments still TODO) |
+| [testing-strategy.md](./testing-strategy.md) | How we test; Rewards-specific coverage notes |
 
 Shared implementation (TypeScript): [`../shared/rewards/README.md`](../shared/rewards/README.md).
+
+## Sprint records
+
+| Document | Purpose |
+| -------- | ------- |
+| [sprints/SPRINT_REWARDS_REFERRALS_BUYER_API.md](./sprints/SPRINT_REWARDS_REFERRALS_BUYER_API.md) | **Closed** — buyer rewards/referrals API + web client; test/lint closure notes |
 
 ## Existing docs
 

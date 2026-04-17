@@ -107,6 +107,7 @@ function createApp({
       analytics: app.locals.analytics,
       logger,
       config,
+      trustFlagService,
       resolveTier: createSellerBoostTierResolver(config)
     });
 
@@ -328,7 +329,8 @@ function createApp({
       config,
       pushNotifications: app.locals.pushNotifications,
       analytics: app.locals.analytics,
-      rewardsLedgerService
+      rewardsLedgerService,
+      referralService
     })
   );
   apiRouter.use("/beta", createBetaRouter({ db, config }));

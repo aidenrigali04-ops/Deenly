@@ -1,6 +1,7 @@
 const {
   parseLedgerListFilters,
   parseReferralQueueFilters,
+  parseFraudFlagQueueFilters,
   getRewardsFraudThresholds
 } = require("../src/modules/admin/rewards-admin-queries");
 
@@ -32,6 +33,20 @@ describe("rewards-admin query filters", () => {
   it("parseReferralQueueFilters accepts pending_clear", () => {
     const f = parseReferralQueueFilters({ status: "pending_clear" });
     expect(f.status).toBe("pending_clear");
+  });
+
+  it("parseFraudFlagQueueFilters defaults open+triaged slice size", () => {
+    const f = parseFraudFlagQueueFilters({});
+    expect(f.status).toBeNull();
+    expect(f.limit).toBe(30);
+    expect(f.offset).toBe(0);
+  });
+
+  it("parseFraudFlagQueueFilters accepts queueStatus", () => {
+    const f = parseFraudFlagQueueFilters({ queueStatus: "confirmed", queueLimit: "5", queueOffset: "10" });
+    expect(f.status).toBe("confirmed");
+    expect(f.limit).toBe(5);
+    expect(f.offset).toBe(10);
   });
 
   it("getRewardsFraudThresholds uses config when present", () => {

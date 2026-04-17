@@ -77,7 +77,7 @@ const TABLE_SQL = {
     "SELECT id, domain, flag_type, severity, subject_user_id, related_entity_type, related_entity_id, status, metadata, created_at, updated_at FROM trust_review_flags ORDER BY id DESC LIMIT $1 OFFSET $2"
 };
 
-function createAdminRouter({ db, config, pushNotifications, analytics = null, rewardsLedgerService = null }) {
+function createAdminRouter({ db, config, pushNotifications, analytics = null, rewardsLedgerService = null, referralService = null }) {
   const router = express.Router();
   const authMiddleware = authenticate({ config, db });
   const modGuard = authorize(["moderator", "admin"]);
@@ -483,7 +483,8 @@ function createAdminRouter({ db, config, pushNotifications, analytics = null, re
     modGuard,
     analytics,
     config,
-    rewardsLedgerService
+    rewardsLedgerService,
+    referralService
   });
 
   return router;

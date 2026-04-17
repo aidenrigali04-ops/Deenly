@@ -14,7 +14,7 @@ describe("createSellerBoostService (memory repository)", () => {
     const repository = createMemorySellerBoostRepository();
     repository._setPostAuthor(101, 1);
     repository._setPostAuthor(102, 1);
-    const db = createMemoryDbForSellerBoost();
+    const db = createMemoryDbForSellerBoost(repository);
     const analytics = { trackEvent: jest.fn(async () => {}) };
     const fixed = overrides.fixedNow ? new Date(overrides.fixedNow) : null;
     const service = createSellerBoostService({
@@ -53,9 +53,30 @@ describe("createSellerBoostService (memory repository)", () => {
     const again = await service.recordPaymentCompleted({
       purchaseId: purchase.id,
       sellerUserId: 1,
-      paymentConfirmationId: "pay_evt_1"
+      paymentConfirmationId: "pay_evt_1",
+      stripePaymentIntentId: "pi_evt_dup"
     });
     expect(again.duplicate).toBe(true);
+    const afterDup = await service.getPurchase({ purchaseId: purchase.id, sellerUserId: 1 });
+    expect(afterDup.metadata?.stripePaymentIntentId).toBe("pi_evt_dup");
+  });
+
+  it("recordPaymentCompleted stores stripePaymentIntentId in metadata for refunds", async () => {
+    const { service } = makeService({ fixedNow: "2026-06-01T12:00:00.000Z" });
+    const { purchase } = await service.createPurchase({
+      sellerUserId: 1,
+      postIds: [101],
+      packageTierId: "seller_rank_assist_3d",
+      idempotencyKey: "pi_meta_1"
+    });
+    await service.recordPaymentCompleted({
+      purchaseId: purchase.id,
+      sellerUserId: 1,
+      paymentConfirmationId: "cs_test_1",
+      stripePaymentIntentId: "pi_test_123"
+    });
+    const loaded = await service.getPurchase({ purchaseId: purchase.id, sellerUserId: 1 });
+    expect(loaded.metadata?.stripePaymentIntentId).toBe("pi_test_123");
   });
 
   it("expirePurchaseIfDue marks active purchase expired", async () => {
@@ -332,6 +353,98 @@ describe("createSellerBoostService (memory repository)", () => {
       metadata: { surface: "feed" }
     });
     expect(r.recorded).toBe(false);
+  });
+
+  it("expirePurchaseIfDue returns expired false when window not ended", async () => {
+    const { service } = makeService({ fixedNow: "2026-01-01T00:00:00.000Z" });
+    const { purchase } = await service.createPurchase({
+      sellerUserId: 1,
+      postIds: [101],
+      packageTierId: "seller_rank_assist_14d",
+      idempotencyKey: "notdue"
+    });
+    await service.recordPaymentCompleted({
+      purchaseId: purchase.id,
+      sellerUserId: 1,
+      paymentConfirmationId: "pay_nd"
+    });
+    const r = await service.expirePurchaseIfDue({
+      purchaseId: purchase.id,
+      sellerUserId: 1,
+      asOf: new Date("2026-01-05T00:00:00.000Z")
+    });
+    expect(r.expired).toBe(false);
+    const loaded = await service.getPurchase({ purchaseId: purchase.id, sellerUserId: 1 });
+    expect(loaded.status).toBe("active");
+  });
+
+  it("recordPaymentCompleted throws NotFound for wrong seller", async () => {
+    const { service } = makeService();
+    const { purchase } = await service.createPurchase({
+      sellerUserId: 1,
+      postIds: [101],
+      packageTierId: "seller_rank_assist_3d",
+      idempotencyKey: "ws"
+    });
+    await expect(
+      service.recordPaymentCompleted({
+        purchaseId: purchase.id,
+        sellerUserId: 2,
+        paymentConfirmationId: "x"
+      })
+    ).rejects.toBeInstanceOf(SellerBoostNotFoundError);
+  });
+
+  it("recordPaymentCompleted rejects different confirmation after activation", async () => {
+    const { service } = makeService();
+    const { purchase } = await service.createPurchase({
+      sellerUserId: 1,
+      postIds: [101],
+      packageTierId: "seller_rank_assist_3d",
+      idempotencyKey: "duppay"
+    });
+    await service.recordPaymentCompleted({
+      purchaseId: purchase.id,
+      sellerUserId: 1,
+      paymentConfirmationId: "first"
+    });
+    await expect(
+      service.recordPaymentCompleted({
+        purchaseId: purchase.id,
+        sellerUserId: 1,
+        paymentConfirmationId: "second"
+      })
+    ).rejects.toBeInstanceOf(SellerBoostInvalidStateError);
+  });
+
+  it("emits seller_boost_impression_attribution after a recorded impression", async () => {
+    const { service, analytics } = makeService();
+    const { purchase } = await service.createPurchase({
+      sellerUserId: 1,
+      postIds: [101],
+      packageTierId: "seller_rank_assist_7d",
+      idempotencyKey: "attrimp"
+    });
+    await service.recordPaymentCompleted({
+      purchaseId: purchase.id,
+      sellerUserId: 1,
+      paymentConfirmationId: "pay_attr"
+    });
+    await service.recordImpression({
+      purchaseId: purchase.id,
+      postId: 101,
+      viewerUserId: 42,
+      metadata: { surface: "feed" }
+    });
+    const attr = analytics.trackEvent.mock.calls.find((c) => c[0] === "seller_boost_impression_attribution");
+    expect(attr).toBeDefined();
+    expect(attr[1]).toMatchObject({
+      kind: "seller_boost_impression",
+      purchaseId: purchase.id,
+      postId: 101,
+      viewerUserId: 42,
+      semantics: "modifier_only_not_override"
+    });
   });
 
   it("listMyPurchases returns purchases for seller ordered by id desc", async () => {

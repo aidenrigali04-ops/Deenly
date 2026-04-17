@@ -246,6 +246,8 @@ function loadEnv(envSource = process.env) {
       }
       return v;
     })(),
+    /** Append-only rows in feed_ranking_signals (off by default; feed rank still reads live aggregates). */
+    feedRankingSignalStoreEnabled: parseBoolean(envSource.FEED_RANKING_SIGNAL_STORE_ENABLED, false),
     feedSellerBoostRankingEnabled: parseBoolean(envSource.FEED_SELLER_BOOST_RANKING_ENABLED, false),
     feedSellerBoostRankCap: (() => {
       const v = parseNumber(envSource.FEED_SELLER_BOOST_RANK_CAP, 60);
@@ -279,7 +281,12 @@ function loadEnv(envSource = process.env) {
       weightConversionProxy: parseNumber(envSource.FEED_RANK_MODIFIER_WEIGHT_CONVERSION, 10),
       capSellerTrustSubtract: parseNumber(envSource.FEED_RANK_MODIFIER_CAP_SELLER_TRUST_SUB, 22),
       weightSellerOpenReports: parseNumber(envSource.FEED_RANK_MODIFIER_WEIGHT_SELLER_REPORTS, 5),
-      boostMaxFractionOfCombined: parseNumber(envSource.FEED_RANK_MODIFIER_BOOST_MAX_FRACTION, 0.38)
+      boostMaxFractionOfCombined: parseNumber(envSource.FEED_RANK_MODIFIER_BOOST_MAX_FRACTION, 0.38),
+      engagementProxyWeightCompletion: parseNumber(envSource.FEED_RANK_MODIFIER_ENGAGEMENT_W_COMPLETION, 0.44),
+      engagementProxyWeightViews: parseNumber(envSource.FEED_RANK_MODIFIER_ENGAGEMENT_W_VIEWS, 0.28),
+      engagementProxyWeightSocial: parseNumber(envSource.FEED_RANK_MODIFIER_ENGAGEMENT_W_SOCIAL, 0.28),
+      engagementProxyViewCapDivisor: parseNumber(envSource.FEED_RANK_MODIFIER_ENGAGEMENT_VIEW_CAP_DIVISOR, 4000),
+      engagementProxySocialCapDivisor: parseNumber(envSource.FEED_RANK_MODIFIER_ENGAGEMENT_SOCIAL_CAP_DIVISOR, 55)
     },
     stripeSecretKey: String(envSource.STRIPE_SECRET_KEY || "").trim(),
     stripeWebhookSecret: String(envSource.STRIPE_WEBHOOK_SECRET || "").trim(),
@@ -391,6 +398,20 @@ function loadEnv(envSource = process.env) {
     ),
     trustReferralFlagSharedSignupIp: parseBoolean(envSource.TRUST_REFERRAL_FLAG_SHARED_SIGNUP_IP, true),
     trustReferralBlockDisposableEmail: parseBoolean(envSource.TRUST_REFERRAL_BLOCK_DISPOSABLE_EMAIL, false),
+    trustCommerceOrderFlagMinor: Math.max(
+      0,
+      Math.round(parseNumber(envSource.TRUST_COMMERCE_ORDER_FLAG_MINOR, 500_000))
+    ),
+    trustRewardsCheckoutDiscountFlagBps: Math.max(
+      0,
+      Math.round(parseNumber(envSource.TRUST_REWARDS_CHECKOUT_DISCOUNT_FLAG_BPS, 9000))
+    ),
+    trustRewardsCheckoutReversalFlag: parseBoolean(envSource.TRUST_REWARDS_CHECKOUT_REVERSAL_FLAG, true),
+    trustSellerBoostSpendFlagMinor: Math.max(
+      0,
+      Math.round(parseNumber(envSource.TRUST_SELLER_BOOST_SPEND_FLAG_MINOR, 1500))
+    ),
+    trustReferralClawbackFlagEnabled: parseBoolean(envSource.TRUST_REFERRAL_CLAWBACK_FLAG_ENABLED, true),
     referralsEnabled: parseBoolean(envSource.REFERRALS_ENABLED, false),
     referralAttributionWindowDays: (() => {
       const v = Math.round(parseNumber(envSource.REFERRAL_ATTRIBUTION_WINDOW_DAYS, 30));
@@ -640,9 +661,7 @@ function loadEnv(envSource = process.env) {
     }
   }
 
-  if (config.feedRewardsRankingEnabled) {
-    assertFeedRankModifierGuardrails(config);
-  }
+  assertFeedRankModifierGuardrails(config);
 
   return config;
 }

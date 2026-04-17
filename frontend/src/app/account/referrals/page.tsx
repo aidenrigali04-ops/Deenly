@@ -141,61 +141,83 @@ export default function AccountReferralsPage() {
         </p>
         <h1 className="page-header-title mt-4 text-xl sm:text-2xl">Referrals</h1>
         <p className="page-header-subtitle text-xs sm:text-sm">
-          Share your code with friends. Rewards follow program rules when referrals qualify.
+          Share your link. Rewards apply when referrals meet program rules.
         </p>
       </header>
 
-      <div className="surface-card px-4 py-5 sm:px-6">
-        <h2 className="text-sm font-semibold text-text">Your code</h2>
-        {code ? (
-          <>
-            <p className="mt-3 font-mono text-lg font-semibold tracking-wide text-text">{code.code}</p>
-            <p className="mt-2 text-xs text-muted">
-              Status: {code.status} · Signups attributed: {code.attributableSignupsCount} · Cap:{" "}
-              {code.maxRedemptions}
-            </p>
-            {shareUrl ? (
-              <div className="mt-4 space-y-2">
-                <p className="break-all text-sm text-muted">{shareUrl}</p>
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" className="btn-primary px-4 py-2 text-sm" onClick={() => void handleCopyLink()}>
-                    Copy link
-                  </button>
-                  {typeof navigator !== "undefined" && typeof navigator.share === "function" ? (
-                    <button
-                      type="button"
-                      className="btn-secondary px-4 py-2 text-sm"
-                      onClick={() => void handleNativeShare()}
-                    >
-                      Share…
-                    </button>
-                  ) : null}
+      <div className="surface-card overflow-hidden p-0 shadow-soft">
+        <div className="h-1 bg-gradient-to-r from-violet-500 via-sky-500 to-emerald-500 opacity-[0.85]" aria-hidden />
+        <div className="px-4 py-5 sm:px-6 sm:py-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">Your invite</h2>
+            {code ? (
+              <span className="rounded-pill border border-black/10 bg-black/[0.03] px-2.5 py-0.5 text-[11px] font-medium capitalize text-muted">
+                {code.status}
+              </span>
+            ) : null}
+          </div>
+          {code ? (
+            <>
+              <p className="mt-4 inline-flex max-w-full items-center rounded-control border border-black/10 bg-black/[0.02] px-4 py-2.5 font-mono text-lg font-semibold tracking-wide text-text">
+                {code.code}
+              </p>
+              <div className="mt-5 grid grid-cols-2 gap-3 sm:max-w-md">
+                <div className="rounded-control border border-black/[0.06] bg-surface/80 px-3 py-2.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Attributed signups</p>
+                  <p className="mt-1 text-xl font-semibold tabular-nums text-text">{code.attributableSignupsCount}</p>
                 </div>
-                {copyHint ? <p className="text-xs text-muted">{copyHint}</p> : null}
+                <div className="rounded-control border border-black/[0.06] bg-surface/80 px-3 py-2.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Redemption cap</p>
+                  <p className="mt-1 text-xl font-semibold tabular-nums text-text">{code.maxRedemptions}</p>
+                </div>
               </div>
-            ) : (
-              <p className="mt-3 text-sm text-muted">A share link will appear when the app URL is configured.</p>
-            )}
-          </>
-        ) : (
-          <p className="mt-3 text-sm text-muted">No referral code is available for your account yet.</p>
-        )}
+              {shareUrl ? (
+                <div className="mt-6 space-y-3 border-t border-black/10 pt-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Share link</p>
+                  <p className="break-all rounded-control border border-black/[0.06] bg-black/[0.02] px-3 py-2 text-xs leading-relaxed text-muted">
+                    {shareUrl}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" className="btn-primary px-4 py-2.5 text-sm" onClick={() => void handleCopyLink()}>
+                      Copy link
+                    </button>
+                    {typeof navigator !== "undefined" && typeof navigator.share === "function" ? (
+                      <button
+                        type="button"
+                        className="btn-secondary px-4 py-2.5 text-sm"
+                        onClick={() => void handleNativeShare()}
+                      >
+                        Share…
+                      </button>
+                    ) : null}
+                  </div>
+                  {copyHint ? <p className="text-xs text-muted">{copyHint}</p> : null}
+                </div>
+              ) : (
+                <p className="mt-5 text-sm text-muted">A share link appears when the app URL is configured.</p>
+              )}
+            </>
+          ) : (
+            <p className="mt-4 text-sm text-muted">No referral code is available for your account yet.</p>
+          )}
+        </div>
       </div>
 
       <div className="surface-card px-4 py-5 sm:px-6">
-        <h2 className="text-sm font-semibold text-text">Your progress as a referrer</h2>
-        <p className="mt-2 text-sm text-muted">
-          Qualified referrals:{" "}
-          <span className="font-semibold text-text">{data.qualifiedReferralsCount}</span>
-        </p>
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">Performance</h2>
+        <p className="mt-3 text-3xl font-semibold tabular-nums tracking-tight text-text">{data.qualifiedReferralsCount}</p>
+        <p className="mt-1 text-sm text-muted">Qualified referrals</p>
       </div>
 
       {data.attributionAsReferee ? (
-        <div className="surface-card px-4 py-5 sm:px-6">
-          <h2 className="text-sm font-semibold text-text">Someone invited you</h2>
+        <div className="surface-card border-l-[3px] border-l-sky-500/80 px-4 py-5 sm:px-6">
+          <h2 className="text-sm font-semibold text-text">You used someone&apos;s invite</h2>
           <p className="mt-2 text-sm font-medium text-text">{attributionHeadline(data.attributionAsReferee.status)}</p>
           <p className="mt-1 text-xs text-muted">
-            Updated {new Date(data.attributionAsReferee.attributedAt).toLocaleString()}
+            Updated{" "}
+            {data.attributionAsReferee.attributedAt
+              ? new Date(data.attributionAsReferee.attributedAt).toLocaleString()
+              : "—"}
           </p>
         </div>
       ) : null}

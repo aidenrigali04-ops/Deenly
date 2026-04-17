@@ -10,6 +10,10 @@ Ordered backlog for **user readiness** and production maturity. Each row can bec
 - Marketplace: category/price filters when listing volume justifies them.  
 - Optional: thread screen on stack (Messages) instead of inline scroll-only thread.
 
+## Engineering / tooling
+
+- **Backend ESLint + Jest globals:** `cd backend && npm run lint` fails with `no-undef` for Jest globals (e.g. `afterEach` in `backend/test/rewards-admin-ingest.test.js`). Fix by adding Jest `globals` for `backend/test/**/*.js` in `backend/eslint.config.cjs`, using `/* eslint-env jest */`, or importing `afterEach` from `@jest/globals` where needed. **Not caused by the Rewards / referrals buyer API sprint feature work** — hygiene-only follow-up. Sprint closure: [docs/sprints/SPRINT_REWARDS_REFERRALS_BUYER_API.md](./sprints/SPRINT_REWARDS_REFERRALS_BUYER_API.md).
+
 ## Reliability
 
 - Dedicated **staging** environment; document URLs in team wiki.  

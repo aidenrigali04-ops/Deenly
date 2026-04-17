@@ -1,9 +1,16 @@
 /**
  * Payment integration boundary for seller boosts.
- * Wire Stripe Checkout / webhooks here later; callers complete purchases via
- * {@link createSellerBoostService}#recordPaymentCompleted when payment is confirmed.
+ * Production: Stripe Checkout session is created via {@link monetizationGateway.createCheckoutSession}
+ * (`kind: "seller_boost"`); webhooks call {@link createSellerBoostService}#recordPaymentCompleted.
+ *
+ * @typedef {object} SellerBoostPaymentPort
+ * @property {string} provider
+ * @property {() => Promise<{ checkoutUrl: string | null, clientSecret: string | null }>} [createHostedCheckout] Optional alternate checkout path.
  */
 
+/**
+ * @returns {SellerBoostPaymentPort}
+ */
 function createStubSellerBoostPaymentPort() {
   return {
     provider: "stub",

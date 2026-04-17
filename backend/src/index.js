@@ -41,7 +41,8 @@ const rewardsCheckoutService = createRewardsCheckoutService({
   db,
   rewardsLedgerService,
   config,
-  logger
+  logger,
+  trustFlagService
 });
 
 const referralRepository = createReferralRepository();

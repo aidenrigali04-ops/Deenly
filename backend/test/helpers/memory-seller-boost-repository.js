@@ -71,6 +71,20 @@ function createMemorySellerBoostRepository(opts = {}) {
     return { ...row };
   }
 
+  async function mergePurchaseMetadata(_client, purchaseId, sellerUserId, patch) {
+    const row = purchases.get(Number(purchaseId));
+    if (!row || row.seller_user_id !== sellerUserId) {
+      return false;
+    }
+    if (row.status !== "pending_payment" && row.status !== "active") {
+      return false;
+    }
+    const prev = row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata) ? row.metadata : {};
+    row.metadata = { ...prev, ...patch };
+    row.updated_at = new Date();
+    return true;
+  }
+
   async function activateFromPending(_client, purchaseId, sellerUserId, fields) {
     const row = purchases.get(Number(purchaseId));
     if (!row || row.seller_user_id !== sellerUserId || row.status !== "pending_payment") {
@@ -170,6 +184,11 @@ function createMemorySellerBoostRepository(opts = {}) {
     return getPurchaseByIdForSeller(null, purchaseId, sellerUserId);
   }
 
+  async function fetchPurchaseById(_poolQuery, purchaseId) {
+    const row = purchases.get(Number(purchaseId));
+    return row ? { ...row } : null;
+  }
+
   async function fetchTargetsForPurchase(poolQuery, purchaseId) {
     void poolQuery;
     return listTargetsForPurchase(null, purchaseId);
@@ -190,6 +209,7 @@ function createMemorySellerBoostRepository(opts = {}) {
     findPurchaseBySellerIdempotency,
     insertPurchaseWithTargets,
     getPurchaseByIdForSeller,
+    mergePurchaseMetadata,
     activateFromPending,
     cancelPending,
     markRefunded,
@@ -198,6 +218,7 @@ function createMemorySellerBoostRepository(opts = {}) {
     insertImpressionIfActiveTarget,
     listTargetsForPurchase,
     fetchPurchaseForSeller,
+    fetchPurchaseById,
     fetchTargetsForPurchase,
     listPurchasesForSeller,
     _impressions: () => impressions.slice(),
@@ -207,10 +228,26 @@ function createMemorySellerBoostRepository(opts = {}) {
   };
 }
 
-function createMemoryDbForSellerBoost() {
+/**
+ * @param {ReturnType<typeof createMemorySellerBoostRepository> | null} repository When set, supports
+ * `fetchPurchaseById` pool queries used after impression writes in {@link createSellerBoostService}.
+ */
+function createMemoryDbForSellerBoost(repository = null) {
   return {
     withTransaction: async (fn) => fn({}),
-    query: async () => {
+    query: async (text, params) => {
+      if (
+        repository &&
+        typeof text === "string" &&
+        text.includes("seller_boost_purchases") &&
+        text.includes("WHERE id = $1") &&
+        !text.includes("seller_user_id") &&
+        Array.isArray(params) &&
+        params.length === 1
+      ) {
+        const row = await repository.fetchPurchaseById(async () => {}, params[0]);
+        return { rowCount: row ? 1 : 0, rows: row ? [{ ...row }] : [] };
+      }
       throw new Error("use repository pool helpers or withTransaction only in memory tests");
     }
   };

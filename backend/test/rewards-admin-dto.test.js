@@ -1,6 +1,7 @@
 const {
   toRewardLedgerEntryListItemDto,
-  toReferralAttributionQueueItemDto
+  toReferralAttributionQueueItemDto,
+  toRewardFraudFlagQueueItemDto
 } = require("../src/modules/admin/rewards-admin-dto");
 
 describe("rewards-admin-dto", () => {
@@ -49,5 +50,28 @@ describe("rewards-admin-dto", () => {
     expect(dto.id).toBe(3);
     expect(dto.firstQualifiedOrderId).toBe(55);
     expect(dto.status).toBe("pending_clear");
+  });
+
+  it("maps reward_fraud_flags row", () => {
+    const dto = toRewardFraudFlagQueueItemDto({
+      id: 9,
+      flag_type: "ledger_velocity",
+      severity: "high",
+      status: "open",
+      subject_user_id: 3,
+      related_entity_type: "post",
+      related_entity_id: "12",
+      reward_ledger_entry_id: null,
+      referral_attribution_id: null,
+      seller_boost_purchase_id: null,
+      reviewer_user_id: null,
+      reviewed_at: null,
+      metadata: {},
+      created_at: new Date("2025-01-01T00:00:00.000Z"),
+      updated_at: new Date("2025-01-01T00:00:00.000Z")
+    });
+    expect(dto.id).toBe(9);
+    expect(dto.flagType).toBe("ledger_velocity");
+    expect(dto.relatedEntityId).toBe("12");
   });
 });

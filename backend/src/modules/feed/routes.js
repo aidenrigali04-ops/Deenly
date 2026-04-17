@@ -3,10 +3,8 @@ const jwt = require("jsonwebtoken");
 const { asyncHandler } = require("../../utils/async-handler");
 const { httpError } = require("../../utils/http-error");
 const { requireAccessSecret } = require("../../middleware/auth");
-const { getFeedRankModifierBindings } = require("./feed-rank-modifiers");
+const { getFeedRankModifierBindings, getFeedEngagementProxyBindings } = require("./feed-rank-modifiers");
 const { buildSellerBoostTierPointsCaseSql } = require("../../config/seller-boost-catalog");
-
-const SELLER_BOOST_TIER_CASE_SQL = buildSellerBoostTierPointsCaseSql();
 
 function decodeCursor(cursor) {
   if (!cursor) {
@@ -69,6 +67,7 @@ async function getViewerIdFromAuthHeader({ db, config, authorization }) {
 
 function createFeedRouter({ db, config, mediaStorage, analytics: feedAnalytics = null }) {
   const router = express.Router();
+  const sellerBoostTierCaseSql = buildSellerBoostTierPointsCaseSql(config);
 
   async function getRankedEventCandidates({
     db,
@@ -470,6 +469,7 @@ function createFeedRouter({ db, config, mediaStorage, analytics: feedAnalytics =
       }
 
       const rankModifiers = getFeedRankModifierBindings(config);
+      const engagementProxy = getFeedEngagementProxyBindings(config);
       const result = await db.query(
         `WITH viewer_behavior AS (
            SELECT
@@ -659,7 +659,7 @@ function createFeedRouter({ db, config, mediaStorage, analytics: feedAnalytics =
                       COALESCE(
                         (
                           SELECT LEAST(
-                            COALESCE(SUM(${SELLER_BOOST_TIER_CASE_SQL}), 0::numeric),
+                            COALESCE(SUM(${sellerBoostTierCaseSql}), 0::numeric),
                             $36::numeric
                           )
                           FROM seller_boost_targets t
@@ -812,14 +812,17 @@ function createFeedRouter({ db, config, mediaStorage, analytics: feedAnalytics =
                       WHEN post_agg.trust_report_count > 0 THEN 0::numeric
                       ELSE LEAST(
                         1::numeric,
-                        LEAST(COALESCE(post_agg.avg_completion_rate, 0), 1) * 0.44::numeric
-                        + LEAST(COALESCE(post_agg.view_count, 0)::numeric / 4000.0, 1::numeric) * 0.28::numeric
+                        LEAST(COALESCE(post_agg.avg_completion_rate, 0), 1) * $39::numeric
+                        + LEAST(
+                          COALESCE(post_agg.view_count, 0)::numeric / NULLIF($40::numeric, 0),
+                          1::numeric
+                        ) * $41::numeric
                         + LEAST(
                           (
                             COALESCE(post_agg.comment_count, 0) + COALESCE(post_agg.benefited_count, 0)
-                          )::numeric / 55.0,
+                          )::numeric / NULLIF($42::numeric, 0),
                           1::numeric
-                        ) * 0.28::numeric
+                        ) * $43::numeric
                       )
                     END AS rewards_engagement_proxy,
                     CASE
@@ -882,7 +885,12 @@ function createFeedRouter({ db, config, mediaStorage, analytics: feedAnalytics =
           rankModifiers.weightSellerTrustPerReport,
           Number(config.feedSellerBoostRankCap ?? 60),
           Boolean(config.feedSellerBoostRankingEnabled),
-          Number(config.feedSellerBoostRankWeight ?? 1)
+          Number(config.feedSellerBoostRankWeight ?? 1),
+          engagementProxy.weightCompletion,
+          engagementProxy.viewCapDivisor,
+          engagementProxy.weightViews,
+          engagementProxy.socialCapDivisor,
+          engagementProxy.weightSocial
         ]
       );
 

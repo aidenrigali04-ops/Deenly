@@ -9,6 +9,7 @@ export async function signup(input: {
   displayName: string;
   businessOffering?: string | null;
   websiteUrl?: string | null;
+  referralCode?: string | null;
 }) {
   const result = await apiRequest<AuthResponse>("/auth/register", {
     method: "POST",
@@ -27,10 +28,15 @@ export async function login(input: { email: string; password: string }) {
   return result;
 }
 
-export async function loginWithGoogle(input: { accessToken: string }) {
+export async function loginWithGoogle(input: { accessToken: string; referralCode?: string | null }) {
+  const body: { accessToken: string; referralCode?: string } = { accessToken: input.accessToken };
+  const ref = typeof input.referralCode === "string" ? input.referralCode.trim() : "";
+  if (ref) {
+    body.referralCode = ref;
+  }
   const result = await apiRequest<AuthResponse>("/auth/google", {
     method: "POST",
-    body: input
+    body
   });
   setTokens(result.tokens.accessToken, result.tokens.refreshToken);
   return result;

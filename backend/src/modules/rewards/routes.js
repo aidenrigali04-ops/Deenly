@@ -1,7 +1,7 @@
 const express = require("express");
 const { authenticate } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
-const { optionalString } = require("../../utils/validators");
+const { parseRewardsLedgerQuery } = require("./rewards-route-params");
 
 function createRewardsRouter({ config, db, rewardsReadService }) {
   const router = express.Router();
@@ -11,8 +11,8 @@ function createRewardsRouter({ config, db, rewardsReadService }) {
     "/me",
     auth,
     asyncHandler(async (req, res) => {
-      const body = await rewardsReadService.getWalletMe({ userId: req.user.id });
-      res.status(200).json(body);
+      const dto = await rewardsReadService.getWalletMe({ userId: req.user.id });
+      res.status(200).json(dto);
     })
   );
 
@@ -20,21 +20,13 @@ function createRewardsRouter({ config, db, rewardsReadService }) {
     "/ledger",
     auth,
     asyncHandler(async (req, res) => {
-      const cursor = optionalString(req.query.cursor, "cursor");
-      const limitRaw = req.query.limit;
-      let limit = 20;
-      if (limitRaw != null && limitRaw !== "") {
-        const n = Number(limitRaw);
-        if (Number.isFinite(n)) {
-          limit = Math.min(100, Math.max(1, Math.floor(n)));
-        }
-      }
-      const body = await rewardsReadService.getLedgerPage({
+      const { cursor, limit } = parseRewardsLedgerQuery(req.query);
+      const dto = await rewardsReadService.getLedgerPage({
         userId: req.user.id,
-        cursor: cursor || null,
+        cursor,
         limit
       });
-      res.status(200).json(body);
+      res.status(200).json(dto);
     })
   );
 

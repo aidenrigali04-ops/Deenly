@@ -156,7 +156,7 @@ export interface FeedRankingModifierCapsConfig {
 }
 
 /** Admin POST body for referral attribution review (see rewards-admin routes). */
-export type ReferralAttributionAdminReviewAction = "mark_reviewed" | "reject";
+export type ReferralAttributionAdminReviewAction = "mark_reviewed" | "reject" | "release_hold";
 
 /**
  * Single umbrella config for clients / docs: growth bundle + trust + boost scheduling + feed caps.

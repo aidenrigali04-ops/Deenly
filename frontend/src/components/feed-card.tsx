@@ -8,6 +8,8 @@ import { resolveMediaUrl } from "@/lib/media-url";
 import { PaymentHandoffDialog } from "@/components/payment/payment-handoff-dialog";
 import { formatMinorCurrency } from "@/lib/monetization";
 import { PostCommentsBlock } from "@/components/post-comments-block";
+import { FigmaRasterIcon } from "@/components/social/figma-raster-icon";
+import { figmaSocialIcons } from "@/lib/figma-social-icons";
 
 function feedPostTypeLabel(postType: string) {
   if (postType === "marketplace") {
@@ -48,7 +50,7 @@ export function FeedCard({
   item: FeedItem;
   onToggleFollow?: (authorId: number, currentlyFollowing: boolean) => void;
   followBusy?: boolean;
-  layout?: "default" | "home";
+  layout?: "default" | "home" | "social";
 }) {
   const reducedMotion = useReducedMotion();
   const [mediaFailed, setMediaFailed] = useState(false);
@@ -180,6 +182,157 @@ export function FeedCard({
       currency={checkoutHandoff?.currency ?? "usd"}
     />
   );
+
+  if (layout === "social") {
+    return (
+      <>
+        <article className="feed-card-root group relative overflow-hidden rounded-[32px] bg-social-card text-white shadow-[0_12px_36px_rgba(0,0,0,0.35)]">
+          <div
+            className="pointer-events-none absolute inset-x-0 top-0 z-[1] h-32 bg-gradient-to-b from-black/40 to-transparent"
+            aria-hidden
+          />
+          <div className="relative z-[2] flex items-center justify-between px-5 pt-[19px]">
+            <div className="flex min-w-0 items-center gap-2 rounded-full border border-white/12 bg-white/[0.12] py-1.5 pl-2 pr-[18px] backdrop-blur-[5px]">
+              <span className="grid h-[42px] w-[42px] shrink-0 place-items-center overflow-hidden rounded-full bg-white text-xs font-semibold text-black" aria-hidden>
+                {authorAvatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={authorAvatarUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  initials || "U"
+                )}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium leading-4">{item.author_display_name}</p>
+                <p className="truncate text-xs font-normal leading-4 text-white/90">
+                  {item.sponsored ? `${item.sponsored_label || "Sponsored"} · ` : ""}
+                  {new Date(item.created_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                </p>
+              </div>
+            </div>
+            <Link
+              href={`/posts/${item.id}`}
+              className="grid h-[54px] w-[54px] shrink-0 place-items-center rounded-full border border-white/12 bg-white/10 text-white/90 shadow-[8px_4px_28px_rgba(0,0,0,0.12)]"
+              aria-label="Post options"
+            >
+              <FigmaRasterIcon src={figmaSocialIcons.feedMore} size={20} className="opacity-95" />
+            </Link>
+          </div>
+
+          <div className="relative z-[2] mt-3 min-h-[200px] px-5">
+            {canRenderMedia ? (
+              <div className="overflow-hidden rounded-2xl">
+                {isImageMedia(item) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={mediaUrl}
+                    alt=""
+                    className="feed-card-media-inner aspect-[4/5] w-full bg-black/30 object-cover"
+                    onError={() => setMediaFailed(true)}
+                  />
+                ) : (
+                  <video
+                    controls
+                    className="feed-card-media-inner aspect-[4/5] w-full bg-black/30 object-cover"
+                    onError={() => setMediaFailed(true)}
+                  >
+                    <source src={mediaUrl} />
+                  </video>
+                )}
+              </div>
+            ) : (
+              <div className="flex aspect-[4/5] items-center justify-center rounded-2xl bg-black/25 px-4 text-center text-sm text-white/60">
+                {item.media_url ? "Media unavailable" : feedReflectionLabel(item.post_type)}
+              </div>
+            )}
+          </div>
+
+          <div className="relative z-[2] space-y-3 px-5 pb-5 pt-3">
+            <p className="text-sm font-normal leading-[18px] text-white">{item.content}</p>
+            <div className="flex items-center justify-between gap-2 text-white">
+              <div className="flex items-center gap-[54px]">
+                <motion.button
+                  type="button"
+                  className="flex items-center gap-1 border-none bg-transparent p-0 text-base font-medium leading-5 text-white"
+                  onClick={() => likeMutation.mutate(!liked)}
+                  disabled={likeMutation.isPending}
+                  aria-label="Like post"
+                  {...likeTapProps}
+                >
+                  <motion.span
+                    className="grid h-7 w-7 place-items-center"
+                    key={likeBounceKey}
+                    initial={false}
+                    animate={
+                      reducedMotion || likeBounceKey === 0
+                        ? { scale: 1 }
+                        : { scale: [1, 1.12, 1] }
+                    }
+                    transition={{ duration: 0.34, ease: [0.34, 1.45, 0.64, 1] }}
+                  >
+                    <FigmaRasterIcon
+                      src={figmaSocialIcons.feedLike}
+                      size={28}
+                      className={liked ? "opacity-100 drop-shadow-[0_0_6px_rgba(254,177,1,0.35)]" : "opacity-90"}
+                    />
+                  </motion.span>
+                  <span>{benefitedCount >= 1000 ? `${(benefitedCount / 1000).toFixed(0)}K` : benefitedCount}</span>
+                </motion.button>
+                <motion.button
+                  type="button"
+                  className="flex items-center gap-1 border-none bg-transparent p-0 text-base font-medium leading-5 text-white"
+                  aria-label={commentsOpen ? "Hide comments" : "Comments"}
+                  aria-expanded={commentsOpen}
+                  onClick={() => setCommentsOpen((open) => !open)}
+                  {...likeTapProps}
+                >
+                  <span className="grid h-7 w-7 place-items-center">
+                    <FigmaRasterIcon src={figmaSocialIcons.feedComment} size={28} />
+                  </span>
+                  <span>{commentCount >= 1000 ? `${(commentCount / 1000).toFixed(1)}K` : commentCount}</span>
+                </motion.button>
+                <span className="flex items-center gap-1 text-base font-medium leading-5 text-white">
+                  <span className="grid h-7 w-7 place-items-center">
+                    <FigmaRasterIcon src={figmaSocialIcons.feedSave} size={28} />
+                  </span>
+                  <span>{item.reflect_later_count || 0}</span>
+                </span>
+              </div>
+            </div>
+            {hasAttachedProduct ? (
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                <p className="text-xs font-semibold text-white">{item.attached_product_title || "Creator product"}</p>
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <p className="text-xs text-white/70">
+                    {formatMinorCurrency(
+                      Number(item.attached_product_price_minor || 0),
+                      item.attached_product_currency || "usd"
+                    )}
+                  </p>
+                  <button
+                    type="button"
+                    className="rounded-full border border-social-accent/60 bg-social-accent/15 px-3 py-1 text-xs font-semibold text-social-accent"
+                    onClick={openAttachedCheckout}
+                  >
+                    {attachedProductType === "digital" ? "Buy" : "View"}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+            {commentsOpen ? (
+              <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+                <PostCommentsBlock
+                  postId={item.id}
+                  compact
+                  onCommentCountDelta={(delta) => setCommentCount((c) => Math.max(0, c + delta))}
+                />
+              </div>
+            ) : null}
+          </div>
+        </article>
+        {handoffDialog}
+      </>
+    );
+  }
 
   if (layout === "home") {
     return (

@@ -140,7 +140,10 @@ export function ReferralsScreen({ navigation }: Props) {
           <Text style={styles.cardTitle}>You were invited</Text>
           <Text style={styles.body}>{attributionHeadline(data.attributionAsReferee.status)}</Text>
           <Text style={styles.mutedSmall}>
-            Since {new Date(data.attributionAsReferee.attributedAt).toLocaleString()}
+            Since{" "}
+            {data.attributionAsReferee.attributedAt
+              ? new Date(data.attributionAsReferee.attributedAt).toLocaleString()
+              : "—"}
           </Text>
         </View>
       ) : null}

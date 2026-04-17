@@ -14,6 +14,11 @@ const { throwIfAnyUserFacingPolicyViolation } = require("../../utils/content-saf
 const { notifyAfterAdBoostPayment } = require("../../services/ad-boost-notifications");
 const { getTrustSignalThresholds } = require("../trust/trust-signal-thresholds");
 const { registerRewardsAdminRoutes } = require("../admin/rewards-admin-routes");
+const {
+  SellerBoostInvalidStateError,
+  SellerBoostNotFoundError
+} = require("../seller-boosts/seller-boost-errors");
+const { createRankingSignalHooks } = require("../feed/feed-rank-signals");
 
 function extractCheckoutCustomerContact(sessionObj) {
   const d = sessionObj?.customer_details || {};
@@ -207,6 +212,7 @@ function createMonetizationRouter({
   const authMiddleware = authenticate({ config, db });
   const optionalAuthMiddleware = authenticateOptional({ config, db });
   const log = logger || { info: () => {}, error: () => {}, warn: () => {} };
+  const rankingSignalHooks = createRankingSignalHooks({ db, analytics, config, trustFlagService });
 
   if (!monetizationGateway) {
     throw new Error("monetizationGateway is required");
@@ -1802,6 +1808,14 @@ function createMonetizationRouter({
             currency: product.currency,
             rewardLedgerSpendEntryId: spendLedgerEntry.id
           });
+          await rewardsCheckoutService.notifyTrustAfterRedemptionPersisted({
+            buyerUserId: req.user.id,
+            productId: product.id,
+            listPriceMinor,
+            discountMinor: plan.discountMinor,
+            pointsSpent: plan.pointsToSpend,
+            rewardLedgerSpendEntryId: spendLedgerEntry.id
+          });
         } catch (recErr) {
           log.error({ err: recErr, sessionId: session.id }, "checkout_reward_redemption_record_failed");
           try {
@@ -2252,6 +2266,31 @@ function createMonetizationRouter({
               });
             }
           }
+          if (isFullRefund && sellerBoostService) {
+            const sbp = await db.query(
+              `SELECT id, seller_user_id
+               FROM seller_boost_purchases
+               WHERE metadata->>'stripePaymentIntentId' = $1
+               LIMIT 2`,
+              [pi]
+            );
+            if (sbp.rowCount > 1) {
+              log.warn({ pi, count: sbp.rowCount }, "seller_boost_refund_ambiguous_payment_intent_match");
+            } else if (sbp.rowCount === 1) {
+              try {
+                await sellerBoostService.recordPurchaseRefunded({
+                  purchaseId: Number(sbp.rows[0].id),
+                  sellerUserId: Number(sbp.rows[0].seller_user_id)
+                });
+              } catch (err) {
+                const benign =
+                  err instanceof SellerBoostInvalidStateError || err instanceof SellerBoostNotFoundError;
+                if (!benign) {
+                  log.warn({ err, pi }, "seller_boost_refund_webhook_failed");
+                }
+              }
+            }
+          }
         }
         return res.status(200).json({ received: true, processed: true, kind: "charge.refunded" });
       }
@@ -2337,6 +2376,13 @@ function createMonetizationRouter({
         const buyerUserId = Number(checkoutMeta.buyerUserId);
         const purchaseId = Number(checkoutMeta.sellerBoostPurchaseId);
         const stripeSessionId = String(checkoutObj.id || "");
+        const rawPi = checkoutObj.payment_intent;
+        const stripePaymentIntentId =
+          typeof rawPi === "string"
+            ? rawPi
+            : rawPi && typeof rawPi === "object" && rawPi.id != null
+              ? String(rawPi.id)
+              : "";
         if (!paid || !stripeSessionId || !Number.isInteger(purchaseId) || purchaseId <= 0 || !Number.isInteger(buyerUserId)) {
           return res.status(200).json({ received: true, ignored: true, reason: "seller_boost_invalid_meta" });
         }
@@ -2368,7 +2414,8 @@ function createMonetizationRouter({
             purchaseId,
             sellerUserId: buyerUserId,
             paymentConfirmationId: stripeSessionId,
-            checkoutSessionId: stripeSessionId
+            checkoutSessionId: stripeSessionId,
+            stripePaymentIntentId: stripePaymentIntentId || undefined
           });
           return res.status(200).json({
             received: true,
@@ -2633,6 +2680,20 @@ function createMonetizationRouter({
           await referralService.onOrderCompleted({ orderId: completedOrderId });
         } catch (err) {
           log.warn({ err, orderId: completedOrderId }, "referral_order_completed_hook_failed");
+        }
+      }
+
+      if (completedOrderId != null && sessionRow.kind === "product" && sessionRow.product_id) {
+        try {
+          await rankingSignalHooks.onCommerceRankingSignalsUpdated({
+            productId: Number(sessionRow.product_id),
+            orderId: completedOrderId,
+            buyerUserId: Number(sessionRow.buyer_user_id),
+            sellerUserId: Number(sessionRow.seller_user_id),
+            orderAmountMinor: amountMinor
+          });
+        } catch (err) {
+          log.warn({ err, orderId: completedOrderId }, "ranking_signal_commerce_hook_failed");
         }
       }
 
@@ -3265,7 +3326,8 @@ function createMonetizationRouter({
       modGuard: (_req, _res, next) => next(),
       analytics,
       config,
-      rewardsLedgerService
+      rewardsLedgerService,
+      referralService
     },
     { routeBase: "" }
   );

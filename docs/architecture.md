@@ -32,6 +32,10 @@ Reserved for Sprint 2+ implementation; see folder READMEs:
 - `frontend/src/lib/rewards.ts` (re-export)
 - `mobile/src/lib/rewards/README.md` + `index.ts` (re-export)
 
+### Feed ranking modifiers (Growth)
+
+**Implemented (backend):** `GET /api/feed` (and `/api/v1/feed`) composes `rank_score` from chronology plus engagement, trust penalties, tab/intent boosts, and optional **rewards growth modifiers** when `FEED_REWARDS_RANKING_ENABLED=true`. Commerce-only terms (sales velocity `LN(1+orders)`, conversion proxy, product boost tier) apply on marketplace tab; combined positive modifiers are **LEAST-capped** with a **boost dominance** guardrail (`assertFeedRankModifierGuardrails` at config load). Seller boost catalog points are capped separately and gated by `FEED_SELLER_BOOST_RANKING_ENABLED`. Signal **ingestion** is live-read from `post_views`, `interactions`, `orders`, `reports`, and `seller_boost_*`; `feed-rank-signals.js` emits sampled `feed_ranking_signal_ingested` analytics on view writes and product order completion (no separate materialized ranking store yet).
+
 ### References
 
 - [api-contracts.md](./api-contracts.md) — planned HTTP shapes.

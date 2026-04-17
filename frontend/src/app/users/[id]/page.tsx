@@ -352,7 +352,7 @@ export default function UserProfilePage() {
 
   return (
     <div className="page-stack">
-      <ProfilePageShell variant="compactFooter">
+      <ProfilePageShell variant="compactFooter" appearance="social">
         <ProfileLayoutColumns
           avatar={avatarBlock}
           main={

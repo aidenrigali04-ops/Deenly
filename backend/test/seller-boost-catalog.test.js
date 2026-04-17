@@ -36,4 +36,10 @@ describe("seller-boost-catalog", () => {
     }
     expect(sql).toContain("CASE sbp.package_tier_id");
   });
+
+  it("buildSellerBoostTierPointsCaseSql clamps per-tier points using sellerBoostRankModifierPointsCap", () => {
+    const sql = buildSellerBoostTierPointsCaseSql({ sellerBoostRankModifierPointsCap: 10 });
+    expect(sql).toContain("WHEN 'seller_rank_assist_14d' THEN 10::numeric");
+    expect(sql).not.toContain("WHEN 'seller_rank_assist_14d' THEN 35::numeric");
+  });
 });

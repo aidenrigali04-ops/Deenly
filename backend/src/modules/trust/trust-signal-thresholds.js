@@ -35,7 +35,17 @@ function getTrustSignalThresholds(config) {
     referralFlagDisposableRefereeEmail: c.trustReferralFlagDisposableRefereeEmail !== false,
     referralFlagSharedSignupIp: c.trustReferralFlagSharedSignupIp !== false,
     referralBlockDisposableEmail: Boolean(c.trustReferralBlockDisposableEmail),
-    disposableEmailDomains
+    disposableEmailDomains,
+    /** Completed product order amount (currency minor) at or above → ranking-domain review flag. 0 = off. */
+    commerceOrderFlagMinor: Math.max(0, Math.round(Number(c.trustCommerceOrderFlagMinor ?? 500_000))),
+    /** Points discount / list price ratio at or above (basis points, 10000 = 100%). 0 = off. */
+    rewardsCheckoutDiscountFlagBps: Math.max(0, Math.round(Number(c.trustRewardsCheckoutDiscountFlagBps ?? 9000))),
+    /** Emit info-level flag when checkout redemption ledger row is reversed. */
+    rewardsCheckoutReversalFlag: c.trustRewardsCheckoutReversalFlag !== false,
+    /** Seller boost payment at or above this amount_minor → boost-domain flag. 0 = off. */
+    sellerBoostSpendFlagMinor: Math.max(0, Math.round(Number(c.trustSellerBoostSpendFlagMinor ?? 1500))),
+    /** After qualified referral payout is clawed back (refund), flag referrer for review. */
+    referralClawbackFlagEnabled: c.trustReferralClawbackFlagEnabled !== false
   };
 }
 

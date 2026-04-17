@@ -113,4 +113,28 @@ describe("createReferralReadService", () => {
       expect.objectContaining({ userId: 5, surface: "copy_link" })
     );
   });
+
+  it("peekReferralCode maps service output and tracks referral_code_preview_viewed", async () => {
+    const { read, analytics, memRepo } = makeReadStack();
+    await memRepo.insertReferralCode(null, {
+      referrer_user_id: 3,
+      code: "SvcPeek",
+      status: "active",
+      max_redemptions: 5
+    });
+    jest.clearAllMocks();
+    const ok = await read.peekReferralCode({ rawReferralCode: "SvcPeek" });
+    expect(ok).toEqual({ valid: true, exhausted: false });
+    expect(analytics.trackEvent).toHaveBeenCalledWith(
+      "referral_code_preview_viewed",
+      expect.objectContaining({ valid: true, reason: null, exhausted: false })
+    );
+    jest.clearAllMocks();
+    const bad = await read.peekReferralCode({ rawReferralCode: "nope" });
+    expect(bad).toEqual({ valid: false, reason: "invalid_code" });
+    expect(analytics.trackEvent).toHaveBeenCalledWith(
+      "referral_code_preview_viewed",
+      expect.objectContaining({ valid: false, reason: "invalid_code", exhausted: null })
+    );
+  });
 });

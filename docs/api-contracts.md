@@ -1,6 +1,6 @@
 # API contracts (Deenly)
 
-<!-- TODO(Rewards-Growth-Sprint2): Replace stubs with OpenAPI fragment or copy-paste JSON examples from implementation. -->
+<!-- TODO(Rewards-Growth-Sprint2): OpenAPI fragment or copy-paste JSON examples for each table below. -->
 
 Stable public API prefix: **`/api/v1`** (see backend README).
 
@@ -37,9 +37,37 @@ Authoritative shapes today live in route handlers under `backend/src/modules/*`.
 | Method | Path | Description |
 | ------ | ---- | ----------- |
 | `GET` | `/api/v1/referrals/me` | Referral code summary, referee attribution, qualified count. Server analytics: `referral_program_viewed`. |
+| `GET` | `/api/v1/referrals/code-preview` | Query: `code` (required). Read-only validity / exhaustion for signup UX (no auth). Server analytics: `referral_code_preview_viewed`. |
 | `POST` | `/api/v1/referrals/me/share` | Optional body `{ "surface": string }` — records `referral_share_recorded` (analytics only). |
 
 **Lifecycle (server-only, not REST):** Signup attribution, first qualifying purchase → hold (`pending_clear`) → release (`qualified`) with points idempotency keys, refund/chargeback invalidation, and `releasePendingReferralsIfReady` — see `backend/src/modules/referrals/referral-service.js` and monetization order hooks.
+
+**Client signup:** Optional JSON body field **`referralCode`** (string, trimmed, max length per server validation) on **`POST /api/v1/auth/register`** and **`POST /api/v1/auth/google`**. When `referralService` is wired, the server runs non-blocking `tryAttributeOnSignup` after the user row exists. The web app reads `?referralCode=` on `/auth/signup` and calls **`GET /api/v1/referrals/code-preview?code=`** for UX only.
+
+### Rewards admin (moderator / admin)
+
+**Base path:** `GET/POST /api/v1/admin/rewards/*` (same handlers mirrored under `/api/v1/monetization/admin/rewards/*` when monetization router mounts the rewards admin bundle).
+
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| `GET` | `/admin/rewards/ledger-entries` | Paginated ledger (`userId`, `entryKind`, `reasonPrefix`, `since`, `until`, `limit`, `offset`). |
+| `GET` | `/admin/rewards/ledger-entries/:id` | Ledger entry + optional reversal-of row. |
+| `GET` | `/admin/rewards/referrals/queue` | Referral attributions in `pending_purchase` / `pending_clear` (filters: `status`, `referrerUserId`, `refereeUserId`). |
+| `GET` | `/admin/rewards/referrals/attributions/:id` | Single attribution (+ `referralCode`). |
+| `POST` | `/admin/rewards/referrals/attributions/:id/review` | Body `{ "action": "mark_reviewed" \| "reject" \| "release_hold", "reason"?, "notes"? }` — `release_hold` calls referral release with `forceClearHold` (requires `referralService` + completed qualifying order; rejects non–`pending_clear`). |
+| `POST` | `/admin/rewards/fraud-flags/ingest` | Materializes current heuristic `items` into `reward_fraud_flags` (deduped by `metadata.heuristicFingerprint`). |
+| `GET` | `/admin/rewards/fraud-flags` | Heuristic signals (`items`) + persisted `reward_fraud_flags` slice (`queuedRecords`; query: `queueStatus`, `queueLimit`, `queueOffset`). |
+| `GET` | `/admin/rewards/fraud-flags/records/:id` | Typed fraud-flag row. |
+| `POST` | `/admin/rewards/fraud-flags/records/:id/review` | Body `{ "action": "dismiss" \| "confirm" \| "triage", "notes"? }`; appends `rewards_admin_actions`. |
+| `GET` | `/admin/rewards/redemptions` | Recent `checkout_reward_redemptions` for ops. |
+
+### Creator seller analytics (authenticated seller or elevated `creatorUserId`)
+
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| `GET` | `/creator/analytics/listings` | Per–creator-product views (linked posts), completed orders, gross minor, seller-boost impression counts on linked posts (`limit`, `offset`, optional `creatorUserId` for mods). |
+| `GET` | `/creator/analytics/seller-boosts/summary` | Boost purchase counts + impressions (existing). |
+| `GET` | `/creator/analytics/seller-boosts` | Paginated boost purchases (existing). |
 
 **TODO(Rewards-Growth-Sprint2):** OpenAPI fragments, admin grant routes if any remain public.
 

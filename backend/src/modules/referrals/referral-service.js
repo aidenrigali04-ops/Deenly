@@ -12,6 +12,7 @@ const {
 } = require("./referral-qualification");
 const { generateReferralCodeCandidate } = require("./referral-repository");
 const { getTrustSignalThresholds } = require("../trust/trust-signal-thresholds");
+const { maybeReferralQualifiedClawbackTrustFlag, tryRecordTrustFlag } = require("../trust/trust-surface-flag-builders");
 
 function noopLogger() {
   return { info() {}, warn() {}, error() {} };
@@ -205,7 +206,12 @@ function createReferralService({
    * Ledger earns run in their own transactions (see rewards-ledger-service); never nest them
    * inside referral row locks. Final state flip uses a single UPDATE … WHERE status='pending_clear'.
    */
-  async function tryReleaseQualifiedRewards(attributionId, now = new Date()) {
+  /**
+   * @param {object} [options]
+   * @param {boolean} [options.forceClearHold] Admin-only: release pending_clear even if hold window not elapsed (order must still be completed).
+   */
+  async function tryReleaseQualifiedRewards(attributionId, now = new Date(), options = {}) {
+    const forceClearHold = Boolean(options && options.forceClearHold);
     const c = cfg();
     const gate = await db.withTransaction(async (client) => {
       const locked = await repo.findAttributionByIdForUpdate(client, attributionId);
@@ -224,7 +230,7 @@ function createReferralService({
         });
         return { proceed: false };
       }
-      if (!isClearWindowSatisfied(now, locked.clear_after_at)) {
+      if (!forceClearHold && !isClearWindowSatisfied(now, locked.clear_after_at)) {
         return { proceed: false, reason: "hold_active" };
       }
       const since = startOfUtcDayIso(now);
@@ -484,6 +490,15 @@ function createReferralService({
             orderId,
             reason
           });
+          const thr = getTrustSignalThresholds(cfgSource);
+          const clawbackCandidate = maybeReferralQualifiedClawbackTrustFlag({
+            thresholds: thr,
+            referrerUserId: locked.referrer_user_id,
+            attributionId: locked.id,
+            orderId,
+            reason
+          });
+          await tryRecordTrustFlag(cfgSource, trustFlagService, clawbackCandidate);
           processed += 1;
         }
       });

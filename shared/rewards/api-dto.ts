@@ -48,7 +48,8 @@ export interface ReferralCodeSummaryDto {
 export interface ReferralAttributionSummaryDto {
   readonly id: number;
   readonly status: ReferralAttributionApiStatus;
-  readonly attributedAt: string;
+  /** ISO timestamp when the referee was attributed; null if missing in storage. */
+  readonly attributedAt: string | null;
   readonly firstQualifiedOrderId: number | null;
   readonly clearAfterAt: string | null;
   readonly qualifiedAt: string | null;
@@ -67,9 +68,57 @@ export interface ReferralShareRecordedResponse {
   readonly ok: true;
 }
 
+/** GET /api/v1/referrals/code-preview?code= */
+export interface ReferralCodePeekResponse {
+  readonly valid: boolean;
+  readonly exhausted?: boolean;
+  readonly reason?: string;
+}
+
 /** POST `/api/v1/admin/rewards/referrals/attributions/:id/review` body (subset). */
 export interface AdminReferralAttributionReviewRequest {
   readonly action: ReferralAttributionAdminReviewAction;
+}
+
+/** POST `/api/v1/admin/rewards/fraud-flags/records/:id/review` body. */
+export type AdminRewardFraudFlagReviewAction = "dismiss" | "confirm" | "triage";
+
+export interface AdminRewardFraudFlagReviewRequest {
+  readonly action: AdminRewardFraudFlagReviewAction;
+  readonly notes?: string;
+}
+
+/** GET `/api/v1/admin/rewards/fraud-flags/records/:id` and queue items (camelCase). */
+export interface RewardFraudFlagQueueItemDto {
+  readonly id: number;
+  readonly flagType: string;
+  readonly severity: string;
+  readonly status: string;
+  readonly subjectUserId: number | null;
+  readonly relatedEntityType: string | null;
+  readonly relatedEntityId: string | null;
+  readonly rewardLedgerEntryId: number | null;
+  readonly referralAttributionId: number | null;
+  readonly sellerBoostPurchaseId: number | null;
+  readonly reviewerUserId: number | null;
+  readonly reviewedAt: string | null;
+  readonly metadata: Readonly<Record<string, unknown>>;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+/** GET `/api/v1/creator/analytics/listings` row. */
+export interface SellerListingPerformanceItemDto {
+  readonly productId: number;
+  readonly title: string;
+  readonly productStatus: string;
+  readonly priceMinor: number;
+  readonly currency: string;
+  readonly viewCount: number;
+  readonly completedOrderCount: number;
+  readonly grossMinor: number;
+  /** Impressions recorded on posts linked to this product while seller boosts were active. */
+  readonly boostImpressionCount: number;
 }
 
 /** Admin table browse / trust queue row (camelCase; aligns with `trust_review_flags`). */

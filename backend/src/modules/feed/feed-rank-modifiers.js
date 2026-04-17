@@ -89,6 +89,65 @@ function getFeedRankModifierBindings(config) {
   };
 }
 
+/**
+ * Blend weights for the in-SQL `rewards_engagement_proxy` (quality / velocity / social proof), 0–1 each.
+ * Divisors cap raw counts before blending — tune via env, not literals in `routes.js`.
+ */
+/**
+ * Pure mirror of the rewards positive modifier block in `feed/routes.js` (LEAST combined cap).
+ * Keep aligned when SQL changes — used for tests and offline checks only.
+ */
+function computeRewardsPositiveModifierBlockSQLMirror({
+  feedTab,
+  attachedProductId,
+  rewardsEngagementProxy,
+  boostTierUnit,
+  productCompletedOrders,
+  conversionProxy,
+  rankModifiers
+}) {
+  if (!rankModifiers || !rankModifiers.enabled) {
+    return 0;
+  }
+  const eng = Math.min(
+    rankModifiers.capEngagement,
+    Number(rewardsEngagementProxy) * rankModifiers.weightEngagement
+  );
+  const boost = Math.min(rankModifiers.capBoost, Number(boostTierUnit) * rankModifiers.weightBoost);
+  let marketplace = 0;
+  if (String(feedTab) === "marketplace" && attachedProductId != null) {
+    const orders = Math.max(0, Number(productCompletedOrders) || 0);
+    marketplace += Math.min(rankModifiers.capSales, Math.log(1 + orders) * rankModifiers.weightSales);
+    marketplace += Math.min(rankModifiers.capConversion, Number(conversionProxy) * rankModifiers.weightConversion);
+  }
+  return Math.min(rankModifiers.combinedPositive, eng + boost + marketplace);
+}
+
+/** Mirrors seller open-reports subtraction branch when rewards modifiers are enabled. */
+function computeSellerTrustSubtractSQLMirror(authorOpenReports, rankModifiers) {
+  if (!rankModifiers || !rankModifiers.enabled) {
+    return 0;
+  }
+  const n = Math.max(0, Number(authorOpenReports) || 0);
+  return Math.min(rankModifiers.capSellerTrustSub, n * rankModifiers.weightSellerTrustPerReport);
+}
+
+function getFeedEngagementProxyBindings(config) {
+  const m = config.feedRankModifiers || {};
+  const weightCompletion = Number(m.engagementProxyWeightCompletion ?? 0.44);
+  const weightViews = Number(m.engagementProxyWeightViews ?? 0.28);
+  const weightSocial = Number(m.engagementProxyWeightSocial ?? 0.28);
+  const viewCapDivisor = Number(m.engagementProxyViewCapDivisor ?? 4000);
+  const socialCapDivisor = Number(m.engagementProxySocialCapDivisor ?? 55);
+  return {
+    weightCompletion: Number.isFinite(weightCompletion) ? weightCompletion : 0.44,
+    weightViews: Number.isFinite(weightViews) ? weightViews : 0.28,
+    weightSocial: Number.isFinite(weightSocial) ? weightSocial : 0.28,
+    viewCapDivisor: Number.isFinite(viewCapDivisor) && viewCapDivisor > 0 ? viewCapDivisor : 4000,
+    socialCapDivisor: Number.isFinite(socialCapDivisor) && socialCapDivisor > 0 ? socialCapDivisor : 55
+  };
+}
+
 /** @param {object} config */
 function assertFeedRankModifierGuardrails(config) {
   const m = config.feedRankModifiers || {};
@@ -97,6 +156,13 @@ function assertFeedRankModifierGuardrails(config) {
     capBoostTierAdditive: Number(m.capBoostTierAdditive ?? DEFAULT_CAP_BOOST),
     boostMaxFractionOfCombined: m.boostMaxFractionOfCombined
   });
+  const ep = getFeedEngagementProxyBindings(config);
+  const sumW = ep.weightCompletion + ep.weightViews + ep.weightSocial;
+  if (!Number.isFinite(sumW) || sumW <= 0 || sumW > 1.001) {
+    throw new Error(
+      `feed_rank_modifiers: engagement proxy weights must be positive and sum to <= 1 (got ${sumW})`
+    );
+  }
 }
 
 module.exports = {
@@ -111,5 +177,8 @@ module.exports = {
   assertFeedRankModifierGuardrails,
   clampPositiveModifierLayer,
   boostTierUnit,
-  getFeedRankModifierBindings
+  getFeedRankModifierBindings,
+  getFeedEngagementProxyBindings,
+  computeRewardsPositiveModifierBlockSQLMirror,
+  computeSellerTrustSubtractSQLMirror
 };

@@ -5,6 +5,7 @@ const { optionalString, requireString } = require("../../utils/validators");
 const { httpError } = require("../../utils/http-error");
 const { createNotification } = require("../../services/notifications");
 const { throwIfUserFacingPolicyViolation } = require("../../utils/content-safety");
+const { createRankingSignalHooks } = require("../feed/feed-rank-signals");
 
 const INTERACTION_TYPES = new Set(["benefited", "reflect_later", "comment"]);
 const NON_COMMENT_TYPES = new Set(["benefited", "reflect_later"]);
@@ -35,6 +36,7 @@ function encodeCommentsCursor(row) {
 
 function createInteractionsRouter({ db, config, analytics, pushNotifications }) {
   const router = express.Router();
+  const rankingSignalHooks = createRankingSignalHooks({ db, analytics, config });
   const authMiddleware = authenticate({
     config: config || { jwtAccessSecret: process.env.JWT_ACCESS_SECRET || "" },
     db
@@ -138,6 +140,16 @@ function createInteractionsRouter({ db, config, analytics, pushNotifications }) 
           interactionType
           }
         );
+      }
+
+      try {
+        await rankingSignalHooks.onSocialEngagementRankingSignalsUpdated({
+          postId,
+          userId: req.user.id,
+          interactionType
+        });
+      } catch {
+        /* best-effort ranking signal hook */
       }
 
       return res.status(201).json(result.rows[0]);
@@ -251,6 +263,16 @@ function createInteractionsRouter({ db, config, analytics, pushNotifications }) 
           completionRate: normalizedCompletionRate,
           deduped
         });
+      }
+
+      try {
+        await rankingSignalHooks.onPostViewSignalsWritten({
+          userId: req.user.id,
+          postId,
+          deduped
+        });
+      } catch {
+        /* ranking hooks are best-effort */
       }
 
       res.status(deduped ? 200 : 201).json({

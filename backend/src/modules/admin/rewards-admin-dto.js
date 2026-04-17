@@ -47,6 +47,27 @@
  */
 
 /**
+ * Typed row from `reward_fraud_flags` for admin queue / detail.
+ *
+ * @typedef {object} RewardFraudFlagQueueItemDto
+ * @property {number} id
+ * @property {string} flagType
+ * @property {string} severity
+ * @property {string} status
+ * @property {number | null} subjectUserId
+ * @property {string | null} relatedEntityType
+ * @property {string | null} relatedEntityId
+ * @property {number | null} rewardLedgerEntryId
+ * @property {number | null} referralAttributionId
+ * @property {number | null} sellerBoostPurchaseId
+ * @property {number | null} reviewerUserId
+ * @property {string | null} reviewedAt
+ * @property {object} metadata
+ * @property {string} createdAt
+ * @property {string} updatedAt
+ */
+
+/**
  * @typedef {object} CheckoutRewardRedemptionListItemDto
  * @property {number} id
  * @property {string} stripeCheckoutSessionId
@@ -130,9 +151,31 @@ function toCheckoutRewardRedemptionListItemDto(row) {
   };
 }
 
+/** @param {object} row */
+function toRewardFraudFlagQueueItemDto(row) {
+  return {
+    id: Number(row.id),
+    flagType: String(row.flag_type || ""),
+    severity: String(row.severity || ""),
+    status: String(row.status || ""),
+    subjectUserId: row.subject_user_id != null ? Number(row.subject_user_id) : null,
+    relatedEntityType: row.related_entity_type != null ? String(row.related_entity_type) : null,
+    relatedEntityId: row.related_entity_id != null ? String(row.related_entity_id) : null,
+    rewardLedgerEntryId: row.reward_ledger_entry_id != null ? Number(row.reward_ledger_entry_id) : null,
+    referralAttributionId: row.referral_attribution_id != null ? Number(row.referral_attribution_id) : null,
+    sellerBoostPurchaseId: row.seller_boost_purchase_id != null ? Number(row.seller_boost_purchase_id) : null,
+    reviewerUserId: row.reviewer_user_id != null ? Number(row.reviewer_user_id) : null,
+    reviewedAt: row.reviewed_at ? iso(row.reviewed_at) : null,
+    metadata: row.metadata && typeof row.metadata === "object" ? row.metadata : {},
+    createdAt: iso(row.created_at),
+    updatedAt: iso(row.updated_at)
+  };
+}
+
 module.exports = {
   toRewardLedgerEntryListItemDto,
   toReferralAttributionQueueItemDto,
   toFraudFlagItemDto,
-  toCheckoutRewardRedemptionListItemDto
+  toCheckoutRewardRedemptionListItemDto,
+  toRewardFraudFlagQueueItemDto
 };

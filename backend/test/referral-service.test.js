@@ -39,7 +39,8 @@ function mapAppConfigToReferralDomain(c) {
   };
 }
 
-function makeService(appConfigOverrides = {}, { duplicateAccountGuard } = {}) {
+function makeService(appConfigOverrides = {}, opts = {}) {
+  const { duplicateAccountGuard = null, trustFlagService = null } = opts;
   const appConfig = makeTestAppConfig(appConfigOverrides);
   const memRepo = createMemoryReferralRepository();
   const memLedgerRepo = createMemoryRewardsLedgerRepository();
@@ -59,6 +60,7 @@ function makeService(appConfigOverrides = {}, { duplicateAccountGuard } = {}) {
     logger: null,
     getReferralConfig: () => mapAppConfigToReferralDomain(appConfig),
     appConfig,
+    trustFlagService,
     duplicateAccountGuard: duplicateAccountGuard || null
   });
   return { svc, memRepo, memLedgerRepo, analytics, appConfig };
@@ -187,6 +189,41 @@ describe("createReferralService", () => {
     expect(rows[0].status).toBe("voided");
   });
 
+  it("emits referral clawback trust flag when qualified payout is reversed and signals enabled", async () => {
+    const recordFlag = jest.fn(async () => ({ saved: { id: 1 } }));
+    const { svc, memRepo, memLedgerRepo } = makeService(
+      { trustSignalsEnabled: true, referralHoldClearHoursAfterOrder: 0 },
+      { trustFlagService: { recordFlag } }
+    );
+    await memRepo.insertReferralCode(null, {
+      referrer_user_id: 160,
+      code: "clawflag",
+      status: "active",
+      max_redemptions: 100
+    });
+    await svc.tryAttributeOnSignup({ refereeUserId: 161, rawReferralCode: "clawflag" });
+    memRepo.seedOrder({
+      id: 9202,
+      buyer_user_id: 161,
+      seller_user_id: 170,
+      status: "completed",
+      kind: "product",
+      amount_minor: 50,
+      created_at: new Date()
+    });
+    await svc.onOrderCompleted({ orderId: 9202 });
+    expect(await memLedgerRepo.getBalanceForUserId(null, 160)).toBe("500");
+    await svc.onOrderFinanciallyInvalidated({ orderId: 9202, reason: "refunded" });
+    expect(recordFlag).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        domain: "referral",
+        flagType: "referral_qualified_payout_clawed_back",
+        subjectUserId: 160
+      })
+    );
+  });
+
   it("rejects signup when duplicateAccountGuard fails (pluggable fraud)", async () => {
     const dupGuard = jest.fn(async () => ({
       ok: false,
@@ -301,6 +338,41 @@ describe("createReferralService", () => {
     const late = await svc.tryReleaseQualifiedRewards(attrId, new Date(orderTime.getTime() + 4 * 3_600_000));
     expect(late.released).toBe(true);
     expect(await memLedgerRepo.getBalanceForUserId(null, 150)).toBe("500");
+  });
+
+  it("forceClearHold releases pending_clear before hold window elapses", async () => {
+    const orderTime = new Date();
+    orderTime.setMilliseconds(0);
+    const { svc, memRepo, memLedgerRepo } = makeService({ referralHoldClearHoursAfterOrder: 3 });
+    await memRepo.insertReferralCode(null, {
+      referrer_user_id: 250,
+      code: "forcehold",
+      status: "active",
+      max_redemptions: 100
+    });
+    await svc.tryAttributeOnSignup({ refereeUserId: 251, rawReferralCode: "forcehold" });
+    const attr0 = memRepo._attributions()[0];
+    await memRepo.updateAttribution(null, attr0.id, {
+      attributed_at: new Date(orderTime.getTime() - 86_400_000)
+    });
+    memRepo.seedOrder({
+      id: 9801,
+      buyer_user_id: 251,
+      seller_user_id: 260,
+      status: "completed",
+      kind: "product",
+      amount_minor: 200,
+      created_at: orderTime
+    });
+    await svc.onOrderCompleted({ orderId: 9801, now: orderTime });
+    const attrId = memRepo._attributions()[0].id;
+    const early = await svc.tryReleaseQualifiedRewards(attrId, new Date(orderTime.getTime() + 1 * 3_600_000));
+    expect(early.released).toBe(false);
+    const forced = await svc.tryReleaseQualifiedRewards(attrId, new Date(orderTime.getTime() + 1 * 3_600_000), {
+      forceClearHold: true
+    });
+    expect(forced.released).toBe(true);
+    expect(await memLedgerRepo.getBalanceForUserId(null, 250)).toBe("500");
   });
 
   it("blocks second same-day qualified release when referrer daily cap is reached", async () => {

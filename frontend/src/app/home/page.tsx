@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { FeedView } from "@/components/feed-view";
+import { SocialHomeHeader } from "@/components/social/social-home-header";
 import { apiRequest } from "@/lib/api";
 import { fetchSessionMe } from "@/lib/auth";
 
@@ -42,11 +43,15 @@ export default function HomeFeedPage() {
       : undefined;
 
   return (
-    <FeedView
-      heading="Home"
-      showStories
-      homeStyle
-      initialFeedTab={profileQuery.isSuccess ? validTab : undefined}
-    />
+    <div className="space-y-1">
+      <SocialHomeHeader />
+      <FeedView
+        heading=""
+        showStories
+        homeStyle
+        socialUi
+        initialFeedTab={profileQuery.isSuccess ? validTab : undefined}
+      />
+    </div>
   );
 }

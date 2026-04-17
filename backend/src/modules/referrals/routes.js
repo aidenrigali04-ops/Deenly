@@ -1,18 +1,27 @@
 const express = require("express");
 const { authenticate } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
-const { optionalString } = require("../../utils/validators");
+const { parseReferralShareBody, parseReferralCodePreviewQuery } = require("./referrals-route-params");
 
 function createReferralsRouter({ config, db, referralReadService }) {
   const router = express.Router();
   const auth = authenticate({ config, db });
 
   router.get(
+    "/code-preview",
+    asyncHandler(async (req, res) => {
+      const { rawReferralCode } = parseReferralCodePreviewQuery(req.query);
+      const dto = await referralReadService.peekReferralCode({ rawReferralCode });
+      res.status(200).json(dto);
+    })
+  );
+
+  router.get(
     "/me",
     auth,
     asyncHandler(async (req, res) => {
-      const body = await referralReadService.getMe({ userId: req.user.id });
-      res.status(200).json(body);
+      const dto = await referralReadService.getMe({ userId: req.user.id });
+      res.status(200).json(dto);
     })
   );
 
@@ -20,10 +29,9 @@ function createReferralsRouter({ config, db, referralReadService }) {
     "/me/share",
     auth,
     asyncHandler(async (req, res) => {
-      const raw = req.body && typeof req.body === "object" ? req.body : {};
-      const surface = optionalString(raw.surface, "surface", 64) || "unspecified";
-      const body = await referralReadService.recordShare({ userId: req.user.id, surface });
-      res.status(200).json(body);
+      const { surface } = parseReferralShareBody(req.body);
+      const dto = await referralReadService.recordShare({ userId: req.user.id, surface });
+      res.status(200).json(dto);
     })
   );
 

@@ -10,7 +10,10 @@ const {
   listReferralAttributionQueue,
   getReferralAttributionById,
   listOperationalFraudFlags,
-  listCheckoutRewardRedemptions
+  listCheckoutRewardRedemptions,
+  getRewardFraudFlagById,
+  reviewRewardFraudFlag,
+  ingestHeuristicFraudFlags
 } = require("./rewards-admin-queries");
 
 const ATTRIBUTION_REJECTABLE = new Set(["pending_purchase", "pending_clear"]);
@@ -88,11 +91,12 @@ async function tryReverseReferralLedgerCredits({ prior, attributionId, rewardsLe
 
 /**
  * @param {import("express").Router} router
- * @param {{ db: object; authMiddleware: import("express").RequestHandler; modGuard: import("express").RequestHandler; analytics: object | null; config?: object | null; rewardsLedgerService?: object | null }} deps
+ * @param {{ db: object; authMiddleware: import("express").RequestHandler; modGuard: import("express").RequestHandler; analytics: object | null; config?: object | null; rewardsLedgerService?: object | null; referralService?: object | null }} deps
  * @param {{ routeBase?: string }} [options]
  */
 function registerRewardsAdminRoutes(router, deps, options = {}) {
-  const { db, authMiddleware, modGuard, analytics, config = null, rewardsLedgerService = null } = deps;
+  const { db, authMiddleware, modGuard, analytics, config = null, rewardsLedgerService = null, referralService = null } =
+    deps;
   const routeBase = options.routeBase === undefined ? "/rewards" : options.routeBase;
   const referralRepo = createReferralRepository();
 
@@ -185,6 +189,28 @@ function registerRewardsAdminRoutes(router, deps, options = {}) {
       const action = requireString(req.body?.action, "action", 4, 32);
       const notes = optionalString(req.body?.notes, "notes", 2000);
 
+      if (action === "release_hold") {
+        if (!referralService || typeof referralService.tryReleaseQualifiedRewards !== "function") {
+          throw httpError(503, "Referral service not configured");
+        }
+        const prior = await getReferralAttributionById(db, id);
+        if (!prior) {
+          throw httpError(404, "Attribution not found");
+        }
+        if (prior.status !== "pending_clear") {
+          throw httpError(409, "Only pending_clear attributions can release hold early");
+        }
+        const release = await referralService.tryReleaseQualifiedRewards(id, new Date(), { forceClearHold: true });
+        await track("admin_referral_release_hold", {
+          attributionId: id,
+          reviewerUserId: req.user.id,
+          released: Boolean(release.released),
+          reason: release.reason || null
+        });
+        const row = await getReferralAttributionById(db, id);
+        return res.status(200).json({ ok: true, action, release, attribution: row });
+      }
+
       if (action === "mark_reviewed") {
         await db.withTransaction(async (client) => {
           const locked = await referralRepo.findAttributionByIdForUpdate(client, id);
@@ -253,7 +279,79 @@ function registerRewardsAdminRoutes(router, deps, options = {}) {
         return res.status(200).json({ ok: true, action, attribution: row, ledgerReversal: ledgerOutcome });
       }
 
-      throw httpError(400, "action must be mark_reviewed or reject");
+      throw httpError(400, "action must be mark_reviewed, reject, or release_hold");
+    })
+  );
+
+  router.post(
+    rewardsRoutePath(routeBase, "fraud-flags/ingest"),
+    authMiddleware,
+    modGuard,
+    asyncHandler(async (_req, res) => {
+      const out = await ingestHeuristicFraudFlags(db, config);
+      await track("admin_fraud_heuristic_ingest", {
+        inserted: out.inserted,
+        skipped: out.skipped,
+        unavailable: Boolean(out.unavailable)
+      });
+      res.status(200).json(out);
+    })
+  );
+
+  router.get(
+    rewardsRoutePath(routeBase, "fraud-flags/records/:id"),
+    authMiddleware,
+    modGuard,
+    asyncHandler(async (req, res) => {
+      const id = Number(req.params.id);
+      if (!id) {
+        throw httpError(400, "id must be a number");
+      }
+      const flag = await getRewardFraudFlagById(db, id);
+      if (!flag) {
+        throw httpError(404, "Fraud flag not found");
+      }
+      res.status(200).json({ flag });
+    })
+  );
+
+  router.post(
+    rewardsRoutePath(routeBase, "fraud-flags/records/:id/review"),
+    authMiddleware,
+    modGuard,
+    asyncHandler(async (req, res) => {
+      const id = Number(req.params.id);
+      if (!id) {
+        throw httpError(400, "id must be a number");
+      }
+      const action = requireString(req.body?.action, "action", 4, 16);
+      const notes = optionalString(req.body?.notes, "notes", 2000);
+      try {
+        const outcome = await reviewRewardFraudFlag(db, {
+          id,
+          reviewerUserId: req.user.id,
+          action,
+          notes
+        });
+        if (outcome.notFound) {
+          throw httpError(404, "Fraud flag not found");
+        }
+        if (outcome.conflict) {
+          throw httpError(409, "Fraud flag is not in a reviewable state");
+        }
+        await track("admin_reward_fraud_flag_reviewed", {
+          fraudFlagId: id,
+          reviewerUserId: req.user.id,
+          action,
+          unchanged: Boolean(outcome.unchanged)
+        });
+        return res.status(200).json({ ok: true, action, flag: outcome.flag });
+      } catch (err) {
+        if (err && err.code === "INVALID_FRAUD_REVIEW_ACTION") {
+          throw httpError(400, "action must be dismiss, confirm, or triage");
+        }
+        throw err;
+      }
     })
   );
 
@@ -261,8 +359,8 @@ function registerRewardsAdminRoutes(router, deps, options = {}) {
     rewardsRoutePath(routeBase, "fraud-flags"),
     authMiddleware,
     modGuard,
-    asyncHandler(async (_req, res) => {
-      const result = await listOperationalFraudFlags(db, config);
+    asyncHandler(async (req, res) => {
+      const result = await listOperationalFraudFlags(db, config, req.query || {});
       res.status(200).json(result);
     })
   );

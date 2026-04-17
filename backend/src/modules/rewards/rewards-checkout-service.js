@@ -2,6 +2,12 @@ const { createRewardsLedgerRepository } = require("./rewards-ledger-repository")
 const { planCheckoutProductRedemption } = require("./checkout-redemption-planner");
 const { redemptionRulesFromAppConfig } = require("./rewards-redemption-defaults");
 const { InsufficientPointsError } = require("./rewards-ledger-errors");
+const { getTrustSignalThresholds } = require("../trust/trust-signal-thresholds");
+const {
+  maybeRewardsCheckoutHighDiscountTrustFlag,
+  maybeRewardsCheckoutReversalTrustFlag,
+  tryRecordTrustFlag
+} = require("../trust/trust-surface-flag-builders");
 
 function noopLogger() {
   return {
@@ -94,9 +100,10 @@ function buildRulesConfigFromAppConfig(config) {
   };
 }
 
-function createRewardsCheckoutService({ db, rewardsLedgerService, config, logger }) {
+function createRewardsCheckoutService({ db, rewardsLedgerService, config, logger, trustFlagService = null }) {
   const repository = createRewardsLedgerRepository();
   const log = logger && typeof logger.warn === "function" ? logger : noopLogger();
+  const appConfig = config;
 
   function rulesCfg() {
     return buildRulesConfigFromAppConfig(config);
@@ -276,6 +283,30 @@ function createRewardsCheckoutService({ db, rewardsLedgerService, config, logger
   }
 
   /**
+   * Non-blocking trust signal after a persisted checkout redemption row (high discount ratio).
+   */
+  async function notifyTrustAfterRedemptionPersisted({
+    buyerUserId,
+    productId,
+    listPriceMinor,
+    discountMinor,
+    pointsSpent,
+    rewardLedgerSpendEntryId
+  }) {
+    const thr = getTrustSignalThresholds(appConfig);
+    const candidate = maybeRewardsCheckoutHighDiscountTrustFlag({
+      thresholds: thr,
+      buyerUserId,
+      productId,
+      listPriceMinor,
+      discountMinor,
+      pointsSpent,
+      ledgerEntryId: rewardLedgerSpendEntryId
+    });
+    await tryRecordTrustFlag(appConfig, trustFlagService, candidate);
+  }
+
+  /**
    * Ledger reversal + redemption row update for expired checkout, refund, or amount mismatch.
    * Idempotent on ledger; best-effort on DB flags.
    */
@@ -303,13 +334,23 @@ function createRewardsCheckoutService({ db, rewardsLedgerService, config, logger
     const reason = String(reasonLabel || "checkout_reverse").slice(0, 64);
     const idem = `reverse:${String(reasonLabel || "r").slice(0, 24)}:${stripeSessionId}`.slice(0, 128);
     try {
-      await rewardsLedgerService.reverseEntry({
+      const { duplicate } = await rewardsLedgerService.reverseEntry({
         userId: buyer,
         originalLedgerEntryId: ledgerId,
         reason,
         idempotencyKey: idem,
         metadata: { surface: "product_checkout", stripeCheckoutSessionId: stripeSessionId }
       });
+      if (!duplicate) {
+        const thr = getTrustSignalThresholds(appConfig);
+        const candidate = maybeRewardsCheckoutReversalTrustFlag({
+          thresholds: thr,
+          buyerUserId: buyer,
+          ledgerEntryId: ledgerId,
+          reasonLabel: String(reasonLabel || "")
+        });
+        await tryRecordTrustFlag(appConfig, trustFlagService, candidate);
+      }
     } catch (err) {
       const n = err && err.name;
       if (n === "InvalidReversalError" || n === "LedgerEntryNotFoundError") {
@@ -332,6 +373,7 @@ function createRewardsCheckoutService({ db, rewardsLedgerService, config, logger
     findRedemptionByPaymentIntentId,
     markRedemptionReversed,
     reverseActiveCheckoutRedemptionIfAny,
+    notifyTrustAfterRedemptionPersisted,
     balanceStringToSafeMinor
   };
 }

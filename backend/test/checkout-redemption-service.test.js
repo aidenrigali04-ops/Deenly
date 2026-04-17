@@ -260,6 +260,68 @@ describe("rewards-checkout-service", () => {
     );
   });
 
+  it("reverseActiveCheckoutRedemptionIfAny records trust flag when signals enabled", async () => {
+    const mem = createMemoryDb();
+    const ledger = createMemoryRewardsLedgerRepository();
+    const analytics = { trackEvent: jest.fn(async () => {}) };
+    const rewardsLedgerService = createRewardsLedgerService({
+      db: mem,
+      analytics,
+      logger: null,
+      repository: ledger
+    });
+    await rewardsLedgerService.earnPoints({
+      userId: 8,
+      points: 500,
+      reason: "test",
+      idempotencyKey: "earn-rev-8"
+    });
+    const spend = await rewardsLedgerService.spendPoints({
+      userId: 8,
+      points: 100,
+      reason: "redemption_catalog",
+      idempotencyKey: "checkout:product:8:cid2",
+      metadata: { surface: "product_checkout" }
+    });
+    const metaLedgerId = spend.ledgerEntry.id;
+    const db = {
+      ...mem,
+      query: jest.fn(async (text, params) => {
+        const t = String(text);
+        if (t.includes("FROM checkout_sessions") && t.includes("stripe_checkout_session_id")) {
+          return {
+            rowCount: 1,
+            rows: [{ buyer_user_id: 8, metadata: { rewardSpendLedgerEntryId: metaLedgerId } }]
+          };
+        }
+        if (t.includes("UPDATE checkout_reward_redemptions")) {
+          return { rowCount: 1, rows: [] };
+        }
+        return mem.query(text, params);
+      })
+    };
+    const recordFlag = jest.fn(async () => ({ saved: { id: 1 } }));
+    const checkout = createRewardsCheckoutService({
+      db,
+      rewardsLedgerService,
+      config: baseAppConfig({ trustSignalsEnabled: true }),
+      logger: null,
+      trustFlagService: { recordFlag }
+    });
+    await checkout.reverseActiveCheckoutRedemptionIfAny({
+      stripeSessionId: "cs_test_trust",
+      reasonLabel: "checkout_refund"
+    });
+    expect(recordFlag).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        domain: "rewards",
+        flagType: "rewards_checkout_redemption_reversed",
+        subjectUserId: 8
+      })
+    );
+  });
+
   it("buildRulesConfigFromAppConfig fills redemption slice from defaults when env keys are missing", () => {
     const cfg = buildRulesConfigFromAppConfig({});
     expect(cfg.redemption.minBalanceMinor).toBe(500);

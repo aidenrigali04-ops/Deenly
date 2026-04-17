@@ -146,6 +146,8 @@ describeIfDatabase("integration api flows", () => {
     await db.query("TRUNCATE TABLE refresh_tokens RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE profiles RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE user_instagram_connections RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE rewards_admin_actions RESTART IDENTITY CASCADE");
+    await db.query("TRUNCATE TABLE reward_fraud_flags RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE reward_ledger_entries RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE reward_accounts RESTART IDENTITY CASCADE");
     await db.query("TRUNCATE TABLE users RESTART IDENTITY CASCADE");

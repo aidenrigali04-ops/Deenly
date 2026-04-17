@@ -1,11 +1,12 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useMemo } from "react";
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ApiError } from "@/lib/api";
 import { fetchSessionMe, loginWithGoogle, signup } from "@/lib/auth";
+import { ReferralSignupCallout } from "@/components/referral-signup-callout";
 import { requestGoogleAccessToken } from "@/lib/google-oauth";
 import { useSessionStore } from "@/store/session-store";
 
@@ -13,6 +14,10 @@ function SignupPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const setUser = useSessionStore((state) => state.setUser);
+  const referralCode = useMemo(() => {
+    const raw = searchParams.get("referralCode")?.trim();
+    return raw && raw.length > 0 ? raw : null;
+  }, [searchParams]);
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -46,7 +51,8 @@ function SignupPageContent() {
         password: form.password,
         displayName,
         businessOffering: form.businessOffering.trim() || null,
-        websiteUrl: form.websiteUrl.trim() || null
+        websiteUrl: form.websiteUrl.trim() || null,
+        referralCode: referralCode ?? undefined
       });
       await finalizeSession();
     } catch (err) {
@@ -62,7 +68,7 @@ function SignupPageContent() {
     setIsGoogleSubmitting(true);
     try {
       const accessToken = await requestGoogleAccessToken(googleClientId);
-      await loginWithGoogle({ accessToken });
+      await loginWithGoogle({ accessToken, referralCode: referralCode ?? undefined });
       await finalizeSession();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to sign in with Google";
@@ -75,9 +81,11 @@ function SignupPageContent() {
   return (
     <section className="auth-panel-inner">
       <div>
-        <h1 className="auth-heading">Sign Up Account</h1>
-        <p className="auth-subheading">Enter your personal data to create your account.</p>
+        <h1 className="auth-heading">Create your account</h1>
+        <p className="auth-subheading">Join Deenly in a minute. Email or Google.</p>
       </div>
+
+      {referralCode ? <ReferralSignupCallout code={referralCode} /> : null}
 
       <button
         className="auth-google-btn"

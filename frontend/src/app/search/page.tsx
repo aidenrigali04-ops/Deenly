@@ -8,6 +8,7 @@ import { apiRequest } from "@/lib/api";
 import { fetchBusinessesNear } from "@/lib/businesses";
 import { fetchEventsNear } from "@/lib/events";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { DiscoverChrome } from "@/components/social/discover-chrome";
 import type { NearMapSelection } from "@/components/near-me-map";
 
 const NearMeMap = dynamic(() => import("@/components/near-me-map").then((m) => m.NearMeMap), {
@@ -187,7 +188,8 @@ export default function SearchPage() {
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap gap-2">
+      <DiscoverChrome />
+      <div id="search-tools" className="flex flex-wrap gap-2 scroll-mt-24">
         <button
           type="button"
           className={`rounded-pill border px-4 py-2 text-sm font-semibold transition ${

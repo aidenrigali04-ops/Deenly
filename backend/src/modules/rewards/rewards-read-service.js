@@ -1,6 +1,7 @@
 const { createRewardsLedgerRepository } = require("./rewards-ledger-repository");
 const { buildRulesConfigFromAppConfig } = require("./rewards-checkout-service");
 const { validateUserId } = require("./rewards-ledger-service");
+const { toRewardsWalletMeDto, toRewardsLedgerPageDto } = require("./rewards-read-dto");
 
 function noopLogger() {
   return {
@@ -47,14 +48,14 @@ function createRewardsReadService({ db, rewardsLedgerService, config, analytics,
       rewardsLedgerService.getBalance({ userId: uid }),
       repository.getLastCatalogCheckoutRedemptionAt(redemptionQuery, uid)
     ]);
-    const body = {
+    const dto = toRewardsWalletMeDto({
       balancePoints: bal.balancePoints,
       currencyCode: meta.currencyCode,
       pointsDecimals: meta.pointsDecimals,
       lastCatalogCheckoutRedemptionAt: lastIso
-    };
+    });
     await trackEvent("rewards_wallet_viewed", { userId: uid });
-    return body;
+    return dto;
   }
 
   /**
@@ -63,12 +64,13 @@ function createRewardsReadService({ db, rewardsLedgerService, config, analytics,
   async function getLedgerPage({ userId, cursor = null, limit = 20 }) {
     const uid = validateUserId(userId);
     const page = await rewardsLedgerService.getHistory({ userId: uid, cursor, limit });
+    const dto = toRewardsLedgerPageDto(page);
     await trackEvent("rewards_ledger_viewed", {
       userId: uid,
-      itemCount: page.items.length,
-      hasNext: Boolean(page.nextCursor)
+      itemCount: dto.items.length,
+      hasNext: Boolean(dto.nextCursor)
     });
-    return page;
+    return dto;
   }
 
   return { getWalletMe, getLedgerPage };

@@ -1,6 +1,11 @@
 /**
  * Seller-paid organic rank assist tiers (pricing/duration/modifier metadata).
  * Feed SQL applies rankModifierPoints elsewhere — this module is config only.
+ *
+ * Centralized catalog: add tiers here and mirror tier ids in
+ * {@link buildSellerBoostTierPointsCaseSql} / migrations if needed. Modifier **caps** for unrelated
+ * feed signals live in shared `DEFAULT_FEED_RANKING_MODIFIER_CAPS_CONFIG`; this catalog owns
+ * seller-boost SKU pricing and per-tier `rankModifierPoints` (then clamped by env cap).
  */
 function listSellerBoostTiers() {
   return [
@@ -64,10 +69,20 @@ function createSellerBoostTierResolver(config = {}) {
   };
 }
 
-/** SQL fragment: CASE sbp.package_tier_id … END (for SUM in feed query). */
-function buildSellerBoostTierPointsCaseSql() {
+/**
+ * SQL fragment: CASE sbp.package_tier_id … END (for SUM in feed query).
+ * Uses the same env-driven cap as {@link createSellerBoostTierResolver} for `rankModifierPoints`.
+ * @param {object} [config] from {@link loadEnv}
+ */
+function buildSellerBoostTierPointsCaseSql(config = {}) {
+  const resolveTier = createSellerBoostTierResolver(config);
   const arms = listSellerBoostTiers()
-    .map((t) => `WHEN '${t.id}' THEN ${Number(t.rankModifierPoints)}::numeric`)
+    .map((t) => {
+      const resolved = resolveTier(t.id);
+      const raw = resolved ? Number(resolved.rankModifierPoints) : 0;
+      const pts = Number.isFinite(raw) && raw >= 0 ? raw : 0;
+      return `WHEN '${t.id}' THEN ${pts}::numeric`;
+    })
     .join("\n            ");
   return `CASE sbp.package_tier_id
             ${arms}

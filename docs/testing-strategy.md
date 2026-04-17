@@ -8,6 +8,12 @@
 - **Frontend**: Playwright e2e under `frontend/e2e/`; app unit tests per package conventions.
 - **Mobile**: Jest under `mobile/__tests__/`; release gate scripts as documented in `mobile/package.json`.
 
+### Buyer rewards + referrals (implemented)
+
+- **HTTP**: `backend/test/rewards-routes-http.test.js` (`/rewards/me`, `/rewards/ledger`), `backend/test/referrals-routes-http.test.js` (`/referrals/me`, `/referrals/me/share`, public `/referrals/code-preview`).
+- **Read services**: `backend/test/rewards-read-service.test.js`, `backend/test/referral-read-service.test.js` (includes analytics assertions where applicable).
+- **Shared rules**: `cd shared/rewards && npm test` (Vitest).
+
 ## Rewards + Growth Engine (planned)
 
 <!-- TODO(Rewards-Growth-Sprint2): Idempotency tests for grant handler; DB constraints tests. -->

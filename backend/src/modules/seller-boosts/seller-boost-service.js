@@ -9,7 +9,12 @@ const {
   createSellerBoostTierResolver,
   getSellerBoostTierById
 } = require("../../config/seller-boost-catalog");
-const { buildSellerBoostRankingContextPayload } = require("./seller-boost-attribution");
+const {
+  buildSellerBoostImpressionAttributionPayload,
+  buildSellerBoostRankingContextPayload
+} = require("./seller-boost-attribution");
+const { getTrustSignalThresholds } = require("../trust/trust-signal-thresholds");
+const { maybeSellerBoostHighSpendTrustFlag, tryRecordTrustFlag } = require("../trust/trust-surface-flag-builders");
 
 function noopLogger() {
   return {
@@ -86,6 +91,7 @@ function createSellerBoostService(deps) {
     config,
     resolveTier: resolveTierOverride,
     paymentPort = createStubSellerBoostPaymentPort(),
+    trustFlagService = null,
     now = () => new Date()
   } = deps;
   const resolveTier =
@@ -167,12 +173,14 @@ function createSellerBoostService(deps) {
   /**
    * Mark payment received and activate boost window (starts now, ends after tier duration).
    * Idempotent on paymentConfirmationId when already active.
+   * @param {string} [stripePaymentIntentId] Stripe PaymentIntent id (stored in purchase metadata for refund webhooks).
    */
   async function recordPaymentCompleted({
     purchaseId,
     sellerUserId,
     paymentConfirmationId,
-    checkoutSessionId = null
+    checkoutSessionId = null,
+    stripePaymentIntentId = null
   }) {
     const pid = Number(purchaseId);
     const sellerId = validateSellerUserId(sellerUserId);
@@ -183,9 +191,13 @@ function createSellerBoostService(deps) {
     if (confirm.length < 1 || confirm.length > 255) {
       throw new TypeError("paymentConfirmationId must be 1–255 characters");
     }
+    const pi =
+      stripePaymentIntentId != null && String(stripePaymentIntentId).trim().length > 0
+        ? String(stripePaymentIntentId).trim().slice(0, 255)
+        : "";
 
     const { purchase, duplicate } = await db.withTransaction(async (client) => {
-      const current = await repo.getPurchaseByIdForSeller(client, pid, sellerId);
+      let current = await repo.getPurchaseByIdForSeller(client, pid, sellerId);
       if (!current) {
         throw new SellerBoostNotFoundError();
       }
@@ -197,9 +209,17 @@ function createSellerBoostService(deps) {
       }
       if (current.status === "active") {
         if (String(current.payment_confirmation_id || "") === confirm) {
+          if (pi) {
+            await repo.mergePurchaseMetadata(client, pid, sellerId, { stripePaymentIntentId: pi });
+            current = await repo.getPurchaseByIdForSeller(client, pid, sellerId);
+          }
           return { purchase: mapPurchaseRow(current), duplicate: true };
         }
         throw new SellerBoostInvalidStateError("Purchase already activated with a different confirmation");
+      }
+
+      if (pi) {
+        await repo.mergePurchaseMetadata(client, pid, sellerId, { stripePaymentIntentId: pi });
       }
 
       const tier = resolveTier(current.package_tier_id);
@@ -249,6 +269,14 @@ function createSellerBoostService(deps) {
           })
         );
       }
+      const thr = getTrustSignalThresholds(config);
+      const spendCandidate = maybeSellerBoostHighSpendTrustFlag({
+        thresholds: thr,
+        sellerUserId: sellerId,
+        purchaseId: purchase.id,
+        amountMinor: Number(purchase.amountMinor)
+      });
+      await tryRecordTrustFlag(config, trustFlagService, spendCandidate);
     }
 
     return { purchase, duplicate };
@@ -382,6 +410,30 @@ function createSellerBoostService(deps) {
         postId: post,
         viewerUserId
       });
+      try {
+        const row = await repo.fetchPurchaseById((text, params) => db.query(text, params), pid);
+        if (row) {
+          const tier = resolveTier(row.package_tier_id);
+          if (tier) {
+            const mapped = mapPurchaseRow(row);
+            await trackEvent(
+              "seller_boost_impression_attribution",
+              buildSellerBoostImpressionAttributionPayload({
+                purchaseId: mapped.id,
+                sellerUserId: mapped.sellerUserId,
+                postId: post,
+                viewerUserId,
+                packageTierId: tier.id,
+                rankModifierPoints: tier.rankModifierPoints,
+                window: { startsAt: mapped.startsAt, endsAt: mapped.endsAt },
+                metadata
+              })
+            );
+          }
+        }
+      } catch (err) {
+        log.warn({ err, purchaseId: pid }, "seller_boost_impression_attribution_failed");
+      }
     }
 
     return { recorded };

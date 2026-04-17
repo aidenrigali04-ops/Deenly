@@ -117,6 +117,23 @@ function createSellerBoostRepository() {
     return res.rowCount ? res.rows[0] : null;
   }
 
+  async function mergePurchaseMetadata(client, purchaseId, sellerUserId, patch) {
+    if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
+      return false;
+    }
+    const res = await client.query(
+      `UPDATE seller_boost_purchases
+       SET metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb,
+           updated_at = NOW()
+       WHERE id = $1
+         AND seller_user_id = $2
+         AND status IN ('pending_payment','active')
+       RETURNING id`,
+      [purchaseId, sellerUserId, JSON.stringify(patch)]
+    );
+    return res.rowCount > 0;
+  }
+
   async function activateFromPending(client, purchaseId, sellerUserId, fields) {
     const res = await client.query(
       `UPDATE seller_boost_purchases
@@ -273,6 +290,33 @@ function createSellerBoostRepository() {
     return res.rowCount ? res.rows[0] : null;
   }
 
+  /** Internal read for attribution hooks (no seller scope — use only after impression insert succeeds). */
+  async function fetchPurchaseById(poolQuery, purchaseId) {
+    const res = await poolQuery(
+      `SELECT id,
+              seller_user_id,
+              checkout_session_id,
+              package_tier_id,
+              amount_minor,
+              currency,
+              status,
+              starts_at,
+              ends_at,
+              activated_at,
+              canceled_at,
+              idempotency_key,
+              payment_confirmation_id,
+              metadata,
+              created_at,
+              updated_at
+       FROM seller_boost_purchases
+       WHERE id = $1
+       LIMIT 1`,
+      [purchaseId]
+    );
+    return res.rowCount ? res.rows[0] : null;
+  }
+
   async function fetchTargetsForPurchase(poolQuery, purchaseId) {
     const res = await poolQuery(
       `SELECT post_id FROM seller_boost_targets WHERE purchase_id = $1 ORDER BY id ASC`,
@@ -314,6 +358,7 @@ function createSellerBoostRepository() {
     findPurchaseBySellerIdempotency,
     insertPurchaseWithTargets,
     getPurchaseByIdForSeller,
+    mergePurchaseMetadata,
     activateFromPending,
     cancelPending,
     markRefunded,
@@ -322,6 +367,7 @@ function createSellerBoostRepository() {
     insertImpressionIfActiveTarget,
     listTargetsForPurchase,
     fetchPurchaseForSeller,
+    fetchPurchaseById,
     fetchTargetsForPurchase,
     listPurchasesForSeller
   };
