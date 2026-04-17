@@ -132,6 +132,14 @@ Production-focused Node/Express backend for the Deenly Muslim social platform.
 - `POST /api/v1/events/:id/rsvp`, `GET /api/v1/events/:id/rsvp/me`, host `DELETE /api/v1/events/:id/rsvps/:userId`
 - `GET/POST /api/v1/events/:id/chat` and moderation routes under `/api/v1/events/:id/chat/*` when chat is enabled
 
+### Creator analytics (auth)
+
+- `GET /api/v1/creator/analytics/overview` — optional `creatorUserId` (defaults to self; moderators/admins may query others)
+- `GET /api/v1/creator/analytics/conversion`
+- `GET /api/v1/creator/analytics/seller-boosts/summary`
+- `GET /api/v1/creator/analytics/seller-boosts`
+- `GET /api/v1/creator/analytics/seller-boosts/:purchaseId`
+
 ### Admin Console APIs (moderator/admin)
 
 - `GET /api/v1/admin/tables/:table` (full DB table coverage)
@@ -140,6 +148,11 @@ Production-focused Node/Express backend for the Deenly Muslim social platform.
 - `POST /api/v1/admin/appeals/:appealId/review`
 - `POST /api/v1/admin/invites`
 - `POST /api/v1/admin/support/:ticketId`
+- Deenly Rewards ops (also requires `ADMIN_OWNER_EMAIL` on `/api/v1/admin/*`):
+  - `GET /api/v1/admin/rewards/ledger-entries`, `GET /api/v1/admin/rewards/ledger-entries/:id`
+  - `GET /api/v1/admin/rewards/referrals/queue`, `GET /api/v1/admin/rewards/referrals/attributions/:id`, `POST /api/v1/admin/rewards/referrals/attributions/:id/review`
+  - `GET /api/v1/admin/rewards/fraud-flags`, `GET /api/v1/admin/rewards/redemptions`
+- **Moderator/admin team mirror** (same contracts, **no** `ADMIN_OWNER_EMAIL` requirement): `GET` (and `POST` where applicable) under `/api/v1/monetization/admin/rewards/*` — e.g. `/api/v1/monetization/admin/rewards/ledger-entries`, `/api/v1/monetization/admin/rewards/fraud-flags`, etc.
 
 ## Railway Deployment and Rollback Runbook
 
@@ -150,7 +163,7 @@ Production-focused Node/Express backend for the Deenly Muslim social platform.
    - `DATABASE_URL=${{Postgres.DATABASE_URL}}`
    - `DB_SSL_MODE=no-verify` (Railway managed cert mode)
    - JWT secrets, CORS, media settings
-   - `ADMIN_OWNER_EMAIL` set to the only account allowed on `/api/v1/admin/*`
+   - `ADMIN_OWNER_EMAIL` set to the only account allowed on `/api/v1/admin/*` (use `/api/v1/monetization/admin/rewards/*` for moderator/admin rewards tooling without the owner email)
 4. Deploy service.
 5. Run `npm run migrate:up` against target DB.
 6. Smoke test:

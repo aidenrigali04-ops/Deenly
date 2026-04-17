@@ -56,6 +56,8 @@ import { BusinessesNearMeScreen } from "../screens/app/BusinessesNearMeScreen";
 import { SettingsScreen } from "../screens/app/SettingsScreen";
 import { EditProfileScreen } from "../screens/app/EditProfileScreen";
 import { PurchasesScreen } from "../screens/app/PurchasesScreen";
+import { RewardsWalletScreen } from "../screens/app/RewardsWalletScreen";
+import { ReferralsScreen } from "../screens/app/ReferralsScreen";
 import { NavigateAppScreen } from "../screens/app/NavigateAppScreen";
 import { AdminHubScreen } from "../screens/app/AdminHubScreen";
 import { CreateEventScreen } from "../screens/app/CreateEventScreen";
@@ -111,6 +113,8 @@ export type RootStackParamList = {
   Settings: undefined;
   EditProfile: undefined;
   Purchases: undefined;
+  RewardsWallet: undefined;
+  Referrals: undefined;
   NavigateApp: undefined;
   AdminHub: undefined;
   CreateEvent: undefined;
@@ -421,6 +425,8 @@ export function AppNavigator() {
               <RootStack.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
               <RootStack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: "Edit profile" }} />
               <RootStack.Screen name="Purchases" component={PurchasesScreen} options={{ title: "Purchases" }} />
+              <RootStack.Screen name="RewardsWallet" component={RewardsWalletScreen} options={{ title: "Rewards" }} />
+              <RootStack.Screen name="Referrals" component={ReferralsScreen} options={{ title: "Referrals" }} />
               <RootStack.Screen name="NavigateApp" component={NavigateAppScreen} options={{ title: "Navigate" }} />
               <RootStack.Screen name="Sessions" component={SessionsScreen} options={{ title: "Sessions" }} />
               <RootStack.Screen name="Beta" component={BetaScreen} options={{ title: "Beta" }} />

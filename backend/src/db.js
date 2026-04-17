@@ -46,6 +46,35 @@ function createDb(config) {
     return pool.query(text, params);
   }
 
+  /**
+   * Run callback with a dedicated client and a single transaction (BEGIN/COMMIT/ROLLBACK).
+   * Use this instead of pool.query("BEGIN") so all statements share one connection.
+   */
+  async function withTransaction(callback) {
+    if (!pool) {
+      const error = new Error("Database is not configured");
+      error.statusCode = 503;
+      throw error;
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await callback(client);
+      await client.query("COMMIT");
+      return result;
+    } catch (err) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        /* ignore rollback errors */
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
   async function close() {
     if (!pool) {
       return;
@@ -56,6 +85,7 @@ function createDb(config) {
   return {
     pool,
     query,
+    withTransaction,
     checkConnection,
     close
   };

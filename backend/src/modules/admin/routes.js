@@ -8,6 +8,7 @@ const {
   notifyAfterCreativeApproval,
   notifyAdBoostRejected
 } = require("../../services/ad-boost-notifications");
+const { registerRewardsAdminRoutes } = require("./rewards-admin-routes");
 
 const TABLE_SQL = {
   users:
@@ -71,10 +72,12 @@ const TABLE_SQL = {
   event_chat_mutes:
     "SELECT event_id, user_id, muted_by_user_id, reason, created_at FROM event_chat_mutes ORDER BY created_at DESC LIMIT $1 OFFSET $2",
   event_chat_moderation_actions:
-    "SELECT id, event_id, actor_user_id, target_user_id, action_type, reason, note, created_at FROM event_chat_moderation_actions ORDER BY id DESC LIMIT $1 OFFSET $2"
+    "SELECT id, event_id, actor_user_id, target_user_id, action_type, reason, note, created_at FROM event_chat_moderation_actions ORDER BY id DESC LIMIT $1 OFFSET $2",
+  trust_review_flags:
+    "SELECT id, domain, flag_type, severity, subject_user_id, related_entity_type, related_entity_id, status, metadata, created_at, updated_at FROM trust_review_flags ORDER BY id DESC LIMIT $1 OFFSET $2"
 };
 
-function createAdminRouter({ db, config, pushNotifications }) {
+function createAdminRouter({ db, config, pushNotifications, analytics = null, rewardsLedgerService = null }) {
   const router = express.Router();
   const authMiddleware = authenticate({ config, db });
   const modGuard = authorize(["moderator", "admin"]);
@@ -473,6 +476,15 @@ function createAdminRouter({ db, config, pushNotifications }) {
       });
     })
   );
+
+  registerRewardsAdminRoutes(router, {
+    db,
+    authMiddleware,
+    modGuard,
+    analytics,
+    config,
+    rewardsLedgerService
+  });
 
   return router;
 }

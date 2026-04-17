@@ -58,7 +58,7 @@ function ttlIntervalExpr(ttlValue) {
   return `${amount} ${unitMap[unit]}`;
 }
 
-function createAuthService({ db, config, analytics }) {
+function createAuthService({ db, config, analytics, referralService = null }) {
   const refreshInterval = ttlIntervalExpr(config.jwtRefreshTtl);
 
   async function trackAuthFailure(reason, metadata = {}) {
@@ -191,6 +191,20 @@ function createAuthService({ db, config, analytics }) {
     );
 
     const session = await issueSessionTokens(user, "signup");
+    if (referralService) {
+      const rawCode = optionalString(input.referralCode, "referralCode", 64);
+      if (rawCode) {
+        try {
+          await referralService.tryAttributeOnSignup({
+            refereeUserId: user.id,
+            rawReferralCode: rawCode,
+            requestContext: { signupChannel: "email_password" }
+          });
+        } catch {
+          /* non-blocking — referral hooks must not break signup */
+        }
+      }
+    }
     return session;
   }
 
@@ -307,7 +321,22 @@ function createAuthService({ db, config, analytics }) {
        VALUES ($1, $2, $3, NULL, NULL)`,
       [user.id, profileDisplayName, profile.picture || null]
     );
-    return issueSessionTokens(user, "signup");
+    const session = await issueSessionTokens(user, "signup");
+    if (referralService) {
+      const rawCode = optionalString(input.referralCode, "referralCode", 64);
+      if (rawCode) {
+        try {
+          await referralService.tryAttributeOnSignup({
+            refereeUserId: user.id,
+            rawReferralCode: rawCode,
+            requestContext: { signupChannel: "google_oauth" }
+          });
+        } catch {
+          /* non-blocking */
+        }
+      }
+    }
+    return session;
   }
 
   async function refresh(input) {

@@ -1,6 +1,9 @@
 const js = require("@eslint/js");
 
 module.exports = [
+  {
+    ignores: ["migrations/**", "scripts/**", "node_modules/**"]
+  },
   js.configs.recommended,
   {
     files: ["src/**/*.js", "test/**/*.js"],

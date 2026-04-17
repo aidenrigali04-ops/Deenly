@@ -387,6 +387,178 @@ paths:
       responses:
         "200":
           description: Table rows
+  /creator/analytics/overview:
+    get:
+      summary: Creator analytics overview (views, engagement, purchases, earnings)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: creatorUserId
+          schema: { type: integer }
+          description: Optional; defaults to caller. Moderators may query other creators.
+      responses:
+        "200":
+          description: Overview aggregates
+  /creator/analytics/conversion:
+    get:
+      summary: Creator funnel metrics (views, clicks, purchases, CTR)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: creatorUserId
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Conversion metrics
+  /creator/analytics/seller-boosts/summary:
+    get:
+      summary: Seller boost purchase and impression summary
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: creatorUserId
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Boost summary DTO
+  /creator/analytics/seller-boosts:
+    get:
+      summary: List seller boost purchases for a creator
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: creatorUserId
+          schema: { type: integer }
+        - in: query
+          name: limit
+          schema: { type: integer }
+        - in: query
+          name: offset
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Paginated boost purchases
+  /creator/analytics/seller-boosts/{purchaseId}:
+    get:
+      summary: Seller boost purchase detail with per-post impressions
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: purchaseId
+          required: true
+          schema: { type: integer }
+        - in: query
+          name: creatorUserId
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Purchase and targets
+        "404":
+          description: Not found
+  /admin/rewards/ledger-entries:
+    get:
+      summary: Inspect reward ledger (ADMIN_OWNER_EMAIL + moderator/admin role)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Ledger list with filters
+  /admin/rewards/ledger-entries/{id}:
+    get:
+      summary: Reward ledger entry detail
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Entry and optional reversal-of
+  /admin/rewards/referrals/queue:
+    get:
+      summary: Referral attribution queue for ops review
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Queue items
+  /admin/rewards/referrals/attributions/{id}:
+    get:
+      summary: Referral attribution detail
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Attribution with referral code
+  /admin/rewards/referrals/attributions/{id}/review:
+    post:
+      summary: Mark reviewed or reject pending referral attribution
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [mark_reviewed, reject] }
+                reason: { type: string }
+                notes: { type: string }
+      responses:
+        "200":
+          description: Updated attribution
+  /admin/rewards/fraud-flags:
+    get:
+      summary: Heuristic rewards/referral fraud flags for manual review
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Flag list and applied thresholds
+  /admin/rewards/redemptions:
+    get:
+      summary: List checkout reward redemptions
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Redemption rows
+  /monetization/admin/rewards/ledger-entries:
+    get:
+      summary: Inspect reward ledger (moderator/admin team mirror)
+      description: Same contract as GET /admin/rewards/ledger-entries. Use when the caller is moderator/admin but not ADMIN_OWNER_EMAIL. All paths under /monetization/admin/rewards/ mirror /admin/rewards/.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Ledger list with filters
+  /monetization/admin/rewards/fraud-flags:
+    get:
+      summary: Fraud flags (moderator/admin team mirror)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Flag list and applied thresholds
   /messages/conversations:
     get:
       summary: List conversations for current user

@@ -176,6 +176,16 @@ export function SettingsScreen({ navigation }: Props) {
           subtitle="Order history and digital access."
           onPress={() => navigation.navigate("Purchases")}
         />
+        <SettingsRow
+          title="Rewards wallet"
+          subtitle="Points balance and activity."
+          onPress={() => navigation.navigate("RewardsWallet")}
+        />
+        <SettingsRow
+          title="Referrals"
+          subtitle="Your code and invite link."
+          onPress={() => navigation.navigate("Referrals")}
+        />
         {caps?.can_access_creator_hub ? (
           <SettingsRow
             title={activePersona === "business" ? "Creator hub" : "Pro tools"}

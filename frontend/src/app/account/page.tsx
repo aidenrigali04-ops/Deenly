@@ -350,8 +350,16 @@ export default function AccountPage() {
                   Settings
                 </Link>
               </div>
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                <Link href="/account/rewards" className="font-medium text-sky-700 underline-offset-2 hover:underline">
+                  Rewards wallet
+                </Link>
+                <Link href="/account/referrals" className="font-medium text-sky-700 underline-offset-2 hover:underline">
+                  Referrals
+                </Link>
+              </div>
               <p className="mt-2 max-w-md text-xs text-muted">
-                Purchases, Creator hub, sessions, and inbox live under Settings.
+                Purchases, rewards, referrals, Creator hub, sessions, and inbox live under Settings.
               </p>
 
               <ProfilePillTabs tabs={ACCOUNT_TABS} active={profileSectionTab} onChange={setProfileSectionTab} />

@@ -1,6 +1,7 @@
 const DEFAULT_PORT = 3000;
 const { URL } = require("node:url");
 const { normalizeBlockedHostEntry } = require("../utils/content-safety");
+const { assertFeedRankModifierGuardrails } = require("../modules/feed/feed-rank-modifiers");
 const VALID_NODE_ENVS = new Set(["development", "test", "production"]);
 const VALID_DB_SSL_MODES = new Set(["disable", "require", "no-verify"]);
 const VALID_MEDIA_PROVIDERS = new Set(["mock", "s3"]);
@@ -236,6 +237,50 @@ function loadEnv(envSource = process.env) {
       }
       return v;
     })(),
+    feedRewardsRankingEnabled: parseBoolean(envSource.FEED_REWARDS_RANKING_ENABLED, false),
+    feedRankModifiersDebug: parseBoolean(envSource.FEED_RANK_MODIFIERS_DEBUG, false),
+    feedRankModifierAnalyticsSampleRate: (() => {
+      const v = parseNumber(envSource.FEED_RANK_MODIFIER_ANALYTICS_SAMPLE_RATE, 0.02);
+      if (!Number.isFinite(v) || v < 0 || v > 1) {
+        throw new Error("FEED_RANK_MODIFIER_ANALYTICS_SAMPLE_RATE must be between 0 and 1");
+      }
+      return v;
+    })(),
+    feedSellerBoostRankingEnabled: parseBoolean(envSource.FEED_SELLER_BOOST_RANKING_ENABLED, false),
+    feedSellerBoostRankCap: (() => {
+      const v = parseNumber(envSource.FEED_SELLER_BOOST_RANK_CAP, 60);
+      if (!Number.isFinite(v) || v < 0 || v > 500) {
+        throw new Error("FEED_SELLER_BOOST_RANK_CAP must be a number between 0 and 500");
+      }
+      return v;
+    })(),
+    feedSellerBoostRankWeight: (() => {
+      const v = parseNumber(envSource.FEED_SELLER_BOOST_RANK_WEIGHT, 1);
+      if (!Number.isFinite(v) || v < 0 || v > 10) {
+        throw new Error("FEED_SELLER_BOOST_RANK_WEIGHT must be a number between 0 and 10");
+      }
+      return v;
+    })(),
+    /** Upper bound on catalog `rankModifierPoints` for seller boost tiers (defense in depth vs feed cap). */
+    sellerBoostRankModifierPointsCap: parsePositiveInt(
+      envSource.SELLER_BOOST_RANK_MODIFIER_POINTS_CAP,
+      500,
+      "SELLER_BOOST_RANK_MODIFIER_POINTS_CAP"
+    ),
+    feedRankModifiers: {
+      capEngagementAdditive: parseNumber(envSource.FEED_RANK_MODIFIER_CAP_ENGAGEMENT, 42),
+      weightEngagement: parseNumber(envSource.FEED_RANK_MODIFIER_WEIGHT_ENGAGEMENT, 1),
+      capBoostTierAdditive: parseNumber(envSource.FEED_RANK_MODIFIER_CAP_BOOST_TIER, 24),
+      weightBoostTierUnit: parseNumber(envSource.FEED_RANK_MODIFIER_WEIGHT_BOOST_TIER_UNIT, 12),
+      capSalesLnAdditive: parseNumber(envSource.FEED_RANK_MODIFIER_CAP_SALES, 16),
+      weightSalesLn: parseNumber(envSource.FEED_RANK_MODIFIER_WEIGHT_SALES_LN, 6),
+      combinedPositiveCap: parseNumber(envSource.FEED_RANK_MODIFIER_COMBINED_POSITIVE_CAP, 72),
+      capConversionProxyAdditive: parseNumber(envSource.FEED_RANK_MODIFIER_CAP_CONVERSION, 12),
+      weightConversionProxy: parseNumber(envSource.FEED_RANK_MODIFIER_WEIGHT_CONVERSION, 10),
+      capSellerTrustSubtract: parseNumber(envSource.FEED_RANK_MODIFIER_CAP_SELLER_TRUST_SUB, 22),
+      weightSellerOpenReports: parseNumber(envSource.FEED_RANK_MODIFIER_WEIGHT_SELLER_REPORTS, 5),
+      boostMaxFractionOfCombined: parseNumber(envSource.FEED_RANK_MODIFIER_BOOST_MAX_FRACTION, 0.38)
+    },
     stripeSecretKey: String(envSource.STRIPE_SECRET_KEY || "").trim(),
     stripeWebhookSecret: String(envSource.STRIPE_WEBHOOK_SECRET || "").trim(),
     stripeConnectClientId: String(envSource.STRIPE_CONNECT_CLIENT_ID || "").trim(),
@@ -319,7 +364,223 @@ function loadEnv(envSource = process.env) {
         throw new Error("ANONYMOUS_POSTING_USER_ID must be a positive integer when set");
       }
       return n;
-    })()
+    })(),
+    trustSignalsEnabled: parseBoolean(envSource.TRUST_SIGNALS_ENABLED, false),
+    trustDisposableEmailDomainsRaw: String(envSource.TRUST_DISPOSABLE_EMAIL_DOMAINS || "").trim(),
+    trustRewardsEarnFlagPointsMinor: Math.max(
+      0,
+      Math.round(parseNumber(envSource.TRUST_REWARDS_EARN_FLAG_POINTS_MINOR, 5000))
+    ),
+    trustRewardsSpendFlagPointsMinor: Math.max(
+      0,
+      Math.round(parseNumber(envSource.TRUST_REWARDS_SPEND_FLAG_POINTS_MINOR, 8000))
+    ),
+    trustRefundRapidFlagWithinHours: Math.max(
+      1,
+      Math.round(parseNumber(envSource.TRUST_REFUND_RAPID_FLAG_WITHIN_HOURS, 72))
+    ),
+    trustBoostBudgetFlagMinor: Math.max(
+      0,
+      Math.round(parseNumber(envSource.TRUST_BOOST_BUDGET_FLAG_MINOR, 500_000))
+    ),
+    trustRankingReportCategoriesRaw: String(envSource.TRUST_RANKING_REPORT_CATEGORIES || "").trim(),
+    trustReferralFlagSameEmailDomain: parseBoolean(envSource.TRUST_REFERRAL_FLAG_SAME_EMAIL_DOMAIN, true),
+    trustReferralFlagDisposableRefereeEmail: parseBoolean(
+      envSource.TRUST_REFERRAL_FLAG_DISPOSABLE_REFEREE_EMAIL,
+      true
+    ),
+    trustReferralFlagSharedSignupIp: parseBoolean(envSource.TRUST_REFERRAL_FLAG_SHARED_SIGNUP_IP, true),
+    trustReferralBlockDisposableEmail: parseBoolean(envSource.TRUST_REFERRAL_BLOCK_DISPOSABLE_EMAIL, false),
+    referralsEnabled: parseBoolean(envSource.REFERRALS_ENABLED, false),
+    referralAttributionWindowDays: (() => {
+      const v = Math.round(parseNumber(envSource.REFERRAL_ATTRIBUTION_WINDOW_DAYS, 30));
+      if (!Number.isInteger(v) || v < 1 || v > 365) {
+        throw new Error("REFERRAL_ATTRIBUTION_WINDOW_DAYS must be an integer between 1 and 365");
+      }
+      return v;
+    })(),
+    referralMaxReferrerRewardsPerDay: (() => {
+      const v = Math.round(parseNumber(envSource.REFERRAL_MAX_REFERRER_REWARDS_PER_DAY, 50));
+      if (!Number.isInteger(v) || v < 0) {
+        throw new Error("REFERRAL_MAX_REFERRER_REWARDS_PER_DAY must be a non-negative integer");
+      }
+      return v;
+    })(),
+    referralDefaultCodeMaxRedemptions: (() => {
+      const v = Math.round(parseNumber(envSource.REFERRAL_DEFAULT_CODE_MAX_REDEMPTIONS, 100));
+      if (!Number.isInteger(v) || v < 1) {
+        throw new Error("REFERRAL_DEFAULT_CODE_MAX_REDEMPTIONS must be a positive integer");
+      }
+      return v;
+    })(),
+    referralReferrerRewardPointsMinor: Math.max(
+      0,
+      Math.round(parseNumber(envSource.REFERRAL_REFERRER_REWARD_POINTS_MINOR, 500))
+    ),
+    referralRefereeRewardPointsMinor: Math.max(
+      0,
+      Math.round(parseNumber(envSource.REFERRAL_REFEREE_REWARD_POINTS_MINOR, 0))
+    ),
+    referralMinQualifyingOrderAmountMinor: Math.max(
+      0,
+      Math.round(parseNumber(envSource.REFERRAL_MIN_QUALIFYING_ORDER_AMOUNT_MINOR, 1))
+    ),
+    referralQualifyingOrderKinds: (() => {
+      const raw = parseList(
+        envSource.REFERRAL_QUALIFYING_ORDER_KINDS || "product,support,subscription,event_ticket"
+      );
+      return raw.length ? raw : ["product", "support", "subscription", "event_ticket"];
+    })(),
+    referralHoldClearHoursAfterOrder: Math.max(
+      0,
+      Math.round(parseNumber(envSource.REFERRAL_HOLD_CLEAR_HOURS_AFTER_ORDER, 0))
+    ),
+    referralAllowBuyerIsSeller: parseBoolean(envSource.REFERRAL_ALLOW_BUYER_IS_SELLER, false),
+    rewardsMinBalanceMinor: Math.max(0, Math.round(parseNumber(envSource.REWARDS_MIN_BALANCE_MINOR, 500))),
+    rewardsMaxPointsPerRedemptionMinor: parsePositiveInt(
+      envSource.REWARDS_MAX_POINTS_PER_REDEMPTION_MINOR,
+      10_000,
+      "REWARDS_MAX_POINTS_PER_REDEMPTION_MINOR"
+    ),
+    rewardsCooldownHoursBetweenRedemptions: Math.max(
+      0,
+      parseNumber(envSource.REWARDS_COOLDOWN_HOURS_BETWEEN_REDEMPTIONS, 24)
+    ),
+    rewardsMinOrderAmountRemainingMinor: parsePositiveInt(
+      envSource.REWARDS_MIN_ORDER_AMOUNT_REMAINING_MINOR,
+      50,
+      "REWARDS_MIN_ORDER_AMOUNT_REMAINING_MINOR"
+    ),
+    rewardsMaxCheckoutDiscountBps: parseFeeBpsBound(
+      envSource.REWARDS_MAX_CHECKOUT_DISCOUNT_BPS,
+      5000,
+      "REWARDS_MAX_CHECKOUT_DISCOUNT_BPS"
+    ),
+    rewardsPointsPerFiatMinorUnit: parsePositiveInt(
+      envSource.REWARDS_POINTS_PER_FIAT_MINOR_UNIT,
+      100,
+      "REWARDS_POINTS_PER_FIAT_MINOR_UNIT"
+    ),
+    rewardsCurrencyCode: (() => {
+      const s = String(envSource.REWARDS_CURRENCY_CODE || "DEEN_PTS").trim();
+      if (s.length >= 3 && s.length <= 32) {
+        return s;
+      }
+      return "DEEN_PTS";
+    })(),
+    rewardsPointsDecimals: (() => {
+      const v = Math.round(parseNumber(envSource.REWARDS_POINTS_DECIMALS, 0));
+      return [0, 2, 3].includes(v) ? v : 0;
+    })(),
+    rewardsMaxEarnPerUserPerDayMinor: Math.max(
+      1,
+      Math.round(parseNumber(envSource.REWARDS_MAX_EARN_PER_USER_PER_DAY_MINOR, 5000))
+    ),
+    rewardsMaxEarnPerUserPerMonthMinor: Math.max(
+      1,
+      Math.round(parseNumber(envSource.REWARDS_MAX_EARN_PER_USER_PER_MONTH_MINOR, 50_000))
+    ),
+    rewardsMaxSingleGrantMinor: Math.max(1, Math.round(parseNumber(envSource.REWARDS_MAX_SINGLE_GRANT_MINOR, 2000))),
+    rewardsMinGrantMinor: Math.max(1, Math.round(parseNumber(envSource.REWARDS_MIN_GRANT_MINOR, 1))),
+    rewardsRulesMaxGrantsPerRollingHour: parsePositiveInt(
+      envSource.REWARDS_RULES_MAX_GRANTS_PER_ROLLING_HOUR,
+      40,
+      "REWARDS_RULES_MAX_GRANTS_PER_ROLLING_HOUR"
+    ),
+    rewardsRulesMinSecondsBetweenGrantsSameTarget: Math.max(
+      0,
+      Math.round(parseNumber(envSource.REWARDS_RULES_MIN_SECONDS_BETWEEN_GRANTS_SAME_TARGET, 45))
+    ),
+    rewardsRulesMinQualityForEngagementEarn: (() => {
+      const v = parseNumber(envSource.REWARDS_RULES_MIN_QUALITY_FOR_ENGAGEMENT_EARN, 0.55);
+      if (!Number.isFinite(v) || v < 0 || v > 1) {
+        return 0.55;
+      }
+      return v;
+    })(),
+    rewardsRulesMinDwellSecondsForReaction: Math.max(
+      0,
+      Math.min(3600, Math.round(parseNumber(envSource.REWARDS_RULES_MIN_DWELL_SECONDS_FOR_REACTION, 3)))
+    ),
+    rewardsReversalFullRefundClawbackRatio: (() => {
+      const v = parseNumber(envSource.REWARDS_REVERSAL_FULL_REFUND_CLAWBACK_RATIO, 1);
+      return Number.isFinite(v) && v >= 0 && v <= 1 ? v : 1;
+    })(),
+    rewardsReversalPartialRefundClawbackRatio: (() => {
+      const v = parseNumber(envSource.REWARDS_REVERSAL_PARTIAL_REFUND_CLAWBACK_RATIO, 0.5);
+      return Number.isFinite(v) && v >= 0 && v <= 1 ? v : 0.5;
+    })(),
+    rewardsReversalChargebackClawbackRatio: (() => {
+      const v = parseNumber(envSource.REWARDS_REVERSAL_CHARGEBACK_CLAWBACK_RATIO, 1);
+      return Number.isFinite(v) && v >= 0 && v <= 1 ? v : 1;
+    })(),
+    rewardsReversalMaxAgeDays: parsePositiveInt(envSource.REWARDS_REVERSAL_MAX_AGE_DAYS, 120, "REWARDS_REVERSAL_MAX_AGE_DAYS"),
+    rewardsFraudThresholds: {
+      redemptionVelocityWindowHours: (() => {
+        const n = parsePositiveInt(
+          envSource.REWARDS_FRAUD_REDEMPTION_VELOCITY_WINDOW_HOURS,
+          24,
+          "REWARDS_FRAUD_REDEMPTION_VELOCITY_WINDOW_HOURS"
+        );
+        return Math.min(168, n);
+      })(),
+      redemptionVelocityMinCount: (() => {
+        const n = parsePositiveInt(
+          envSource.REWARDS_FRAUD_REDEMPTION_VELOCITY_MIN_COUNT,
+          4,
+          "REWARDS_FRAUD_REDEMPTION_VELOCITY_MIN_COUNT"
+        );
+        return Math.min(100, Math.max(2, n));
+      })(),
+      reversalBurstWindowDays: (() => {
+        const n = parsePositiveInt(
+          envSource.REWARDS_FRAUD_REVERSAL_BURST_WINDOW_DAYS,
+          7,
+          "REWARDS_FRAUD_REVERSAL_BURST_WINDOW_DAYS"
+        );
+        return Math.min(90, n);
+      })(),
+      reversalBurstMinCount: (() => {
+        const n = parsePositiveInt(
+          envSource.REWARDS_FRAUD_REVERSAL_BURST_MIN_COUNT,
+          3,
+          "REWARDS_FRAUD_REVERSAL_BURST_MIN_COUNT"
+        );
+        return Math.min(50, Math.max(2, n));
+      })(),
+      referralQualifiedVelocityWindowHours: (() => {
+        const n = parsePositiveInt(
+          envSource.REWARDS_FRAUD_REFERRAL_QUALIFIED_VELOCITY_WINDOW_HOURS,
+          24,
+          "REWARDS_FRAUD_REFERRAL_QUALIFIED_VELOCITY_WINDOW_HOURS"
+        );
+        return Math.min(168, n);
+      })(),
+      referralQualifiedVelocityMinCount: (() => {
+        const n = parsePositiveInt(
+          envSource.REWARDS_FRAUD_REFERRAL_QUALIFIED_VELOCITY_MIN_COUNT,
+          8,
+          "REWARDS_FRAUD_REFERRAL_QUALIFIED_VELOCITY_MIN_COUNT"
+        );
+        return Math.min(200, Math.max(2, n));
+      })(),
+      voidedAttributionWindowDays: (() => {
+        const n = parsePositiveInt(
+          envSource.REWARDS_FRAUD_VOIDED_ATTRIBUTION_WINDOW_DAYS,
+          7,
+          "REWARDS_FRAUD_VOIDED_ATTRIBUTION_WINDOW_DAYS"
+        );
+        return Math.min(90, n);
+      })(),
+      voidedAttributionListLimit: (() => {
+        const n = parsePositiveInt(
+          envSource.REWARDS_FRAUD_VOIDED_ATTRIBUTION_LIST_LIMIT,
+          40,
+          "REWARDS_FRAUD_VOIDED_ATTRIBUTION_LIST_LIMIT"
+        );
+        return Math.min(200, n);
+      })()
+    }
   };
 
   if (!VALID_DB_SSL_MODES.has(config.dbSslMode)) {
@@ -377,6 +638,10 @@ function loadEnv(envSource = process.env) {
     if (config.stripeWebhookSecret && !config.stripeSecretKey) {
       throw new Error("STRIPE_SECRET_KEY is required when STRIPE_WEBHOOK_SECRET is provided");
     }
+  }
+
+  if (config.feedRewardsRankingEnabled) {
+    assertFeedRankModifierGuardrails(config);
   }
 
   return config;

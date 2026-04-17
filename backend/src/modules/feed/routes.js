@@ -3,6 +3,10 @@ const jwt = require("jsonwebtoken");
 const { asyncHandler } = require("../../utils/async-handler");
 const { httpError } = require("../../utils/http-error");
 const { requireAccessSecret } = require("../../middleware/auth");
+const { getFeedRankModifierBindings } = require("./feed-rank-modifiers");
+const { buildSellerBoostTierPointsCaseSql } = require("../../config/seller-boost-catalog");
+
+const SELLER_BOOST_TIER_CASE_SQL = buildSellerBoostTierPointsCaseSql();
 
 function decodeCursor(cursor) {
   if (!cursor) {
@@ -63,7 +67,7 @@ async function getViewerIdFromAuthHeader({ db, config, authorization }) {
   }
 }
 
-function createFeedRouter({ db, config, mediaStorage }) {
+function createFeedRouter({ db, config, mediaStorage, analytics: feedAnalytics = null }) {
   const router = express.Router();
 
   async function getRankedEventCandidates({
@@ -465,6 +469,7 @@ function createFeedRouter({ db, config, mediaStorage }) {
         }
       }
 
+      const rankModifiers = getFeedRankModifierBindings(config);
       const result = await db.query(
         `WITH viewer_behavior AS (
            SELECT
@@ -514,6 +519,29 @@ function createFeedRouter({ db, config, mediaStorage }) {
                 cpr.product_type AS attached_product_type,
                 cpr.website_url AS attached_product_website_url,
                 COALESCE(cpr.platform_fee_bps, 0)::int AS attached_platform_fee_bps,
+                cpr.boost_tier AS attached_boost_tier,
+                CASE
+                  WHEN cpr.id IS NULL THEN 0
+                  ELSE COALESCE(
+                    (
+                      SELECT COUNT(*)::int
+                      FROM orders o_sales
+                      WHERE o_sales.product_id = cpr.id
+                        AND o_sales.status = 'completed'
+                    ),
+                    0
+                  )
+                END AS product_completed_orders,
+                COALESCE(
+                  (
+                    SELECT COUNT(*)::int
+                    FROM reports r_author
+                    WHERE r_author.target_type = 'user'
+                      AND r_author.target_id = p.author_id::text
+                      AND r_author.status IN ('open', 'reviewing')
+                  ),
+                  0
+                ) AS author_open_reports,
                 COALESCE(MAX(vs.view_count), 0)::int AS view_count,
                 COALESCE(MAX(vs.avg_watch_time_ms), 0)::int AS avg_watch_time_ms,
                 COALESCE(MAX(vs.avg_completion_rate), 0)::numeric AS avg_completion_rate,
@@ -624,6 +652,30 @@ function createFeedRouter({ db, config, mediaStorage }) {
                     AND r.target_id = p.id::text
                     AND r.status IN ('open', 'reviewing')
                 ), 0) AS trust_report_count
+                ,
+                MAX(
+                  CASE
+                    WHEN $37::boolean THEN
+                      COALESCE(
+                        (
+                          SELECT LEAST(
+                            COALESCE(SUM(${SELLER_BOOST_TIER_CASE_SQL}), 0::numeric),
+                            $36::numeric
+                          )
+                          FROM seller_boost_targets t
+                          INNER JOIN seller_boost_purchases sbp ON sbp.id = t.purchase_id
+                          WHERE t.post_id = p.id
+                            AND sbp.status = 'active'
+                            AND sbp.starts_at IS NOT NULL
+                            AND sbp.ends_at IS NOT NULL
+                            AND sbp.starts_at <= NOW()
+                            AND sbp.ends_at > NOW()
+                        ),
+                        0::numeric
+                      )
+                    ELSE 0::numeric
+                  END
+                ) AS seller_boost_rank_bonus
          FROM posts p
          CROSS JOIN viewer_behavior vb
          JOIN profiles pr ON pr.user_id = p.author_id
@@ -693,31 +745,94 @@ function createFeedRouter({ db, config, mediaStorage }) {
            cpr.product_type,
            cpr.website_url,
            cpr.platform_fee_bps,
+           cpr.boost_tier,
            vb.b2b_purchases,
            vb.b2c_purchases
          ),
          ranked AS (
-           SELECT *,
+           SELECT pa.*,
                   (
-                    EXTRACT(EPOCH FROM created_at)
-                    + (comment_count * $6::numeric)
-                    + (benefited_count * $7::numeric)
-                    + ((avg_watch_time_ms / 1000.0) * $8::numeric)
-                    + (avg_completion_rate * $9::numeric)
-                    + (follow_boost * $10::numeric)
-                    + (affinity_score * $11::numeric)
-                    + (interest_boost * $12::numeric)
-                    + (audience_tab_boost * $19::numeric)
-                    + (intent_persona_score * $22::numeric)
-                    - (trust_report_count * $17::numeric)
+                    EXTRACT(EPOCH FROM pa.created_at)
+                    + (pa.comment_count * $6::numeric)
+                    + (pa.benefited_count * $7::numeric)
+                    + ((pa.avg_watch_time_ms / 1000.0) * $8::numeric)
+                    + (pa.avg_completion_rate * $9::numeric)
+                    + (pa.follow_boost * $10::numeric)
+                    + (pa.affinity_score * $11::numeric)
+                    + (pa.interest_boost * $12::numeric)
+                    + (pa.audience_tab_boost * $19::numeric)
+                    + (pa.intent_persona_score * $22::numeric)
+                    - (pa.trust_report_count * $17::numeric)
                     + (
                       CASE
-                        WHEN attached_product_id IS NULL THEN 0::numeric
-                        ELSE (LEAST(attached_platform_fee_bps, $20::int)::numeric / 10000.0) * $21::numeric
+                        WHEN pa.attached_product_id IS NULL THEN 0::numeric
+                        ELSE (LEAST(pa.attached_platform_fee_bps, $20::int)::numeric / 10000.0) * $21::numeric
                       END
                     )
+                    + (
+                      CASE
+                        WHEN $24::boolean THEN
+                          LEAST(
+                            $31::numeric,
+                            LEAST($25::numeric, pa.rewards_engagement_proxy * $26::numeric)
+                            + LEAST($27::numeric, pa.boost_tier_unit * $28::numeric)
+                            + (
+                              CASE
+                                WHEN $18::text = 'marketplace'
+                                  AND pa.attached_product_id IS NOT NULL THEN
+                                  LEAST(
+                                    $29::numeric,
+                                    LN(1 + GREATEST(pa.product_completed_orders, 0)::numeric) * $30::numeric
+                                  )
+                                  + LEAST($32::numeric, pa.conversion_proxy * $33::numeric)
+                                ELSE 0::numeric
+                              END
+                            )
+                          )
+                        ELSE 0::numeric
+                      END
+                    )
+                    - (
+                      CASE
+                        WHEN $24::boolean THEN
+                          LEAST($34::numeric, pa.author_open_reports::numeric * $35::numeric)
+                        ELSE 0::numeric
+                      END
+                    )
+                    + (pa.seller_boost_rank_bonus * $38::numeric)
                   )::numeric AS rank_score
-           FROM post_agg
+           FROM (
+             SELECT post_agg.*,
+                    CASE LOWER(COALESCE(post_agg.attached_boost_tier, ''))
+                      WHEN 'boosted' THEN 1::numeric
+                      WHEN 'aggressive' THEN 2::numeric
+                      ELSE 0::numeric
+                    END AS boost_tier_unit,
+                    CASE
+                      WHEN post_agg.trust_report_count > 0 THEN 0::numeric
+                      ELSE LEAST(
+                        1::numeric,
+                        LEAST(COALESCE(post_agg.avg_completion_rate, 0), 1) * 0.44::numeric
+                        + LEAST(COALESCE(post_agg.view_count, 0)::numeric / 4000.0, 1::numeric) * 0.28::numeric
+                        + LEAST(
+                          (
+                            COALESCE(post_agg.comment_count, 0) + COALESCE(post_agg.benefited_count, 0)
+                          )::numeric / 55.0,
+                          1::numeric
+                        ) * 0.28::numeric
+                      )
+                    END AS rewards_engagement_proxy,
+                    CASE
+                      WHEN post_agg.attached_product_id IS NULL OR COALESCE(post_agg.view_count, 0) <= 0 THEN
+                        0::numeric
+                      ELSE LEAST(
+                        1::numeric,
+                        post_agg.product_completed_orders::numeric
+                        / NULLIF(post_agg.view_count::numeric, 0)
+                      )
+                    END AS conversion_proxy
+             FROM post_agg
+           ) pa
          )
          SELECT *
          FROM ranked
@@ -752,18 +867,61 @@ function createFeedRouter({ db, config, mediaStorage }) {
           Number(config.feedRankPlatformFeeCapBps ?? 3500),
           Number(config.feedRankPlatformFeeWeight ?? 3),
           Number(config.feedRankOnboardingIntentWeight ?? 60),
-          onboardingIntentsForFeed
+          onboardingIntentsForFeed,
+          rankModifiers.enabled,
+          rankModifiers.capEngagement,
+          rankModifiers.weightEngagement,
+          rankModifiers.capBoost,
+          rankModifiers.weightBoost,
+          rankModifiers.capSales,
+          rankModifiers.weightSales,
+          rankModifiers.combinedPositive,
+          rankModifiers.capConversion,
+          rankModifiers.weightConversion,
+          rankModifiers.capSellerTrustSub,
+          rankModifiers.weightSellerTrustPerReport,
+          Number(config.feedSellerBoostRankCap ?? 60),
+          Boolean(config.feedSellerBoostRankingEnabled),
+          Number(config.feedSellerBoostRankWeight ?? 1)
         ]
       );
+
+      if (config.feedRewardsRankingEnabled) {
+        res.setHeader("X-Feed-Rank-Modifiers-Active", "1");
+        const sampleRate = Number(config.feedRankModifierAnalyticsSampleRate ?? 0);
+        if (
+          feedAnalytics &&
+          typeof feedAnalytics.trackEvent === "function" &&
+          sampleRate > 0 &&
+          Math.random() < sampleRate
+        ) {
+          await feedAnalytics.trackEvent("feed_ranking_modifiers_applied", {
+            feedTab,
+            schemaVersion: 1,
+            viewerId: viewerId || null
+          });
+        }
+      }
 
       const onboardingIntentsApplied = onboardingIntentsForFeed;
       const nowIso = new Date().toISOString();
 
       const hasMore = result.rows.length > limit;
       const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
-      let items = rows.map((row) => {
+      const stripRankModifierInternals = (row) => {
         const cleaned = { ...row };
         delete cleaned.intent_persona_score;
+        delete cleaned.boost_tier_unit;
+        delete cleaned.rewards_engagement_proxy;
+        delete cleaned.conversion_proxy;
+        delete cleaned.product_completed_orders;
+        delete cleaned.author_open_reports;
+        delete cleaned.attached_boost_tier;
+        delete cleaned.seller_boost_rank_bonus;
+        return cleaned;
+      };
+      let items = rows.map((row) => {
+        const cleaned = stripRankModifierInternals(row);
         return {
           ...cleaned,
           media_url: mediaStorage?.resolveMediaUrl
@@ -882,6 +1040,15 @@ function createFeedRouter({ db, config, mediaStorage }) {
         mergedEventCount = eventIdx;
       }
 
+      const rankModifierAudit =
+        config.feedRankModifiersDebug && String(req.query.rankModifierAudit || "") === "1"
+          ? {
+              enabled: Boolean(config.feedRewardsRankingEnabled),
+              schemaVersion: 1,
+              caps: config.feedRankModifiers || {}
+            }
+          : undefined;
+
       res.status(200).json({
         items,
         eventCandidates,
@@ -893,6 +1060,7 @@ function createFeedRouter({ db, config, mediaStorage }) {
         hasMore,
         nextCursor,
         limit,
+        ...(rankModifierAudit ? { rankModifierAudit } : {}),
         persona: {
           inferred:
             behavior.b2bPurchases > behavior.b2cPurchases

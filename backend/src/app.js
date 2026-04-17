@@ -24,7 +24,12 @@ const { createAdminRouter } = require("./modules/admin/routes");
 const { createBetaRouter } = require("./modules/beta/routes");
 const { createSupportRouter } = require("./modules/support/routes");
 const { createMonetizationRouter } = require("./modules/monetization/routes");
+const { createRewardsRouter } = require("./modules/rewards/routes");
+const { createReferralsRouter } = require("./modules/referrals/routes");
 const { createAdsRouter } = require("./modules/ads/routes");
+const { createSellerBoostService } = require("./modules/seller-boosts/seller-boost-service");
+const { createSellerBoostTierResolver } = require("./config/seller-boost-catalog");
+const { createSellerBoostRouter } = require("./modules/seller-boosts/seller-boost-routes");
 const { createCreatorRouter } = require("./modules/creator/routes");
 const { createInstagramRouter } = require("./modules/instagram/routes");
 const { createAiRouter } = require("./modules/ai/routes");
@@ -66,7 +71,14 @@ function createApp({
   analytics,
   mediaStorage,
   pushNotifications,
-  monetizationGateway
+  monetizationGateway,
+  referralService = null,
+  rewardsLedgerService = null,
+  rewardsCheckoutService = null,
+  rewardsReadService = null,
+  referralReadService = null,
+  trustFlagService = null,
+  sellerBoostService: sellerBoostServiceOverride = null
 }) {
   function requireAdminOwner(req, _res, next) {
     const ownerEmail = String(config.adminOwnerEmail || "").toLowerCase();
@@ -87,6 +99,16 @@ function createApp({
   app.locals.pushNotifications = pushNotifications || null;
   app.locals.monetizationGateway = monetizationGateway || createMonetizationGateway({ config });
   app.locals.plaidSellerBank = createPlaidSellerBankService({ db, config, logger });
+
+  const sellerBoostService =
+    sellerBoostServiceOverride ??
+    createSellerBoostService({
+      db,
+      analytics: app.locals.analytics,
+      logger,
+      config,
+      resolveTier: createSellerBoostTierResolver(config)
+    });
 
   const instagramCrossPost = createInstagramCrossPostOrchestrator({
     db,
@@ -228,7 +250,10 @@ function createApp({
   });
 
   const apiRouter = express.Router();
-  apiRouter.use("/auth", createAuthRouter({ config, db, analytics: app.locals.analytics }));
+  apiRouter.use(
+    "/auth",
+    createAuthRouter({ config, db, analytics: app.locals.analytics, referralService })
+  );
   apiRouter.use("/users", createUsersRouter({ db, config, analytics: app.locals.analytics }));
   apiRouter.use("/profiles", createProfileRouter({ db, config }));
   apiRouter.use(
@@ -249,7 +274,16 @@ function createApp({
       enqueueInstagramCrossPostByPostId: instagramCrossPost.enqueueByPostId
     })
   );
-  apiRouter.use("/feed", feedReadLimiter, createFeedRouter({ db, config, mediaStorage: app.locals.mediaStorage }));
+  apiRouter.use(
+    "/feed",
+    feedReadLimiter,
+    createFeedRouter({
+      db,
+      config,
+      mediaStorage: app.locals.mediaStorage,
+      analytics: app.locals.analytics
+    })
+  );
   apiRouter.use(
     "/interactions",
     createInteractionsRouter({
@@ -269,7 +303,10 @@ function createApp({
     })
   );
   apiRouter.use("/media", createMediaRouter({ db, config, mediaStorage: app.locals.mediaStorage, analytics: app.locals.analytics }));
-  apiRouter.use("/reports", createReportsRouter({ db, config, analytics: app.locals.analytics }));
+  apiRouter.use(
+    "/reports",
+    createReportsRouter({ db, config, analytics: app.locals.analytics, trustFlagService })
+  );
   apiRouter.use("/safety", createSafetyRouter({ db, config }));
   apiRouter.use("/analytics", createAnalyticsRouter({ db, config }));
   apiRouter.use(
@@ -286,7 +323,13 @@ function createApp({
     authenticate({ config, db }),
     authorize(["moderator", "admin"]),
     requireAdminOwner,
-    createAdminRouter({ db, config, pushNotifications: app.locals.pushNotifications })
+    createAdminRouter({
+      db,
+      config,
+      pushNotifications: app.locals.pushNotifications,
+      analytics: app.locals.analytics,
+      rewardsLedgerService
+    })
   );
   apiRouter.use("/beta", createBetaRouter({ db, config }));
   apiRouter.use("/support", createSupportRouter({ db, config }));
@@ -300,15 +343,36 @@ function createApp({
       mediaStorage: app.locals.mediaStorage,
       analytics: app.locals.analytics,
       plaidSellerBank: app.locals.plaidSellerBank,
-      pushNotifications: app.locals.pushNotifications
+      pushNotifications: app.locals.pushNotifications,
+      referralService,
+      rewardsLedgerService,
+      rewardsCheckoutService,
+      trustFlagService,
+      sellerBoostService
     })
   );
+  if (rewardsReadService) {
+    apiRouter.use("/rewards", createRewardsRouter({ config, db, rewardsReadService }));
+  }
+  if (referralReadService) {
+    apiRouter.use("/referrals", createReferralsRouter({ config, db, referralReadService }));
+  }
   apiRouter.use(
     "/ads",
     createAdsRouter({
       db,
       config,
       analytics: app.locals.analytics,
+      monetizationGateway: app.locals.monetizationGateway,
+      trustFlagService
+    })
+  );
+  apiRouter.use(
+    "/seller-boosts",
+    createSellerBoostRouter({
+      config,
+      db,
+      sellerBoostService,
       monetizationGateway: app.locals.monetizationGateway
     })
   );

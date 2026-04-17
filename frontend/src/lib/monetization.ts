@@ -328,18 +328,61 @@ export async function createGuestProductCheckout(
   );
 }
 
+export type ProductCheckoutRewardsPreview = {
+  eligible: boolean;
+  denyReasons: string[];
+  balanceMinor: number;
+  lastRedemptionAtIso: string | null;
+  pointsToSpend: number;
+  discountMinor: number;
+  chargedMinor: number;
+  listPriceMinor: number;
+  productRewardsEligible: boolean;
+};
+
+export async function fetchProductCheckoutRewardsPreview(
+  productId: number,
+  opts?: { redeemPointsMinor?: number; redeemEnabled?: boolean }
+) {
+  const q = new URLSearchParams();
+  if (opts?.redeemPointsMinor != null && Number.isFinite(opts.redeemPointsMinor)) {
+    q.set("redeemPointsMinor", String(opts.redeemPointsMinor));
+  }
+  if (opts?.redeemEnabled === false) {
+    q.set("redeemEnabled", "false");
+  }
+  const qs = q.toString();
+  return apiRequest<ProductCheckoutRewardsPreview>(
+    `/monetization/checkout/product/${productId}/rewards-preview${qs ? `?${qs}` : ""}`,
+    { auth: true }
+  );
+}
+
 export async function createProductCheckout(
   productId: number,
-  opts?: { affiliateCode?: string; smsOptIn?: boolean }
+  opts?: {
+    affiliateCode?: string;
+    smsOptIn?: boolean;
+    redeemMaxPoints?: boolean;
+    redeemPointsMinor?: number;
+    redeemClientRequestId?: string;
+  }
 ) {
-  return apiRequest<{ checkoutSessionId: string; checkoutUrl: string }>(
-    `/monetization/checkout/product/${productId}`,
-    {
-      method: "POST",
-      auth: true,
-      body: { affiliateCode: opts?.affiliateCode, smsOptIn: opts?.smsOptIn }
+  return apiRequest<{
+    checkoutSessionId: string;
+    checkoutUrl: string;
+    redeemSummary: { pointsSpent: number; discountMinor: number; chargedMinor: number } | null;
+  }>(`/monetization/checkout/product/${productId}`, {
+    method: "POST",
+    auth: true,
+    body: {
+      affiliateCode: opts?.affiliateCode,
+      smsOptIn: opts?.smsOptIn,
+      redeemMaxPoints: opts?.redeemMaxPoints,
+      redeemPointsMinor: opts?.redeemPointsMinor,
+      redeemClientRequestId: opts?.redeemClientRequestId
     }
-  );
+  });
 }
 
 export async function createEventTicketCheckout(eventId: number) {

@@ -1,7 +1,7 @@
 const express = require("express");
 const { setImmediate } = require("timers");
 const rateLimit = require("express-rate-limit");
-const { authenticate, authenticateOptional } = require("../../middleware/auth");
+const { authenticate, authenticateOptional, authorize } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
 const { httpError } = require("../../utils/http-error");
 const { requireString, optionalString } = require("../../utils/validators");
@@ -12,6 +12,8 @@ const { hashToken } = require("../../services/purchase-access-token");
 const { resolvePersonaCapabilities } = require("../../services/persona-capabilities");
 const { throwIfAnyUserFacingPolicyViolation } = require("../../utils/content-safety");
 const { notifyAfterAdBoostPayment } = require("../../services/ad-boost-notifications");
+const { getTrustSignalThresholds } = require("../trust/trust-signal-thresholds");
+const { registerRewardsAdminRoutes } = require("../admin/rewards-admin-routes");
 
 function extractCheckoutCustomerContact(sessionObj) {
   const d = sessionObj?.customer_details || {};
@@ -194,7 +196,12 @@ function createMonetizationRouter({
   mediaStorage,
   analytics,
   plaidSellerBank,
-  pushNotifications
+  pushNotifications,
+  referralService = null,
+  rewardsLedgerService = null,
+  rewardsCheckoutService = null,
+  trustFlagService = null,
+  sellerBoostService = null
 }) {
   const router = express.Router();
   const authMiddleware = authenticate({ config, db });
@@ -386,6 +393,13 @@ function createMonetizationRouter({
       ]
     );
     return upsert.rows[0];
+  }
+
+  async function reverseCheckoutPointsIfAny({ stripeSessionId, reasonLabel }) {
+    if (!rewardsCheckoutService || typeof rewardsCheckoutService.reverseActiveCheckoutRedemptionIfAny !== "function") {
+      return;
+    }
+    await rewardsCheckoutService.reverseActiveCheckoutRedemptionIfAny({ stripeSessionId, reasonLabel });
   }
 
   async function resolveAffiliateCode({ rawCode, sellerUserId, buyerUserId }) {
@@ -1413,6 +1427,64 @@ function createMonetizationRouter({
     })
   );
 
+  router.get(
+    "/checkout/product/:productId/rewards-preview",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      if (!rewardsCheckoutService || !rewardsLedgerService) {
+        throw httpError(503, "Rewards checkout is not configured");
+      }
+      const productId = Number(req.params.productId);
+      if (!productId) {
+        throw httpError(400, "productId must be a number");
+      }
+      const rawPoints = req.query?.redeemPointsMinor;
+      const requestedPointsMinor =
+        rawPoints === undefined || rawPoints === "" || rawPoints == null
+          ? null
+          : Number(Array.isArray(rawPoints) ? rawPoints[0] : rawPoints);
+      const redeemEnabledRaw = req.query?.redeemEnabled;
+      const redeemEnabledStr = Array.isArray(redeemEnabledRaw) ? redeemEnabledRaw[0] : redeemEnabledRaw;
+      const redeemEnabled =
+        redeemEnabledStr === undefined || redeemEnabledStr === "" || String(redeemEnabledStr) === "true";
+
+      const prev = await rewardsCheckoutService.previewProductRedemption({
+        userId: req.user.id,
+        productId,
+        requestedPointsMinor: Number.isFinite(requestedPointsMinor) ? requestedPointsMinor : null,
+        redeemEnabled
+      });
+      if (!prev.ok) {
+        throw httpError(prev.status, prev.message);
+      }
+      if (analytics) {
+        await analytics.trackEvent("rewards_checkout_eligibility_viewed", {
+          userId: req.user.id,
+          productId,
+          redeemEnabled,
+          allow: prev.plan.allow,
+          denyReasons: prev.plan.denyReasons,
+          balanceMinor: prev.snapshot.balanceMinor,
+          pointsToSpend: prev.plan.pointsToSpend,
+          discountMinor: prev.plan.discountMinor,
+          chargedMinor: prev.plan.chargedMinor,
+          listPriceMinor: Number(prev.product.price_minor)
+        });
+      }
+      res.status(200).json({
+        eligible: prev.plan.allow,
+        denyReasons: prev.plan.denyReasons,
+        balanceMinor: prev.snapshot.balanceMinor,
+        lastRedemptionAtIso: prev.snapshot.lastRedemptionAtIso,
+        pointsToSpend: prev.plan.pointsToSpend,
+        discountMinor: prev.plan.discountMinor,
+        chargedMinor: prev.plan.chargedMinor,
+        listPriceMinor: Number(prev.product.price_minor),
+        productRewardsEligible: Boolean(prev.product.rewards_redemption_eligible)
+      });
+    })
+  );
+
   router.post(
     "/checkout/product/:productId/guest",
     guestProductCheckoutLimiter,
@@ -1552,34 +1624,160 @@ function createMonetizationRouter({
       });
 
       const platformFeeBps = clampSessionPlatformFeeBps(product.platform_fee_bps, config);
-      const applicationFeeAmountMinor = Math.max(
-        0,
-        Math.round((Number(product.price_minor) * platformFeeBps) / 10000)
-      );
 
       const smsOptIn = Boolean(req.body?.smsOptIn);
       const checkoutVariant = optionalString(req.body?.checkoutVariant, "checkoutVariant", 40) || "default";
 
-      const session = await monetizationGateway.createCheckoutSession({
-        kind: "product",
-        amountMinor: product.price_minor,
-        currency: product.currency,
-        buyerUserId: req.user.id,
-        sellerUserId: product.creator_user_id,
-        productId: product.id,
-        affiliateCodeId: affiliateCode?.id || null,
-        title: product.title,
-        description: product.description,
-        connectedAccountId,
-        applicationFeeAmountMinor,
-        platformFeeBps,
-        collectPhone: smsOptIn,
-        metadataExtra: {
-          smsOptIn: smsOptIn ? "true" : "false",
-          guestCheckout: "false",
-          checkoutVariant
+      const redeemMaxPoints = Boolean(req.body?.redeemMaxPoints);
+      const rawRedeemPoints = req.body?.redeemPointsMinor;
+      const redeemPointsBody =
+        rawRedeemPoints === undefined || rawRedeemPoints === null || rawRedeemPoints === ""
+          ? 0
+          : Number(rawRedeemPoints);
+      const wantsRedeem = redeemMaxPoints || (Number.isFinite(redeemPointsBody) && redeemPointsBody > 0);
+
+      if (wantsRedeem && (!rewardsLedgerService || !rewardsCheckoutService)) {
+        throw httpError(503, "Rewards checkout is not configured");
+      }
+      const redeemClientRequestId = wantsRedeem
+        ? requireString(req.body?.redeemClientRequestId, "redeemClientRequestId", 8, 128)
+        : null;
+
+      const listPriceMinor = Number(product.price_minor);
+      let plan = {
+        allow: true,
+        denyReasons: [],
+        pointsToSpend: 0,
+        discountMinor: 0,
+        chargedMinor: listPriceMinor
+      };
+      if (wantsRedeem) {
+        const planned = await rewardsCheckoutService.planProductCheckoutRedemption({
+          userId: req.user.id,
+          product,
+          redeemEnabled: true,
+          requestedPointsMinor: redeemMaxPoints ? null : redeemPointsBody,
+          requestedAtIso: new Date().toISOString()
+        });
+        plan = planned.plan;
+        if (!plan.allow) {
+          if (analytics) {
+            await analytics.trackEvent("rewards_checkout_redemption_failed", {
+              userId: req.user.id,
+              productId: product.id,
+              stage: "checkout_apply",
+              denyReasons: plan.denyReasons,
+              listPriceMinor
+            });
+          }
+          throw httpError(422, "Points cannot be applied to this checkout");
         }
-      });
+      }
+
+      const chargedMinor = plan.chargedMinor;
+      const applicationFeeAmountMinor = Math.max(0, Math.round((chargedMinor * platformFeeBps) / 10000));
+
+      let spendLedgerEntry = null;
+      if (plan.pointsToSpend > 0) {
+        let spendRes;
+        try {
+          ({ spendRes, ledgerEntry: spendLedgerEntry } = await rewardsCheckoutService.applyLedgerSpendForProductCheckout({
+            userId: req.user.id,
+            plan,
+            redeemClientRequestId,
+            productId: product.id,
+            listPriceMinor
+          }));
+        } catch (spendErr) {
+          if (spendErr && spendErr.code === "insufficient_points_at_checkout") {
+            if (analytics) {
+              await analytics.trackEvent("rewards_checkout_redemption_failed", {
+                userId: req.user.id,
+                productId: product.id,
+                stage: "ledger_spend",
+                reason: spendErr.code,
+                listPriceMinor
+              });
+            }
+            throw httpError(422, spendErr.message || "Could not apply points to this checkout");
+          }
+          throw spendErr;
+        }
+        if (spendRes.duplicate && plan.pointsToSpend > 0) {
+          throw httpError(409, "Duplicate redemption request; use a new redeemClientRequestId");
+        }
+        if (analytics) {
+          await analytics.trackEvent("rewards_checkout_redemption_applied", {
+            userId: req.user.id,
+            productId: product.id,
+            pointsSpent: plan.pointsToSpend,
+            discountMinor: plan.discountMinor,
+            chargedMinor,
+            ledgerEntryId: spendLedgerEntry.id,
+            duplicate: spendRes.duplicate
+          });
+        }
+      }
+
+      let session;
+      try {
+        session = await monetizationGateway.createCheckoutSession({
+          kind: "product",
+          amountMinor: chargedMinor,
+          currency: product.currency,
+          buyerUserId: req.user.id,
+          sellerUserId: product.creator_user_id,
+          productId: product.id,
+          affiliateCodeId: affiliateCode?.id || null,
+          title: product.title,
+          description: product.description,
+          connectedAccountId,
+          applicationFeeAmountMinor,
+          platformFeeBps,
+          collectPhone: smsOptIn,
+          metadataExtra: {
+            smsOptIn: smsOptIn ? "true" : "false",
+            guestCheckout: "false",
+            checkoutVariant,
+            ...(spendLedgerEntry
+              ? {
+                  rewardSpendLedgerEntryId: String(spendLedgerEntry.id),
+                  rewardDiscountMinor: String(plan.discountMinor),
+                  rewardPointsSpent: String(plan.pointsToSpend),
+                  rewardListPriceMinor: String(listPriceMinor)
+                }
+              : {})
+          }
+        });
+      } catch (err) {
+        if (spendLedgerEntry) {
+          try {
+            await rewardsLedgerService.reverseEntry({
+              userId: req.user.id,
+              originalLedgerEntryId: spendLedgerEntry.id,
+              reason: "checkout_stripe_fail",
+              idempotencyKey: `reverse:stripe_fail:${spendLedgerEntry.id}`.slice(0, 128),
+              metadata: { surface: "product_checkout", productId: product.id }
+            });
+          } catch (revErr) {
+            log.error({ err: revErr, spendLedgerEntryId: spendLedgerEntry.id }, "checkout_redemption_reverse_failed");
+          }
+        }
+        throw err;
+      }
+
+      const sessionMetadata = {
+        affiliateCodeId: affiliateCode?.id || null,
+        platformFeeBps,
+        stripeApplicationFeeMinor: applicationFeeAmountMinor,
+        smsOptIn,
+        guestCheckout: false,
+        checkoutVariant,
+        listPriceMinor,
+        rewardDiscountMinor: plan.discountMinor,
+        rewardPointsSpent: plan.pointsToSpend,
+        ...(spendLedgerEntry ? { rewardSpendLedgerEntryId: spendLedgerEntry.id } : {})
+      };
 
       await ensureCheckoutSessionRecord({
         sessionId: session.id,
@@ -1587,35 +1785,70 @@ function createMonetizationRouter({
         buyerUserId: req.user.id,
         sellerUserId: product.creator_user_id,
         productId: product.id,
-        amountMinor: product.price_minor,
+        amountMinor: chargedMinor,
         currency: product.currency,
-        metadata: {
-          affiliateCodeId: affiliateCode?.id || null,
-          platformFeeBps,
-          stripeApplicationFeeMinor: applicationFeeAmountMinor,
-          smsOptIn,
-          guestCheckout: false,
-          checkoutVariant
-        }
+        metadata: sessionMetadata
       });
+
+      if (plan.pointsToSpend > 0 && spendLedgerEntry) {
+        try {
+          await rewardsCheckoutService.insertRedemptionRecord({
+            stripeCheckoutSessionId: session.id,
+            buyerUserId: req.user.id,
+            productId: product.id,
+            listPriceMinor,
+            discountMinor: plan.discountMinor,
+            pointsSpent: plan.pointsToSpend,
+            currency: product.currency,
+            rewardLedgerSpendEntryId: spendLedgerEntry.id
+          });
+        } catch (recErr) {
+          log.error({ err: recErr, sessionId: session.id }, "checkout_reward_redemption_record_failed");
+          try {
+            await rewardsLedgerService.reverseEntry({
+              userId: req.user.id,
+              originalLedgerEntryId: spendLedgerEntry.id,
+              reason: "checkout_record_fail",
+              idempotencyKey: `reverse:record_fail:${spendLedgerEntry.id}`.slice(0, 128),
+              metadata: { surface: "product_checkout", productId: product.id }
+            });
+          } catch (revErr) {
+            log.error({ err: revErr }, "checkout_redemption_record_reverse_failed");
+          }
+          throw httpError(503, "Could not finalize reward redemption; try again");
+        }
+      }
+
       if (analytics) {
         await analytics.trackEvent("checkout_started", {
           kind: "product",
           productId: product.id,
           sellerUserId: product.creator_user_id,
           buyerUserId: req.user.id,
-          amountMinor: Number(product.price_minor),
+          amountMinor: chargedMinor,
+          listPriceMinor,
           currency: product.currency,
           platformFeeBps,
           boostTier: product.boost_tier || "custom",
           checkoutVariant,
-          guestCheckout: false
+          guestCheckout: false,
+          rewardPointsSpent: plan.pointsToSpend,
+          rewardDiscountMinor: plan.discountMinor,
+          rewardSpendLedgerEntryId: spendLedgerEntry?.id || null
         });
       }
 
       res.status(200).json({
         checkoutSessionId: session.id,
-        checkoutUrl: session.url
+        checkoutUrl: session.url,
+        redeemSummary:
+          plan.pointsToSpend > 0
+            ? {
+                pointsSpent: plan.pointsToSpend,
+                discountMinor: plan.discountMinor,
+                chargedMinor
+              }
+            : null
       });
     })
   );
@@ -1922,6 +2155,107 @@ function createMonetizationRouter({
         return res.status(200).json({ received: true, processed: true });
       }
 
+      if (event.type === "checkout.session.expired") {
+        const expIns = await db.query(
+          `INSERT INTO webhook_events (provider, event_id, event_type, payload)
+           VALUES ('stripe', $1, $2, $3::jsonb)
+           ON CONFLICT (provider, event_id)
+           DO NOTHING
+           RETURNING id`,
+          [event.id, event.type, JSON.stringify(event.data.object || {})]
+        );
+        if (expIns.rowCount === 0) {
+          return res.status(200).json({ received: true, duplicate: true, kind: "checkout.session.expired" });
+        }
+        const sid = String(event.data.object?.id || "");
+        if (sid && rewardsLedgerService && rewardsCheckoutService) {
+          await reverseCheckoutPointsIfAny({ stripeSessionId: sid, reasonLabel: "checkout_expired" });
+        }
+        return res.status(200).json({ received: true, processed: true, kind: "checkout.session.expired" });
+      }
+
+      if (event.type === "charge.refunded") {
+        const conflictRefund = await db.query(
+          `INSERT INTO webhook_events (provider, event_id, event_type, payload)
+           VALUES ('stripe', $1, $2, $3::jsonb)
+           ON CONFLICT (provider, event_id)
+           DO NOTHING
+           RETURNING id`,
+          [event.id, event.type, JSON.stringify(event.data.object || {})]
+        );
+        if (conflictRefund.rowCount === 0) {
+          return res.status(200).json({ received: true, duplicate: true, kind: "charge.refunded" });
+        }
+        const charge = event.data.object || {};
+        const pi = charge.payment_intent != null ? String(charge.payment_intent) : "";
+        const chargeAmount = Number(charge.amount);
+        const amountRefunded = Number(charge.amount_refunded);
+        const isFullRefund =
+          Number.isFinite(chargeAmount) &&
+          chargeAmount > 0 &&
+          Number.isFinite(amountRefunded) &&
+          amountRefunded >= chargeAmount;
+        if (pi) {
+          const or = await db.query(
+            `SELECT id, status, buyer_user_id, amount_minor, created_at FROM orders WHERE stripe_payment_intent_id = $1`,
+            [pi]
+          );
+          const thrRefund = getTrustSignalThresholds(config);
+          for (const row of or.rows) {
+            if (String(row.status) === "completed") {
+              await db.query(`UPDATE orders SET status = 'refunded' WHERE id = $1`, [row.id]);
+              if (
+                isFullRefund &&
+                trustFlagService &&
+                typeof trustFlagService.recordFlag === "function" &&
+                thrRefund.enabled &&
+                row.buyer_user_id
+              ) {
+                const createdMs = row.created_at ? new Date(row.created_at).getTime() : NaN;
+                const hoursSince = Number.isFinite(createdMs)
+                  ? (Date.now() - createdMs) / 3600000
+                  : Number.POSITIVE_INFINITY;
+                if (hoursSince <= thrRefund.refundRapidFlagWithinHours) {
+                  await trustFlagService.recordFlag(config, {
+                    domain: "refund",
+                    flagType: "refund_full_rapid_after_order",
+                    severity: "low",
+                    subjectUserId: Number(row.buyer_user_id),
+                    relatedEntityType: "order",
+                    relatedEntityId: String(row.id),
+                    metadata: {
+                      hoursSinceOrder: Math.round(hoursSince * 100) / 100,
+                      paymentIntent: pi,
+                      amountMinor: row.amount_minor
+                    }
+                  });
+                }
+              }
+              if (referralService) {
+                try {
+                  await referralService.onOrderFinanciallyInvalidated({
+                    orderId: row.id,
+                    reason: "refunded"
+                  });
+                } catch (err) {
+                  log.warn({ err, orderId: row.id }, "referral_refund_hook_failed");
+                }
+              }
+            }
+          }
+          if (isFullRefund && rewardsCheckoutService && rewardsLedgerService) {
+            const red = await rewardsCheckoutService.findRedemptionByPaymentIntentId(pi);
+            if (red && String(red.status) === "active") {
+              await reverseCheckoutPointsIfAny({
+                stripeSessionId: String(red.stripe_checkout_session_id),
+                reasonLabel: "checkout_refund"
+              });
+            }
+          }
+        }
+        return res.status(200).json({ received: true, processed: true, kind: "charge.refunded" });
+      }
+
       if (event.type !== "checkout.session.completed") {
         return res.status(200).json({ received: true, ignored: true });
       }
@@ -1994,6 +2328,60 @@ function createMonetizationRouter({
         return res.status(200).json({ received: true, processed: true, kind: "ad_boost" });
       }
 
+      if (String(checkoutMeta.kind || "") === "seller_boost") {
+        if (!sellerBoostService) {
+          return res.status(200).json({ received: true, ignored: true, reason: "seller_boost_service_unavailable" });
+        }
+        const paid = String(checkoutObj.payment_status || "") === "paid";
+        const amountTotal = Number(checkoutObj.amount_total);
+        const buyerUserId = Number(checkoutMeta.buyerUserId);
+        const purchaseId = Number(checkoutMeta.sellerBoostPurchaseId);
+        const stripeSessionId = String(checkoutObj.id || "");
+        if (!paid || !stripeSessionId || !Number.isInteger(purchaseId) || purchaseId <= 0 || !Number.isInteger(buyerUserId)) {
+          return res.status(200).json({ received: true, ignored: true, reason: "seller_boost_invalid_meta" });
+        }
+        const pr = await db.query(
+          `SELECT id, seller_user_id, amount_minor, status, payment_confirmation_id
+           FROM seller_boost_purchases
+           WHERE id = $1
+           LIMIT 1`,
+          [purchaseId]
+        );
+        if (pr.rowCount === 0 || Number(pr.rows[0].seller_user_id) !== buyerUserId) {
+          return res.status(200).json({ received: true, ignored: true, reason: "seller_boost_mismatch" });
+        }
+        const row = pr.rows[0];
+        if (row.status === "active") {
+          if (String(row.payment_confirmation_id || "") === stripeSessionId) {
+            return res.status(200).json({ received: true, duplicate: true, kind: "seller_boost" });
+          }
+          return res.status(200).json({ received: true, ignored: true, reason: "seller_boost_already_active" });
+        }
+        if (row.status !== "pending_payment") {
+          return res.status(200).json({ received: true, ignored: true, reason: "seller_boost_not_pending" });
+        }
+        if (!Number.isInteger(amountTotal) || amountTotal !== Number(row.amount_minor)) {
+          return res.status(200).json({ received: true, ignored: true, reason: "seller_boost_amount_mismatch" });
+        }
+        try {
+          const activation = await sellerBoostService.recordPaymentCompleted({
+            purchaseId,
+            sellerUserId: buyerUserId,
+            paymentConfirmationId: stripeSessionId,
+            checkoutSessionId: stripeSessionId
+          });
+          return res.status(200).json({
+            received: true,
+            processed: true,
+            kind: "seller_boost",
+            duplicate: Boolean(activation.duplicate)
+          });
+        } catch (err) {
+          log.error({ err, purchaseId, buyerUserId }, "seller_boost_webhook_activation_failed");
+          return res.status(500).json({ error: "seller_boost_activation_failed" });
+        }
+      }
+
       const stripeSessionId = String(event.data.object?.id || "");
       if (!stripeSessionId) {
         throw httpError(400, "Webhook session id missing");
@@ -2029,6 +2417,19 @@ function createMonetizationRouter({
         sessionRow.metadata && typeof sessionRow.metadata === "object" ? sessionRow.metadata : {};
       let amountMinor = Number(sessionRow.amount_minor);
       const stripeTotal = Number(event.data.object?.amount_total);
+      const rewardSpendLedgerEntryIdMeta = Number(sessionMetadata.rewardSpendLedgerEntryId || 0);
+      if (
+        sessionRow.kind === "product" &&
+        rewardSpendLedgerEntryIdMeta > 0 &&
+        (!Number.isInteger(stripeTotal) || stripeTotal < 1 || stripeTotal !== amountMinor)
+      ) {
+        log.warn({ stripeSessionId, amountMinor, stripeTotal }, "checkout_reward_payment_total_mismatch");
+        await reverseCheckoutPointsIfAny({
+          stripeSessionId,
+          reasonLabel: "checkout_amt_mismatch"
+        });
+        return res.status(200).json({ received: true, ignored: true, reason: "reward_amount_mismatch" });
+      }
       if (Number.isInteger(stripeTotal) && stripeTotal > 0 && stripeTotal !== amountMinor) {
         amountMinor = stripeTotal;
       }
@@ -2048,6 +2449,7 @@ function createMonetizationRouter({
       const tierId = Number(sessionMetadata.tierId || 0) || null;
 
       let productFulfillmentOrderId = null;
+      let completedOrderId = null;
       let affiliateCommissionMinor = 0;
       let creatorNetMinor = 0;
 
@@ -2220,9 +2622,18 @@ function createMonetizationRouter({
           productFulfillmentOrderId = order.rows[0].id;
         }
         await db.query("COMMIT");
+        completedOrderId = order.rows[0].id;
       } catch (error) {
         await db.query("ROLLBACK");
         throw error;
+      }
+
+      if (completedOrderId != null && referralService) {
+        try {
+          await referralService.onOrderCompleted({ orderId: completedOrderId });
+        } catch (err) {
+          log.warn({ err, orderId: completedOrderId }, "referral_order_completed_hook_failed");
+        }
       }
 
       if (productFulfillmentOrderId) {
@@ -2843,6 +3254,22 @@ function createMonetizationRouter({
       });
     })
   );
+
+  const rewardsTeamAdminRouter = express.Router();
+  rewardsTeamAdminRouter.use(authMiddleware, authorize(["moderator", "admin"]));
+  registerRewardsAdminRoutes(
+    rewardsTeamAdminRouter,
+    {
+      db,
+      authMiddleware: (_req, _res, next) => next(),
+      modGuard: (_req, _res, next) => next(),
+      analytics,
+      config,
+      rewardsLedgerService
+    },
+    { routeBase: "" }
+  );
+  router.use("/admin/rewards", rewardsTeamAdminRouter);
 
   return router;
 }

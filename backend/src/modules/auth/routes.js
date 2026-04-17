@@ -4,9 +4,9 @@ const { authenticate } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
 const { createAuthService } = require("./service");
 
-function createAuthRouter({ config, db, analytics }) {
+function createAuthRouter({ config, db, analytics, referralService = null }) {
   const router = express.Router();
-  const authService = createAuthService({ config, db, analytics });
+  const authService = createAuthService({ config, db, analytics, referralService });
   const authMiddleware = authenticate({ config, db });
 
   const loginRateLimiter = rateLimit({

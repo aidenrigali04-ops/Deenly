@@ -2,6 +2,12 @@ const express = require("express");
 const { authenticate } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
 const { httpError } = require("../../utils/http-error");
+const { resolveTargetCreatorUserId } = require("./creator-analytics-access");
+const {
+  getSellerBoostSummary,
+  listSellerBoostPurchases,
+  getSellerBoostPurchaseDetail
+} = require("./seller-boost-analytics");
 
 function createCreatorRouter({ db, config, mediaStorage }) {
   const router = express.Router();
@@ -11,10 +17,12 @@ function createCreatorRouter({ db, config, mediaStorage }) {
     "/analytics/overview",
     authMiddleware,
     asyncHandler(async (req, res) => {
-      const creatorUserId = req.query.creatorUserId ? Number(req.query.creatorUserId) : req.user.id;
-      if (!creatorUserId) {
-        throw httpError(400, "creatorUserId must be a number");
-      }
+      const creatorUserId = resolveTargetCreatorUserId(
+        req,
+        req.query.creatorUserId != null && String(req.query.creatorUserId).trim() !== ""
+          ? Number(req.query.creatorUserId)
+          : null
+      );
       const overview = await db.query(
         `SELECT
            COALESCE(SUM(pv_count.total_views), 0)::int AS views,
@@ -56,10 +64,12 @@ function createCreatorRouter({ db, config, mediaStorage }) {
     "/analytics/conversion",
     authMiddleware,
     asyncHandler(async (req, res) => {
-      const creatorUserId = req.query.creatorUserId ? Number(req.query.creatorUserId) : req.user.id;
-      if (!creatorUserId) {
-        throw httpError(400, "creatorUserId must be a number");
-      }
+      const creatorUserId = resolveTargetCreatorUserId(
+        req,
+        req.query.creatorUserId != null && String(req.query.creatorUserId).trim() !== ""
+          ? Number(req.query.creatorUserId)
+          : null
+      );
       const conversion = await db.query(
         `WITH views AS (
            SELECT p.author_id AS creator_user_id, COUNT(*)::int AS views_count
@@ -96,6 +106,60 @@ function createCreatorRouter({ db, config, mediaStorage }) {
         [creatorUserId]
       );
       res.status(200).json({ creatorUserId, ...conversion.rows[0] });
+    })
+  );
+
+  router.get(
+    "/analytics/seller-boosts/summary",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const sellerUserId = resolveTargetCreatorUserId(
+        req,
+        req.query.creatorUserId != null && String(req.query.creatorUserId).trim() !== ""
+          ? Number(req.query.creatorUserId)
+          : null
+      );
+      const summary = await getSellerBoostSummary(db, sellerUserId);
+      res.status(200).json(summary);
+    })
+  );
+
+  router.get(
+    "/analytics/seller-boosts",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const sellerUserId = resolveTargetCreatorUserId(
+        req,
+        req.query.creatorUserId != null && String(req.query.creatorUserId).trim() !== ""
+          ? Number(req.query.creatorUserId)
+          : null
+      );
+      const limit = Math.min(Math.max(Number(req.query.limit) || 30, 1), 100);
+      const offset = Math.max(Number(req.query.offset) || 0, 0);
+      const items = await listSellerBoostPurchases(db, sellerUserId, { limit, offset });
+      res.status(200).json({ sellerUserId, items, limit, offset });
+    })
+  );
+
+  router.get(
+    "/analytics/seller-boosts/:purchaseId",
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+      const sellerUserId = resolveTargetCreatorUserId(
+        req,
+        req.query.creatorUserId != null && String(req.query.creatorUserId).trim() !== ""
+          ? Number(req.query.creatorUserId)
+          : null
+      );
+      const purchaseId = Number(req.params.purchaseId);
+      if (!purchaseId) {
+        throw httpError(400, "purchaseId must be a number");
+      }
+      const detail = await getSellerBoostPurchaseDetail(db, sellerUserId, purchaseId);
+      if (!detail) {
+        throw httpError(404, "Boost purchase not found");
+      }
+      res.status(200).json(detail);
     })
   );
 

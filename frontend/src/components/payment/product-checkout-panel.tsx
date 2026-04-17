@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   createGuestProductCheckout,
   createProductCheckout,
+  fetchProductCheckoutRewardsPreview,
   formatMinorCurrency,
   type PublicCatalogProduct
 } from "@/lib/monetization";
@@ -70,9 +71,29 @@ export function ProductCheckoutPanel({
   const [smsOptIn, setSmsOptIn] = useState(false);
   const [guestEmail, setGuestEmail] = useState("");
   const [guestExpanded, setGuestExpanded] = useState(false);
+  const [useMaxPoints, setUseMaxPoints] = useState(false);
+  const [redeemClientRequestId] = useState(() =>
+    typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `rq_${Date.now()}`
+  );
+
+  const rewardsPreviewQuery = useQuery({
+    queryKey: ["rewards-checkout-preview", productId, useMaxPoints],
+    queryFn: () =>
+      fetchProductCheckoutRewardsPreview(productId, {
+        redeemEnabled: useMaxPoints,
+        redeemPointsMinor: useMaxPoints ? undefined : undefined
+      }),
+    enabled: Boolean(sessionUser && useMaxPoints)
+  });
 
   const checkoutMutation = useMutation({
-    mutationFn: () => createProductCheckout(productId, { smsOptIn }),
+    mutationFn: () =>
+      createProductCheckout(productId, {
+        smsOptIn,
+        ...(useMaxPoints
+          ? { redeemMaxPoints: true, redeemClientRequestId }
+          : {})
+      }),
     onSuccess: (result) => {
       if (result?.checkoutUrl && typeof window !== "undefined") {
         window.location.assign(result.checkoutUrl);
@@ -141,7 +162,11 @@ export function ProductCheckoutPanel({
           <button
             type="button"
             className="btn-primary px-4 py-2 text-sm"
-            disabled={checkoutMutation.isPending}
+            disabled={
+              checkoutMutation.isPending ||
+              (useMaxPoints &&
+                (!rewardsPreviewQuery.data?.eligible || rewardsPreviewQuery.isLoading || rewardsPreviewQuery.isError))
+            }
             onClick={() => checkoutMutation.mutate()}
           >
             {checkoutMutation.isPending ? "Opening secure checkout…" : "Continue to secure checkout"}
@@ -183,6 +208,38 @@ export function ProductCheckoutPanel({
           <input type="checkbox" checked={smsOptIn} onChange={(e) => setSmsOptIn(e.target.checked)} />
           Also text me the access link (phone collected on Stripe if checked)
         </label>
+      ) : null}
+
+      {sessionUser ? (
+        <div className="rounded-control border border-black/10 bg-surface/60 px-3 py-3 text-sm">
+          <label className="flex cursor-pointer items-center gap-2 font-medium text-text">
+            <input
+              type="checkbox"
+              checked={useMaxPoints}
+              onChange={(e) => setUseMaxPoints(e.target.checked)}
+            />
+            Apply reward points (max eligible)
+          </label>
+          {useMaxPoints ? (
+            rewardsPreviewQuery.isLoading ? (
+              <p className="mt-2 text-xs text-muted">Checking points…</p>
+            ) : rewardsPreviewQuery.data ? (
+              <div className="mt-2 space-y-1 text-xs text-muted">
+                <p>
+                  Balance: {rewardsPreviewQuery.data.balanceMinor.toLocaleString()} pts
+                  {rewardsPreviewQuery.data.eligible
+                    ? ` · −${formatMinorCurrency(rewardsPreviewQuery.data.discountMinor, currency)}`
+                    : null}
+                </p>
+                {!rewardsPreviewQuery.data.eligible && rewardsPreviewQuery.data.denyReasons?.length ? (
+                  <p className="text-amber-700 dark:text-amber-400" role="status">
+                    Points cannot be applied ({rewardsPreviewQuery.data.denyReasons.join(", ")}).
+                  </p>
+                ) : null}
+              </div>
+            ) : null
+          ) : null}
+        </div>
       ) : null}
 
       {(checkoutMutation.isError || guestCheckoutMutation.isError) && (

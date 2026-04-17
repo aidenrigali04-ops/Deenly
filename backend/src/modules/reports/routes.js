@@ -3,6 +3,7 @@ const { authenticate, authorize } = require("../../middleware/auth");
 const { asyncHandler } = require("../../utils/async-handler");
 const { httpError } = require("../../utils/http-error");
 const { optionalString, requireString } = require("../../utils/validators");
+const { getTrustSignalThresholds } = require("../trust/trust-signal-thresholds");
 
 const REPORT_TARGET_TYPES = new Set(["post", "user", "comment"]);
 const REPORT_STATUSES = new Set(["open", "reviewing", "resolved", "dismissed"]);
@@ -15,7 +16,7 @@ const REPORT_CATEGORIES = new Set([
   "other"
 ]);
 
-function createReportsRouter({ db, config, analytics }) {
+function createReportsRouter({ db, config, analytics, trustFlagService = null }) {
   const router = express.Router();
   const authMiddleware = authenticate({ config, db });
   const modGuard = authorize(["moderator", "admin"]);
@@ -45,6 +46,32 @@ function createReportsRouter({ db, config, analytics }) {
          RETURNING id, reporter_user_id, target_type, target_id, reason, notes, status, category, evidence_url, created_at`,
         [req.user.id, targetType, targetId, reason, notes, category, evidenceUrl]
       );
+
+      const thr = getTrustSignalThresholds(config);
+      if (
+        trustFlagService &&
+        typeof trustFlagService.recordFlag === "function" &&
+        thr.enabled &&
+        targetType === "post" &&
+        thr.rankingReportCategoriesForFlag.includes(category)
+      ) {
+        const postId = Number(targetId);
+        if (Number.isInteger(postId) && postId > 0) {
+          const pr = await db.query(`SELECT author_id FROM posts WHERE id = $1 LIMIT 1`, [postId]);
+          const authorId = pr.rows[0] && pr.rows[0].author_id;
+          if (authorId) {
+            await trustFlagService.recordFlag(config, {
+              domain: "ranking",
+              flagType: "report_post_category_ranking_review",
+              severity: "low",
+              subjectUserId: Number(authorId),
+              relatedEntityType: "report",
+              relatedEntityId: String(result.rows[0].id),
+              metadata: { postId: String(postId), category, reporterUserId: req.user.id }
+            });
+          }
+        }
+      }
 
       if (analytics) {
         await analytics.trackEvent("report_submitted", {

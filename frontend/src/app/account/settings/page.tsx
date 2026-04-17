@@ -239,6 +239,8 @@ export default function AccountSettingsPage() {
               [
                 { href: "/account/edit", label: "Edit profile", hint: "Name, bio, business details" },
                 { href: "/account/purchases", label: "Purchases", hint: "Orders & access" },
+                { href: "/account/rewards", label: "Rewards wallet", hint: "Points balance & history" },
+                { href: "/account/referrals", label: "Referrals", hint: "Your code and invite link" },
                 ...(caps?.can_access_creator_hub
                   ? [
                       {

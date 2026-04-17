@@ -19,9 +19,14 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@deenly/rewards": ["../shared/rewards/index.ts"]
     }
   },
     "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "../shared/**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "../shared/rewards/**/*.test.ts",
+    "../shared/rewards/vitest.config.ts"
+  ]
 }

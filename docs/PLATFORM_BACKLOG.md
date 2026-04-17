@@ -45,6 +45,7 @@ Remaining if moving off **Stripe** entirely: **platform-held balances**, **Store
 
 ## References
 
+- [README.md](./README.md) — documentation index (includes Rewards + Growth planning).  
 - [PRE_LAUNCH_RUNBOOK.md](./PRE_LAUNCH_RUNBOOK.md) — env → QA → store order.  
 - [USER_READINESS.md](./USER_READINESS.md) — review process.  
 - [mobile/docs/STORE_RELEASE_CHECKLIST.md](../mobile/docs/STORE_RELEASE_CHECKLIST.md) — store submission.

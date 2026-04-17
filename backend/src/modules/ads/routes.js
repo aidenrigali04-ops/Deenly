@@ -9,6 +9,7 @@ const {
   normalizeBoostCheckoutReturnClient,
   resolveAdBoostStripeReturnUrls
 } = require("../../utils/boost-checkout-return");
+const { getTrustSignalThresholds } = require("../trust/trust-signal-thresholds");
 
 const CAMPAIGN_STATUSES = new Set(["draft", "active", "paused", "ended"]);
 
@@ -19,7 +20,7 @@ function normalizeCurrency(value) {
     .slice(0, 3);
 }
 
-function createAdsRouter({ db, config, analytics, monetizationGateway }) {
+function createAdsRouter({ db, config, analytics, monetizationGateway, trustFlagService = null }) {
   const router = express.Router();
   const authMiddleware = authenticate({ config, db });
 
@@ -149,6 +150,24 @@ function createAdsRouter({ db, config, analytics, monetizationGateway }) {
           postId: postId || undefined,
           eventId: eventId || undefined,
           packageId: packageId || undefined
+        });
+      }
+      const thr = getTrustSignalThresholds(config);
+      if (
+        trustFlagService &&
+        typeof trustFlagService.recordFlag === "function" &&
+        thr.enabled &&
+        budgetMinor >= thr.boostBudgetFlagMinor &&
+        thr.boostBudgetFlagMinor > 0
+      ) {
+        await trustFlagService.recordFlag(config, {
+          domain: "boost",
+          flagType: "boost_high_draft_budget",
+          severity: "low",
+          subjectUserId: req.user.id,
+          relatedEntityType: "ad_campaign",
+          relatedEntityId: String(created.rows[0].id),
+          metadata: { budgetMinor, currency }
         });
       }
       res.status(201).json(created.rows[0]);
