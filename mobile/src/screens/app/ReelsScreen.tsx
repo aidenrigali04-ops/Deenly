@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   FlatList,
   ListRenderItem,
@@ -20,7 +20,8 @@ import { apiRequest } from "../../lib/api";
 import { followUser, unfollowUser } from "../../lib/follows";
 import { resolveMediaUrl } from "../../lib/media-url";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
-import { figmaMobile, radii, spacing } from "../../theme";
+import { radii, resolveFigmaMobile, spacing } from "../../theme";
+import { useAppChrome } from "../../lib/use-app-chrome";
 import type { FeedItem } from "../../types";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 
@@ -39,6 +40,120 @@ const ICON = 22;
 const RAIL_ICON = 26;
 const SCRIM_HEIGHT_RATIO = 0.42;
 
+function buildReelsStyles(fig: ReturnType<typeof resolveFigmaMobile>) {
+  return StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: fig.canvas
+    },
+    list: {
+      flex: 1
+    },
+    topBar: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 10,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingHorizontal: spacing.pagePaddingH,
+      gap: spacing.tight
+    },
+    iconWell: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: fig.glassSoft,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: fig.glassBorderSoft,
+      alignItems: "center",
+      justifyContent: "center"
+    },
+    iconWellPressed: {
+      opacity: 0.85
+    },
+    slide: {
+      width: "100%",
+      backgroundColor: fig.canvas
+    },
+    noVideo: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: fig.mediaSurface
+    },
+    noVideoText: {
+      color: fig.textMuted,
+      fontSize: 14
+    },
+    bottomScrim: {
+      position: "absolute",
+      left: 0,
+      right: 0,
+      bottom: 0
+    },
+    overlay: {
+      position: "absolute",
+      left: 0,
+      right: 0,
+      bottom: 0,
+      paddingHorizontal: spacing.pagePaddingH,
+      paddingTop: 40,
+      backgroundColor: "transparent"
+    },
+    overlayRow: {
+      flexDirection: "row",
+      alignItems: "flex-end",
+      justifyContent: "space-between",
+      gap: spacing.tight
+    },
+    captionBlock: {
+      flex: 1,
+      minWidth: 0
+    },
+    author: {
+      color: fig.text,
+      fontWeight: "700",
+      fontSize: 15,
+      textShadowColor: fig.gradientTop,
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 3
+    },
+    caption: {
+      marginTop: 6,
+      color: fig.textSecondary,
+      fontSize: 14,
+      lineHeight: 20,
+      textShadowColor: fig.gradientTop,
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 3
+    },
+    actions: {
+      gap: 10
+    },
+    railBtn: {
+      width: 48,
+      height: 48,
+      borderRadius: radii.pill,
+      backgroundColor: fig.glassSoft,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: fig.glassBorderSoft,
+      alignItems: "center",
+      justifyContent: "center"
+    },
+    railBtnPressed: {
+      opacity: 0.88
+    },
+    emptyWrap: {
+      flex: 1,
+      padding: spacing.breathing,
+      justifyContent: "center"
+    }
+  });
+}
+
 function ReelRow({
   item,
   active,
@@ -49,7 +164,9 @@ function ReelRow({
   likeBusy,
   followBusy,
   muted,
-  onToggleMute
+  onToggleMute,
+  rx,
+  fm
 }: {
   item: FeedItem;
   active: boolean;
@@ -61,6 +178,8 @@ function ReelRow({
   followBusy: boolean;
   muted: boolean;
   onToggleMute: () => void;
+  rx: ReturnType<typeof buildReelsStyles>;
+  fm: ReturnType<typeof resolveFigmaMobile>;
 }) {
   const uri = resolveMediaUrl(item.media_url) || undefined;
   const following = Boolean(item.is_following_author);
@@ -68,7 +187,7 @@ function ReelRow({
   const scrimH = Math.max(160, height * SCRIM_HEIGHT_RATIO);
 
   return (
-    <View style={[styles.slide, { height }]}>
+    <View style={[rx.slide, { height }]}>
       {uri ? (
         <AppVideoView
           uri={uri}
@@ -79,29 +198,29 @@ function ReelRow({
           muted={muted}
         />
       ) : (
-        <View style={styles.noVideo}>
-          <Text style={styles.noVideoText}>No video</Text>
+        <View style={rx.noVideo}>
+          <Text style={rx.noVideoText}>No video</Text>
         </View>
       )}
       <LinearGradient
         pointerEvents="none"
-        colors={["transparent", figmaMobile.gradientBottom]}
+        colors={["transparent", fm.gradientBottom]}
         locations={[0.15, 1]}
-        style={[styles.bottomScrim, { height: scrimH }]}
+        style={[rx.bottomScrim, { height: scrimH }]}
       />
-      <View style={[styles.overlay, { paddingBottom: bottomPad + spacing.tight }]} pointerEvents="box-none">
-        <View style={styles.overlayRow}>
-          <View style={styles.captionBlock}>
-            <Text style={styles.author} numberOfLines={1}>
+      <View style={[rx.overlay, { paddingBottom: bottomPad + spacing.tight }]} pointerEvents="box-none">
+        <View style={rx.overlayRow}>
+          <View style={rx.captionBlock}>
+            <Text style={rx.author} numberOfLines={1}>
               {item.author_display_name}
             </Text>
-            <Text style={styles.caption} numberOfLines={4}>
+            <Text style={rx.caption} numberOfLines={4}>
               {item.content}
             </Text>
           </View>
-          <View style={styles.actions} accessibilityRole="toolbar">
+          <View style={rx.actions} accessibilityRole="toolbar">
             <Pressable
-              style={({ pressed }) => [styles.railBtn, pressed && styles.railBtnPressed]}
+              style={({ pressed }) => [rx.railBtn, pressed && rx.railBtnPressed]}
               onPress={onLike}
               disabled={likeBusy}
               accessibilityRole="button"
@@ -110,11 +229,11 @@ function ReelRow({
               <Ionicons
                 name={liked ? "heart" : "heart-outline"}
                 size={RAIL_ICON}
-                color={liked ? figmaMobile.accentGold : figmaMobile.text}
+                color={liked ? fm.accentGold : fm.text}
               />
             </Pressable>
             <Pressable
-              style={({ pressed }) => [styles.railBtn, pressed && styles.railBtnPressed]}
+              style={({ pressed }) => [rx.railBtn, pressed && rx.railBtnPressed]}
               onPress={onFollow}
               disabled={followBusy}
               accessibilityRole="button"
@@ -123,11 +242,11 @@ function ReelRow({
               <Ionicons
                 name={following ? "checkmark-circle" : "person-add-outline"}
                 size={RAIL_ICON}
-                color={figmaMobile.text}
+                color={fm.text}
               />
             </Pressable>
             <Pressable
-              style={({ pressed }) => [styles.railBtn, pressed && styles.railBtnPressed]}
+              style={({ pressed }) => [rx.railBtn, pressed && rx.railBtnPressed]}
               onPress={onToggleMute}
               accessibilityRole="button"
               accessibilityLabel={muted ? "Unmute" : "Mute"}
@@ -135,7 +254,7 @@ function ReelRow({
               <Ionicons
                 name={muted ? "volume-mute" : "volume-medium"}
                 size={RAIL_ICON}
-                color={figmaMobile.text}
+                color={fm.text}
               />
             </Pressable>
           </View>
@@ -146,6 +265,8 @@ function ReelRow({
 }
 
 export function ReelsScreen({ navigation }: Props) {
+  const { figma: fm } = useAppChrome();
+  const rx = useMemo(() => buildReelsStyles(fm), [fm]);
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [activeIndex, setActiveIndex] = useState(0);
@@ -229,14 +350,16 @@ export function ReelsScreen({ navigation }: Props) {
         }
         likeBusy={likeMutation.isPending}
         followBusy={followMutation.isPending}
+        rx={rx}
+        fm={fm}
       />
     ),
-    [activeIndex, height, insets.bottom, muted, likeMutation, followMutation]
+    [activeIndex, height, insets.bottom, muted, likeMutation, followMutation, rx, fm]
   );
 
   return (
-    <View style={styles.root}>
-      <View style={[styles.topBar, { paddingTop: insets.top + 4 }]}>
+    <View style={rx.root}>
+      <View style={[rx.topBar, { paddingTop: insets.top + 4 }]}>
         <Pressable
           onPress={() => {
             if (navigation.canGoBack()) {
@@ -245,19 +368,19 @@ export function ReelsScreen({ navigation }: Props) {
               navigation.navigate("HomeTab");
             }
           }}
-          style={({ pressed }) => [styles.iconWell, pressed && styles.iconWellPressed]}
+          style={({ pressed }) => [rx.iconWell, pressed && rx.iconWellPressed]}
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Ionicons name="chevron-back" size={ICON + 2} color={figmaMobile.text} />
+          <Ionicons name="chevron-back" size={ICON + 2} color={fm.text} />
         </Pressable>
         <Pressable
-          onPress={() => navigation.navigate("CreateFlow", { screen: "CreateHub" })}
-          style={({ pressed }) => [styles.iconWell, pressed && styles.iconWellPressed]}
+          onPress={() => navigation.navigate("CreateFlow", { screen: "CreateHub" } as const)}
+          style={({ pressed }) => [rx.iconWell, pressed && rx.iconWellPressed]}
           accessibilityRole="button"
           accessibilityLabel="New reel"
         >
-          <Ionicons name="add-circle-outline" size={ICON} color={figmaMobile.text} />
+          <Ionicons name="add-circle-outline" size={ICON} color={fm.text} />
         </Pressable>
       </View>
 
@@ -271,7 +394,7 @@ export function ReelsScreen({ navigation }: Props) {
       ) : null}
 
       {!feedQuery.isLoading && !feedQuery.error && items.length === 0 ? (
-        <View style={styles.emptyWrap}>
+        <View style={rx.emptyWrap}>
           <EmptyState
             title="No reels yet"
             subtitle="Create a reel from the Upload + tab (choose Reel)."
@@ -282,7 +405,7 @@ export function ReelsScreen({ navigation }: Props) {
 
       {!feedQuery.isLoading && !feedQuery.error && items.length > 0 ? (
         <FlatList
-          style={styles.list}
+          style={rx.list}
           data={items}
           keyExtractor={(it) => String(it.id)}
           renderItem={renderItem}
@@ -306,114 +429,3 @@ export function ReelsScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: figmaMobile.canvas
-  },
-  list: {
-    flex: 1
-  },
-  topBar: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: spacing.pagePaddingH,
-    gap: spacing.tight
-  },
-  iconWell: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: figmaMobile.glassSoft,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: figmaMobile.glassBorderSoft,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  iconWellPressed: {
-    opacity: 0.85
-  },
-  slide: {
-    width: "100%",
-    backgroundColor: figmaMobile.canvas
-  },
-  noVideo: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: figmaMobile.mediaSurface
-  },
-  noVideoText: {
-    color: figmaMobile.textMuted,
-    fontSize: 14
-  },
-  bottomScrim: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0
-  },
-  overlay: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: spacing.pagePaddingH,
-    paddingTop: 40,
-    backgroundColor: "transparent"
-  },
-  overlayRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-    gap: spacing.tight
-  },
-  captionBlock: {
-    flex: 1,
-    minWidth: 0
-  },
-  author: {
-    color: figmaMobile.text,
-    fontWeight: "700",
-    fontSize: 15,
-    textShadowColor: figmaMobile.gradientTop,
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3
-  },
-  caption: {
-    marginTop: 6,
-    color: figmaMobile.textSecondary,
-    fontSize: 14,
-    lineHeight: 20,
-    textShadowColor: figmaMobile.gradientTop,
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3
-  },
-  actions: {
-    gap: 10
-  },
-  railBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: radii.pill,
-    backgroundColor: figmaMobile.glassSoft,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: figmaMobile.glassBorderSoft,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  railBtnPressed: {
-    opacity: 0.88
-  },
-  emptyWrap: {
-    flex: 1,
-    padding: spacing.breathing,
-    justifyContent: "center"
-  }
-});

@@ -17,7 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ApiError } from "../../lib/api";
 import { fetchSessionMe, login } from "../../lib/auth";
 import { useSessionStore } from "../../store/session-store";
-import { authTheme, primaryButtonOutline, radii } from "../../theme";
+import { authTheme, fonts, primaryButtonOutline, radii } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Login">;
@@ -219,6 +219,7 @@ const styles = StyleSheet.create({
   },
   heading: {
     color: authTheme.text,
+    fontFamily: fonts.semiBold,
     fontSize: 34,
     fontWeight: "600",
     textAlign: "center",
@@ -228,6 +229,7 @@ const styles = StyleSheet.create({
   subheading: {
     marginTop: 12,
     color: authTheme.muted,
+    fontFamily: fonts.regular,
     fontSize: 16,
     textAlign: "center",
     lineHeight: 22,
@@ -250,6 +252,7 @@ const styles = StyleSheet.create({
   },
   googleBtnText: {
     color: authTheme.text,
+    fontFamily: fonts.medium,
     fontSize: 14,
     fontWeight: "500"
   },
@@ -273,6 +276,7 @@ const styles = StyleSheet.create({
   },
   label: {
     color: authTheme.text,
+    fontFamily: fonts.medium,
     fontSize: 14,
     fontWeight: "500",
     marginBottom: 8
@@ -282,9 +286,10 @@ const styles = StyleSheet.create({
     borderRadius: authTheme.radiusControl,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: authTheme.border,
-    backgroundColor: authTheme.card,
+    backgroundColor: authTheme.inputSurface,
     paddingHorizontal: 16,
     fontSize: 14,
+    fontFamily: fonts.regular,
     color: authTheme.text
   },
   helper: {
@@ -320,6 +325,7 @@ const styles = StyleSheet.create({
   },
   submitText: {
     color: authTheme.submitText,
+    fontFamily: fonts.semiBold,
     fontSize: 15,
     fontWeight: "600"
   },

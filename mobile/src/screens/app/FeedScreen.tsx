@@ -16,11 +16,10 @@ import {
   type ViewToken
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { MarketplaceTopBar } from "../../components/MarketplaceTopBar";
 
 import { BottomTabScreenProps, useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { CompositeScreenProps } from "@react-navigation/native";
+import { CompositeScreenProps, useRoute, type RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp, NativeStackScreenProps } from "@react-navigation/native-stack";
 import { apiRequest } from "../../lib/api";
 import { ackPrayerReminder, fetchPrayerStatus } from "../../lib/prayer";
@@ -31,7 +30,8 @@ import { MarketListingCard } from "../../components/MarketListingCard";
 import { isImageMedia, PostCard } from "../../components/PostCard";
 import { HomeFeedHeader } from "../../components/HomeFeedHeader";
 import { HomeStoriesRow } from "../../components/HomeStoriesRow";
-import { colors, figmaMobile, figmaMobileHome, radii, spacing } from "../../theme";
+import { radii } from "../../theme";
+import { useAppChrome } from "../../lib/use-app-chrome";
 import type { FeedItem, FeedListItem } from "../../types";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 import { createGuestProductCheckout, createProductCheckout } from "../../lib/monetization";
@@ -48,17 +48,17 @@ function isFeedPostItem(item: FeedListItem): item is FeedItem {
 }
 
 type Props = CompositeScreenProps<
-  BottomTabScreenProps<AppTabParamList>,
+  BottomTabScreenProps<AppTabParamList, "HomeTab">,
   NativeStackScreenProps<RootStackParamList>
-> & {
-  feedVariant?: "home" | "marketplace";
-};
+>;
 
 function resolveCheckoutVariant(seed: number): "trust_first" | "speed_first" {
   return seed % 2 === 0 ? "trust_first" : "speed_first";
 }
 
-export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
+export function FeedScreen({ navigation }: Props) {
+  const route = useRoute<RouteProp<AppTabParamList, "HomeTab">>();
+  const chrome = useAppChrome();
   const { height: viewportHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
@@ -66,9 +66,7 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
   const sessionUser = useSessionStore((s) => s.user);
   const [buyHandoffProductId, setBuyHandoffProductId] = useState<number | null>(null);
   const [followingOnly, setFollowingOnly] = useState(false);
-  const [feedTab, setFeedTab] = useState<"for_you" | "marketplace">(
-    feedVariant === "marketplace" ? "marketplace" : "for_you"
-  );
+  const [feedTab, setFeedTab] = useState<"for_you" | "marketplace">("for_you");
   const lastServerDefaultFeedTab = useRef<"for_you" | "marketplace" | undefined>(undefined);
   const feedQueryKey = useMemo(
     () => ["mobile-feed", followingOnly, feedTab] as const,
@@ -85,13 +83,17 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
         display_name?: string;
         avatar_url?: string | null;
       }>("/users/me", { auth: true }),
-    enabled: feedVariant === "home"
+    enabled: true
   });
 
   useEffect(() => {
-    if (feedVariant !== "home") {
-      return;
+    if (route.params?.openMarketplace) {
+      setFeedTab("marketplace");
+      navigation.setParams({ openMarketplace: undefined });
     }
+  }, [route.params?.openMarketplace, navigation]);
+
+  useEffect(() => {
     const raw = profileQuery.data?.default_feed_tab;
     const t = raw === "opportunities" ? "for_you" : raw;
     if (t !== "for_you" && t !== "marketplace") {
@@ -106,7 +108,7 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
       setFeedTab(t);
       lastServerDefaultFeedTab.current = t;
     }
-  }, [feedVariant, profileQuery.data?.default_feed_tab]);
+  }, [profileQuery.data?.default_feed_tab]);
 
   const feedQuery = useInfiniteQuery({
     queryKey: feedQueryKey,
@@ -260,7 +262,7 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
   }, [navigation]);
 
   const openSearch = useCallback(() => {
-    navigation.navigate("SearchTab");
+    navigation.navigate("SearchTab", { focusSearch: true });
   }, [navigation]);
 
   const openReels = useCallback(() => {
@@ -278,25 +280,24 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
   const listHeader = useMemo(() => {
     return (
       <View style={[styles.headerBlock, compact && styles.headerBlockCompact]}>
-        {feedVariant === "home" && visibleReminder ? (
-          <View style={[styles.reminderBanner, compact && styles.reminderBannerCompact]}>
+        {visibleReminder ? (
+          <View
+            style={[
+              styles.reminderBanner,
+              compact && styles.reminderBannerCompact,
+              { borderColor: chrome.figma.glassBorder, backgroundColor: chrome.figma.glassSoft }
+            ]}
+          >
             <View style={styles.reminderRow}>
-              <Text style={styles.reminderText}>Time for Salah</Text>
+              <Text style={[styles.reminderText, { color: chrome.figma.text }]}>Time for Salah</Text>
               <Pressable onPress={acknowledgeReminder} hitSlop={8}>
-                <Text style={styles.reminderDismiss}>Dismiss</Text>
+                <Text style={[styles.reminderDismiss, { color: chrome.figma.textMuted }]}>Dismiss</Text>
               </Pressable>
             </View>
           </View>
         ) : null}
 
-        {feedVariant === "marketplace" ? (
-          <View style={[styles.storiesWrap, compact && styles.storiesWrapCompact]}>
-            <HomeStoriesRow />
-          </View>
-        ) : null}
-
-        {feedVariant === "home" ? (
-          <View style={[styles.feedTabBar, compact && styles.feedTabBarCompact]}>
+        <View style={[styles.feedTabBar, compact && styles.feedTabBarCompact]}>
             {(
               [
                 { key: "for_you" as const, label: "For You" },
@@ -312,19 +313,26 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
                   accessibilityRole="tab"
                   accessibilityState={{ selected: on }}
                 >
-                  <Text style={[styles.feedTabLabel, on && styles.feedTabLabelActive]}>{label}</Text>
-                  <View style={[styles.feedTabRule, on && styles.feedTabRuleActive]} />
+                  <Text
+                    style={[
+                      styles.feedTabLabel,
+                      { color: chrome.figma.textMuted2 },
+                      on && { color: chrome.figma.accentGold }
+                    ]}
+                  >
+                    {label}
+                  </Text>
+                  <View
+                    style={[styles.feedTabRule, on && { backgroundColor: chrome.figma.accentGold }]}
+                  />
                 </Pressable>
               );
             })}
           </View>
-        ) : null}
 
-        {feedVariant === "home" ? (
-          <View style={[styles.storiesWrap, compact && styles.storiesWrapCompact]}>
-            <HomeStoriesRow />
-          </View>
-        ) : null}
+        <View style={[styles.storiesWrap, compact && styles.storiesWrapCompact]}>
+          <HomeStoriesRow />
+        </View>
 
         {feedQuery.isLoading ? <LoadingState label="Loading feed..." surface="dark" /> : null}
         {feedQuery.error ? (
@@ -334,12 +342,12 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
             surface="dark"
           />
         ) : null}
-        {!feedQuery.isLoading && !feedQuery.error && items.length === 0 && feedVariant !== "marketplace" ? (
+        {!feedQuery.isLoading && !feedQuery.error && items.length === 0 ? (
           <EmptyState title="No posts yet" subtitle="Create the first post." surface="dark" />
         ) : null}
       </View>
     );
-  }, [acknowledgeReminder, feedQuery, feedVariant, items.length, visibleReminder, compact, feedTab]);
+  }, [acknowledgeReminder, chrome, feedQuery, items.length, visibleReminder, compact, feedTab]);
 
   const renderItem: ListRenderItem<FeedListItem> = useCallback(
     ({ item }) => {
@@ -360,7 +368,7 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
       const post = item;
       const isVideoPost = Boolean(post.media_url) && !isImageMedia(post);
       const mediaPlaybackActive = !isVideoPost || post.id === activeVideoPostId;
-      if (feedVariant === "marketplace") {
+      if (feedTab === "marketplace") {
         return (
           <View style={[styles.cardWrap, compact && styles.cardWrapCompact]}>
             <MarketListingCard
@@ -443,7 +451,7 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
       activeVideoPostId,
       buyHandoffProductId,
       buyProductMutation,
-      feedVariant,
+      feedTab,
       followMutation,
       likeMutation,
       navigation,
@@ -465,55 +473,66 @@ export function FeedScreen({ navigation, feedVariant = "home" }: Props) {
     return (
       <View style={styles.footer}>
         {feedQuery.isFetchingNextPage ? (
-          <ActivityIndicator color={figmaMobile.accentGold} />
+          <ActivityIndicator color={chrome.figma.accentGold} />
         ) : (
-          <Pressable style={styles.buttonSecondary} onPress={() => feedQuery.fetchNextPage()}>
-            <Text style={styles.buttonText}>Load more</Text>
+          <Pressable
+            style={[
+              styles.buttonSecondary,
+              { borderColor: chrome.figma.glassBorder, backgroundColor: chrome.figma.glassSoft }
+            ]}
+            onPress={() => feedQuery.fetchNextPage()}
+          >
+            <Text style={[styles.buttonText, { color: chrome.figma.text }]}>Load more</Text>
           </Pressable>
         )}
       </View>
     );
-  }, [feedQuery]);
+  }, [chrome.figma, feedQuery]);
 
   /** Tab bar is a floating pill — extra scroll inset so last cards clear it */
   const listBottomPad =
     tabBarHeight + Math.max(insets.bottom, 8) + (compact ? 16 : 20) + 32;
 
   return (
-    <View style={[styles.root, feedVariant === "marketplace" && styles.rootMarketplace]}>
-      {feedVariant === "home" || feedVariant === "marketplace" ? (
-        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-          <View style={styles.homeOrb} />
+    <View style={styles.root}>
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          <View
+            style={[
+              styles.homeOrb,
+              {
+                backgroundColor: chrome.figmaHome.accentOrb,
+                width: chrome.figmaHome.accentOrbSize,
+                height: chrome.figmaHome.accentOrbSize,
+                borderRadius: chrome.figmaHome.accentOrbSize / 2,
+                top: chrome.figmaHome.accentOrbTop,
+                left: chrome.figmaHome.accentOrbLeft
+              }
+            ]}
+          />
         </View>
-      ) : null}
-      {feedVariant === "home" || feedVariant === "marketplace" ? <StatusBar style="light" /> : null}
-      {feedVariant === "home" ? (
-        <HomeFeedHeader
-          displayName={
-            profileQuery.data?.display_name?.trim() ||
-            sessionUser?.email?.split("@")[0] ||
-            "You"
-          }
-          username={sessionUser?.username || "you"}
-          avatarUrl={profileQuery.data?.avatar_url}
-          onPressProfile={openAccountTab}
-          onPressMessages={openMessagesTab}
-          onPressActivity={openNotifications}
-        />
-      ) : null}
-      {feedVariant === "marketplace" ? (
-        <MarketplaceTopBar
-          onPressReels={openReels}
-          onPressSearch={openSearch}
-          onPressNotifications={openNotifications}
-        />
-      ) : null}
+      <StatusBar style={chrome.mode === "light" ? "dark" : "light"} />
+      <HomeFeedHeader
+        displayName={
+          profileQuery.data?.display_name?.trim() ||
+          sessionUser?.email?.split("@")[0] ||
+          "You"
+        }
+        username={sessionUser?.username || "you"}
+        avatarUrl={profileQuery.data?.avatar_url}
+        onPressProfile={openAccountTab}
+        onPressMessages={openMessagesTab}
+        onPressActivity={openNotifications}
+        onPressSearch={openSearch}
+      />
       <FlatList
-        style={[styles.list, feedVariant === "marketplace" && styles.listMarketplace]}
+        style={styles.list}
         contentContainerStyle={[
           styles.listContent,
+          {
+            paddingHorizontal: chrome.figmaHome.pagePadH,
+            gap: chrome.figmaHome.feedListGap
+          },
           compact && styles.listContentCompact,
-          feedVariant === "marketplace" && styles.listContentMarketplace,
           { paddingBottom: listBottomPad }
         ]}
         data={items}
@@ -538,13 +557,7 @@ const styles = StyleSheet.create({
     overflow: "hidden"
   },
   homeOrb: {
-    position: "absolute",
-    width: figmaMobileHome.accentOrbSize,
-    height: figmaMobileHome.accentOrbSize,
-    borderRadius: figmaMobileHome.accentOrbSize / 2,
-    backgroundColor: figmaMobileHome.accentOrb,
-    top: figmaMobileHome.accentOrbTop,
-    left: figmaMobileHome.accentOrbLeft
+    position: "absolute"
   },
   rootMarketplace: {
     backgroundColor: "transparent"
@@ -556,9 +569,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent"
   },
   listContent: {
-    paddingHorizontal: figmaMobileHome.pagePadH,
-    paddingBottom: 24,
-    gap: figmaMobileHome.feedListGap
+    paddingBottom: 24
   },
   listContentCompact: {
     paddingHorizontal: 16,
@@ -566,9 +577,7 @@ const styles = StyleSheet.create({
     gap: 12
   },
   listContentMarketplace: {
-    paddingHorizontal: figmaMobileHome.pagePadH,
-    paddingTop: 8,
-    gap: figmaMobileHome.feedListGap
+    paddingTop: 8
   },
   headerBlock: {
     gap: 8,
@@ -585,11 +594,9 @@ const styles = StyleSheet.create({
   },
   reminderBanner: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: figmaMobile.glassBorder,
     borderRadius: radii.feedCard,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    backgroundColor: figmaMobile.glassSoft,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
@@ -605,7 +612,6 @@ const styles = StyleSheet.create({
     paddingVertical: 9
   },
   reminderText: {
-    color: figmaMobile.text,
     fontSize: 13,
     fontWeight: "700"
   },
@@ -615,7 +621,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between"
   },
   reminderDismiss: {
-    color: figmaMobile.textMuted,
     fontSize: 12,
     fontWeight: "600"
   },
@@ -637,17 +642,14 @@ const styles = StyleSheet.create({
     alignItems: "center"
   },
   buttonSecondary: {
-    borderColor: figmaMobile.glassBorder,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.control,
     paddingHorizontal: 12,
     paddingVertical: 10,
     alignItems: "center",
-    alignSelf: "stretch",
-    backgroundColor: figmaMobile.glassSoft
+    alignSelf: "stretch"
   },
   buttonText: {
-    color: figmaMobile.text,
     fontWeight: "600"
   },
   feedTabBar: {
@@ -671,11 +673,7 @@ const styles = StyleSheet.create({
   feedTabLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: figmaMobile.textMuted2,
     letterSpacing: -0.15
-  },
-  feedTabLabelActive: {
-    color: figmaMobile.accentGold
   },
   feedTabRule: {
     marginTop: 6,
@@ -683,8 +681,5 @@ const styles = StyleSheet.create({
     width: "72%",
     borderRadius: 2,
     backgroundColor: "transparent"
-  },
-  feedTabRuleActive: {
-    backgroundColor: figmaMobile.accentGold
   }
 });

@@ -1,9 +1,13 @@
 import type { ReactNode } from "react";
+import { useMemo } from "react";
 import { StyleSheet, Text, View, type ViewStyle } from "react-native";
-import { colors, figmaMobile, radii, shadows, spacing, type } from "../theme";
+import { radii, shadows, spacing, type } from "../theme";
+import { useAppChrome } from "../lib/use-app-chrome";
 
 export function TabScreenRoot({ children, style }: { children: ReactNode; style?: ViewStyle }) {
-  return <View style={[styles.root, style]}>{children}</View>;
+  const { figma } = useAppChrome();
+  const root = useMemo(() => ({ flex: 1 as const, backgroundColor: figma.canvas }), [figma.canvas]);
+  return <View style={[root, style]}>{children}</View>;
 }
 
 export function TabScreenHeader({
@@ -15,14 +19,51 @@ export function TabScreenHeader({
   subtitle?: string;
   headerRight?: ReactNode;
 }) {
+  const { figma } = useAppChrome();
+  const s = useMemo(
+    () =>
+      StyleSheet.create({
+        header: {
+          paddingHorizontal: spacing.pagePaddingH,
+          paddingTop: spacing.pagePaddingTop,
+          paddingBottom: 10
+        },
+        headerTextRow: {
+          flexDirection: "row",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 12
+        },
+        headerTitles: {
+          flex: 1,
+          gap: 6
+        },
+        title: {
+          ...type.navLargeTitle,
+          color: figma.text
+        },
+        subtitle: {
+          fontSize: 15,
+          lineHeight: 21,
+          color: figma.textMuted,
+          fontWeight: "400",
+          letterSpacing: -0.2
+        },
+        headerRight: {
+          paddingTop: 4
+        }
+      }),
+    [figma.text, figma.textMuted]
+  );
+
   return (
-    <View style={styles.header}>
-      <View style={styles.headerTextRow}>
-        <View style={styles.headerTitles}>
-          <Text style={styles.title}>{title}</Text>
-          {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+    <View style={s.header}>
+      <View style={s.headerTextRow}>
+        <View style={s.headerTitles}>
+          <Text style={s.title}>{title}</Text>
+          {subtitle ? <Text style={s.subtitle}>{subtitle}</Text> : null}
         </View>
-        {headerRight ? <View style={styles.headerRight}>{headerRight}</View> : null}
+        {headerRight ? <View style={s.headerRight}>{headerRight}</View> : null}
       </View>
     </View>
   );
@@ -40,76 +81,48 @@ export function SectionCard({
   style?: ViewStyle;
   elevated?: boolean;
 }) {
+  const { figma } = useAppChrome();
+  const s = useMemo(
+    () =>
+      StyleSheet.create({
+        sectionCard: {
+          marginHorizontal: spacing.pagePaddingH,
+          padding: spacing.cardPaddingLg,
+          gap: 12
+        },
+        sectionCardInset: {
+          backgroundColor: figma.glassSoft,
+          borderRadius: radii.feedCard,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: figma.glassBorder,
+          ...shadows.low
+        },
+        sectionCardElevated: {
+          backgroundColor: figma.glassSoft,
+          borderRadius: radii.feedCard,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: figma.glassBorder
+        },
+        sectionTitle: {
+          ...type.sectionTitle,
+          color: figma.text,
+          marginBottom: 2,
+          letterSpacing: -0.3
+        }
+      }),
+    [figma.glassBorder, figma.glassSoft, figma.text]
+  );
+
   return (
     <View
       style={[
-        styles.sectionCard,
-        elevated ? [styles.sectionCardElevated, shadows.card] : styles.sectionCardInset,
+        s.sectionCard,
+        elevated ? [s.sectionCardElevated, shadows.card] : s.sectionCardInset,
         style
       ]}
     >
-      {sectionTitle ? <Text style={styles.sectionTitle}>{sectionTitle}</Text> : null}
+      {sectionTitle ? <Text style={s.sectionTitle}>{sectionTitle}</Text> : null}
       {children}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: figmaMobile.canvas
-  },
-  header: {
-    paddingHorizontal: spacing.pagePaddingH,
-    paddingTop: spacing.pagePaddingTop,
-    paddingBottom: 10
-  },
-  headerTextRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 12
-  },
-  headerTitles: {
-    flex: 1,
-    gap: 6
-  },
-  title: {
-    ...type.navLargeTitle,
-    color: figmaMobile.text
-  },
-  subtitle: {
-    fontSize: 15,
-    lineHeight: 21,
-    color: figmaMobile.textMuted,
-    fontWeight: "400",
-    letterSpacing: -0.2
-  },
-  headerRight: {
-    paddingTop: 4
-  },
-  sectionCard: {
-    marginHorizontal: spacing.pagePaddingH,
-    padding: spacing.cardPaddingLg,
-    gap: 12
-  },
-  sectionCardInset: {
-    backgroundColor: figmaMobile.glassSoft,
-    borderRadius: radii.feedCard,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: figmaMobile.glassBorder,
-    ...shadows.low
-  },
-  sectionCardElevated: {
-    backgroundColor: figmaMobile.glassSoft,
-    borderRadius: radii.feedCard,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: figmaMobile.glassBorder
-  },
-  sectionTitle: {
-    ...type.sectionTitle,
-    color: figmaMobile.text,
-    marginBottom: 2,
-    letterSpacing: -0.3
-  }
-});

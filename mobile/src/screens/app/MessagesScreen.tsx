@@ -9,7 +9,8 @@ import { apiRequest } from "../../lib/api";
 import { createOrOpenConversation, markConversationRead } from "../../lib/messages";
 import { ErrorState, LoadingState } from "../../components/States";
 import { SectionCard, TabScreenRoot } from "../../components/TabScreenChrome";
-import { colors, figmaMobile, radii, spacing } from "../../theme";
+import { colors, radii, resolveFigmaMobile, spacing } from "../../theme";
+import { useAppChrome } from "../../lib/use-app-chrome";
 import { useTabSceneBottomPadding, useTabSceneTopPadding } from "../../hooks/useTabSceneInsets";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 import { useSessionStore } from "../../store/session-store";
@@ -48,6 +49,8 @@ export function MessagesScreen({ navigation }: Props) {
   const topPad = useTabSceneTopPadding(12);
   const bottomPad = useTabSceneBottomPadding(20);
   const queryClient = useQueryClient();
+  const { figma } = useAppChrome();
+  const styles = useMemo(() => buildMessagesStyles(figma), [figma]);
   const sessionUserId = useSessionStore((s) => s.user?.id ?? null);
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
   const [usernameLookupInput, setUsernameLookupInput] = useState("");
@@ -166,7 +169,7 @@ export function MessagesScreen({ navigation }: Props) {
           <TextInput
             style={styles.chromeSearch}
             placeholder="Search"
-            placeholderTextColor={figmaMobile.messagesChromePlaceholder}
+            placeholderTextColor={figma.messagesChromePlaceholder}
             autoCapitalize="none"
             autoCorrect={false}
             value={usernameLookupInput}
@@ -176,7 +179,7 @@ export function MessagesScreen({ navigation }: Props) {
           />
           <Pressable
             style={styles.findPeopleChrome}
-            onPress={() => navigation.navigate("SearchTab")}
+            onPress={() => navigation.navigate("SearchTab", { focusSearch: true })}
             accessibilityRole="button"
             accessibilityLabel="Find people"
           >
@@ -222,15 +225,15 @@ export function MessagesScreen({ navigation }: Props) {
           {inboxEmpty ? (
             <View style={styles.emptyInbox}>
               <View style={styles.emptyIconCircle}>
-                <Ionicons name="chatbubbles-outline" size={28} color={figmaMobile.accentGold} />
+                <Ionicons name="chatbubbles-outline" size={28} color={figma.accentGold} />
               </View>
               <Text style={styles.emptyInboxTitle}>No conversations yet</Text>
-              <Text style={styles.emptyInboxText}>Start a chat from Discover or Market.</Text>
-              <Pressable style={styles.findPeopleBtn} onPress={() => navigation.navigate("SearchTab")}>
+              <Text style={styles.emptyInboxText}>Start a chat from Discover, or open Marketplace on Home.</Text>
+              <Pressable style={styles.findPeopleBtn} onPress={() => navigation.navigate("SearchTab", { focusSearch: true })}>
                 <Text style={styles.findPeopleBtnText}>Find people</Text>
               </Pressable>
-              <Pressable style={styles.browseMarketLink} onPress={() => navigation.navigate("MarketplaceTab")}>
-                <Text style={styles.browseMarketLinkText}>Browse market</Text>
+              <Pressable style={styles.browseMarketLink} onPress={() => navigation.navigate("HomeTab", { openMarketplace: true })}>
+                <Text style={styles.browseMarketLinkText}>Browse Marketplace</Text>
               </Pressable>
             </View>
           ) : (
@@ -294,7 +297,7 @@ export function MessagesScreen({ navigation }: Props) {
             <TextInput
               style={styles.input}
               placeholder="Type your message..."
-              placeholderTextColor={figmaMobile.textMuted}
+              placeholderTextColor={figma.textMuted}
               value={body}
               onChangeText={setBody}
             />
@@ -315,7 +318,8 @@ export function MessagesScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function buildMessagesStyles(fig: ReturnType<typeof resolveFigmaMobile>) {
+  return StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { gap: spacing.tight },
   hero: {
@@ -326,29 +330,29 @@ const styles = StyleSheet.create({
   heroTitle: {
     fontSize: 30,
     fontWeight: "700",
-    color: figmaMobile.text,
+    color: fig.text,
     letterSpacing: -0.6,
     lineHeight: 36
   },
   heroSubtitle: {
     fontSize: 15,
     lineHeight: 21,
-    color: figmaMobile.textMuted,
+    color: fig.textMuted,
     fontWeight: "400",
     letterSpacing: -0.2
   },
   chromeSearch: {
-    backgroundColor: figmaMobile.messagesChrome,
+    backgroundColor: fig.messagesChrome,
     borderRadius: radii.pill,
     minHeight: 52,
     paddingHorizontal: 18,
     paddingVertical: 14,
     fontSize: 16,
-    color: figmaMobile.messagesChromeText,
+    color: fig.messagesChromeText,
     fontWeight: "400"
   },
   findPeopleChrome: {
-    backgroundColor: figmaMobile.messagesChrome,
+    backgroundColor: fig.messagesChrome,
     borderRadius: radii.pill,
     minHeight: 52,
     paddingVertical: 14,
@@ -357,14 +361,14 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
   findPeopleChromeText: {
-    color: figmaMobile.messagesChromeText,
+    color: fig.messagesChromeText,
     fontSize: 16,
     fontWeight: "700",
     letterSpacing: -0.2
   },
   sectionDivider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: figmaMobile.glassBorder,
+    backgroundColor: fig.glassBorder,
     marginTop: 8,
     marginBottom: 4,
     marginHorizontal: spacing.pagePaddingH
@@ -375,7 +379,7 @@ const styles = StyleSheet.create({
   },
   searchHelper: {
     fontSize: 13,
-    color: figmaMobile.textMuted,
+    color: fig.textMuted,
     lineHeight: 18
   },
   lookupError: { color: colors.danger, fontSize: 13, marginTop: 8 },
@@ -383,56 +387,56 @@ const styles = StyleSheet.create({
     marginTop: 10,
     gap: 0,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: figmaMobile.glassBorder,
+    borderColor: fig.glassBorder,
     borderRadius: radii.feedCard,
     overflow: "hidden",
-    backgroundColor: figmaMobile.card
+    backgroundColor: fig.card
   },
   lookupRow: {
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: figmaMobile.glassBorder,
-    backgroundColor: figmaMobile.card
+    borderBottomColor: fig.glassBorder,
+    backgroundColor: fig.card
   },
   rowPressed: { backgroundColor: "rgba(255,255,255,0.06)" },
-  lookupRowName: { fontSize: 15, fontWeight: "700", color: figmaMobile.text },
-  lookupRowSub: { fontSize: 12, color: figmaMobile.textMuted2, marginTop: 2 },
+  lookupRowName: { fontSize: 15, fontWeight: "700", color: fig.text },
+  lookupRowSub: { fontSize: 12, color: fig.textMuted2, marginTop: 2 },
   input: {
-    borderColor: figmaMobile.glassBorder,
+    borderColor: fig.glassBorder,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.control,
-    color: figmaMobile.text,
-    backgroundColor: figmaMobile.glassSoft,
+    color: fig.text,
+    backgroundColor: fig.glassSoft,
     padding: 14,
     fontSize: 16
   },
   buttonSecondary: {
-    borderColor: figmaMobile.glassBorder,
+    borderColor: fig.glassBorder,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.control,
     paddingHorizontal: 14,
     paddingVertical: 10,
     alignSelf: "flex-start",
-    backgroundColor: figmaMobile.glassSoft
+    backgroundColor: fig.glassSoft
   },
-  buttonText: { color: figmaMobile.text, fontWeight: "600" },
+  buttonText: { color: fig.text, fontWeight: "600" },
   emptyInbox: { gap: 12, alignItems: "center", paddingVertical: 8 },
   emptyIconCircle: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: figmaMobile.glassSoft,
+    backgroundColor: fig.glassSoft,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 4
   },
-  emptyInboxTitle: { fontSize: 18, fontWeight: "600", color: figmaMobile.text },
-  emptyInboxText: { color: figmaMobile.textMuted, fontSize: 14, lineHeight: 21, textAlign: "center" },
+  emptyInboxTitle: { fontSize: 18, fontWeight: "600", color: fig.text },
+  emptyInboxText: { color: fig.textMuted, fontSize: 14, lineHeight: 21, textAlign: "center" },
   findPeopleBtn: {
     alignSelf: "stretch",
     marginTop: 4,
-    backgroundColor: figmaMobile.messagesChrome,
+    backgroundColor: fig.messagesChrome,
     borderRadius: radii.pill,
     minHeight: 52,
     alignItems: "center",
@@ -440,46 +444,46 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20
   },
   findPeopleBtnText: {
-    color: figmaMobile.messagesChromeText,
+    color: fig.messagesChromeText,
     fontWeight: "700",
     fontSize: 16
   },
   browseMarketLink: { paddingVertical: 8 },
-  browseMarketLinkText: { fontSize: 15, fontWeight: "500", color: figmaMobile.textMuted },
+  browseMarketLinkText: { fontSize: 15, fontWeight: "500", color: fig.textMuted },
   inboxList: { gap: 0 },
   inboxRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: figmaMobile.glassBorder,
+    borderBottomColor: fig.glassBorder,
     gap: 12
   },
   inboxRowActive: {
-    backgroundColor: figmaMobile.glassSoft
+    backgroundColor: fig.glassSoft
   },
   inboxRowAvatar: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: figmaMobile.messagesChrome
+    backgroundColor: fig.messagesChrome
   },
   inboxRowMain: { flex: 1, minWidth: 0 },
   inboxRowTitleLine: { flexDirection: "row", alignItems: "center", gap: 8 },
   inboxRowName: {
     fontSize: 15,
     fontWeight: "400",
-    color: figmaMobile.textMuted,
+    color: fig.textMuted,
     flex: 1
   },
   inboxRowPreview: {
     fontSize: 15,
     fontWeight: "600",
-    color: figmaMobile.text,
+    color: fig.text,
     marginTop: 4
   },
   unreadBadge: {
-    backgroundColor: figmaMobile.brandTeal,
+    backgroundColor: fig.brandTeal,
     minWidth: 22,
     height: 22,
     borderRadius: 11,
@@ -497,12 +501,13 @@ const styles = StyleSheet.create({
     gap: 4,
     alignSelf: "flex-start",
     maxWidth: "92%",
-    backgroundColor: figmaMobile.glassSoft
+    backgroundColor: fig.glassSoft
   },
   messageMine: {
     alignSelf: "flex-end",
-    backgroundColor: figmaMobile.glass
+    backgroundColor: fig.glass
   },
-  muted: { color: figmaMobile.textMuted, fontSize: 12 },
-  body: { color: figmaMobile.text }
-});
+  muted: { color: fig.textMuted, fontSize: 12 },
+  body: { color: fig.text }
+  });
+}

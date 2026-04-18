@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Image,
@@ -14,7 +14,8 @@ import { StatusBar } from "expo-status-bar";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { apiRequest } from "../../lib/api";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
-import { colors, figmaMobile, radii } from "../../theme";
+import { colors, radii, resolveFigmaMobile } from "../../theme";
+import { useAppChrome } from "../../lib/use-app-chrome";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { useSessionStore } from "../../store/session-store";
 import type { FeedItem } from "../../types";
@@ -49,6 +50,9 @@ export function UserProfileScreen({ route, navigation }: Props) {
   const { width } = useWindowDimensions();
   const userId = route.params.id;
   const sessionUser = useSessionStore((s) => s.user);
+  const { figma, mode } = useAppChrome();
+  const styles = useMemo(() => buildUserProfileStyles(figma), [figma]);
+  const statusBarStyle = mode === "light" ? "dark" : "light";
   const [activeTab, setActiveTab] = useState<"posts" | "products">("posts");
   const queryClient = useQueryClient();
   const profileQuery = useQuery({
@@ -161,7 +165,7 @@ export function UserProfileScreen({ route, navigation }: Props) {
   if (profileQuery.isLoading) {
     return (
       <View style={styles.screenRoot}>
-        <StatusBar style="light" />
+        <StatusBar style={statusBarStyle} />
         <LoadingState label="Loading user profile..." surface="dark" />
       </View>
     );
@@ -169,7 +173,7 @@ export function UserProfileScreen({ route, navigation }: Props) {
   if (profileQuery.error) {
     return (
       <View style={styles.screenRoot}>
-        <StatusBar style="light" />
+        <StatusBar style={statusBarStyle} />
         <ErrorState message={(profileQuery.error as Error).message} surface="dark" />
       </View>
     );
@@ -177,7 +181,7 @@ export function UserProfileScreen({ route, navigation }: Props) {
   if (!profileQuery.data) {
     return (
       <View style={styles.screenRoot}>
-        <StatusBar style="light" />
+        <StatusBar style={statusBarStyle} />
         <EmptyState title="User not found" surface="dark" />
       </View>
     );
@@ -190,7 +194,7 @@ export function UserProfileScreen({ route, navigation }: Props) {
   const tileSize = Math.floor((width - 32 - 8) / 3);
   return (
     <>
-      <StatusBar style="light" />
+      <StatusBar style={statusBarStyle} />
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.card}>
         {avatarUri ? <Image source={{ uri: avatarUri }} style={styles.avatar} resizeMode="cover" /> : null}
@@ -359,39 +363,40 @@ export function UserProfileScreen({ route, navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function buildUserProfileStyles(fig: ReturnType<typeof resolveFigmaMobile>) {
+  return StyleSheet.create({
   screenRoot: {
     flex: 1,
-    backgroundColor: figmaMobile.canvas,
+    backgroundColor: fig.canvas,
     padding: 16,
     justifyContent: "center"
   },
-  container: { flex: 1, backgroundColor: figmaMobile.canvas },
+  container: { flex: 1, backgroundColor: fig.canvas },
   content: { padding: 16, gap: 14, paddingBottom: 32 },
   card: {
-    backgroundColor: figmaMobile.card,
-    borderColor: figmaMobile.glassBorder,
+    backgroundColor: fig.card,
+    borderColor: fig.glassBorder,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.feedCard,
     padding: 16,
     gap: 8
   },
-  title: { color: figmaMobile.text, fontSize: 22, fontWeight: "700", letterSpacing: -0.3 },
+  title: { color: fig.text, fontSize: 22, fontWeight: "700", letterSpacing: -0.3 },
   avatar: {
     width: 64,
     height: 64,
     borderRadius: 999,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: figmaMobile.glassBorder
+    borderColor: fig.glassBorder
   },
-  muted: { color: figmaMobile.textMuted, fontSize: 14 },
-  text: { color: figmaMobile.text, fontSize: 15, lineHeight: 22 },
+  muted: { color: fig.textMuted, fontSize: 14 },
+  text: { color: fig.text, fontSize: 15, lineHeight: 22 },
   row: { flexDirection: "row", gap: 8, flexWrap: "wrap", alignItems: "center" },
   tabBar: {
     flexDirection: "row",
     marginTop: 4,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: figmaMobile.glassBorder
+    borderBottomColor: fig.glassBorder
   },
   tabItem: {
     flex: 1,
@@ -401,27 +406,27 @@ const styles = StyleSheet.create({
     borderBottomColor: "transparent"
   },
   tabItemActive: {
-    borderBottomColor: figmaMobile.accentGold
+    borderBottomColor: fig.accentGold
   },
   tabLabel: {
     fontSize: 13,
     fontWeight: "500",
-    color: figmaMobile.textMuted
+    color: fig.textMuted
   },
   tabLabelActive: {
-    color: figmaMobile.accentGold,
+    color: fig.accentGold,
     fontWeight: "600"
   },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 1,
-    backgroundColor: figmaMobile.glassBorder
+    backgroundColor: fig.glassBorder
   },
   tile: {
     position: "relative",
     overflow: "hidden",
-    backgroundColor: figmaMobile.card
+    backgroundColor: fig.card
   },
   tileOpen: {
     flex: 1
@@ -435,14 +440,14 @@ const styles = StyleSheet.create({
     width: "100%",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: figmaMobile.card,
+    backgroundColor: fig.card,
     paddingHorizontal: 6
   },
   tileFallbackVideo: {
     backgroundColor: "#1f2937"
   },
   tileFallbackText: {
-    color: figmaMobile.textMuted,
+    color: fig.textMuted,
     fontSize: 11,
     fontWeight: "600",
     textAlign: "center"
@@ -455,11 +460,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: figmaMobile.glassBorder,
+    borderColor: fig.glassBorder,
     backgroundColor: "rgba(0,0,0,0.45)"
   },
   tileBadgeText: {
-    color: figmaMobile.text,
+    color: fig.text,
     fontSize: 9,
     fontWeight: "700"
   },
@@ -471,30 +476,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: figmaMobile.glassBorder,
+    borderColor: fig.glassBorder,
     backgroundColor: "rgba(0,0,0,0.45)"
   },
   tileLikePressed: {
     opacity: 0.85
   },
   tileLikeText: {
-    color: figmaMobile.text,
+    color: fig.text,
     fontSize: 10,
     fontWeight: "700"
   },
   buttonSecondary: {
-    borderColor: figmaMobile.glassBorder,
+    borderColor: fig.glassBorder,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.control,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: figmaMobile.glassSoft
+    backgroundColor: fig.glassSoft
   },
   buttonFollow: {
     borderRadius: radii.button,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    backgroundColor: figmaMobile.brandTeal
+    backgroundColor: fig.brandTeal
   },
   buttonFollowText: {
     color: colors.onAccent,
@@ -507,10 +512,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: "transparent",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: figmaMobile.accentGold
+    borderColor: fig.accentGold
   },
   buttonSupportText: {
-    color: figmaMobile.accentGold,
+    color: fig.accentGold,
     fontWeight: "600",
     fontSize: 14
   },
@@ -518,20 +523,21 @@ const styles = StyleSheet.create({
     borderRadius: radii.button,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: figmaMobile.brandTeal
+    backgroundColor: fig.brandTeal
   },
   buttonSubscribeText: {
     color: colors.onAccent,
     fontWeight: "600",
     fontSize: 13
   },
-  buttonText: { color: figmaMobile.text, fontWeight: "600", fontSize: 14 },
+  buttonText: { color: fig.text, fontWeight: "600", fontSize: 14 },
   productTile: {
     padding: 8,
     justifyContent: "center",
-    backgroundColor: figmaMobile.card,
+    backgroundColor: fig.card,
     alignItems: "stretch"
   },
-  productTileTitle: { fontSize: 12, fontWeight: "700", color: figmaMobile.text },
-  productTilePrice: { fontSize: 11, fontWeight: "600", color: figmaMobile.accentGold, marginTop: 6 }
-});
+  productTileTitle: { fontSize: 12, fontWeight: "700", color: fig.text },
+  productTilePrice: { fontSize: 11, fontWeight: "600", color: fig.accentGold, marginTop: 6 }
+  });
+}

@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { colors, radii, type } from "../theme";
+import { useAppChrome } from "../lib/use-app-chrome";
 
 type SettingsRowProps = {
   title: string;
@@ -24,20 +25,31 @@ export function SettingsRow({
   showChevron = true,
   isLast
 }: SettingsRowProps) {
+  const { figma } = useAppChrome();
+  const rowBorder = useMemo(
+    () => (!isLast ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: figma.glassBorder } : null),
+    [figma.glassBorder, isLast]
+  );
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.row, !isLast && styles.rowBorder, pressed && styles.rowPressed]}
-      android_ripple={{ color: "rgba(0,0,0,0.08)" }}
+      style={({ pressed }) => [
+        styles.row,
+        rowBorder,
+        pressed && { backgroundColor: figma.glassSoft }
+      ]}
+      android_ripple={{ color: "rgba(128,128,128,0.2)" }}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? title}
     >
       <View style={styles.rowText}>
-        <Text style={[styles.rowTitle, destructive && styles.rowTitleDestructive]}>{title}</Text>
-        {subtitle ? <Text style={styles.rowSubtitle}>{subtitle}</Text> : null}
+        <Text style={[styles.rowTitle, { color: figma.text }, destructive && styles.rowTitleDestructive]}>
+          {title}
+        </Text>
+        {subtitle ? <Text style={[styles.rowSubtitle, { color: figma.textMuted }]}>{subtitle}</Text> : null}
       </View>
       {showChevron ? (
-        <Text style={styles.chevron} accessibilityElementsHidden>
+        <Text style={[styles.chevron, { color: figma.textMuted }]} accessibilityElementsHidden>
           →
         </Text>
       ) : (
@@ -53,11 +65,19 @@ type SettingsSectionProps = {
 };
 
 export function SettingsSection({ title, children }: SettingsSectionProps) {
+  const { figma } = useAppChrome();
   const items = React.Children.toArray(children).filter(Boolean);
   return (
     <View style={styles.section}>
-      {title ? <Text style={styles.sectionTitle}>{title}</Text> : null}
-      <View style={styles.card}>
+      {title ? (
+        <Text style={[styles.sectionTitle, { color: figma.textMuted }]}>{title}</Text>
+      ) : null}
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: figma.card, borderColor: figma.glassBorder }
+        ]}
+      >
         {React.Children.map(items, (child, index) => {
           if (!React.isValidElement(child)) {
             return child;
@@ -79,15 +99,12 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     ...type.sectionLabel,
-    color: colors.muted,
     marginLeft: 4,
     marginBottom: 6
   },
   card: {
     borderRadius: radii.grouped,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle,
-    backgroundColor: colors.surface,
     overflow: "hidden"
   },
   row: {
@@ -98,13 +115,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     minHeight: 52
   },
-  rowBorder: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderSubtle
-  },
-  rowPressed: {
-    backgroundColor: colors.statePressed
-  },
   rowText: {
     flex: 1,
     paddingRight: 14,
@@ -113,7 +123,6 @@ const styles = StyleSheet.create({
   rowTitle: {
     fontSize: 16,
     fontWeight: "500",
-    color: colors.text,
     letterSpacing: -0.2
   },
   rowTitleDestructive: {
@@ -122,13 +131,11 @@ const styles = StyleSheet.create({
   },
   rowSubtitle: {
     fontSize: 13,
-    color: colors.muted,
     lineHeight: 18,
     letterSpacing: -0.1
   },
   chevron: {
     fontSize: 15,
-    color: colors.muted,
     fontWeight: "400",
     marginTop: 1
   },

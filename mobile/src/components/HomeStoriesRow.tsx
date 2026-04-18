@@ -1,6 +1,6 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { figmaMobile } from "../theme";
+import { useAppChrome } from "../lib/use-app-chrome";
 
 const storySeeds = [
   { id: "my-story", label: "Your story", initials: "+", isOwn: true },
@@ -15,6 +15,8 @@ const RING_OUTER = 70;
 const AVATAR_SIZE = 64;
 
 export function HomeStoriesRow() {
+  const { figma: fm, mode } = useAppChrome();
+  const storyRingBorder = mode === "light" ? "rgba(10,10,11,0.12)" : "rgba(255,255,255,0.92)";
   return (
     <View style={styles.section} accessibilityRole="summary" accessibilityLabel="Stories">
       <ScrollView
@@ -30,22 +32,27 @@ export function HomeStoriesRow() {
             accessibilityLabel={story.label}
           >
             {story.isOwn ? (
-              <View style={styles.addRing}>
-                <Text style={styles.addPlus}>+</Text>
+              <View
+                style={[
+                  styles.addRing,
+                  { borderColor: fm.glassBorder, backgroundColor: fm.glassSoft }
+                ]}
+              >
+                <Text style={[styles.addPlus, { color: fm.text }]}>+</Text>
               </View>
             ) : (
-              <View style={styles.storyRing}>
-                <View style={styles.avatarInner}>
-                  <Text style={styles.initials}>{story.initials}</Text>
+              <View style={[styles.storyRing, { backgroundColor: fm.text, borderColor: storyRingBorder }]}>
+                <View style={[styles.avatarInner, { backgroundColor: fm.text }]}>
+                  <Text style={[styles.initials, { color: fm.avatarInitialInk }]}>{story.initials}</Text>
                 </View>
               </View>
             )}
             <View style={styles.labelRow}>
-              <Text style={styles.label} numberOfLines={1} ellipsizeMode="tail">
+              <Text style={[styles.label, { color: fm.text }]} numberOfLines={1} ellipsizeMode="tail">
                 {story.label}
               </Text>
               {!story.isOwn ? (
-                <Ionicons name="checkmark-circle" size={12} color={figmaMobile.text} />
+                <Ionicons name="checkmark-circle" size={12} color={fm.text} />
               ) : null}
             </View>
           </Pressable>
@@ -75,15 +82,12 @@ const styles = StyleSheet.create({
     height: RING_OUTER,
     borderRadius: RING_OUTER / 2,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: figmaMobile.glassBorder,
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: figmaMobile.glassSoft
+    justifyContent: "center"
   },
   addPlus: {
     fontSize: 28,
     fontWeight: "300",
-    color: figmaMobile.text,
     marginTop: -1
   },
   storyRing: {
@@ -93,27 +97,22 @@ const styles = StyleSheet.create({
     padding: (RING_OUTER - AVATAR_SIZE) / 2,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: figmaMobile.text,
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.92)"
+    borderWidth: 2
   },
   avatarInner: {
     width: AVATAR_SIZE,
     height: AVATAR_SIZE,
     borderRadius: AVATAR_SIZE / 2,
-    backgroundColor: figmaMobile.text,
     alignItems: "center",
     justifyContent: "center"
   },
   initials: {
-    color: figmaMobile.avatarInitialInk,
     fontSize: 15,
     fontWeight: "600"
   },
   label: {
     maxWidth: 62,
     fontSize: 12,
-    color: figmaMobile.text,
     textAlign: "center",
     fontWeight: "500"
   },

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { CommonActions } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Linking, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, Share, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { fetchSessionMe, logout } from "../../lib/auth";
 import { deleteMyAccount, fetchAccountDataExport } from "../../lib/account-data";
@@ -11,6 +11,8 @@ import { webPrivacyUrl, webTermsUrl } from "../../lib/web-app";
 import { useSessionStore } from "../../store/session-store";
 import { SettingsRow, SettingsSection } from "../../components/SettingsSection";
 import { colors, radii, shadows, spacing } from "../../theme";
+import { useAppChrome } from "../../lib/use-app-chrome";
+import { useAppearanceStore } from "../../store/appearance-store";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { fetchMyEarnings, fetchConnectStatus, formatMinorCurrency } from "../../lib/monetization";
 import { USAGE_PERSONA_OPTIONS, type UsagePersonaKey } from "../../lib/onboarding-options";
@@ -24,6 +26,9 @@ import { applyMobileMeProfileAfterPreferencesPatch } from "../../lib/apply-me-pr
 type Props = NativeStackScreenProps<RootStackParamList, "Settings">;
 
 export function SettingsScreen({ navigation }: Props) {
+  const chrome = useAppChrome();
+  const appearanceMode = useAppearanceStore((s) => s.mode);
+  const setAppearanceMode = useAppearanceStore((s) => s.setMode);
   const setUser = useSessionStore((s) => s.setUser);
   const queryClient = useQueryClient();
   const [deleteConfirm, setDeleteConfirm] = useState("");
@@ -141,9 +146,12 @@ export function SettingsScreen({ navigation }: Props) {
   const sessionEmail = sessionQuery.data?.email?.trim();
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: chrome.figma.canvas }]}
+      contentContainerStyle={styles.content}
+    >
       {sessionEmail ? (
-        <Text style={styles.signedInHint} numberOfLines={1}>
+        <Text style={[styles.signedInHint, { color: chrome.figma.textMuted }]} numberOfLines={1}>
           Signed in as {sessionEmail}
         </Text>
       ) : null}
@@ -159,6 +167,24 @@ export function SettingsScreen({ navigation }: Props) {
           </Text>
         </View>
       ) : null}
+
+      <SettingsSection title="Appearance">
+        <View style={styles.appearanceRow}>
+          <View style={styles.appearanceCopy}>
+            <Text style={[styles.appearanceTitle, { color: chrome.figma.text }]}>Light mode</Text>
+            <Text style={[styles.appearanceSub, { color: chrome.figma.textMuted }]}>
+              Bright canvas for Home, tabs, and feed. Sign-in screens stay white.
+            </Text>
+          </View>
+          <Switch
+            accessibilityLabel="Toggle light mode"
+            value={appearanceMode === "light"}
+            onValueChange={(on) => {
+              void setAppearanceMode(on ? "light" : "dark");
+            }}
+          />
+        </View>
+      </SettingsSection>
 
       <SettingsSection title="General">
         <SettingsRow
@@ -378,7 +404,26 @@ export function SettingsScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1 },
+  appearanceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 4
+  },
+  appearanceCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 4
+  },
+  appearanceTitle: {
+    fontSize: 16,
+    fontWeight: "600"
+  },
+  appearanceSub: {
+    fontSize: 13,
+    lineHeight: 18
+  },
   content: {
     paddingHorizontal: spacing.screenHorizontal,
     paddingTop: 8,
@@ -387,7 +432,6 @@ const styles = StyleSheet.create({
   },
   signedInHint: {
     fontSize: 13,
-    color: colors.muted,
     letterSpacing: -0.1,
     marginBottom: -8
   },

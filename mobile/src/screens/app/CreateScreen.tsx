@@ -470,12 +470,12 @@ export function CreateScreen({ navigation }: Props) {
   const isReel = postType === "reel";
   const ctaLabel = isReel ? "Publish reel" : "Publish";
   const uploadHeight = isReel ? 280 : 230;
-  const uploadTitle = isReel ? "Upload video" : "Add photo or video";
+  const uploadTitle = isReel ? "Reel video" : "Photo or video";
   const uploadHint = isReel
-    ? "Vertical video works best for reels"
+    ? "Vertical 9:16 works best. Tap to choose from your library."
     : postType === "marketplace"
-      ? "Strong photos help your listing stand out"
-      : "Optional for text posts";
+      ? "Add clear photos or a short clip so buyers can see what they get."
+      : "Optional for text-only posts — tap to pick from your library.";
 
   /* ── Render ── */
   return (
@@ -511,6 +511,13 @@ export function CreateScreen({ navigation }: Props) {
                 </Text>
               </Pressable>
             ))}
+          </View>
+
+          <View style={styles.schemaBox} accessibilityLabel="How creating a post works">
+            <Text style={styles.schemaTitle}>How it works</Text>
+            <Text style={styles.schemaStep}>1. Choose Post, Marketplace, or Reel above.</Text>
+            <Text style={styles.schemaStep}>2. Add media (recommended for reels and listings).</Text>
+            <Text style={styles.schemaStep}>3. Write your caption or description, then publish.</Text>
           </View>
 
           {/* ── Media upload ── */}
@@ -1269,4 +1276,24 @@ const styles = StyleSheet.create({
     color: colors.danger,
     fontSize: 14,
   },
+  schemaBox: {
+    marginHorizontal: spacing.pagePaddingH,
+    padding: 14,
+    borderRadius: radii.grouped,
+    backgroundColor: INPUT_FILL,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: HAIRLINE,
+    gap: 6
+  },
+  schemaTitle: {
+    ...typo.sectionLabel,
+    fontSize: 13,
+    color: colors.text,
+    marginBottom: 2
+  },
+  schemaStep: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.muted
+  }
 });

@@ -1,17 +1,21 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
-import { colors, figmaMobile, radii } from "../theme";
+import { colors, radii } from "../theme";
+import { useAppChrome } from "../lib/use-app-chrome";
 
 type Surface = "default" | "dark";
 
-function cardStyle(surface: Surface) {
-  return surface === "dark" ? styles.cardDark : styles.card;
-}
-
 export function LoadingState({ label = "Loading...", surface = "default" }: { label?: string; surface?: Surface }) {
+  const { figma } = useAppChrome();
   return (
-    <View style={cardStyle(surface)}>
-      <ActivityIndicator color={surface === "dark" ? figmaMobile.accentGold : colors.accent} />
-      <Text style={surface === "dark" ? styles.mutedDark : styles.muted}>{label}</Text>
+    <View
+      style={
+        surface === "dark"
+          ? [styles.cardDarkShell, { backgroundColor: figma.card, borderColor: figma.glassBorder }]
+          : styles.card
+      }
+    >
+      <ActivityIndicator color={surface === "dark" ? figma.accentGold : colors.accent} />
+      <Text style={surface === "dark" ? [styles.mutedDark, { color: figma.textMuted }] : styles.muted}>{label}</Text>
     </View>
   );
 }
@@ -25,15 +29,28 @@ export function ErrorState({
   onRetry?: () => void;
   surface?: Surface;
 }) {
+  const { figma } = useAppChrome();
   return (
-    <View style={cardStyle(surface)}>
+    <View
+      style={
+        surface === "dark"
+          ? [styles.cardDarkShell, { backgroundColor: figma.card, borderColor: figma.glassBorder }]
+          : styles.card
+      }
+    >
       <Text style={styles.error}>{message}</Text>
       {onRetry ? (
         <Pressable
-          style={surface === "dark" ? styles.buttonSecondaryDark : styles.buttonSecondary}
+          style={
+            surface === "dark"
+              ? [styles.buttonSecondaryDarkShell, { borderColor: figma.glassBorder, backgroundColor: figma.glassSoft }]
+              : styles.buttonSecondary
+          }
           onPress={onRetry}
         >
-          <Text style={surface === "dark" ? styles.buttonTextDark : styles.buttonText}>Retry</Text>
+          <Text style={surface === "dark" ? [styles.buttonTextDark, { color: figma.text }] : styles.buttonText}>
+            Retry
+          </Text>
         </Pressable>
       ) : null}
     </View>
@@ -49,10 +66,21 @@ export function EmptyState({
   subtitle?: string;
   surface?: Surface;
 }) {
+  const { figma } = useAppChrome();
   return (
-    <View style={cardStyle(surface)}>
-      <Text style={surface === "dark" ? styles.titleDark : styles.title}>{title}</Text>
-      {subtitle ? <Text style={surface === "dark" ? styles.mutedDark : styles.muted}>{subtitle}</Text> : null}
+    <View
+      style={
+        surface === "dark"
+          ? [styles.cardDarkShell, { backgroundColor: figma.card, borderColor: figma.glassBorder }]
+          : styles.card
+      }
+    >
+      <Text style={surface === "dark" ? [styles.titleDark, { color: figma.text }] : styles.title}>{title}</Text>
+      {subtitle ? (
+        <Text style={surface === "dark" ? [styles.mutedDark, { color: figma.textMuted }] : styles.muted}>
+          {subtitle}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -67,9 +95,7 @@ const styles = StyleSheet.create({
     gap: 10,
     alignItems: "flex-start"
   },
-  cardDark: {
-    backgroundColor: figmaMobile.card,
-    borderColor: figmaMobile.glassBorder,
+  cardDarkShell: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.feedCard,
     padding: 14,
@@ -82,7 +108,6 @@ const styles = StyleSheet.create({
     fontWeight: "600"
   },
   titleDark: {
-    color: figmaMobile.text,
     fontSize: 16,
     fontWeight: "600"
   },
@@ -91,7 +116,6 @@ const styles = StyleSheet.create({
     fontSize: 14
   },
   mutedDark: {
-    color: figmaMobile.textMuted,
     fontSize: 14
   },
   error: {
@@ -107,21 +131,18 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     backgroundColor: colors.surface
   },
-  buttonSecondaryDark: {
-    borderColor: figmaMobile.glassBorder,
+  buttonSecondaryDarkShell: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.control,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    alignSelf: "flex-start",
-    backgroundColor: figmaMobile.glassSoft
+    alignSelf: "flex-start"
   },
   buttonText: {
     color: colors.text,
     fontWeight: "600"
   },
   buttonTextDark: {
-    color: figmaMobile.text,
     fontWeight: "600"
   }
 });

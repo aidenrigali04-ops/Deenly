@@ -8,11 +8,12 @@ import {
   View,
   useWindowDimensions
 } from "react-native";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { AppVideoView } from "./AppVideoView";
-import { colors, figmaMobile, figmaMobileHome, primaryButtonOutline, radii, spacing } from "../theme";
+import { colors, primaryButtonOutline, radii, resolveFigmaMobile, resolveFigmaMobileHome } from "../theme";
+import { useAppChrome } from "../lib/use-app-chrome";
 import { resolveMediaUrl } from "../lib/media-url";
 import type { FeedItem } from "../types";
 import { formatMinorCurrency } from "../lib/monetization";
@@ -128,6 +129,9 @@ export function PostCard({
     setBenefitedCount(Number(item.benefited_count || 0));
   }, [item.liked_by_viewer, item.benefited_count]);
 
+  const { figma: fm, figmaHome: fmh } = useAppChrome();
+  const styles = useMemo(() => buildPostCardStyles(fm, fmh), [fm, fmh]);
+
   if (layout === "home") {
     const timeLine = item.sponsored
       ? [item.sponsored_label || "Sponsored", formatHomeRelativeTime(item.created_at)].filter(Boolean).join(" · ")
@@ -139,14 +143,14 @@ export function PostCard({
       <View style={[styles.homeCardShell, compact && styles.homeCardShellCompact]}>
         <View style={styles.homeCardBase} />
         <LinearGradient
-          colors={[figmaMobile.gradientTop, "transparent"]}
+          colors={[fm.gradientTop, "transparent"]}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
           style={styles.homeScrimTop}
           pointerEvents="none"
         />
         <LinearGradient
-          colors={["transparent", figmaMobile.gradientBottom]}
+          colors={["transparent", fm.gradientBottom]}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
           style={styles.homeScrimBottom}
@@ -178,7 +182,7 @@ export function PostCard({
                 accessibilityRole="button"
                 accessibilityLabel="Post options"
               >
-                <Ionicons name="ellipsis-horizontal" size={22} color={figmaMobile.text} />
+                <Ionicons name="ellipsis-horizontal" size={22} color={fm.text} />
               </Pressable>
             ) : null}
           </View>
@@ -290,8 +294,8 @@ export function PostCard({
             >
               <Ionicons
                 name={liked ? "heart" : "heart-outline"}
-                size={figmaMobileHome.engageIconSize}
-                color={liked ? figmaMobile.accentGold : figmaMobile.text}
+                size={fmh.engageIconSize}
+                color={liked ? fm.accentGold : fm.text}
               />
               <Text style={[styles.engageCount, liked && styles.engageCountActive]}>
                 {formatEngagementCount(benefitedCount)}
@@ -304,7 +308,7 @@ export function PostCard({
               accessibilityRole="button"
               accessibilityLabel="Comments"
             >
-              <Ionicons name="chatbubble-outline" size={figmaMobileHome.engageIconSize} color={figmaMobile.text} />
+              <Ionicons name="chatbubble-outline" size={fmh.engageIconSize} color={fm.text} />
               <Text style={[styles.engageCount, !onOpenPost && styles.engageBtnTextDisabled]}>
                 {formatEngagementCount(item.comment_count || 0)}
               </Text>
@@ -315,7 +319,7 @@ export function PostCard({
               accessibilityRole="button"
               accessibilityLabel="Save"
             >
-              <Ionicons name="bookmark-outline" size={figmaMobileHome.engageIconSize} color={figmaMobile.text} />
+              <Ionicons name="bookmark-outline" size={fmh.engageIconSize} color={fm.text} />
               <Text style={styles.engageCount}>{formatEngagementCount(item.reflect_later_count || 0)}</Text>
             </Pressable>
           </View>
@@ -406,25 +410,26 @@ export function PostCard({
   );
 }
 
-const styles = StyleSheet.create({
+function buildPostCardStyles(fm: ReturnType<typeof resolveFigmaMobile>, fmh: ReturnType<typeof resolveFigmaMobileHome>) {
+  return StyleSheet.create({
   homeCardShell: {
-    borderRadius: figmaMobileHome.feedCardRadius,
+    borderRadius: fmh.feedCardRadius,
     overflow: "hidden",
     position: "relative"
   },
   homeCardShellCompact: {
-    borderRadius: figmaMobileHome.feedCardRadius
+    borderRadius: fmh.feedCardRadius
   },
   homeCardBase: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: figmaMobileHome.feedCardBg
+    backgroundColor: fmh.feedCardBg
   },
   homeScrimTop: {
     position: "absolute",
     left: 0,
     right: 0,
     top: 0,
-    height: `${Math.round(figmaMobileHome.scrimTopHeightRatio * 100)}%`,
+    height: `${Math.round(fmh.scrimTopHeightRatio * 100)}%`,
     minHeight: 96,
     zIndex: 0
   },
@@ -433,7 +438,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: `${Math.round(figmaMobileHome.scrimBottomHeightRatio * 100)}%`,
+    height: `${Math.round(fmh.scrimBottomHeightRatio * 100)}%`,
     minHeight: 120,
     zIndex: 0
   },
@@ -456,12 +461,12 @@ const styles = StyleSheet.create({
     paddingBottom: 8
   },
   homeMenuBtn: {
-    width: figmaMobileHome.menuBtnSize,
-    height: figmaMobileHome.menuBtnSize,
-    borderRadius: figmaMobileHome.menuBtnRadius,
-    backgroundColor: figmaMobile.glass,
+    width: fmh.menuBtnSize,
+    height: fmh.menuBtnSize,
+    borderRadius: fmh.menuBtnRadius,
+    backgroundColor: fm.glass,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: figmaMobile.glassBorder,
+    borderColor: fm.glassBorder,
     alignItems: "center",
     justifyContent: "center",
     ...Platform.select({
@@ -486,18 +491,18 @@ const styles = StyleSheet.create({
     minWidth: 0
   },
   homeAuthorPill: {
-    backgroundColor: figmaMobile.glass,
+    backgroundColor: fm.glass,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: figmaMobile.glassBorder,
-    borderRadius: figmaMobileHome.authorPillRadius,
-    paddingVertical: figmaMobileHome.authorPillPadV,
-    paddingLeft: figmaMobileHome.authorPillPadLeft,
-    paddingRight: figmaMobileHome.authorPillPadRight
+    borderColor: fm.glassBorder,
+    borderRadius: fmh.authorPillRadius,
+    paddingVertical: fmh.authorPillPadV,
+    paddingLeft: fmh.authorPillPadLeft,
+    paddingRight: fmh.authorPillPadRight
   },
   homeAvatar: {
-    width: figmaMobileHome.authorAvatarSize,
-    height: figmaMobileHome.authorAvatarSize,
-    borderRadius: figmaMobileHome.authorAvatarSize / 2,
+    width: fmh.authorAvatarSize,
+    height: fmh.authorAvatarSize,
+    borderRadius: fmh.authorAvatarSize / 2,
     borderWidth: 0,
     backgroundColor: "#FFFFFF",
     alignItems: "center",
@@ -510,19 +515,19 @@ const styles = StyleSheet.create({
     borderRadius: 999
   },
   homeAvatarText: {
-    color: figmaMobile.avatarInitialInk,
+    color: fm.avatarInitialInk,
     fontSize: 15,
     fontWeight: "600"
   },
   homeAuthor: {
-    color: figmaMobile.text,
-    fontSize: figmaMobileHome.authorNameSize,
+    color: fm.text,
+    fontSize: fmh.authorNameSize,
     fontWeight: "500",
-    lineHeight: figmaMobileHome.authorNameLineHeight
+    lineHeight: fmh.authorNameLineHeight
   },
   homeSubtle: {
-    color: figmaMobileHome.authorTimeColor,
-    fontSize: figmaMobileHome.authorTimeSize,
+    color: fmh.authorTimeColor,
+    fontSize: fmh.authorTimeSize,
     fontWeight: "400",
     lineHeight: 16,
     marginTop: 2
@@ -530,17 +535,17 @@ const styles = StyleSheet.create({
   homeMedia: {
     width: "100%",
     aspectRatio: 4 / 5,
-    backgroundColor: figmaMobile.mediaSurface
+    backgroundColor: fm.mediaSurface
   },
   homeMediaPlaceholder: {
     width: "100%",
     aspectRatio: 4 / 5,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: figmaMobile.mediaSurface
+    backgroundColor: fm.mediaSurface
   },
   homeMediaPlaceholderText: {
-    color: figmaMobile.textMuted,
+    color: fm.textMuted,
     fontSize: 13,
     paddingHorizontal: 16,
     textAlign: "center"
@@ -551,7 +556,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 6,
     paddingBottom: 18,
-    gap: figmaMobileHome.engageRowGap
+    gap: fmh.engageRowGap
   },
   homeEngageIconsCompact: {
     paddingHorizontal: 16,
@@ -566,13 +571,13 @@ const styles = StyleSheet.create({
     paddingVertical: 4
   },
   engageCount: {
-    fontSize: figmaMobileHome.engageCountSize,
-    lineHeight: figmaMobileHome.engageCountLineHeight,
-    color: figmaMobile.text,
+    fontSize: fmh.engageCountSize,
+    lineHeight: fmh.engageCountLineHeight,
+    color: fm.text,
     fontWeight: "500"
   },
   engageCountActive: {
-    color: figmaMobile.accentGold
+    color: fm.accentGold
   },
   engageBtnTextDisabled: {
     opacity: 0.45
@@ -595,27 +600,27 @@ const styles = StyleSheet.create({
     flexWrap: "wrap"
   },
   homeTagSegment: {
-    color: figmaMobile.accentGold,
+    color: fm.accentGold,
     fontWeight: "600"
   },
   homeMetaText: {
-    color: figmaMobile.textMuted,
+    color: fm.textMuted,
     fontSize: 12
   },
   homeMetaTextCompact: {
     fontSize: 11
   },
   monetizationChip: {
-    borderColor: figmaMobile.glassBorder,
+    borderColor: fm.glassBorder,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 4,
     alignSelf: "flex-start",
-    backgroundColor: figmaMobile.glassSoft
+    backgroundColor: fm.glassSoft
   },
   monetizationChipText: {
-    color: figmaMobile.text,
+    color: fm.text,
     fontSize: 11,
     fontWeight: "600"
   },
@@ -653,10 +658,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5
   },
   homeCaption: {
-    color: figmaMobile.text,
-    fontSize: figmaMobileHome.captionSize,
+    color: fm.text,
+    fontSize: fmh.captionSize,
     fontWeight: "400",
-    lineHeight: figmaMobileHome.captionLineHeight
+    lineHeight: fmh.captionLineHeight
   },
   content: {
     color: colors.text,
@@ -691,22 +696,22 @@ const styles = StyleSheet.create({
     alignItems: "center"
   },
   homeButtonSecondary: {
-    borderColor: figmaMobile.glassBorder,
+    borderColor: fm.glassBorder,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.control,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: figmaMobile.glassSoft
+    backgroundColor: fm.glassSoft
   },
   homeButtonText: {
-    color: figmaMobile.text,
+    color: fm.text,
     fontWeight: "600"
   },
   homeButtonPrimary: {
     borderRadius: radii.button,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: figmaMobile.brandTeal,
+    backgroundColor: fm.brandTeal,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -740,3 +745,4 @@ const styles = StyleSheet.create({
     opacity: 0.6
   }
 });
+}

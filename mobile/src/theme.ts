@@ -221,6 +221,94 @@ export const figmaAtmosphere = {
   end: { x: 0.5, y: 1 }
 };
 
+/** Signed-in light kit — same keys as `figmaMobile` (Settings toggle, not auth). */
+export const figmaMobileLight = {
+  canvas: "#F2F2F7",
+  card: "#FFFFFF",
+  cardRadiusLg: 32,
+  cardRadiusMd: 20,
+  feedCardGradientEnd: "#ECECEF",
+  text: "#0A0A0B",
+  textSecondary: "rgba(10,10,11,0.88)",
+  textMuted: "rgba(10,10,11,0.55)",
+  textMuted2: "rgba(10,10,11,0.45)",
+  glass: "rgba(0,0,0,0.06)",
+  glassBorder: "rgba(0,0,0,0.1)",
+  glassSoft: "rgba(0,0,0,0.04)",
+  glassBorderSoft: "rgba(0,0,0,0.08)",
+  accentGold: "#feb101",
+  linkCyan: "#018799",
+  tabBarFill: "rgba(255,255,255,0.94)",
+  tabBarBorder: "rgba(0,0,0,0.08)",
+  gradientTop: "rgba(0,0,0,0.22)",
+  gradientBottom: "rgba(0,0,0,0.32)",
+  brandTeal: "#156B75",
+  mediaSurface: "#E8E8EA",
+  avatarInitialInk: "#1a1a1a",
+  videoThumbFallback: "#e5e7eb",
+  messagesChrome: "#FFFFFF",
+  messagesChromeText: "#0A0A0B",
+  messagesChromePlaceholder: "rgba(10,10,11,0.4)",
+  chromeInk: "#000001"
+} as const;
+
+/** Light feed / home cards — paired with `figmaMobileLight`. */
+export const figmaMobileHomeLight = {
+  ...figmaMobileHome,
+  feedCardBg: "#FFFFFF",
+  accentOrb: "rgba(254, 45, 48, 0.18)",
+  authorTimeColor: "rgba(10, 10, 11, 0.55)"
+} as const;
+
+export const figmaAtmosphereLight = {
+  colors: ["#fbfbfc", "#eef0f5", "#e6e9f0", "#f2f3f8"] as const,
+  start: { x: 0.2, y: 0 },
+  end: { x: 0.55, y: 1 }
+} as const;
+
+/** Profile chrome in light signed-in mode */
+export const figmaMobileProfileLight = {
+  ...figmaMobileProfile,
+  accentOrb: "rgba(254, 45, 48, 0.18)",
+  usernameColor: "rgba(10, 10, 11, 0.55)",
+  pillBg: "rgba(0, 0, 0, 0.05)",
+  pillBorder: "rgba(0, 0, 0, 0.08)",
+  infoPanelBg: "rgba(255, 255, 255, 0.92)",
+  infoPanelBorder: "rgba(0, 0, 0, 0.08)",
+  statsRowBorder: "rgba(0, 0, 0, 0.08)",
+  statLabelColor: "rgba(10, 10, 11, 0.55)",
+  gridTileBg: "#ECECEF"
+} as const;
+
+export const figmaMobileNavLight = {
+  ...figmaMobileNav,
+  tabIconFrameFillFocused: "rgba(0,0,0,0.06)",
+  tabIconFrameBorderFocused: "rgba(0,0,0,0.08)",
+  unreadBadgeBorderColor: "#FFFFFF"
+} as const;
+
+export type AppearanceMode = "dark" | "light";
+
+export function resolveFigmaMobile(mode: AppearanceMode) {
+  return mode === "light" ? figmaMobileLight : figmaMobile;
+}
+
+export function resolveFigmaMobileHome(mode: AppearanceMode) {
+  return mode === "light" ? figmaMobileHomeLight : figmaMobileHome;
+}
+
+export function resolveFigmaAtmosphere(mode: AppearanceMode) {
+  return mode === "light" ? figmaAtmosphereLight : figmaAtmosphere;
+}
+
+export function resolveFigmaProfile(mode: AppearanceMode) {
+  return mode === "light" ? figmaMobileProfileLight : figmaMobileProfile;
+}
+
+export function resolveFigmaNav(mode: AppearanceMode) {
+  return mode === "light" ? figmaMobileNavLight : figmaMobileNav;
+}
+
 export const colors = {
   /** Tab / settings canvas (iOS grouped style) */
   background: "#F2F2F7",
@@ -472,12 +560,19 @@ export const primaryButtonOutline = primaryButton;
 /** @deprecated use primaryButtonLabel */
 export const primaryButtonText = primaryButtonLabel;
 
+/**
+ * White auth chrome — Welcome / Login / Signup only.
+ * Not tied to Settings “Appearance” (signed-in dark/light).
+ */
 export const authTheme = {
-  pageBg: colors.background,
-  card: colors.surface,
-  border: colors.border,
-  text: colors.text,
-  muted: colors.muted,
+  pageBg: "#F2F2F7",
+  card: "#FFFFFF",
+  border: "rgba(60, 60, 67, 0.18)",
+  text: "#111111",
+  muted: "#666666",
+  /** Slightly off-white fields on white card */
+  inputSurface: "#F7F7F8",
+  linkAccent: colors.accent,
   submitBg: colors.accent,
   submitBorder: "transparent",
   submitText: colors.onAccent,

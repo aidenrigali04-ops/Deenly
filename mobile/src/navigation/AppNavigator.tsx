@@ -10,19 +10,20 @@ import {
   type LinkingOptions
 } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { createNativeStackNavigator, type NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQuery } from "@tanstack/react-query";
 import { fetchSessionMe } from "../lib/auth";
 import { getAccessToken } from "../lib/storage";
 import { useSessionStore } from "../store/session-store";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, figmaMobile, figmaMobileNav, fonts } from "../theme";
+import { StatusBar } from "expo-status-bar";
+import { colors, fonts } from "../theme";
+import { useAppChrome } from "../lib/use-app-chrome";
 import { apiRequest } from "../lib/api";
 import { LoginScreen } from "../screens/auth/LoginScreen";
 import { SignupScreen } from "../screens/auth/SignupScreen";
 import { WelcomeScreen } from "../screens/auth/WelcomeScreen";
 import { FeedScreen } from "../screens/app/FeedScreen";
-import { MarketplaceFeedScreen } from "../screens/app/MarketplaceFeedScreen";
 import { MessagesScreen } from "../screens/app/MessagesScreen";
 import { SearchScreen } from "../screens/app/SearchScreen";
 import { ProfileScreen } from "../screens/app/ProfileScreen";
@@ -74,9 +75,9 @@ export type CreateTabStackParamList = {
 };
 
 export type AppTabParamList = {
-  HomeTab: undefined;
-  SearchTab: undefined;
-  MarketplaceTab: undefined;
+  HomeTab: { openMarketplace?: boolean } | undefined;
+  SearchTab: { focusSearch?: boolean } | undefined;
+  CreateTab: undefined;
   ReelsTab: undefined;
   MessagesTab: { openUserId?: number };
   AccountTab: undefined;
@@ -129,38 +130,62 @@ const Tab = createBottomTabNavigator<AppTabParamList>();
 const CreateStack = createNativeStackNavigator<CreateTabStackParamList>();
 
 function TabIconFrame({ focused, children }: { focused: boolean; children: ReactNode }) {
+  const { nav } = useAppChrome();
+  const frameBase = useMemo(
+    () => ({
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+      minWidth: nav.tabIconFrameMinWidth,
+      minHeight: nav.tabIconFrameMinHeight,
+      paddingHorizontal: nav.tabIconFramePadHorizontal,
+      paddingVertical: nav.tabIconFramePadVertical,
+      borderRadius: nav.tabIconFrameRadius
+    }),
+    [
+      nav.tabIconFrameMinWidth,
+      nav.tabIconFrameMinHeight,
+      nav.tabIconFramePadHorizontal,
+      nav.tabIconFramePadVertical,
+      nav.tabIconFrameRadius
+    ]
+  );
   return (
-    <View style={[tabIconFrameStyles.base, focused ? tabIconFrameStyles.on : tabIconFrameStyles.off]}>{children}</View>
+    <View
+      style={[
+        frameBase,
+        focused
+          ? {
+              backgroundColor: nav.tabIconFrameFillFocused,
+              borderWidth: nav.tabBarBorderWidth,
+              borderColor: nav.tabIconFrameBorderFocused
+            }
+          : tabIconFrameStyles.off
+      ]}
+    >
+      {children}
+    </View>
   );
 }
 
 const tabIconFrameStyles = StyleSheet.create({
-  base: {
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: figmaMobileNav.tabIconFrameMinWidth,
-    minHeight: figmaMobileNav.tabIconFrameMinHeight,
-    paddingHorizontal: figmaMobileNav.tabIconFramePadHorizontal,
-    paddingVertical: figmaMobileNav.tabIconFramePadVertical,
-    borderRadius: figmaMobileNav.tabIconFrameRadius
-  },
   off: {
     backgroundColor: "transparent"
-  },
-  on: {
-    backgroundColor: figmaMobileNav.tabIconFrameFillFocused,
-    borderWidth: figmaMobileNav.tabBarBorderWidth,
-    borderColor: figmaMobileNav.tabIconFrameBorderFocused
   }
 });
 
+/** Bottom-tab slot that opens the root Create stack instead of switching tabs. */
+function CreateTabPlaceholder() {
+  return <View style={{ flex: 1, backgroundColor: "transparent" }} />;
+}
+
 function CreateTabFlow() {
+  const { figma } = useAppChrome();
   return (
     <CreateStack.Navigator
       initialRouteName="CreateHub"
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: figmaMobile.canvas }
+        contentStyle: { backgroundColor: figma.canvas }
       }}
     >
       <CreateStack.Screen name="CreateHub" component={CreateHubScreen} />
@@ -170,9 +195,10 @@ function CreateTabFlow() {
 }
 
 function AppTabs() {
+  const { figma, nav } = useAppChrome();
   const insets = useSafeAreaInsets();
-  const tabPadBottom = Math.max(insets.bottom, figmaMobileNav.tabBarInsetBottomMin);
-  const horizontalInset = figmaMobileNav.tabBarInsetHorizontal;
+  const tabPadBottom = Math.max(insets.bottom, nav.tabBarInsetBottomMin);
+  const horizontalInset = nav.tabBarInsetHorizontal;
   const user = useSessionStore((s) => s.user);
   const { data: convData } = useQuery({
     queryKey: ["mobile-messages-conversations"],
@@ -197,25 +223,25 @@ function AppTabs() {
               left: horizontalInset,
               right: horizontalInset,
               bottom: tabPadBottom,
-              backgroundColor: figmaMobile.tabBarFill,
+              backgroundColor: figma.tabBarFill,
               borderTopWidth: 0,
-              borderWidth: figmaMobileNav.tabBarBorderWidth,
-              borderColor: figmaMobile.tabBarBorder,
-              borderRadius: figmaMobileNav.tabBarCapsuleBorderRadius,
-              paddingTop: figmaMobileNav.tabBarPaddingTop,
-              paddingBottom: figmaMobileNav.tabBarPaddingBottom,
-              minHeight: figmaMobileNav.tabBarMinHeight,
-              elevation: figmaMobileNav.tabBarElevationAndroid,
-              shadowColor: figmaMobileNav.tabBarShadowColorIOS,
+              borderWidth: nav.tabBarBorderWidth,
+              borderColor: figma.tabBarBorder,
+              borderRadius: nav.tabBarCapsuleBorderRadius,
+              paddingTop: nav.tabBarPaddingTop,
+              paddingBottom: nav.tabBarPaddingBottom,
+              minHeight: nav.tabBarMinHeight,
+              elevation: nav.tabBarElevationAndroid,
+              shadowColor: nav.tabBarShadowColorIOS,
               shadowOffset: {
-                width: figmaMobileNav.tabBarShadowOffsetXIOS,
-                height: figmaMobileNav.tabBarShadowOffsetYIOS
+                width: nav.tabBarShadowOffsetXIOS,
+                height: nav.tabBarShadowOffsetYIOS
               },
-              shadowOpacity: figmaMobileNav.tabBarShadowOpacityIOS,
-              shadowRadius: figmaMobileNav.tabBarShadowRadiusIOS
+              shadowOpacity: nav.tabBarShadowOpacityIOS,
+              shadowRadius: nav.tabBarShadowRadiusIOS
             },
-            tabBarActiveTintColor: figmaMobile.text,
-            tabBarInactiveTintColor: figmaMobile.textMuted2,
+            tabBarActiveTintColor: figma.text,
+            tabBarInactiveTintColor: figma.textMuted2,
             tabBarActiveBackgroundColor: "transparent",
             tabBarShowLabel: true,
             tabBarLabel: ({ focused, color, children }) => (
@@ -224,14 +250,14 @@ function AppTabs() {
                 ellipsizeMode="tail"
                 style={{
                   fontFamily: focused ? fonts.bold : fonts.semiBold,
-                  fontSize: figmaMobileNav.tabLabelFontSize,
+                  fontSize: nav.tabLabelFontSize,
                   fontWeight: focused ? "700" : "600",
-                  marginTop: figmaMobileNav.tabLabelMarginTop,
-                  letterSpacing: figmaMobileNav.tabLabelLetterSpacing,
+                  marginTop: nav.tabLabelMarginTop,
+                  letterSpacing: nav.tabLabelLetterSpacing,
                   color,
                   opacity: focused ? 1 : 0.72,
                   textAlign: "center",
-                  maxWidth: figmaMobileNav.tabLabelMaxWidth
+                  maxWidth: nav.tabLabelMaxWidth
                 }}
               >
                 {children}
@@ -249,8 +275,8 @@ function AppTabs() {
               <View
                 style={{
                   ...StyleSheet.absoluteFillObject,
-                  backgroundColor: figmaMobile.tabBarFill,
-                  borderRadius: figmaMobileNav.tabBarCapsuleBorderRadius,
+                  backgroundColor: figma.tabBarFill,
+                  borderRadius: nav.tabBarCapsuleBorderRadius,
                   overflow: "hidden"
                 }}
               />
@@ -282,13 +308,20 @@ function AppTabs() {
             }}
           />
           <Tab.Screen
-            name="MarketplaceTab"
-            component={MarketplaceFeedScreen}
+            name="CreateTab"
+            component={CreateTabPlaceholder}
+            listeners={({ navigation }) => ({
+              tabPress: (e) => {
+                e.preventDefault();
+                const parent = navigation.getParent() as NativeStackNavigationProp<RootStackParamList> | undefined;
+                parent?.navigate("CreateFlow", { screen: "CreateHub" } as const);
+              }
+            })}
             options={{
-              title: "Market",
+              title: "Create",
               tabBarIcon: ({ color, size, focused }) => (
                 <TabIconFrame focused={focused}>
-                  <NavTabIcon kind="marketplace" color={color} size={(size ?? 24) - 2} focused={focused} />
+                  <Ionicons name={focused ? "add-circle" : "add-circle-outline"} size={(size ?? 24) - 2} color={color} />
                 </TabIconFrame>
               )
             }}
@@ -324,12 +357,12 @@ function AppTabs() {
                           position: "absolute",
                           top: 0,
                           right: 2,
-                          width: figmaMobileNav.unreadBadgeSize,
-                          height: figmaMobileNav.unreadBadgeSize,
-                          borderRadius: figmaMobileNav.unreadBadgeSize / 2,
-                          backgroundColor: figmaMobile.accentGold,
-                          borderWidth: figmaMobileNav.unreadBadgeBorderWidth,
-                          borderColor: figmaMobileNav.unreadBadgeBorderColor
+                          width: nav.unreadBadgeSize,
+                          height: nav.unreadBadgeSize,
+                          borderRadius: nav.unreadBadgeSize / 2,
+                          backgroundColor: figma.accentGold,
+                          borderWidth: nav.unreadBadgeBorderWidth,
+                          borderColor: nav.unreadBadgeBorderColor
                         }}
                       />
                     ) : null}
@@ -372,6 +405,7 @@ function SessionPersonalizer() {
 }
 
 export function AppNavigator() {
+  const chrome = useAppChrome();
   const user = useSessionStore((state) => state.user);
   const setUser = useSessionStore((state) => state.setUser);
   const [bootstrapping, setBootstrapping] = useState(true);
@@ -421,17 +455,20 @@ export function AppNavigator() {
     void registerExpoPushDevice();
   }, [user?.id]);
 
-  const navTheme = {
-    ...DefaultTheme,
-    colors: {
-      ...DefaultTheme.colors,
-      background: user ? figmaMobile.canvas : colors.background,
-      card: user ? figmaMobile.card : colors.surface,
-      text: user ? figmaMobile.text : colors.text,
-      border: user ? figmaMobile.glassBorder : colors.border,
-      primary: user ? figmaMobile.accentGold : colors.accent
-    }
-  };
+  const navTheme = useMemo(
+    () => ({
+      ...DefaultTheme,
+      colors: {
+        ...DefaultTheme.colors,
+        background: user ? chrome.figma.canvas : colors.background,
+        card: user ? chrome.figma.card : colors.surface,
+        text: user ? chrome.figma.text : colors.text,
+        border: user ? chrome.figma.glassBorder : colors.border,
+        primary: user ? chrome.figma.accentGold : colors.accent
+      }
+    }),
+    [user, chrome.figma]
+  );
 
   const linking = useMemo((): LinkingOptions<RootStackParamList> => {
     const webOrigin = getWebAppBaseUrl().replace(/\/$/, "");
@@ -499,27 +536,29 @@ export function AppNavigator() {
   }
 
   return (
-    <NavigationContainer theme={navTheme} linking={linking}>
-      <Fragment>
-        <RootStack.Navigator
-          screenOptions={{
-            headerStyle: { backgroundColor: user ? figmaMobile.card : colors.surface },
-            headerTintColor: user ? figmaMobile.text : colors.text,
-            headerTitleStyle: { fontFamily: fonts.semiBold, fontSize: 17, fontWeight: "600" },
-            headerBackTitleStyle: { fontFamily: fonts.regular },
-            contentStyle: { backgroundColor: user ? figmaMobile.canvas : colors.background }
-          }}
-        >
-          {!user ? (
-            <>
-              <RootStack.Screen name="Welcome" component={WelcomeScreen} options={{ headerShown: false }} />
-              <RootStack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
-              <RootStack.Screen name="Signup" component={SignupScreen} options={{ headerShown: false }} />
-              <RootStack.Screen name="EventDetail" component={EventDetailScreen} options={{ title: "Event" }} />
-            </>
-          ) : (
-            <>
-              <RootStack.Screen name="AppTabs" component={AppTabs} options={{ headerShown: false }} />
+    <>
+      <StatusBar style={user ? (chrome.mode === "light" ? "dark" : "light") : "dark"} />
+      <NavigationContainer theme={navTheme} linking={linking}>
+        <Fragment>
+          <RootStack.Navigator
+            screenOptions={{
+              headerStyle: { backgroundColor: user ? chrome.figma.card : colors.surface },
+              headerTintColor: user ? chrome.figma.text : colors.text,
+              headerTitleStyle: { fontFamily: fonts.semiBold, fontSize: 17, fontWeight: "600" },
+              headerBackTitleStyle: { fontFamily: fonts.regular },
+              contentStyle: { backgroundColor: user ? chrome.figma.canvas : colors.background }
+            }}
+          >
+            {!user ? (
+              <>
+                <RootStack.Screen name="Welcome" component={WelcomeScreen} options={{ headerShown: false }} />
+                <RootStack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+                <RootStack.Screen name="Signup" component={SignupScreen} options={{ headerShown: false }} />
+                <RootStack.Screen name="EventDetail" component={EventDetailScreen} options={{ title: "Event" }} />
+              </>
+            ) : (
+              <>
+                <RootStack.Screen name="AppTabs" component={AppTabs} options={{ headerShown: false }} />
               <RootStack.Screen name="CreateFlow" component={CreateTabFlow} options={{ headerShown: false }} />
               <RootStack.Screen name="PostDetail" component={PostDetailScreen} options={{ title: "Post" }} />
               <RootStack.Screen name="UserProfile" component={UserProfileScreen} options={{ title: "User" }} />
@@ -572,5 +611,6 @@ export function AppNavigator() {
         {user ? <SessionPersonalizer /> : null}
       </Fragment>
     </NavigationContainer>
+    </>
   );
 }

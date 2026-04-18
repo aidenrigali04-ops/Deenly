@@ -9,5 +9,10 @@
       "@deenly/rewards": ["../shared/rewards/index.ts"]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx", "../shared/rewards/**/*.ts"]
+  "include": ["**/*.ts", "**/*.tsx", "../shared/rewards/**/*.ts"],
+  "exclude": [
+    "node_modules",
+    "../shared/rewards/**/*.test.ts",
+    "../shared/rewards/vitest.config.ts"
+  ]
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as DocumentPicker from "expo-document-picker";
 import {
@@ -21,7 +21,8 @@ import { fetchSessionMe } from "../../lib/auth";
 import { apiRequest } from "../../lib/api";
 import { fetchMyProducts, formatMinorCurrency } from "../../lib/monetization";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
-import { colors, figmaMobile, figmaMobileProfile, spacing, type as typeStyles } from "../../theme";
+import { colors, resolveFigmaMobile, resolveFigmaProfile, spacing, type as typeStyles } from "../../theme";
+import { useAppChrome } from "../../lib/use-app-chrome";
 import type { FeedItem } from "../../types";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 import { resolveMediaUrl } from "../../lib/media-url";
@@ -54,7 +55,373 @@ function normalizeWebsiteUrl(raw: string) {
   return /^https?:\/\//i.test(t) ? t : `https://${t}`;
 }
 
+function buildProfileStyles(fig: ReturnType<typeof resolveFigmaMobile>, fp: ReturnType<typeof resolveFigmaProfile>) {
+  return StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: "transparent",
+      overflow: "hidden"
+    },
+    profileOrb: {
+      position: "absolute",
+      width: fp.accentOrbSize,
+      height: fp.accentOrbSize,
+      borderRadius: fp.accentOrbSize / 2,
+      backgroundColor: fp.accentOrb,
+      top: fp.accentOrbTop,
+      left: fp.accentOrbLeft
+    },
+    topBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: spacing.screenHorizontal,
+      paddingBottom: 12,
+      borderBottomWidth: 0,
+      backgroundColor: "transparent"
+    },
+    topBarCompact: {
+      paddingBottom: 10
+    },
+    topBarHit: {
+      minWidth: 44,
+      minHeight: 44,
+      alignItems: "center",
+      justifyContent: "center"
+    },
+    topBarTitleWrap: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 2,
+      maxWidth: "58%",
+      justifyContent: "center"
+    },
+    topBarUsername: {
+      ...typeStyles.navChromeTitle,
+      color: fig.text
+    },
+    scroll: {
+      flex: 1,
+      backgroundColor: "transparent"
+    },
+    scrollContent: {
+      paddingBottom: 32
+    },
+    scrollContentCompact: {
+      paddingBottom: 24
+    },
+    heroBlock: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: fp.heroPadH,
+      paddingTop: 18,
+      gap: fp.heroGap
+    },
+    heroBlockCompact: {
+      paddingTop: 12,
+      gap: 12
+    },
+    heroMeta: {
+      flex: 1,
+      minWidth: 0,
+      gap: fp.nameColumnGap
+    },
+    profileDisplayName: {
+      fontSize: fp.displayNameSize,
+      fontWeight: "600",
+      lineHeight: fp.displayNameLineHeight,
+      color: fig.text,
+      letterSpacing: -0.2
+    },
+    profileDisplayNameCompact: {
+      fontSize: 17,
+      lineHeight: 22
+    },
+    profileUsername: {
+      fontSize: fp.usernameSize,
+      fontWeight: "400",
+      lineHeight: fp.usernameLineHeight,
+      color: fp.usernameColor
+    },
+    heroPills: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 4,
+      marginTop: 2
+    },
+    heroPill: {
+      paddingHorizontal: fp.pillPadH,
+      paddingVertical: fp.pillPadV,
+      borderRadius: fp.pillRadius,
+      backgroundColor: fp.pillBg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: fp.pillBorder
+    },
+    heroPillPressed: {
+      opacity: 0.88
+    },
+    heroPillText: {
+      fontSize: fp.pillTextSize,
+      fontWeight: "500",
+      lineHeight: fp.pillTextLineHeight,
+      color: fig.text
+    },
+    heroPillTextGold: {
+      fontSize: fp.pillTextSize,
+      fontWeight: "500",
+      lineHeight: fp.pillTextLineHeight,
+      color: fig.accentGold
+    },
+    infoPanel: {
+      marginHorizontal: fp.heroPadH,
+      marginTop: 18,
+      paddingTop: fp.infoPanelPadTop,
+      paddingBottom: fp.infoPanelPadBottom,
+      paddingHorizontal: fp.infoPanelPadH,
+      borderRadius: fp.infoPanelRadius,
+      backgroundColor: fp.infoPanelBg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: fp.infoPanelBorder,
+      gap: fp.infoPanelGap
+    },
+    infoPanelCompact: {
+      marginTop: 14,
+      paddingTop: 20,
+      paddingBottom: 22,
+      paddingHorizontal: 18
+    },
+    statsStrip: {
+      flexDirection: "row",
+      flexWrap: "nowrap",
+      gap: fp.statColumnsGap,
+      paddingBottom: fp.statsRowPadBottom,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: fp.statsRowBorder
+    },
+    statsStripCompact: {
+      gap: 10
+    },
+    statCol: {
+      flex: 1,
+      minWidth: 0,
+      alignItems: "center",
+      gap: fp.statStackGap
+    },
+    statNum: {
+      fontSize: fp.statNumberSize,
+      fontWeight: "500",
+      lineHeight: fp.statNumberLineHeight,
+      color: fig.text,
+      fontVariant: ["tabular-nums"],
+      textAlign: "center"
+    },
+    statLbl: {
+      fontSize: fp.statLabelSize,
+      fontWeight: "500",
+      lineHeight: fp.statLabelLineHeight,
+      color: fp.statLabelColor,
+      textAlign: "center"
+    },
+    infoBody: {
+      gap: 2,
+      alignSelf: "stretch"
+    },
+    infoBioLine: {
+      fontSize: fp.bioTextSize,
+      fontWeight: "500",
+      lineHeight: fp.bioLineHeight,
+      color: fig.text
+    },
+    infoBioLink: {
+      color: fig.linkCyan,
+      fontWeight: "500"
+    },
+    addBusinessBtn: {
+      marginHorizontal: spacing.screenHorizontal,
+      marginTop: 12,
+      paddingVertical: 10,
+      alignItems: "center"
+    },
+    addBusinessText: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: fig.accentGold,
+      letterSpacing: -0.2
+    },
+    profileTabRail: {
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "flex-start",
+      gap: fp.contentTabGap,
+      marginTop: 24,
+      marginBottom: 4,
+      paddingHorizontal: fp.heroPadH
+    },
+    profileTabRailCompact: {
+      marginTop: 18,
+      gap: 28
+    },
+    profileTabHit: {
+      minWidth: 56,
+      paddingVertical: 6,
+      alignItems: "center"
+    },
+    profileTabInner: {
+      alignItems: "center",
+      gap: 6
+    },
+    profileTabLabel: {
+      fontSize: fp.contentTabLabelSize,
+      fontWeight: "500",
+      lineHeight: fp.contentTabLabelLineHeight,
+      color: fp.statLabelColor,
+      textAlign: "center"
+    },
+    profileTabLabelActive: {
+      color: fig.accentGold,
+      fontWeight: "500"
+    },
+    avatarWrap: {
+      position: "relative"
+    },
+    avatar: {
+      width: fp.avatarSize,
+      height: fp.avatarSize,
+      borderRadius: fp.avatarRadius,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: fp.pillBorder,
+      backgroundColor: "#FFFFFF"
+    },
+    avatarPlaceholder: {
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "#FFFFFF"
+    },
+    avatarLetter: {
+      fontSize: 36,
+      fontWeight: "700",
+      color: fig.avatarInitialInk
+    },
+    avatarBadge: {
+      position: "absolute",
+      right: -1,
+      bottom: -1,
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: colors.accent,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 2,
+      borderColor: fig.canvas
+    },
+    avatarUploading: {
+      ...StyleSheet.absoluteFillObject,
+      borderRadius: fp.avatarRadius,
+      backgroundColor: fig.gradientBottom,
+      alignItems: "center",
+      justifyContent: "center"
+    },
+    avatarUploadingText: {
+      fontWeight: "700",
+      color: fig.text,
+      fontSize: 18
+    },
+    profileGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: fp.gridGap,
+      paddingHorizontal: fp.gridPadH,
+      paddingTop: 4,
+      backgroundColor: "transparent"
+    },
+    tile: {
+      overflow: "hidden",
+      borderRadius: fp.gridTileRadius,
+      backgroundColor: fp.gridTileBg
+    },
+    tileImage: {
+      width: "100%",
+      height: "100%"
+    },
+    tileFallback: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: fp.gridTileBg,
+      paddingHorizontal: 6
+    },
+    tileFallbackVideo: {
+      backgroundColor: fp.gridTileBg
+    },
+    tileFallbackText: {
+      color: fig.textMuted,
+      fontSize: 11,
+      fontWeight: "600",
+      textAlign: "center"
+    },
+    tileBadge: {
+      position: "absolute",
+      right: 8,
+      top: 8,
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "rgba(0,0,0,0.52)",
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: fig.glassBorder
+    },
+    productTile: {
+      paddingHorizontal: 10,
+      paddingVertical: 10,
+      justifyContent: "center",
+      alignItems: "stretch"
+    },
+    productTileTitle: {
+      fontSize: 12,
+      fontWeight: "700",
+      color: fig.text,
+      letterSpacing: -0.1,
+      lineHeight: 16
+    },
+    productTilePrice: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: fig.accentGold,
+      marginTop: 8,
+      letterSpacing: -0.05
+    },
+    productTileStatus: {
+      fontSize: 10,
+      fontWeight: "600",
+      color: fig.textMuted,
+      marginTop: 4,
+      textTransform: "capitalize"
+    },
+    emptyGrid: {
+      alignItems: "center",
+      paddingVertical: 44,
+      paddingHorizontal: spacing.breathing,
+      gap: 10
+    },
+    emptyGridTitle: {
+      fontSize: 17,
+      fontWeight: "700",
+      color: fig.text
+    },
+    emptyGridSub: {
+      fontSize: 14,
+      color: fig.textMuted,
+      textAlign: "center"
+    }
+  });
+}
+
 export function ProfileScreen({ navigation }: Props) {
+  const { figma, profile: fp, mode } = useAppChrome();
+  const styles = useMemo(() => buildProfileStyles(figma, fp), [figma, fp]);
   const { width, height: viewportHeight } = useWindowDimensions();
   const compact = viewportHeight <= 700;
   const insets = useSafeAreaInsets();
@@ -111,8 +478,8 @@ export function ProfileScreen({ navigation }: Props) {
   const productItems = productsQuery.data?.items || [];
   const hasBusinessListing = (businessesMineQuery.data?.items?.length ?? 0) > 0;
   const avatarUri = resolveMediaUrl(profileQuery.data?.avatar_url);
-  const gridPad = figmaMobileProfile.gridPadH;
-  const gridGap = figmaMobileProfile.gridGap;
+  const gridPad = fp.gridPadH;
+  const gridGap = fp.gridGap;
   const tileWidth = Math.max(96, Math.floor((width - gridPad * 2 - gridGap * 2) / 3));
   const tileHeight = Math.round(tileWidth * (211 / 111));
   const p = profileQuery.data;
@@ -198,7 +565,7 @@ export function ProfileScreen({ navigation }: Props) {
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
         <View style={styles.profileOrb} />
       </View>
-      <StatusBar style="light" />
+      <StatusBar style={mode === "light" ? "dark" : "light"} />
       <View style={[styles.topBar, compact && styles.topBarCompact, { paddingTop: insets.top + 6 }]}>
         <Pressable
           style={styles.topBarHit}
@@ -206,7 +573,7 @@ export function ProfileScreen({ navigation }: Props) {
           accessibilityRole="button"
           accessibilityLabel="Create post"
         >
-          <IconPlus color={figmaMobile.text} size={26} />
+          <IconPlus color={figma.text} size={26} />
         </Pressable>
         <View style={styles.topBarTitleWrap}>
           <Text style={styles.topBarUsername} numberOfLines={1}>
@@ -219,7 +586,7 @@ export function ProfileScreen({ navigation }: Props) {
           accessibilityRole="button"
           accessibilityLabel="Settings"
         >
-          <IconMenu color={figmaMobile.text} size={26} />
+          <IconMenu color={figma.text} size={26} />
         </Pressable>
       </View>
 
@@ -326,8 +693,8 @@ export function ProfileScreen({ navigation }: Props) {
           <Pressable style={styles.profileTabHit} onPress={() => setActiveTab("posts")}>
             <View style={styles.profileTabInner}>
               <IconGrid
-                color={activeTab === "posts" ? figmaMobile.accentGold : figmaMobileProfile.statLabelColor}
-                size={figmaMobileProfile.contentTabIcon}
+                color={activeTab === "posts" ? figma.accentGold : fp.statLabelColor}
+                size={fp.contentTabIcon}
               />
               <Text style={[styles.profileTabLabel, activeTab === "posts" ? styles.profileTabLabelActive : null]}>Posts</Text>
             </View>
@@ -336,8 +703,8 @@ export function ProfileScreen({ navigation }: Props) {
             <Pressable style={styles.profileTabHit} onPress={() => setActiveTab("products")}>
               <View style={styles.profileTabInner}>
                 <IconShoppingBag
-                  color={activeTab === "products" ? figmaMobile.accentGold : figmaMobileProfile.statLabelColor}
-                  size={figmaMobileProfile.contentTabIcon}
+                  color={activeTab === "products" ? figma.accentGold : fp.statLabelColor}
+                  size={fp.contentTabIcon}
                 />
                 <Text style={[styles.profileTabLabel, activeTab === "products" ? styles.profileTabLabelActive : null]}>
                   Products
@@ -353,7 +720,7 @@ export function ProfileScreen({ navigation }: Props) {
             {postsQuery.error ? <ErrorState message={(postsQuery.error as Error).message} surface="dark" /> : null}
             {!postsQuery.isLoading && !postsQuery.error && items.length === 0 ? (
               <View style={styles.emptyGrid}>
-                <IconImages color={figmaMobile.textMuted} size={48} />
+                <IconImages color={figma.textMuted} size={48} />
                 <Text style={styles.emptyGridTitle}>No posts yet</Text>
                 <Text style={styles.emptyGridSub}>Tap + above to create a post or reel.</Text>
               </View>
@@ -379,7 +746,7 @@ export function ProfileScreen({ navigation }: Props) {
                     )}
                     {isVideo ? (
                       <View style={styles.tileBadge}>
-                        <IconPlaySmall color={figmaMobile.text} size={10} />
+                        <IconPlaySmall color={figma.text} size={10} />
                       </View>
                     ) : null}
                   </Pressable>
@@ -393,7 +760,7 @@ export function ProfileScreen({ navigation }: Props) {
             {productsQuery.error ? <ErrorState message={(productsQuery.error as Error).message} surface="dark" /> : null}
             {!productsQuery.isLoading && !productsQuery.error && productItems.length === 0 ? (
               <View style={styles.emptyGrid}>
-                <IconShoppingBag color={figmaMobile.textMuted} size={48} />
+                <IconShoppingBag color={figma.textMuted} size={48} />
                 <Text style={styles.emptyGridTitle}>No products yet</Text>
                 <Text style={styles.emptyGridSub}>Add a product under Settings → Pro tools.</Text>
               </View>
@@ -423,365 +790,3 @@ export function ProfileScreen({ navigation }: Props) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: "transparent",
-    overflow: "hidden"
-  },
-  profileOrb: {
-    position: "absolute",
-    width: figmaMobileProfile.accentOrbSize,
-    height: figmaMobileProfile.accentOrbSize,
-    borderRadius: figmaMobileProfile.accentOrbSize / 2,
-    backgroundColor: figmaMobileProfile.accentOrb,
-    top: figmaMobileProfile.accentOrbTop,
-    left: figmaMobileProfile.accentOrbLeft
-  },
-  topBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.screenHorizontal,
-    paddingBottom: 12,
-    borderBottomWidth: 0,
-    backgroundColor: "transparent"
-  },
-  topBarCompact: {
-    paddingBottom: 10
-  },
-  topBarHit: {
-    minWidth: 44,
-    minHeight: 44,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  topBarTitleWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-    maxWidth: "58%",
-    justifyContent: "center"
-  },
-  topBarUsername: {
-    ...typeStyles.navChromeTitle,
-    color: figmaMobile.text
-  },
-  scroll: {
-    flex: 1,
-    backgroundColor: "transparent"
-  },
-  scrollContent: {
-    paddingBottom: 32
-  },
-  scrollContentCompact: {
-    paddingBottom: 24
-  },
-  heroBlock: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: figmaMobileProfile.heroPadH,
-    paddingTop: 18,
-    gap: figmaMobileProfile.heroGap
-  },
-  heroBlockCompact: {
-    paddingTop: 12,
-    gap: 12
-  },
-  heroMeta: {
-    flex: 1,
-    minWidth: 0,
-    gap: figmaMobileProfile.nameColumnGap
-  },
-  profileDisplayName: {
-    fontSize: figmaMobileProfile.displayNameSize,
-    fontWeight: "600",
-    lineHeight: figmaMobileProfile.displayNameLineHeight,
-    color: figmaMobile.text,
-    letterSpacing: -0.2
-  },
-  profileDisplayNameCompact: {
-    fontSize: 17,
-    lineHeight: 22
-  },
-  profileUsername: {
-    fontSize: figmaMobileProfile.usernameSize,
-    fontWeight: "400",
-    lineHeight: figmaMobileProfile.usernameLineHeight,
-    color: figmaMobileProfile.usernameColor
-  },
-  heroPills: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 4,
-    marginTop: 2
-  },
-  heroPill: {
-    paddingHorizontal: figmaMobileProfile.pillPadH,
-    paddingVertical: figmaMobileProfile.pillPadV,
-    borderRadius: figmaMobileProfile.pillRadius,
-    backgroundColor: figmaMobileProfile.pillBg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: figmaMobileProfile.pillBorder
-  },
-  heroPillPressed: {
-    opacity: 0.88
-  },
-  heroPillText: {
-    fontSize: figmaMobileProfile.pillTextSize,
-    fontWeight: "500",
-    lineHeight: figmaMobileProfile.pillTextLineHeight,
-    color: figmaMobile.text
-  },
-  heroPillTextGold: {
-    fontSize: figmaMobileProfile.pillTextSize,
-    fontWeight: "500",
-    lineHeight: figmaMobileProfile.pillTextLineHeight,
-    color: figmaMobile.accentGold
-  },
-  infoPanel: {
-    marginHorizontal: figmaMobileProfile.heroPadH,
-    marginTop: 18,
-    paddingTop: figmaMobileProfile.infoPanelPadTop,
-    paddingBottom: figmaMobileProfile.infoPanelPadBottom,
-    paddingHorizontal: figmaMobileProfile.infoPanelPadH,
-    borderRadius: figmaMobileProfile.infoPanelRadius,
-    backgroundColor: figmaMobileProfile.infoPanelBg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: figmaMobileProfile.infoPanelBorder,
-    gap: figmaMobileProfile.infoPanelGap
-  },
-  infoPanelCompact: {
-    marginTop: 14,
-    paddingTop: 20,
-    paddingBottom: 22,
-    paddingHorizontal: 18
-  },
-  statsStrip: {
-    flexDirection: "row",
-    flexWrap: "nowrap",
-    gap: figmaMobileProfile.statColumnsGap,
-    paddingBottom: figmaMobileProfile.statsRowPadBottom,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: figmaMobileProfile.statsRowBorder
-  },
-  statsStripCompact: {
-    gap: 10
-  },
-  statCol: {
-    flex: 1,
-    minWidth: 0,
-    alignItems: "center",
-    gap: figmaMobileProfile.statStackGap
-  },
-  statNum: {
-    fontSize: figmaMobileProfile.statNumberSize,
-    fontWeight: "500",
-    lineHeight: figmaMobileProfile.statNumberLineHeight,
-    color: figmaMobile.text,
-    fontVariant: ["tabular-nums"],
-    textAlign: "center"
-  },
-  statLbl: {
-    fontSize: figmaMobileProfile.statLabelSize,
-    fontWeight: "500",
-    lineHeight: figmaMobileProfile.statLabelLineHeight,
-    color: figmaMobileProfile.statLabelColor,
-    textAlign: "center"
-  },
-  infoBody: {
-    gap: 2,
-    alignSelf: "stretch"
-  },
-  infoBioLine: {
-    fontSize: figmaMobileProfile.bioTextSize,
-    fontWeight: "500",
-    lineHeight: figmaMobileProfile.bioLineHeight,
-    color: figmaMobile.text
-  },
-  infoBioLink: {
-    color: figmaMobile.linkCyan,
-    fontWeight: "500"
-  },
-  addBusinessBtn: {
-    marginHorizontal: spacing.screenHorizontal,
-    marginTop: 12,
-    paddingVertical: 10,
-    alignItems: "center"
-  },
-  addBusinessText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: figmaMobile.accentGold,
-    letterSpacing: -0.2
-  },
-  profileTabRail: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "flex-start",
-    gap: figmaMobileProfile.contentTabGap,
-    marginTop: 24,
-    marginBottom: 4,
-    paddingHorizontal: figmaMobileProfile.heroPadH
-  },
-  profileTabRailCompact: {
-    marginTop: 18,
-    gap: 28
-  },
-  profileTabHit: {
-    minWidth: 56,
-    paddingVertical: 6,
-    alignItems: "center"
-  },
-  profileTabInner: {
-    alignItems: "center",
-    gap: 6
-  },
-  profileTabLabel: {
-    fontSize: figmaMobileProfile.contentTabLabelSize,
-    fontWeight: "500",
-    lineHeight: figmaMobileProfile.contentTabLabelLineHeight,
-    color: figmaMobileProfile.statLabelColor,
-    textAlign: "center"
-  },
-  profileTabLabelActive: {
-    color: figmaMobile.accentGold,
-    fontWeight: "500"
-  },
-  avatarWrap: {
-    position: "relative"
-  },
-  avatar: {
-    width: figmaMobileProfile.avatarSize,
-    height: figmaMobileProfile.avatarSize,
-    borderRadius: figmaMobileProfile.avatarRadius,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: figmaMobileProfile.pillBorder,
-    backgroundColor: "#FFFFFF"
-  },
-  avatarPlaceholder: {
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FFFFFF"
-  },
-  avatarLetter: {
-    fontSize: 36,
-    fontWeight: "700",
-    color: figmaMobile.avatarInitialInk
-  },
-  avatarBadge: {
-    position: "absolute",
-    right: -1,
-    bottom: -1,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.accent,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: figmaMobile.canvas
-  },
-  avatarUploading: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: figmaMobileProfile.avatarRadius,
-    backgroundColor: figmaMobile.gradientBottom,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  avatarUploadingText: {
-    fontWeight: "700",
-    color: figmaMobile.text,
-    fontSize: 18
-  },
-  profileGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: figmaMobileProfile.gridGap,
-    paddingHorizontal: figmaMobileProfile.gridPadH,
-    paddingTop: 4,
-    backgroundColor: "transparent"
-  },
-  tile: {
-    overflow: "hidden",
-    borderRadius: figmaMobileProfile.gridTileRadius,
-    backgroundColor: figmaMobileProfile.gridTileBg
-  },
-  tileImage: {
-    width: "100%",
-    height: "100%"
-  },
-  tileFallback: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: figmaMobileProfile.gridTileBg,
-    paddingHorizontal: 6
-  },
-  tileFallbackVideo: {
-    backgroundColor: figmaMobileProfile.gridTileBg
-  },
-  tileFallbackText: {
-    color: figmaMobile.textMuted,
-    fontSize: 11,
-    fontWeight: "600",
-    textAlign: "center"
-  },
-  tileBadge: {
-    position: "absolute",
-    right: 8,
-    top: 8,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.52)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: figmaMobile.glassBorder
-  },
-  productTile: {
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    justifyContent: "center",
-    alignItems: "stretch"
-  },
-  productTileTitle: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: figmaMobile.text,
-    letterSpacing: -0.1,
-    lineHeight: 16
-  },
-  productTilePrice: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: figmaMobile.accentGold,
-    marginTop: 8,
-    letterSpacing: -0.05
-  },
-  productTileStatus: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: figmaMobile.textMuted,
-    marginTop: 4,
-    textTransform: "capitalize"
-  },
-  emptyGrid: {
-    alignItems: "center",
-    paddingVertical: 44,
-    paddingHorizontal: spacing.breathing,
-    gap: 10
-  },
-  emptyGridTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: figmaMobile.text
-  },
-  emptyGridSub: {
-    fontSize: 14,
-    color: figmaMobile.textMuted,
-    textAlign: "center"
-  }
-});

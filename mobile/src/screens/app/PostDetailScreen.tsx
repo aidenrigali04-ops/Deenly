@@ -8,7 +8,8 @@ import { ApiError, apiRequest } from "../../lib/api";
 import { resolveMediaUrl } from "../../lib/media-url";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { enqueueMutation } from "../../lib/mutation-queue";
-import { colors, figmaMobile, primaryButtonOutline, radii } from "../../theme";
+import { colors, primaryButtonOutline, radii, resolveFigmaMobile } from "../../theme";
+import { useAppChrome } from "../../lib/use-app-chrome";
 import type { FeedItem } from "../../types";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { createGuestProductCheckout, createProductCheckout, formatMinorCurrency } from "../../lib/monetization";
@@ -57,6 +58,9 @@ export function PostDetailScreen({ route, navigation }: Props) {
   const [checkoutHandoff, setCheckoutHandoff] = useState(false);
   const sessionUser = useSessionStore((state) => state.user);
   const queryClient = useQueryClient();
+  const { figma, mode } = useAppChrome();
+  const styles = useMemo(() => buildPostDetailStyles(figma), [figma]);
+  const statusBarStyle = mode === "light" ? "dark" : "light";
 
   const postQuery = useQuery({
     queryKey: ["mobile-post-detail", postId],
@@ -189,7 +193,7 @@ export function PostDetailScreen({ route, navigation }: Props) {
   if (postQuery.isLoading) {
     return (
       <View style={styles.screenRoot}>
-        <StatusBar style="light" />
+        <StatusBar style={statusBarStyle} />
         <LoadingState label="Loading post..." surface="dark" />
       </View>
     );
@@ -197,7 +201,7 @@ export function PostDetailScreen({ route, navigation }: Props) {
   if (postQuery.error) {
     return (
       <View style={styles.screenRoot}>
-        <StatusBar style="light" />
+        <StatusBar style={statusBarStyle} />
         <ErrorState message={(postQuery.error as Error).message} onRetry={postQuery.refetch} surface="dark" />
       </View>
     );
@@ -205,7 +209,7 @@ export function PostDetailScreen({ route, navigation }: Props) {
   if (!postQuery.data) {
     return (
       <View style={styles.screenRoot}>
-        <StatusBar style="light" />
+        <StatusBar style={statusBarStyle} />
         <EmptyState title="Post not found" surface="dark" />
       </View>
     );
@@ -219,7 +223,7 @@ export function PostDetailScreen({ route, navigation }: Props) {
 
   return (
     <>
-      <StatusBar style="light" />
+      <StatusBar style={statusBarStyle} />
       <ProductCheckoutSheet
         visible={checkoutProductId !== null}
         title={checkoutProductTitle}
@@ -438,7 +442,7 @@ export function PostDetailScreen({ route, navigation }: Props) {
           style={styles.input}
           multiline
           placeholder="Write a respectful comment..."
-          placeholderTextColor={figmaMobile.textMuted}
+          placeholderTextColor={figma.textMuted}
           value={comment}
           onChangeText={setComment}
         />
@@ -478,21 +482,21 @@ export function PostDetailScreen({ route, navigation }: Props) {
         <TextInput
           style={styles.inputSingle}
           placeholder="Reason"
-          placeholderTextColor={figmaMobile.textMuted}
+          placeholderTextColor={figma.textMuted}
           value={reportReason}
           onChangeText={setReportReason}
         />
         <TextInput
           style={styles.inputSingle}
           placeholder="Category (haram_content, misinformation, harassment, spam, other)"
-          placeholderTextColor={figmaMobile.textMuted}
+          placeholderTextColor={figma.textMuted}
           value={reportCategory}
           onChangeText={setReportCategory}
         />
         <TextInput
           style={styles.inputSingle}
           placeholder="Evidence URL (optional)"
-          placeholderTextColor={figmaMobile.textMuted}
+          placeholderTextColor={figma.textMuted}
           value={reportEvidenceUrl}
           onChangeText={setReportEvidenceUrl}
         />
@@ -533,16 +537,17 @@ export function PostDetailScreen({ route, navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function buildPostDetailStyles(fig: ReturnType<typeof resolveFigmaMobile>) {
+  return StyleSheet.create({
   screenRoot: {
     flex: 1,
-    backgroundColor: figmaMobile.canvas,
+    backgroundColor: fig.canvas,
     padding: 16,
     justifyContent: "center"
   },
   container: {
     flex: 1,
-    backgroundColor: figmaMobile.canvas
+    backgroundColor: fig.canvas
   },
   content: {
     padding: 14,
@@ -550,16 +555,16 @@ const styles = StyleSheet.create({
     paddingBottom: 28
   },
   cardMain: {
-    backgroundColor: figmaMobile.card,
-    borderColor: figmaMobile.glassBorder,
+    backgroundColor: fig.card,
+    borderColor: fig.glassBorder,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.feedCard,
     padding: 16,
     gap: 10
   },
   cardInset: {
-    backgroundColor: figmaMobile.glassSoft,
-    borderColor: figmaMobile.glassBorder,
+    backgroundColor: fig.glassSoft,
+    borderColor: fig.glassBorder,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.control,
     padding: 12,
@@ -567,13 +572,13 @@ const styles = StyleSheet.create({
     marginTop: 4
   },
   title: {
-    color: figmaMobile.text,
+    color: fig.text,
     fontSize: 18,
     fontWeight: "700",
     lineHeight: 24
   },
   muted: {
-    color: figmaMobile.textMuted,
+    color: fig.textMuted,
     fontSize: 14,
     lineHeight: 20
   },
@@ -594,26 +599,26 @@ const styles = StyleSheet.create({
     flexWrap: "wrap"
   },
   label: {
-    color: figmaMobile.text,
+    color: fig.text,
     fontWeight: "700",
     fontSize: 15
   },
   input: {
-    borderColor: figmaMobile.glassBorder,
+    borderColor: fig.glassBorder,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.control,
     minHeight: 100,
-    color: figmaMobile.text,
-    backgroundColor: figmaMobile.glassSoft,
+    color: fig.text,
+    backgroundColor: fig.glassSoft,
     padding: 12,
     textAlignVertical: "top"
   },
   inputSingle: {
-    borderColor: figmaMobile.glassBorder,
+    borderColor: fig.glassBorder,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.control,
-    color: figmaMobile.text,
-    backgroundColor: figmaMobile.glassSoft,
+    color: fig.text,
+    backgroundColor: fig.glassSoft,
     padding: 12
   },
   button: {
@@ -627,18 +632,18 @@ const styles = StyleSheet.create({
     fontSize: 16
   },
   buttonSecondary: {
-    borderColor: figmaMobile.glassBorder,
+    borderColor: fig.glassBorder,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.control,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: figmaMobile.glassSoft
+    backgroundColor: fig.glassSoft
   },
   buttonPrimaryBuy: {
     borderRadius: radii.button,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: figmaMobile.brandTeal,
+    backgroundColor: fig.brandTeal,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -652,7 +657,7 @@ const styles = StyleSheet.create({
     opacity: 0.92
   },
   buttonText: {
-    color: figmaMobile.text,
+    color: fig.text,
     fontWeight: "600",
     fontSize: 14
   },
@@ -666,3 +671,4 @@ const styles = StyleSheet.create({
     alignItems: "center"
   }
 });
+}

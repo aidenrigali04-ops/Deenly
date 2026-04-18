@@ -234,7 +234,7 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
   await expect(page.getByRole("heading", { name: `E2E Product ${timestamp}` })).toBeVisible();
 
   await page.goto(`${baseURL}/users/${creator.user.id}`);
-  await page.getByRole("button", { name: "Products" }).click();
+  await page.getByRole("tab", { name: "Products" }).click();
   await expect(page.getByText(`E2E Product ${timestamp}`)).toBeVisible();
   await page.getByRole("link", { name: "See more" }).first().click();
   await expect(page).toHaveURL(new RegExp(`/products/${e2eProductId}`));

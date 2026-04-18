@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
-import type { CompositeScreenProps } from "@react-navigation/native";
+import type { CompositeScreenProps, RouteProp } from "@react-navigation/native";
+import { useRoute } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { apiRequest } from "../../lib/api";
 import { fetchBusinessesNear } from "../../lib/businesses";
@@ -14,7 +15,8 @@ import { NearMeMap, type NearMapSelection } from "../../components/NearMeMap";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { SectionCard, TabScreenHeader, TabScreenRoot } from "../../components/TabScreenChrome";
 import { DiscoverFigmaChrome } from "../../components/features/DiscoverFigmaChrome";
-import { colors, figmaMobile, figmaMobileNav, primaryButtonOutline, radii, spacing } from "../../theme";
+import { colors, primaryButtonOutline, radii, resolveFigmaMobile, resolveFigmaNav, spacing } from "../../theme";
+import { useAppChrome } from "../../lib/use-app-chrome";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 
 type UserItem = {
@@ -68,6 +70,7 @@ function clusterNearbyEvents(
 const FALLBACK = { lat: 40.7128, lng: -74.006 };
 
 export function SearchScreen({ navigation }: Props) {
+  const route = useRoute<RouteProp<AppTabParamList, "SearchTab">>();
   const insets = useSafeAreaInsets();
   const searchInputRef = useRef<TextInput>(null);
   const bottomPad = insets.bottom + 24;
@@ -81,6 +84,22 @@ export function SearchScreen({ navigation }: Props) {
   const [nearTimeWindow, setNearTimeWindow] = useState<NearTimeWindow>("upcoming");
   const [selectedCluster, setSelectedCluster] = useState<string | null>(null);
   const [mapSelection, setMapSelection] = useState<NearMapSelection>(null);
+  const { figma, nav } = useAppChrome();
+  const styles = useMemo(() => buildSearchStyles(figma, nav), [figma, nav]);
+
+  const activateSearch = useCallback(() => {
+    setMode("search");
+    requestAnimationFrame(() => {
+      searchInputRef.current?.focus();
+    });
+  }, []);
+
+  useEffect(() => {
+    if (route.params?.focusSearch) {
+      activateSearch();
+      navigation.setParams({ focusSearch: undefined });
+    }
+  }, [route.params?.focusSearch, navigation, activateSearch]);
 
   useEffect(() => {
     if (mode !== "near") return;
@@ -178,16 +197,16 @@ export function SearchScreen({ navigation }: Props) {
       >
         <TabScreenHeader
           title="Discover"
-          subtitle="People, posts, and places near you. Shop listings on Market."
+          subtitle="Search people and posts, explore near you — shop listings on Home → Marketplace."
           headerRight={
             <View style={styles.headerRightRow}>
               <Pressable
                 style={styles.headerSearchWell}
-                onPress={() => searchInputRef.current?.focus()}
+                onPress={activateSearch}
                 accessibilityRole="button"
-                accessibilityLabel="Search"
+                accessibilityLabel="Search people and posts"
               >
-                <Ionicons name="search-outline" size={22} color={figmaMobile.text} />
+                <Ionicons name="search-outline" size={22} color={figma.text} />
               </Pressable>
               {canUseBusinessDirectoryTools ? (
                 <Pressable style={styles.headerLink} onPress={() => navigation.navigate("AddBusiness")}>
@@ -198,25 +217,16 @@ export function SearchScreen({ navigation }: Props) {
           }
         />
 
-        <View style={styles.discoverMarketRow} accessibilityRole="tablist">
-          <View
-            style={[styles.discoverMarketPill, styles.discoverMarketPillOn]}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: true }}
-          >
-            <Text style={[styles.discoverMarketPillText, styles.discoverMarketPillTextOn]}>Discover</Text>
-          </View>
-          <Pressable
-            style={styles.discoverMarketPill}
-            onPress={() => navigation.navigate("MarketplaceTab")}
-            accessibilityRole="tab"
-            accessibilityLabel="Open marketplace tab"
-          >
-            <Text style={styles.discoverMarketPillText}>Market</Text>
-          </Pressable>
-        </View>
-
-        <DiscoverFigmaChrome />
+        <Pressable
+          style={styles.marketplaceHomeLink}
+          onPress={() => navigation.navigate("HomeTab", { openMarketplace: true })}
+          accessibilityRole="button"
+          accessibilityLabel="Open Marketplace on Home"
+        >
+          <Ionicons name="storefront-outline" size={18} color={figma.accentGold} />
+          <Text style={styles.marketplaceHomeLinkText}>Browse Marketplace on Home</Text>
+          <Ionicons name="chevron-forward" size={18} color={figma.textMuted2} />
+        </Pressable>
 
         <View style={styles.discoverToolsRow}>
           <View style={styles.modePillRow}>
@@ -246,13 +256,15 @@ export function SearchScreen({ navigation }: Props) {
 
         {mode === "search" ? (
           <>
-            <View style={styles.discoverSearchPanel}>
+            <View style={styles.heroSearchCard}>
+              <Text style={styles.heroSearchTitle}>Find people & posts</Text>
+              <Text style={styles.heroSearchSub}>Search by name, @handle, or words in a post.</Text>
               <View style={styles.searchRow}>
                 <TextInput
                   ref={searchInputRef}
                   style={[styles.input, styles.flex1]}
-                  placeholder="Search users or posts..."
-                  placeholderTextColor={figmaMobile.textMuted}
+                  placeholder="Try a name, @username, or keyword…"
+                  placeholderTextColor={figma.textMuted}
                   value={q}
                   onChangeText={setQ}
                   onSubmitEditing={() => setSubmittedQ(q.trim())}
@@ -266,10 +278,16 @@ export function SearchScreen({ navigation }: Props) {
 
             {!submittedQ ? (
               <Text style={styles.discoverHint}>
-                Use Search for people and posts, or Near me for businesses and events on the map.
+                Results for people and posts appear below the browse section after you search. Use Near me for the map.
               </Text>
             ) : null}
+          </>
+        ) : null}
 
+        <DiscoverFigmaChrome />
+
+        {mode === "search" ? (
+          <>
             {usersQuery.isLoading || postsQuery.isLoading ? <LoadingState label="Searching..." surface="dark" /> : null}
             {usersQuery.error ? <ErrorState message={(usersQuery.error as Error).message} surface="dark" /> : null}
             {postsQuery.error ? <ErrorState message={(postsQuery.error as Error).message} surface="dark" /> : null}
@@ -318,7 +336,9 @@ export function SearchScreen({ navigation }: Props) {
               </>
             ) : null}
           </>
-        ) : (
+        ) : null}
+
+        {mode === "near" ? (
           <View style={styles.nearSection}>
             {geoNote ? <Text style={styles.note}>{geoNote}</Text> : null}
             {geoLoading ? <LoadingState label="Finding your area…" surface="dark" /> : null}
@@ -482,54 +502,100 @@ export function SearchScreen({ navigation }: Props) {
               </>
             ) : null}
           </View>
-        )}
+        ) : null}
       </ScrollView>
     </TabScreenRoot>
   );
 }
 
-const styles = StyleSheet.create({
+function buildSearchStyles(
+  fig: ReturnType<typeof resolveFigmaMobile>,
+  nav: ReturnType<typeof resolveFigmaNav>
+) {
+  return StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { gap: 12 },
+  marketplaceHomeLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginHorizontal: spacing.pagePaddingH,
+    marginBottom: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: radii.control,
+    backgroundColor: fig.glassSoft,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: fig.glassBorder
+  },
+  marketplaceHomeLinkText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "600",
+    color: fig.text,
+    letterSpacing: -0.2
+  },
+  heroSearchCard: {
+    marginHorizontal: spacing.pagePaddingH,
+    marginBottom: 8,
+    padding: 16,
+    borderRadius: radii.feedCard,
+    backgroundColor: fig.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: fig.glassBorder,
+    gap: 10
+  },
+  heroSearchTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: fig.text,
+    letterSpacing: -0.35
+  },
+  heroSearchSub: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: fig.textMuted,
+    letterSpacing: -0.1
+  },
   discoverMarketRow: {
     flexDirection: "row",
     marginHorizontal: spacing.pagePaddingH,
     marginBottom: 6,
-    padding: figmaMobileNav.segmentTrackPadding,
-    gap: figmaMobileNav.segmentTrackGap,
+    padding: nav.segmentTrackPadding,
+    gap: nav.segmentTrackGap,
     alignSelf: "stretch",
-    borderRadius: figmaMobileNav.segmentTrackRadius,
-    backgroundColor: figmaMobile.glassSoft,
+    borderRadius: nav.segmentTrackRadius,
+    backgroundColor: fig.glassSoft,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: figmaMobile.glassBorderSoft
+    borderColor: fig.glassBorderSoft
   },
   discoverMarketPill: {
     flex: 1,
-    paddingVertical: figmaMobileNav.segmentPillVerticalPadding,
-    borderRadius: figmaMobileNav.segmentInnerRadius,
+    paddingVertical: nav.segmentPillVerticalPadding,
+    borderRadius: nav.segmentInnerRadius,
     alignItems: "center",
     justifyContent: "center"
   },
   discoverMarketPillOn: {
-    backgroundColor: figmaMobile.card,
+    backgroundColor: fig.card,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: figmaMobile.glassBorder
+    borderColor: fig.glassBorder
   },
   discoverMarketPillText: {
     fontSize: 14,
     fontWeight: "600",
-    color: figmaMobile.textMuted2,
+    color: fig.textMuted2,
     letterSpacing: -0.2
   },
   discoverMarketPillTextOn: {
-    color: figmaMobile.text
+    color: fig.text
   },
   discoverHint: {
     marginHorizontal: spacing.pagePaddingH,
     marginBottom: 4,
     fontSize: 13,
     lineHeight: 19,
-    color: figmaMobile.textMuted,
+    color: fig.textMuted,
     letterSpacing: -0.1
   },
   headerRightRow: {
@@ -542,15 +608,15 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: figmaMobile.glassSoft,
+    backgroundColor: fig.glassSoft,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: figmaMobile.glassBorderSoft,
+    borderColor: fig.glassBorderSoft,
     alignItems: "center",
     justifyContent: "center"
   },
   headerLink: { paddingVertical: 6, paddingHorizontal: 4 },
-  headerLinkText: { color: figmaMobile.accentGold, fontWeight: "700", fontSize: 13 },
-  panelLabel: { fontSize: 13, fontWeight: "600", color: figmaMobile.textMuted, letterSpacing: -0.1 },
+  headerLinkText: { color: fig.accentGold, fontWeight: "700", fontSize: 13 },
+  panelLabel: { fontSize: 13, fontWeight: "600", color: fig.textMuted, letterSpacing: -0.1 },
   modeRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, alignItems: "center" },
   modeChip: {
     paddingHorizontal: 14,
@@ -561,11 +627,11 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent"
   },
   modeChipOn: {
-    borderColor: figmaMobile.glassBorder,
-    backgroundColor: figmaMobile.card
+    borderColor: fig.glassBorder,
+    backgroundColor: fig.card
   },
-  modeChipText: { color: figmaMobile.textMuted2, fontWeight: "600", fontSize: 13 },
-  modeChipTextOn: { color: figmaMobile.text },
+  modeChipText: { color: fig.textMuted2, fontWeight: "600", fontSize: 13 },
+  modeChipTextOn: { color: fig.text },
   discoverToolsRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -582,22 +648,22 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent"
   },
   modePillOn: {
-    backgroundColor: figmaMobile.card
+    backgroundColor: fig.card
   },
   modePillText: {
     fontSize: 14,
     fontWeight: "600",
-    color: figmaMobile.textMuted2,
+    color: fig.textMuted2,
     letterSpacing: -0.15
   },
   modePillTextOn: {
-    color: figmaMobile.text
+    color: fig.text
   },
   addBusinessTab: { paddingVertical: 6, paddingHorizontal: 4 },
   addBusinessTabText: {
     fontSize: 13,
     fontWeight: "600",
-    color: figmaMobile.textMuted,
+    color: fig.textMuted,
     letterSpacing: -0.1
   },
   discoverSearchPanel: {
@@ -606,45 +672,45 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: radii.feedCardHero,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: figmaMobile.glassBorder,
-    backgroundColor: figmaMobile.glassSoft
+    borderColor: fig.glassBorder,
+    backgroundColor: fig.glassSoft
   },
   searchRow: { flexDirection: "row", gap: 10, alignItems: "stretch" },
   flex1: { flex: 1 },
   input: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: figmaMobile.glassBorder,
+    borderColor: fig.glassBorder,
     borderRadius: radii.control + 2,
-    color: figmaMobile.text,
-    backgroundColor: figmaMobile.canvas,
+    color: fig.text,
+    backgroundColor: fig.canvas,
     paddingVertical: 12,
     paddingHorizontal: 14
   },
   discoverSearchCta: {
-    backgroundColor: figmaMobile.messagesChromeText,
+    backgroundColor: fig.messagesChromeText,
     borderRadius: radii.control,
     paddingHorizontal: 20,
     minWidth: 96,
     alignItems: "center",
     justifyContent: "center"
   },
-  discoverSearchCtaText: { color: figmaMobile.text, fontWeight: "700", fontSize: 15 },
+  discoverSearchCtaText: { color: fig.text, fontWeight: "700", fontSize: 15 },
   buttonSecondary: {
-    borderColor: figmaMobile.glassBorder,
+    borderColor: fig.glassBorder,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.control,
     paddingHorizontal: 14,
     justifyContent: "center",
-    backgroundColor: figmaMobile.glassSoft
+    backgroundColor: fig.glassSoft
   },
-  buttonText: { color: figmaMobile.text, fontWeight: "600" },
+  buttonText: { color: fig.text, fontWeight: "600" },
   resultRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: figmaMobile.glassBorder,
+    borderBottomColor: fig.glassBorder,
     gap: 8
   },
   resultRowText: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12 },
@@ -652,32 +718,32 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: figmaMobile.card,
+    backgroundColor: fig.card,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: figmaMobile.glassBorder
+    borderColor: fig.glassBorder
   },
-  avatarLetter: { fontSize: 16, fontWeight: "700", color: figmaMobile.text },
-  item: { color: figmaMobile.text, fontWeight: "600" },
-  postTypeTag: { fontSize: 11, fontWeight: "700", color: figmaMobile.textMuted, marginBottom: 4, textTransform: "uppercase" },
-  muted: { color: figmaMobile.textMuted, fontSize: 12 },
-  mutedSmall: { color: figmaMobile.textMuted, fontSize: 11, marginTop: 4 },
-  chevron: { fontSize: 22, color: figmaMobile.textMuted2, fontWeight: "300", paddingLeft: 4 },
+  avatarLetter: { fontSize: 16, fontWeight: "700", color: fig.text },
+  item: { color: fig.text, fontWeight: "600" },
+  postTypeTag: { fontSize: 11, fontWeight: "700", color: fig.textMuted, marginBottom: 4, textTransform: "uppercase" },
+  muted: { color: fig.textMuted, fontSize: 12 },
+  mutedSmall: { color: fig.textMuted, fontSize: 11, marginTop: 4 },
+  chevron: { fontSize: 22, color: fig.textMuted2, fontWeight: "300", paddingLeft: 4 },
   nearSection: { gap: 14 },
   note: { color: colors.danger, fontSize: 12, marginHorizontal: 20 },
-  privacyNote: { color: figmaMobile.textMuted, fontSize: 13, lineHeight: 19, marginBottom: 10 },
-  mapHint: { color: figmaMobile.textMuted, fontSize: 11, marginTop: 8, textAlign: "center" },
+  privacyNote: { color: fig.textMuted, fontSize: 13, lineHeight: 19, marginBottom: 10 },
+  mapHint: { color: fig.textMuted, fontSize: 11, marginTop: 8, textAlign: "center" },
   mapSelectionCard: {
     marginTop: 12,
     padding: 12,
     borderRadius: radii.control,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: figmaMobile.glassBorder,
-    backgroundColor: figmaMobile.glassSoft,
+    borderColor: fig.glassBorder,
+    backgroundColor: fig.glassSoft,
     gap: 6
   },
-  mapSelectionTitle: { fontSize: 15, fontWeight: "700", color: figmaMobile.text },
+  mapSelectionTitle: { fontSize: 15, fontWeight: "700", color: fig.text },
   mapSelectionBtn: {
     alignSelf: "flex-start",
     marginTop: 6,
@@ -688,5 +754,6 @@ const styles = StyleSheet.create({
   },
   mapSelectionBtnText: { color: colors.onAccent, fontWeight: "600", fontSize: 13 },
   clusterHeader: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", marginBottom: 4 },
-  linkText: { color: figmaMobile.accentGold, fontSize: 12, fontWeight: "700" }
+  linkText: { color: fig.accentGold, fontSize: 12, fontWeight: "700" }
 });
+}

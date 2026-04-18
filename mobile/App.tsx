@@ -17,6 +17,7 @@ import { AppNavigator } from "./src/navigation/AppNavigator";
 import { ReliabilityBanner } from "./src/components/ReliabilityBanner";
 import { flushQueuedMutations, getQueuedMutationCount } from "./src/lib/mutation-queue";
 import { applyUrbanistTextDefaults } from "./src/lib/urbanist-defaults";
+import { useAppearanceStore } from "./src/store/appearance-store";
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
@@ -41,6 +42,10 @@ function App() {
     }
     void SplashScreen.hideAsync().catch(() => undefined);
   }, [fontsLoaded, fontError]);
+
+  useEffect(() => {
+    void useAppearanceStore.getState().hydrate();
+  }, []);
 
   useEffect(() => {
     let mounted = true;
