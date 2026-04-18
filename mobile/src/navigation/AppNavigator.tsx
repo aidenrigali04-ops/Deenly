@@ -77,7 +77,6 @@ export type CreateTabStackParamList = {
 
 export type AppTabParamList = {
   HomeTab: { openMarketplace?: boolean } | undefined;
-  SearchTab: { focusSearch?: boolean } | undefined;
   CreateTab: undefined;
   ReelsTab: undefined;
   MessagesTab: { openUserId?: number };
@@ -89,6 +88,8 @@ export type RootStackParamList = {
   Login: undefined;
   Signup: { referralCode?: string } | undefined;
   AppTabs: NavigatorScreenParams<AppTabParamList> | undefined;
+  /** Discover / search / near me (opened from Home header or elsewhere; not a bottom tab). */
+  Discover: { focusSearch?: boolean } | undefined;
   /** Create hub + post composer (was center tab; now root stack). */
   CreateFlow: NavigatorScreenParams<CreateTabStackParamList> | undefined;
   PostDetail: { id: number };
@@ -297,13 +298,13 @@ function AppTabs() {
             }}
           />
           <Tab.Screen
-            name="SearchTab"
-            component={SearchScreen}
+            name="ReelsTab"
+            component={ReelsScreen}
             options={{
-              title: "Discover",
+              title: "Reels",
               tabBarIcon: ({ color, size, focused }) => (
                 <TabIconFrame focused={focused}>
-                  <Ionicons name={focused ? "search" : "search-outline"} size={(size ?? 24) - 2} color={color} />
+                  <Ionicons name={focused ? "videocam" : "videocam-outline"} size={(size ?? 24) - 2} color={color} />
                 </TabIconFrame>
               )
             }}
@@ -320,19 +321,9 @@ function AppTabs() {
             })}
             options={{
               title: "Create",
+              tabBarShowLabel: false,
+              tabBarAccessibilityLabel: "Create",
               tabBarIcon: ({ focused }) => <CreateTabBarIcon focused={focused} />
-            }}
-          />
-          <Tab.Screen
-            name="ReelsTab"
-            component={ReelsScreen}
-            options={{
-              title: "Reels",
-              tabBarIcon: ({ color, size, focused }) => (
-                <TabIconFrame focused={focused}>
-                  <Ionicons name={focused ? "videocam" : "videocam-outline"} size={(size ?? 24) - 2} color={color} />
-                </TabIconFrame>
-              )
             }}
           />
           <Tab.Screen
@@ -556,6 +547,7 @@ export function AppNavigator() {
             ) : (
               <>
                 <RootStack.Screen name="AppTabs" component={AppTabs} options={{ headerShown: false }} />
+              <RootStack.Screen name="Discover" component={SearchScreen} options={{ headerShown: false }} />
               <RootStack.Screen name="CreateFlow" component={CreateTabFlow} options={{ headerShown: false }} />
               <RootStack.Screen name="PostDetail" component={PostDetailScreen} options={{ title: "Post" }} />
               <RootStack.Screen name="UserProfile" component={UserProfileScreen} options={{ title: "User" }} />

@@ -13,10 +13,13 @@ export function TabScreenRoot({ children, style }: { children: ReactNode; style?
 export function TabScreenHeader({
   title,
   subtitle,
+  headerLeft,
   headerRight
 }: {
   title: string;
   subtitle?: string;
+  /** e.g. back control when this screen is pushed on the root stack */
+  headerLeft?: ReactNode;
   headerRight?: ReactNode;
 }) {
   const { figma } = useAppChrome();
@@ -33,6 +36,10 @@ export function TabScreenHeader({
           alignItems: "flex-start",
           justifyContent: "space-between",
           gap: 12
+        },
+        headerLeftSlot: {
+          paddingTop: 2,
+          marginRight: -4
         },
         headerTitles: {
           flex: 1,
@@ -59,6 +66,7 @@ export function TabScreenHeader({
   return (
     <View style={s.header}>
       <View style={s.headerTextRow}>
+        {headerLeft ? <View style={s.headerLeftSlot}>{headerLeft}</View> : null}
         <View style={s.headerTitles}>
           <Text style={s.title}>{title}</Text>
           {subtitle ? <Text style={s.subtitle}>{subtitle}</Text> : null}

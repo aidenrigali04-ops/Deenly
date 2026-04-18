@@ -262,7 +262,8 @@ export function FeedScreen({ navigation }: Props) {
   }, [navigation]);
 
   const openSearch = useCallback(() => {
-    navigation.navigate("SearchTab", { focusSearch: true });
+    const parent = navigation.getParent<NativeStackNavigationProp<RootStackParamList>>();
+    parent?.navigate("Discover", { focusSearch: true });
   }, [navigation]);
 
   const openReels = useCallback(() => {

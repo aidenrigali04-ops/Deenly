@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-
 import { Ionicons } from "@expo/vector-icons";
 import { CompositeScreenProps, useRoute, type RouteProp } from "@react-navigation/native";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { NativeStackNavigationProp, NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "../../lib/api";
 import { createOrOpenConversation, markConversationRead } from "../../lib/messages";
@@ -179,7 +179,10 @@ export function MessagesScreen({ navigation }: Props) {
           />
           <Pressable
             style={styles.findPeopleChrome}
-            onPress={() => navigation.navigate("SearchTab", { focusSearch: true })}
+            onPress={() => {
+              const parent = navigation.getParent<NativeStackNavigationProp<RootStackParamList>>();
+              parent?.navigate("Discover", { focusSearch: true });
+            }}
             accessibilityRole="button"
             accessibilityLabel="Find people"
           >
@@ -229,7 +232,13 @@ export function MessagesScreen({ navigation }: Props) {
               </View>
               <Text style={styles.emptyInboxTitle}>No conversations yet</Text>
               <Text style={styles.emptyInboxText}>Start a chat from Discover, or open Marketplace on Home.</Text>
-              <Pressable style={styles.findPeopleBtn} onPress={() => navigation.navigate("SearchTab", { focusSearch: true })}>
+              <Pressable
+                style={styles.findPeopleBtn}
+                onPress={() => {
+                  const parent = navigation.getParent<NativeStackNavigationProp<RootStackParamList>>();
+                  parent?.navigate("Discover", { focusSearch: true });
+                }}
+              >
                 <Text style={styles.findPeopleBtnText}>Find people</Text>
               </Pressable>
               <Pressable style={styles.browseMarketLink} onPress={() => navigation.navigate("HomeTab", { openMarketplace: true })}>

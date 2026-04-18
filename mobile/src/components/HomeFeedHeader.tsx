@@ -17,7 +17,7 @@ type Props = {
   onPressProfile: () => void;
   onPressMessages: () => void;
   onPressActivity: () => void;
-  /** Opens Discover search (people, posts). */
+  /** Opens Discover (search, map, feed chrome). */
   onPressSearch?: () => void;
 };
 
@@ -182,7 +182,7 @@ export function HomeFeedHeader({
                 pressed && layout.iconWellPressed
               ]}
               accessibilityRole="button"
-              accessibilityLabel="Search people and posts"
+              accessibilityLabel="Discover"
             >
               <Ionicons name="search-outline" size={22} color={fm.text} />
             </Pressable>

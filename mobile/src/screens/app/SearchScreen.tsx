@@ -4,8 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
-import type { CompositeScreenProps, RouteProp } from "@react-navigation/native";
+import type { RouteProp } from "@react-navigation/native";
 import { useRoute } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { apiRequest } from "../../lib/api";
@@ -17,7 +16,7 @@ import { SectionCard, TabScreenHeader, TabScreenRoot } from "../../components/Ta
 import { DiscoverFigmaChrome } from "../../components/features/DiscoverFigmaChrome";
 import { colors, primaryButtonOutline, radii, resolveFigmaMobile, resolveFigmaNav, spacing } from "../../theme";
 import { useAppChrome } from "../../lib/use-app-chrome";
-import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
+import type { RootStackParamList } from "../../navigation/AppNavigator";
 
 type UserItem = {
   user_id: number;
@@ -32,10 +31,7 @@ type PostItem = {
   author_display_name: string;
 };
 
-type Props = CompositeScreenProps<
-  BottomTabScreenProps<AppTabParamList, "SearchTab">,
-  NativeStackScreenProps<RootStackParamList>
->;
+type Props = NativeStackScreenProps<RootStackParamList, "Discover">;
 
 type Mode = "search" | "near";
 type NearKind = "all" | "businesses" | "events";
@@ -70,7 +66,7 @@ function clusterNearbyEvents(
 const FALLBACK = { lat: 40.7128, lng: -74.006 };
 
 export function SearchScreen({ navigation }: Props) {
-  const route = useRoute<RouteProp<AppTabParamList, "SearchTab">>();
+  const route = useRoute<RouteProp<RootStackParamList, "Discover">>();
   const insets = useSafeAreaInsets();
   const searchInputRef = useRef<TextInput>(null);
   const bottomPad = insets.bottom + 24;
@@ -210,6 +206,22 @@ export function SearchScreen({ navigation }: Props) {
         <TabScreenHeader
           title="Discover"
           subtitle="People, posts, and places near you. Shop listings on Market."
+          headerLeft={
+            <Pressable
+              onPress={() => {
+                if (navigation.canGoBack()) {
+                  navigation.goBack();
+                } else {
+                  navigation.navigate("AppTabs", { screen: "HomeTab" });
+                }
+              }}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+            >
+              <Ionicons name="chevron-back" size={28} color={figma.text} />
+            </Pressable>
+          }
           headerRight={
             <View style={styles.headerRightRow}>
               <Pressable
@@ -239,7 +251,12 @@ export function SearchScreen({ navigation }: Props) {
           </View>
           <Pressable
             style={styles.discoverMarketPill}
-            onPress={() => navigation.navigate("HomeTab", { openMarketplace: true })}
+            onPress={() =>
+              navigation.navigate("AppTabs", {
+                screen: "HomeTab",
+                params: { openMarketplace: true }
+              })
+            }
             accessibilityRole="tab"
             accessibilityLabel="Open marketplace on Home"
           >

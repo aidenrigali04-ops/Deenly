@@ -6,18 +6,18 @@ import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNa
 
 type Props = NativeStackScreenProps<RootStackParamList, "NavigateApp">;
 
-type TabName = "HomeTab" | "SearchTab" | "CreateTab" | "ReelsTab" | "MessagesTab" | "AccountTab";
+type TabName = "HomeTab" | "CreateTab" | "ReelsTab" | "MessagesTab" | "AccountTab";
 
-type StackName = "RewardsWallet" | "Referrals";
+type StackName = "Discover" | "RewardsWallet" | "Referrals";
 
 const ROWS: (
   | { tab: TabName; title: string; subtitle: string }
   | { stack: StackName; title: string; subtitle: string }
 )[] = [
   { tab: "HomeTab", title: "Home", subtitle: "Main feed" },
-  { tab: "SearchTab", title: "Discover", subtitle: "Search, map, and browse" },
-  { tab: "CreateTab", title: "Create", subtitle: "New post, product, or event" },
+  { stack: "Discover", title: "Discover", subtitle: "Search, map, and browse" },
   { tab: "ReelsTab", title: "Reels", subtitle: "Short video feed" },
+  { tab: "CreateTab", title: "Create", subtitle: "New post, product, or event" },
   { tab: "MessagesTab", title: "Messages", subtitle: "Direct messages" },
   { tab: "AccountTab", title: "Profile", subtitle: "Your grid and products" },
   { stack: "RewardsWallet", title: "Rewards wallet", subtitle: "Points balance and history" },

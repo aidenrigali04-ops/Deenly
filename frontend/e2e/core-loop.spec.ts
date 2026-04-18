@@ -1,4 +1,10 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { test, expect, APIRequestContext, Page } from "@playwright/test";
+
+/** Valid short MP4 so `<video>` does not hit `onError` and get replaced by "Media unavailable". */
+const e2eMinimalMp4Path = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures", "e2e-minimal.mp4");
 
 const backendBaseUrl =
   process.env.BACKEND_API_URL || "http://127.0.0.1:8080/api/v1";
@@ -241,19 +247,18 @@ test("core loop: signup/login, create+upload, feed pagination, interact/follow/r
 
   await page.goto(`${baseURL}/create`);
   await page.getByLabel("Post caption").fill(`Uploaded post ${timestamp}`);
-  await page.locator('input[name="mediaFile"]').setInputFiles({
-    name: "clip.mp4",
-    mimeType: "video/mp4",
-    buffer: Buffer.from("tiny-video-content")
-  });
+  if (!fs.existsSync(e2eMinimalMp4Path)) {
+    throw new Error(`Missing E2E video fixture: ${e2eMinimalMp4Path}`);
+  }
+  await page.locator('input[name="mediaFile"]').setInputFiles(e2eMinimalMp4Path);
   await page.getByRole("button", { name: "Publish" }).click();
   await expect(page).toHaveURL(/\/posts\/\d+$/);
-  await expect(page.locator("video")).toBeVisible();
+  await expect(page.locator("video")).toBeVisible({ timeout: 15_000 });
 
   await page.goto(`${baseURL}/home`);
   const videoCard = page.locator("article", { hasText: `Uploaded post ${timestamp}` }).first();
   await expect(videoCard).toBeVisible();
-  await expect(videoCard.locator("video")).toBeVisible();
+  await expect(videoCard.locator("video")).toBeVisible({ timeout: 15_000 });
   await videoCard.getByRole("link", { name: "View discussion" }).click();
   await expect(page).toHaveURL(/\/posts\/\d+$/);
 
