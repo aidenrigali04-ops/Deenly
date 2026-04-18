@@ -1,0 +1,16 @@
+{
+  "name": "deenly",
+  "private": true,
+  "description": "Monorepo root. After clone or when lockfiles change, run: npm run install:all (uses npm ci in each app — exact versions from each package-lock.json).",
+  "engines": {
+    "node": ">=20 <25",
+    "npm": ">=10"
+  },
+  "scripts": {
+    "install:all": "npm ci --prefix mobile && npm ci --prefix frontend && npm ci --prefix backend && npm ci --prefix shared/rewards",
+    "install:mobile": "npm ci --prefix mobile",
+    "install:frontend": "npm ci --prefix frontend",
+    "install:backend": "npm ci --prefix backend",
+    "install:rewards": "npm ci --prefix shared/rewards"
+  }
+}

@@ -187,6 +187,17 @@ export function SearchScreen({ navigation }: Props) {
 
   return (
     <TabScreenRoot>
+      <TextInput
+        ref={searchInputRef}
+        value={q}
+        onChangeText={setQ}
+        onSubmitEditing={() => setSubmittedQ(q.trim())}
+        returnKeyType="search"
+        placeholder="Try a name, @username, or keyword…"
+        placeholderTextColor={figma.textMuted}
+        accessibilityLabel="Search users and posts"
+        style={styles.searchFieldOffscreen}
+      />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[
@@ -194,17 +205,18 @@ export function SearchScreen({ navigation }: Props) {
           { paddingTop: insets.top + 4, paddingBottom: bottomPad }
         ]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <TabScreenHeader
           title="Discover"
-          subtitle="Search people and posts, explore near you — shop listings on Home → Marketplace."
+          subtitle="People, posts, and places near you. Shop listings on Market."
           headerRight={
             <View style={styles.headerRightRow}>
               <Pressable
                 style={styles.headerSearchWell}
                 onPress={activateSearch}
                 accessibilityRole="button"
-                accessibilityLabel="Search people and posts"
+                accessibilityLabel="Search"
               >
                 <Ionicons name="search-outline" size={22} color={figma.text} />
               </Pressable>
@@ -217,16 +229,25 @@ export function SearchScreen({ navigation }: Props) {
           }
         />
 
-        <Pressable
-          style={styles.marketplaceHomeLink}
-          onPress={() => navigation.navigate("HomeTab", { openMarketplace: true })}
-          accessibilityRole="button"
-          accessibilityLabel="Open Marketplace on Home"
-        >
-          <Ionicons name="storefront-outline" size={18} color={figma.accentGold} />
-          <Text style={styles.marketplaceHomeLinkText}>Browse Marketplace on Home</Text>
-          <Ionicons name="chevron-forward" size={18} color={figma.textMuted2} />
-        </Pressable>
+        <View style={styles.discoverMarketRow} accessibilityRole="tablist">
+          <View
+            style={[styles.discoverMarketPill, styles.discoverMarketPillOn]}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: true }}
+          >
+            <Text style={[styles.discoverMarketPillText, styles.discoverMarketPillTextOn]}>Discover</Text>
+          </View>
+          <Pressable
+            style={styles.discoverMarketPill}
+            onPress={() => navigation.navigate("HomeTab", { openMarketplace: true })}
+            accessibilityRole="tab"
+            accessibilityLabel="Open marketplace on Home"
+          >
+            <Text style={styles.discoverMarketPillText}>Market</Text>
+          </Pressable>
+        </View>
+
+        <DiscoverFigmaChrome />
 
         <View style={styles.discoverToolsRow}>
           <View style={styles.modePillRow}>
@@ -254,37 +275,12 @@ export function SearchScreen({ navigation }: Props) {
           ) : null}
         </View>
 
-        {mode === "search" ? (
-          <>
-            <View style={styles.heroSearchCard}>
-              <Text style={styles.heroSearchTitle}>Find people & posts</Text>
-              <Text style={styles.heroSearchSub}>Search by name, @handle, or words in a post.</Text>
-              <View style={styles.searchRow}>
-                <TextInput
-                  ref={searchInputRef}
-                  style={[styles.input, styles.flex1]}
-                  placeholder="Try a name, @username, or keyword…"
-                  placeholderTextColor={figma.textMuted}
-                  value={q}
-                  onChangeText={setQ}
-                  onSubmitEditing={() => setSubmittedQ(q.trim())}
-                  returnKeyType="search"
-                />
-                <Pressable style={styles.discoverSearchCta} onPress={() => setSubmittedQ(q.trim())}>
-                  <Text style={styles.discoverSearchCtaText}>Search</Text>
-                </Pressable>
-              </View>
-            </View>
-
-            {!submittedQ ? (
-              <Text style={styles.discoverHint}>
-                Results for people and posts appear below the browse section after you search. Use Near me for the map.
-              </Text>
-            ) : null}
-          </>
+        {mode === "search" && !submittedQ ? (
+          <Text style={styles.discoverHint}>
+            Use Search for people and posts, or Near me for businesses and events on the map. Tap the search icon above to
+            type a query.
+          </Text>
         ) : null}
-
-        <DiscoverFigmaChrome />
 
         {mode === "search" ? (
           <>
@@ -515,47 +511,14 @@ function buildSearchStyles(
   return StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { gap: 12 },
-  marketplaceHomeLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginHorizontal: spacing.pagePaddingH,
-    marginBottom: 4,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: radii.control,
-    backgroundColor: fig.glassSoft,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: fig.glassBorder
-  },
-  marketplaceHomeLinkText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: "600",
-    color: fig.text,
-    letterSpacing: -0.2
-  },
-  heroSearchCard: {
-    marginHorizontal: spacing.pagePaddingH,
-    marginBottom: 8,
-    padding: 16,
-    borderRadius: radii.feedCard,
-    backgroundColor: fig.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: fig.glassBorder,
-    gap: 10
-  },
-  heroSearchTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: fig.text,
-    letterSpacing: -0.35
-  },
-  heroSearchSub: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: fig.textMuted,
-    letterSpacing: -0.1
+  /** Invisible field focused from header search — keeps keyboard + submit without on-card UI */
+  searchFieldOffscreen: {
+    position: "absolute",
+    width: 280,
+    height: 44,
+    left: -400,
+    top: 0,
+    opacity: 0.02
   },
   discoverMarketRow: {
     flexDirection: "row",
@@ -666,35 +629,7 @@ function buildSearchStyles(
     color: fig.textMuted,
     letterSpacing: -0.1
   },
-  discoverSearchPanel: {
-    marginHorizontal: spacing.pagePaddingH,
-    marginBottom: 4,
-    padding: 12,
-    borderRadius: radii.feedCardHero,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: fig.glassBorder,
-    backgroundColor: fig.glassSoft
-  },
-  searchRow: { flexDirection: "row", gap: 10, alignItems: "stretch" },
   flex1: { flex: 1 },
-  input: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: fig.glassBorder,
-    borderRadius: radii.control + 2,
-    color: fig.text,
-    backgroundColor: fig.canvas,
-    paddingVertical: 12,
-    paddingHorizontal: 14
-  },
-  discoverSearchCta: {
-    backgroundColor: fig.messagesChromeText,
-    borderRadius: radii.control,
-    paddingHorizontal: 20,
-    minWidth: 96,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  discoverSearchCtaText: { color: fig.text, fontWeight: "700", fontSize: 15 },
   buttonSecondary: {
     borderColor: fig.glassBorder,
     borderWidth: StyleSheet.hairlineWidth,

@@ -157,7 +157,23 @@ export const figmaMobileNav = {
   segmentPillVerticalPadding: 10,
   unreadBadgeSize: 7,
   unreadBadgeBorderWidth: 2,
-  unreadBadgeBorderColor: "#121214"
+  unreadBadgeBorderColor: "#121214",
+  /**
+   * Center “Create” control — Figma tab bar (node 1-209): white disc, dark plus, sits above the pill.
+   * Tune diameters / offsets in Dev Mode to match inspector px.
+   */
+  createFabDiameter: 52,
+  /** Negative margin lifts the FAB above the tab row like the kit. */
+  createFabOverlapTop: -12,
+  createFabFill: "#FFFFFF",
+  createFabIconColor: "#0A0A0B",
+  createFabBorderWidth: StyleSheet.hairlineWidth,
+  createFabBorderColor: "rgba(0,0,0,0.06)",
+  createFabShadowColorIOS: "#000000",
+  createFabShadowOpacityIOS: 0.18,
+  createFabShadowRadiusIOS: 10,
+  createFabShadowOffsetYIOS: 4,
+  createFabElevationAndroid: 8
 } as const;
 
 /**
@@ -284,7 +300,12 @@ export const figmaMobileNavLight = {
   ...figmaMobileNav,
   tabIconFrameFillFocused: "rgba(0,0,0,0.06)",
   tabIconFrameBorderFocused: "rgba(0,0,0,0.08)",
-  unreadBadgeBorderColor: "#FFFFFF"
+  unreadBadgeBorderColor: "#FFFFFF",
+  /** Light tab strip: inverted FAB so it stays visible on near-white bar. */
+  createFabFill: "#0A0A0B",
+  createFabIconColor: "#FFFFFF",
+  createFabBorderColor: "rgba(255,255,255,0.14)",
+  createFabShadowOpacityIOS: 0.12
 } as const;
 
 export type AppearanceMode = "dark" | "light";

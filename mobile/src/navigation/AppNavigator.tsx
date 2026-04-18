@@ -65,6 +65,7 @@ import { AdminHubScreen } from "../screens/app/AdminHubScreen";
 import { CreateEventScreen } from "../screens/app/CreateEventScreen";
 import { EventDetailScreen } from "../screens/app/EventDetailScreen";
 import { NavTabIcon } from "../components/icons/NavTabIcon";
+import { CreateTabBarIcon } from "../components/CreateTabBarIcon";
 import { BusinessPersonalizerOverlay } from "../components/BusinessPersonalizerOverlay";
 import { getWebAppBaseUrl } from "../lib/web-app";
 import { registerExpoPushDevice } from "../lib/push-registration";
@@ -319,11 +320,7 @@ function AppTabs() {
             })}
             options={{
               title: "Create",
-              tabBarIcon: ({ color, size, focused }) => (
-                <TabIconFrame focused={focused}>
-                  <Ionicons name={focused ? "add-circle" : "add-circle-outline"} size={(size ?? 24) - 2} color={color} />
-                </TabIconFrame>
-              )
+              tabBarIcon: ({ focused }) => <CreateTabBarIcon focused={focused} />
             }}
           />
           <Tab.Screen

@@ -1,6 +1,10 @@
 {
   "name": "@deenly/rewards-shared",
   "private": true,
+  "engines": {
+    "node": ">=20 <25",
+    "npm": ">=10"
+  },
   "description": "Shared rewards types and pure rules engine (Vitest runs here).",
   "scripts": {
     "test": "vitest run",
