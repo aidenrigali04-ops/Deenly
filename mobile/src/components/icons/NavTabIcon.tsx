@@ -11,7 +11,8 @@ type Props = {
   focused?: boolean;
 };
 
-const SW = 1.8;
+/** Slightly finer strokes read cleaner at small tab sizes. */
+const SW = 1.55;
 
 export function NavTabIcon({ kind, color, size = 24, focused = false }: Props) {
   const focusAnim = useRef(new Animated.Value(focused ? 1 : 0)).current;

@@ -56,7 +56,9 @@ export function OnboardingScreen({ navigation }: Props) {
       setIntents(oi);
     }
     if (meQuery.data.default_feed_tab) {
-      setDefaultFeedTab(meQuery.data.default_feed_tab);
+      const tab =
+        meQuery.data.default_feed_tab === "opportunities" ? "for_you" : meQuery.data.default_feed_tab;
+      setDefaultFeedTab(tab === "marketplace" || tab === "for_you" ? tab : "for_you");
     }
     if (meQuery.data.app_landing) {
       setAppLanding(meQuery.data.app_landing);

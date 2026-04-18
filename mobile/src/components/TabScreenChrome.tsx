@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { StyleSheet, Text, View, type ViewStyle } from "react-native";
-import { colors, radii, shadows, spacing, type } from "../theme";
+import { colors, figmaMobile, radii, shadows, spacing, type } from "../theme";
 
 export function TabScreenRoot({ children, style }: { children: ReactNode; style?: ViewStyle }) {
   return <View style={[styles.root, style]}>{children}</View>;
@@ -57,7 +57,7 @@ export function SectionCard({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.background
+    backgroundColor: figmaMobile.canvas
   },
   header: {
     paddingHorizontal: spacing.pagePaddingH,
@@ -76,12 +76,12 @@ const styles = StyleSheet.create({
   },
   title: {
     ...type.navLargeTitle,
-    color: colors.text
+    color: figmaMobile.text
   },
   subtitle: {
     fontSize: 15,
     lineHeight: 21,
-    color: colors.muted,
+    color: figmaMobile.textMuted,
     fontWeight: "400",
     letterSpacing: -0.2
   },
@@ -94,20 +94,21 @@ const styles = StyleSheet.create({
     gap: 12
   },
   sectionCardInset: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.grouped,
+    backgroundColor: figmaMobile.glassSoft,
+    borderRadius: radii.feedCard,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle
+    borderColor: figmaMobile.glassBorder,
+    ...shadows.low
   },
   sectionCardElevated: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.grouped,
+    backgroundColor: figmaMobile.glassSoft,
+    borderRadius: radii.feedCard,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle
+    borderColor: figmaMobile.glassBorder
   },
   sectionTitle: {
     ...type.sectionTitle,
-    color: colors.text,
+    color: figmaMobile.text,
     marginBottom: 2,
     letterSpacing: -0.3
   }

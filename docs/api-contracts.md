@@ -71,6 +71,36 @@ Authoritative shapes today live in route handlers under `backend/src/modules/*`.
 
 **TODO(Rewards-Growth-Sprint2):** OpenAPI fragments, admin grant routes if any remain public.
 
+#### Internal console (deferred)
+
+Ledger browse, referral queue, fraud-flag triage, and redemption ops under `/api/v1/admin/rewards/*` (and monetization mirror) are **not** shipped in the buyer web or mobile apps. Treat a dedicated admin / moderator UI as a separate milestone (authz, audit trail, bulk actions).
+
+## Client UI map (rewards, points, referrals)
+
+Maps **screens** to **HTTP endpoints** and **shared DTOs** (`@deenly/rewards` / `shared/rewards/api-dto.ts`). Server analytics events listed are emitted by read/checkout paths where noted.
+
+### Web (Next.js)
+
+| User-facing area | Route / surface | Source files | API | DTOs / types |
+| ---------------- | --------------- | ------------ | --- | ------------- |
+| Rewards wallet + ledger | `/account/rewards` | `frontend/src/app/account/rewards/page.tsx`, `frontend/src/hooks/use-rewards-wallet.ts`, `frontend/src/lib/rewards-api.ts` | `GET /rewards/me`, `GET /rewards/ledger?cursor&limit` | `RewardsWalletMeResponse`, `RewardsLedgerPageResponse`, `RewardsLedgerEntryDto` |
+| Referrals hub | `/account/referrals` | `frontend/src/app/account/referrals/page.tsx`, `frontend/src/hooks/use-referrals-me.ts`, `frontend/src/lib/rewards-api.ts` | `GET /referrals/me`, `POST /referrals/me/share` | `ReferralsMeResponse`, `ReferralShareRecordedResponse` |
+| Signup invite UX | `/auth/signup?referralCode=` | `frontend/src/app/auth/signup/page.tsx`, `frontend/src/components/referral-signup-callout.tsx`, `frontend/src/hooks/use-referral-code-preview.ts` | `GET /referrals/code-preview?code=` | `ReferralCodePeekResponse`; register/google body `referralCode` |
+| Product checkout + points | Product detail (checkout panel) | `frontend/src/components/payment/product-checkout-panel.tsx`, `frontend/src/lib/monetization.ts` | `GET …/rewards-preview`, `POST …/checkout/product/:id` | `ProductCheckoutRewardsPreview` (monetization TS type); checkout response includes `redeemSummary` |
+| Navigation | Settings / account hub | `frontend/src/app/account/settings/page.tsx`, `frontend/src/app/account/page.tsx` | — | — |
+
+**Analytics (server):** `rewards_wallet_viewed`, `rewards_ledger_viewed`, `referral_program_viewed`, `referral_share_recorded`, `referral_code_preview_viewed`, checkout rewards preview/apply events (see monetization routes).
+
+### Mobile (Expo)
+
+| User-facing area | Screen | Source files | API | DTOs / types |
+| ---------------- | ------ | ------------ | --- | ------------- |
+| Rewards wallet + ledger | `RewardsWallet` | `mobile/src/screens/app/RewardsWalletScreen.tsx`, `mobile/src/hooks/use-rewards-wallet.ts`, `mobile/src/lib/rewards-api.ts` | Same as web rewards | Same DTOs from `@deenly/rewards` |
+| Referrals | `Referrals` | `mobile/src/screens/app/ReferralsScreen.tsx`, `mobile/src/hooks/use-referrals-me.ts`, `mobile/src/lib/rewards-api.ts` | Same as web referrals | Same |
+| Signup + invite | `Signup` | `mobile/src/screens/auth/SignupScreen.tsx`, `mobile/src/hooks/use-referral-code-preview.ts`, `mobile/src/components/ReferralSignupCallout.tsx`, `mobile/src/lib/rewards-api.ts`, `mobile/src/lib/auth.ts` | `code-preview`; `POST /auth/register` with optional `referralCode` | `ReferralCodePeekResponse` |
+
+**Note:** Product checkout points UI on mobile is not mirrored in the repo today; when marketplace checkout exists, reuse the same preview/apply contract as web `monetization.ts`.
+
 ## Growth / analytics (existing)
 
 Client experiment ingest and admin dashboards are implemented under `/api/v1/analytics/*` — document alongside Rewards only where clients need a single checklist.

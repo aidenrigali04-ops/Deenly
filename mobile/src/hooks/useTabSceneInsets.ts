@@ -8,6 +8,12 @@ export function useTabSceneBottomPadding(extra = 16) {
   return tabBarHeight + Math.max(insets.bottom, 8) + extra;
 }
 
+/** For root-stack screens outside the tab bar (e.g. CreateFlow). Avoids `useBottomTabBarHeight` throw. */
+export function useDetachedSceneBottomPadding(extra = 24) {
+  const insets = useSafeAreaInsets();
+  return Math.max(insets.bottom, 12) + extra;
+}
+
 /** Top inset for tab-root screens without their own header bar. */
 export function useTabSceneTopPadding(extra = 10) {
   const insets = useSafeAreaInsets();

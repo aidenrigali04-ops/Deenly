@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { colors, radii } from "../theme";
+import { figmaMobile, radii } from "../theme";
 import type { FeedEventCardItem } from "../types";
 
 function formatEventStart(iso: string) {
@@ -63,10 +63,10 @@ export function FeedEventCard({
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: radii.panel,
+    borderRadius: radii.feedCardHero,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle,
-    backgroundColor: colors.card,
+    borderColor: figmaMobile.glassBorder,
+    backgroundColor: figmaMobile.card,
     padding: 14,
     gap: 6
   },
@@ -83,22 +83,22 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.4,
     textTransform: "uppercase",
-    color: colors.muted
+    color: figmaMobile.textMuted
   },
   title: {
     fontSize: 17,
     fontWeight: "700",
-    color: colors.text,
+    color: figmaMobile.text,
     letterSpacing: -0.2
   },
   meta: {
     fontSize: 13,
     fontWeight: "600",
-    color: colors.text
+    color: figmaMobile.text
   },
   sub: {
     fontSize: 13,
-    color: colors.muted,
+    color: figmaMobile.textMuted,
     lineHeight: 18
   },
   footer: {
@@ -112,10 +112,10 @@ const styles = StyleSheet.create({
   cta: {
     fontSize: 14,
     fontWeight: "600",
-    color: colors.accent
+    color: figmaMobile.accentGold
   },
   counts: {
     fontSize: 12,
-    color: colors.muted
+    color: figmaMobile.textMuted
   }
 });

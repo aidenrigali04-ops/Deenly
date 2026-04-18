@@ -4,13 +4,12 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { FeedView } from "@/components/feed-view";
-import { SocialHomeHeader } from "@/components/social/social-home-header";
 import { apiRequest } from "@/lib/api";
 import { fetchSessionMe } from "@/lib/auth";
 
 type MeForHome = {
   app_landing?: string | null;
-  default_feed_tab?: "for_you" | "opportunities" | "marketplace" | null;
+  default_feed_tab?: "for_you" | "marketplace" | null;
 };
 
 export default function HomeFeedPage() {
@@ -36,22 +35,14 @@ export default function HomeFeedPage() {
 
   const initialFeedTab = profileQuery.data?.default_feed_tab;
   const validTab =
-    initialFeedTab === "for_you" ||
-    initialFeedTab === "opportunities" ||
-    initialFeedTab === "marketplace"
-      ? initialFeedTab
-      : undefined;
+    initialFeedTab === "for_you" || initialFeedTab === "marketplace" ? initialFeedTab : undefined;
 
   return (
-    <div className="space-y-1">
-      <SocialHomeHeader />
-      <FeedView
-        heading=""
-        showStories
-        homeStyle
-        socialUi
-        initialFeedTab={profileQuery.isSuccess ? validTab : undefined}
-      />
-    </div>
+    <FeedView
+      heading="Home"
+      showStories
+      homeStyle
+      initialFeedTab={profileQuery.isSuccess ? validTab : undefined}
+    />
   );
 }

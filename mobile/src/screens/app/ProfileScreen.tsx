@@ -4,7 +4,6 @@ import * as DocumentPicker from "expo-document-picker";
 import {
   Image,
   Linking,
-  Platform,
   Pressable,
   ScrollView,
   Share,
@@ -13,6 +12,7 @@ import {
   View,
   useWindowDimensions
 } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomTabScreenProps, useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { CompositeScreenProps } from "@react-navigation/native";
@@ -21,7 +21,7 @@ import { fetchSessionMe } from "../../lib/auth";
 import { apiRequest } from "../../lib/api";
 import { fetchMyProducts, formatMinorCurrency } from "../../lib/monetization";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
-import { colors, radii, type as typeStyles } from "../../theme";
+import { colors, figmaMobile, figmaMobileProfile, spacing, type as typeStyles } from "../../theme";
 import type { FeedItem } from "../../types";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 import { resolveMediaUrl } from "../../lib/media-url";
@@ -29,7 +29,6 @@ import {
   IconCamera,
   IconGrid,
   IconImages,
-  IconLink,
   IconMenu,
   IconPlaySmall,
   IconPlus,
@@ -41,7 +40,13 @@ type Props = CompositeScreenProps<
   NativeStackScreenProps<RootStackParamList>
 >;
 
-const AVATAR_SIZE = 92;
+function formatProfileStatCount(n: number) {
+  try {
+    return new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n);
+  } catch {
+    return String(n);
+  }
+}
 
 function normalizeWebsiteUrl(raw: string) {
   const t = raw.trim();
@@ -106,7 +111,10 @@ export function ProfileScreen({ navigation }: Props) {
   const productItems = productsQuery.data?.items || [];
   const hasBusinessListing = (businessesMineQuery.data?.items?.length ?? 0) > 0;
   const avatarUri = resolveMediaUrl(profileQuery.data?.avatar_url);
-  const tileSize = Math.floor((width - 2) / 3);
+  const gridPad = figmaMobileProfile.gridPadH;
+  const gridGap = figmaMobileProfile.gridGap;
+  const tileWidth = Math.max(96, Math.floor((width - gridPad * 2 - gridGap * 2) / 3));
+  const tileHeight = Math.round(tileWidth * (211 / 111));
   const p = profileQuery.data;
   const canCreateProducts = Boolean(p?.persona_capabilities?.can_create_products);
   const canUseBusinessDirectoryTools = Boolean(p?.persona_capabilities?.can_use_business_directory_tools);
@@ -187,14 +195,18 @@ export function ProfileScreen({ navigation }: Props) {
 
   return (
     <View style={styles.root}>
-      <View style={[styles.topBar, compact && styles.topBarCompact, { paddingTop: insets.top + 4 }]}>
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <View style={styles.profileOrb} />
+      </View>
+      <StatusBar style="light" />
+      <View style={[styles.topBar, compact && styles.topBarCompact, { paddingTop: insets.top + 6 }]}>
         <Pressable
           style={styles.topBarHit}
-          onPress={() => navigation.navigate("CreateTab", { screen: "CreateHub" })}
+          onPress={() => navigation.navigate("CreateFlow", { screen: "CreateHub" })}
           accessibilityRole="button"
           accessibilityLabel="Create post"
         >
-          <IconPlus color={colors.text} size={26} />
+          <IconPlus color={figmaMobile.text} size={26} />
         </Pressable>
         <View style={styles.topBarTitleWrap}>
           <Text style={styles.topBarUsername} numberOfLines={1}>
@@ -207,7 +219,7 @@ export function ProfileScreen({ navigation }: Props) {
           accessibilityRole="button"
           accessibilityLabel="Settings"
         >
-          <IconMenu color={colors.text} size={26} />
+          <IconMenu color={figmaMobile.text} size={26} />
         </Pressable>
       </View>
 
@@ -222,15 +234,15 @@ export function ProfileScreen({ navigation }: Props) {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {sessionQuery.isLoading ? <LoadingState label="Loading profile..." /> : null}
-        {sessionQuery.error ? <ErrorState message={(sessionQuery.error as Error).message} /> : null}
+        {sessionQuery.isLoading ? <LoadingState label="Loading profile..." surface="dark" /> : null}
+        {sessionQuery.error ? <ErrorState message={(sessionQuery.error as Error).message} surface="dark" /> : null}
         {!sessionQuery.isLoading && !sessionQuery.error && !sessionQuery.data ? (
-          <EmptyState title="Profile unavailable" />
+          <EmptyState title="Profile unavailable" surface="dark" />
         ) : null}
 
         {sessionQuery.data && p ? (
           <>
-            <View style={[styles.heroRow, compact && styles.heroRowCompact]}>
+            <View style={[styles.heroBlock, compact && styles.heroBlockCompact]}>
               <Pressable onPress={uploadAvatar} disabled={avatarUploading} style={styles.avatarWrap}>
                 {avatarUri ? (
                   <Image source={{ uri: avatarUri }} style={styles.avatar} resizeMode="cover" />
@@ -250,58 +262,56 @@ export function ProfileScreen({ navigation }: Props) {
                   </View>
                 ) : null}
               </Pressable>
-              <View style={styles.statsRow}>
-                <View style={styles.statCell}>
-                  <Text style={[styles.statNumber, compact && styles.statNumberCompact]}>{p.posts_count}</Text>
-                  <Text style={[styles.statLabel, compact && styles.statLabelCompact]}>posts</Text>
-                </View>
-                <View style={styles.statCell}>
-                  <Text style={[styles.statNumber, compact && styles.statNumberCompact]}>{p.followers_count}</Text>
-                  <Text style={[styles.statLabel, compact && styles.statLabelCompact]}>followers</Text>
-                </View>
-                <View style={styles.statCell}>
-                  <Text style={[styles.statNumber, compact && styles.statNumberCompact]}>{p.following_count}</Text>
-                  <Text style={[styles.statLabel, compact && styles.statLabelCompact]}>following</Text>
+              <View style={styles.heroMeta}>
+                <Text style={[styles.profileDisplayName, compact && styles.profileDisplayNameCompact]} numberOfLines={2}>
+                  {p.display_name}
+                </Text>
+                <Text style={styles.profileUsername}>@{username}</Text>
+                <View style={styles.heroPills}>
+                  <Pressable
+                    style={({ pressed }) => [styles.heroPill, pressed && styles.heroPillPressed]}
+                    onPress={() => navigation.navigate("EditProfile")}
+                  >
+                    <Text style={styles.heroPillText}>Edit profile</Text>
+                  </Pressable>
+                  <Pressable style={({ pressed }) => [styles.heroPill, pressed && styles.heroPillPressed]} onPress={shareProfile}>
+                    <Text style={styles.heroPillTextGold}>Share</Text>
+                  </Pressable>
                 </View>
               </View>
             </View>
 
-            <View style={[styles.bioBlock, compact && styles.bioBlockCompact]}>
-              <Text style={[styles.displayName, compact && styles.displayNameCompact]}>{p.display_name}</Text>
-              {p.business_offering ? (
-                <Text style={[styles.categoryLine, compact && styles.categoryLineCompact]}>{p.business_offering}</Text>
-              ) : null}
-              {p.bio ? <Text style={[styles.bioText, compact && styles.bioTextCompact]}>{p.bio}</Text> : null}
-              {websiteHref ? (
-                <Pressable
-                  style={styles.websiteRow}
-                  onPress={() => Linking.openURL(websiteHref).catch(() => null)}
-                >
-                  <IconLink color={colors.accent} size={16} />
-                  <Text style={styles.websiteText} numberOfLines={1}>
-                    {p.website_url?.replace(/^https?:\/\//i, "")}
-                  </Text>
-                </Pressable>
-              ) : null}
-            </View>
-
-            <View style={[styles.insightsCard, compact && styles.insightsCardCompact]}>
-              <Text style={styles.insightsTitle}>Engagement on Deenly</Text>
-              <Text style={[styles.insightsSub, compact && styles.insightsSubCompact]}>
-                {p.likes_received_count} received · {p.likes_given_count} given
-              </Text>
-            </View>
-
-            <View style={[styles.ctaRow, compact && styles.ctaRowCompact]}>
-              <Pressable
-                style={[styles.ctaButton, styles.ctaButtonPrimary, styles.ctaButtonFlex]}
-                onPress={() => navigation.navigate("EditProfile")}
-              >
-                <Text style={styles.ctaButtonPrimaryText}>Edit profile</Text>
-              </Pressable>
-              <Pressable style={[styles.ctaButton, styles.ctaButtonGhost, styles.ctaButtonFlex]} onPress={shareProfile}>
-                <Text style={styles.ctaButtonGhostText}>Share</Text>
-              </Pressable>
+            <View style={[styles.infoPanel, compact && styles.infoPanelCompact]}>
+              <View style={[styles.statsStrip, compact && styles.statsStripCompact]}>
+                <View style={styles.statCol}>
+                  <Text style={styles.statNum}>{formatProfileStatCount(p.posts_count)}</Text>
+                  <Text style={styles.statLbl}>Post</Text>
+                </View>
+                <View style={styles.statCol}>
+                  <Text style={styles.statNum}>{formatProfileStatCount(p.followers_count)}</Text>
+                  <Text style={styles.statLbl}>Followers</Text>
+                </View>
+                <View style={styles.statCol}>
+                  <Text style={styles.statNum}>{formatProfileStatCount(p.following_count)}</Text>
+                  <Text style={styles.statLbl}>Following</Text>
+                </View>
+                <View style={styles.statCol}>
+                  <Text style={styles.statNum}>{formatProfileStatCount(p.likes_received_count)}</Text>
+                  <Text style={styles.statLbl}>Likes</Text>
+                </View>
+              </View>
+              <View style={styles.infoBody}>
+                {p.business_offering ? <Text style={styles.infoBioLine}>{p.business_offering}</Text> : null}
+                {p.bio ? <Text style={styles.infoBioLine}>{p.bio}</Text> : null}
+                {websiteHref ? (
+                  <Pressable onPress={() => Linking.openURL(websiteHref).catch(() => null)}>
+                    <Text style={styles.infoBioLine}>
+                      Visit us:{" "}
+                      <Text style={styles.infoBioLink}>{p.website_url?.replace(/^https?:\/\//i, "")}</Text>
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
 
             {canUseBusinessDirectoryTools && !hasBusinessListing ? (
@@ -309,28 +319,29 @@ export function ProfileScreen({ navigation }: Props) {
                 <Text style={styles.addBusinessText}>List your business</Text>
               </Pressable>
             ) : null}
-
           </>
         ) : null}
 
-        <View style={[styles.tabBar, compact && styles.tabBarCompact]}>
-          <Pressable
-            style={[styles.tabItem, compact && styles.tabItemCompact, activeTab === "posts" ? styles.tabItemActive : null]}
-            onPress={() => setActiveTab("posts")}
-          >
-            <View style={styles.tabInner}>
-              <IconGrid color={activeTab === "posts" ? colors.accent : colors.muted} size={20} />
-              <Text style={[styles.tabLabel, compact && styles.tabLabelCompact, activeTab === "posts" ? styles.tabLabelActive : null]}>Posts</Text>
+        <View style={[styles.profileTabRail, compact && styles.profileTabRailCompact]}>
+          <Pressable style={styles.profileTabHit} onPress={() => setActiveTab("posts")}>
+            <View style={styles.profileTabInner}>
+              <IconGrid
+                color={activeTab === "posts" ? figmaMobile.accentGold : figmaMobileProfile.statLabelColor}
+                size={figmaMobileProfile.contentTabIcon}
+              />
+              <Text style={[styles.profileTabLabel, activeTab === "posts" ? styles.profileTabLabelActive : null]}>Posts</Text>
             </View>
           </Pressable>
           {canCreateProducts ? (
-            <Pressable
-              style={[styles.tabItem, compact && styles.tabItemCompact, activeTab === "products" ? styles.tabItemActive : null]}
-              onPress={() => setActiveTab("products")}
-            >
-              <View style={styles.tabInner}>
-                <IconShoppingBag color={activeTab === "products" ? colors.accent : colors.muted} size={20} />
-                <Text style={[styles.tabLabel, compact && styles.tabLabelCompact, activeTab === "products" ? styles.tabLabelActive : null]}>Products</Text>
+            <Pressable style={styles.profileTabHit} onPress={() => setActiveTab("products")}>
+              <View style={styles.profileTabInner}>
+                <IconShoppingBag
+                  color={activeTab === "products" ? figmaMobile.accentGold : figmaMobileProfile.statLabelColor}
+                  size={figmaMobileProfile.contentTabIcon}
+                />
+                <Text style={[styles.profileTabLabel, activeTab === "products" ? styles.profileTabLabelActive : null]}>
+                  Products
+                </Text>
               </View>
             </Pressable>
           ) : null}
@@ -338,16 +349,16 @@ export function ProfileScreen({ navigation }: Props) {
 
         {activeTab === "posts" ? (
           <>
-            {postsQuery.isLoading ? <LoadingState label="Loading posts..." /> : null}
-            {postsQuery.error ? <ErrorState message={(postsQuery.error as Error).message} /> : null}
+            {postsQuery.isLoading ? <LoadingState label="Loading posts..." surface="dark" /> : null}
+            {postsQuery.error ? <ErrorState message={(postsQuery.error as Error).message} surface="dark" /> : null}
             {!postsQuery.isLoading && !postsQuery.error && items.length === 0 ? (
               <View style={styles.emptyGrid}>
-                <IconImages color={colors.muted} size={48} />
+                <IconImages color={figmaMobile.textMuted} size={48} />
                 <Text style={styles.emptyGridTitle}>No posts yet</Text>
-                <Text style={styles.emptyGridSub}>Start from the Create tab.</Text>
+                <Text style={styles.emptyGridSub}>Tap + above to create a post or reel.</Text>
               </View>
             ) : null}
-            <View style={styles.grid}>
+            <View style={styles.profileGrid}>
               {items.map((item) => {
                 const mediaUrl = resolveMediaUrl(item.media_url);
                 const isImage = Boolean(item.media_mime_type?.startsWith("image/"));
@@ -356,7 +367,7 @@ export function ProfileScreen({ navigation }: Props) {
                 return (
                   <Pressable
                     key={item.id}
-                    style={[styles.tile, { width: tileSize, height: tileSize }]}
+                    style={[styles.tile, { width: tileWidth, height: tileHeight }]}
                     onPress={() => navigation.navigate("PostDetail", { id: item.id })}
                   >
                     {mediaUrl && isImage ? (
@@ -368,7 +379,7 @@ export function ProfileScreen({ navigation }: Props) {
                     )}
                     {isVideo ? (
                       <View style={styles.tileBadge}>
-                        <IconPlaySmall color={colors.text} size={10} />
+                        <IconPlaySmall color={figmaMobile.text} size={10} />
                       </View>
                     ) : null}
                   </Pressable>
@@ -378,20 +389,20 @@ export function ProfileScreen({ navigation }: Props) {
           </>
         ) : (
           <>
-            {productsQuery.isLoading ? <LoadingState label="Loading products..." /> : null}
-            {productsQuery.error ? <ErrorState message={(productsQuery.error as Error).message} /> : null}
+            {productsQuery.isLoading ? <LoadingState label="Loading products..." surface="dark" /> : null}
+            {productsQuery.error ? <ErrorState message={(productsQuery.error as Error).message} surface="dark" /> : null}
             {!productsQuery.isLoading && !productsQuery.error && productItems.length === 0 ? (
               <View style={styles.emptyGrid}>
-                <IconShoppingBag color={colors.muted} size={48} />
+                <IconShoppingBag color={figmaMobile.textMuted} size={48} />
                 <Text style={styles.emptyGridTitle}>No products yet</Text>
                 <Text style={styles.emptyGridSub}>Add a product under Settings → Pro tools.</Text>
               </View>
             ) : null}
-            <View style={styles.grid}>
+            <View style={styles.profileGrid}>
               {productItems.map((prod) => (
                 <Pressable
                   key={prod.id}
-                  style={[styles.tile, styles.productTile, { width: tileSize, minHeight: tileSize }]}
+                  style={[styles.tile, styles.productTile, { width: tileWidth, minHeight: tileHeight }]}
                   onPress={() => navigation.navigate("ProductDetail", { productId: prod.id })}
                 >
                   <Text style={styles.productTileTitle} numberOfLines={3}>
@@ -416,20 +427,29 @@ export function ProfileScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.atmosphere
+    backgroundColor: "transparent",
+    overflow: "hidden"
+  },
+  profileOrb: {
+    position: "absolute",
+    width: figmaMobileProfile.accentOrbSize,
+    height: figmaMobileProfile.accentOrbSize,
+    borderRadius: figmaMobileProfile.accentOrbSize / 2,
+    backgroundColor: figmaMobileProfile.accentOrb,
+    top: figmaMobileProfile.accentOrbTop,
+    left: figmaMobileProfile.accentOrbLeft
   },
   topBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 10,
-    paddingBottom: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderSubtle,
-    backgroundColor: colors.surface
+    paddingHorizontal: spacing.screenHorizontal,
+    paddingBottom: 12,
+    borderBottomWidth: 0,
+    backgroundColor: "transparent"
   },
   topBarCompact: {
-    paddingBottom: 8
+    paddingBottom: 10
   },
   topBarHit: {
     minWidth: 44,
@@ -441,15 +461,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 2,
-    maxWidth: "50%"
+    maxWidth: "58%",
+    justifyContent: "center"
   },
   topBarUsername: {
     ...typeStyles.navChromeTitle,
-    color: colors.text
+    color: figmaMobile.text
   },
   scroll: {
     flex: 1,
-    backgroundColor: colors.surface
+    backgroundColor: "transparent"
   },
   scrollContent: {
     paddingBottom: 32
@@ -457,275 +478,235 @@ const styles = StyleSheet.create({
   scrollContentCompact: {
     paddingBottom: 24
   },
-  heroRow: {
+  heroBlock: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    gap: 16
+    paddingHorizontal: figmaMobileProfile.heroPadH,
+    paddingTop: 18,
+    gap: figmaMobileProfile.heroGap
   },
-  heroRowCompact: {
-    paddingTop: 10,
+  heroBlockCompact: {
+    paddingTop: 12,
     gap: 12
   },
-  avatarWrap: {
-    position: "relative"
-  },
-  avatar: {
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-    borderRadius: AVATAR_SIZE / 2,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.subtleFill
-  },
-  avatarPlaceholder: {
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  avatarLetter: {
-    fontSize: 32,
-    fontWeight: "700",
-    color: colors.muted
-  },
-  avatarBadge: {
-    position: "absolute",
-    right: -2,
-    bottom: -2,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: colors.accent,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: colors.surface
-  },
-  avatarUploading: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: AVATAR_SIZE / 2,
-    backgroundColor: "rgba(255,255,255,0.7)",
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  avatarUploadingText: {
-    fontWeight: "700",
-    color: colors.text
-  },
-  statsRow: {
+  heroMeta: {
     flex: 1,
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center"
+    minWidth: 0,
+    gap: figmaMobileProfile.nameColumnGap
   },
-  statCell: {
-    alignItems: "center",
-    minWidth: 72
-  },
-  statNumber: {
-    fontSize: 20,
+  profileDisplayName: {
+    fontSize: figmaMobileProfile.displayNameSize,
     fontWeight: "600",
-    color: colors.text
+    lineHeight: figmaMobileProfile.displayNameLineHeight,
+    color: figmaMobile.text,
+    letterSpacing: -0.2
   },
-  statNumberCompact: {
-    fontSize: 18
+  profileDisplayNameCompact: {
+    fontSize: 17,
+    lineHeight: 22
   },
-  statLabel: {
-    fontSize: 13,
-    color: colors.mutedLight,
+  profileUsername: {
+    fontSize: figmaMobileProfile.usernameSize,
+    fontWeight: "400",
+    lineHeight: figmaMobileProfile.usernameLineHeight,
+    color: figmaMobileProfile.usernameColor
+  },
+  heroPills: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
     marginTop: 2
   },
-  statLabelCompact: {
-    fontSize: 12
+  heroPill: {
+    paddingHorizontal: figmaMobileProfile.pillPadH,
+    paddingVertical: figmaMobileProfile.pillPadV,
+    borderRadius: figmaMobileProfile.pillRadius,
+    backgroundColor: figmaMobileProfile.pillBg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: figmaMobileProfile.pillBorder
   },
-  bioBlock: {
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    gap: 4
+  heroPillPressed: {
+    opacity: 0.88
   },
-  bioBlockCompact: {
-    paddingTop: 10
+  heroPillText: {
+    fontSize: figmaMobileProfile.pillTextSize,
+    fontWeight: "500",
+    lineHeight: figmaMobileProfile.pillTextLineHeight,
+    color: figmaMobile.text
   },
-  displayName: {
-    ...typeStyles.sectionTitle,
-    color: colors.text
+  heroPillTextGold: {
+    fontSize: figmaMobileProfile.pillTextSize,
+    fontWeight: "500",
+    lineHeight: figmaMobileProfile.pillTextLineHeight,
+    color: figmaMobile.accentGold
   },
-  displayNameCompact: {
-    fontSize: 19,
-    lineHeight: 24
+  infoPanel: {
+    marginHorizontal: figmaMobileProfile.heroPadH,
+    marginTop: 18,
+    paddingTop: figmaMobileProfile.infoPanelPadTop,
+    paddingBottom: figmaMobileProfile.infoPanelPadBottom,
+    paddingHorizontal: figmaMobileProfile.infoPanelPadH,
+    borderRadius: figmaMobileProfile.infoPanelRadius,
+    backgroundColor: figmaMobileProfile.infoPanelBg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: figmaMobileProfile.infoPanelBorder,
+    gap: figmaMobileProfile.infoPanelGap
   },
-  categoryLine: {
-    fontSize: 13,
-    color: colors.muted,
+  infoPanelCompact: {
+    marginTop: 14,
+    paddingTop: 20,
+    paddingBottom: 22,
+    paddingHorizontal: 18
+  },
+  statsStrip: {
+    flexDirection: "row",
+    flexWrap: "nowrap",
+    gap: figmaMobileProfile.statColumnsGap,
+    paddingBottom: figmaMobileProfile.statsRowPadBottom,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: figmaMobileProfile.statsRowBorder
+  },
+  statsStripCompact: {
+    gap: 10
+  },
+  statCol: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: "center",
+    gap: figmaMobileProfile.statStackGap
+  },
+  statNum: {
+    fontSize: figmaMobileProfile.statNumberSize,
+    fontWeight: "500",
+    lineHeight: figmaMobileProfile.statNumberLineHeight,
+    color: figmaMobile.text,
+    fontVariant: ["tabular-nums"],
+    textAlign: "center"
+  },
+  statLbl: {
+    fontSize: figmaMobileProfile.statLabelSize,
+    fontWeight: "500",
+    lineHeight: figmaMobileProfile.statLabelLineHeight,
+    color: figmaMobileProfile.statLabelColor,
+    textAlign: "center"
+  },
+  infoBody: {
+    gap: 2,
+    alignSelf: "stretch"
+  },
+  infoBioLine: {
+    fontSize: figmaMobileProfile.bioTextSize,
+    fontWeight: "500",
+    lineHeight: figmaMobileProfile.bioLineHeight,
+    color: figmaMobile.text
+  },
+  infoBioLink: {
+    color: figmaMobile.linkCyan,
     fontWeight: "500"
   },
-  categoryLineCompact: {
-    fontSize: 12
-  },
-  bioText: {
-    fontSize: 14,
-    color: colors.text,
-    lineHeight: 20,
-    marginTop: 4
-  },
-  bioTextCompact: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: 2
-  },
-  websiteRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 6,
-    alignSelf: "flex-start"
-  },
-  websiteText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: colors.accent,
-    flexShrink: 1
-  },
-  insightsCard: {
-    marginHorizontal: 16,
-    marginTop: 12,
-    padding: 14,
-    borderRadius: radii.panel,
-    backgroundColor: colors.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle,
-    ...Platform.select({
-      ios: {
-        shadowColor: colors.shadow,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 1,
-        shadowRadius: 10
-      },
-      android: { elevation: 1 }
-    })
-  },
-  insightsCardCompact: {
-    marginTop: 10,
-    padding: 12
-  },
-  insightsTitle: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: colors.muted,
-    textTransform: "uppercase",
-    letterSpacing: 1
-  },
-  insightsSub: {
-    fontSize: 14,
-    color: colors.text,
-    marginTop: 6,
-    lineHeight: 20,
-    letterSpacing: -0.2
-  },
-  insightsSubCompact: {
-    fontSize: 13,
-    marginTop: 4
-  },
-  ctaRow: {
-    flexDirection: "row",
-    gap: 10,
-    paddingHorizontal: 16,
-    marginTop: 14
-  },
-  ctaRowCompact: {
-    marginTop: 10,
-    gap: 8
-  },
-  ctaButton: {
-    borderRadius: radii.control,
-    paddingVertical: 13,
-    minHeight: 44,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  ctaButtonPrimary: {
-    backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.accent
-  },
-  ctaButtonGhost: {
-    backgroundColor: "transparent",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border
-  },
-  ctaButtonFlex: {
-    flex: 1
-  },
-  ctaButtonPrimaryText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.accent,
-    letterSpacing: -0.2
-  },
-  ctaButtonGhostText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.text,
-    letterSpacing: -0.2
-  },
   addBusinessBtn: {
-    marginHorizontal: 16,
-    marginTop: 10,
+    marginHorizontal: spacing.screenHorizontal,
+    marginTop: 12,
     paddingVertical: 10,
     alignItems: "center"
   },
   addBusinessText: {
     fontSize: 14,
     fontWeight: "600",
-    color: colors.accent,
+    color: figmaMobile.accentGold,
     letterSpacing: -0.2
   },
-  tabBar: {
+  profileTabRail: {
     flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "flex-start",
+    gap: figmaMobileProfile.contentTabGap,
+    marginTop: 24,
+    marginBottom: 4,
+    paddingHorizontal: figmaMobileProfile.heroPadH
+  },
+  profileTabRailCompact: {
     marginTop: 18,
-    marginHorizontal: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border
+    gap: 28
   },
-  tabBarCompact: {
-    marginTop: 14
+  profileTabHit: {
+    minWidth: 56,
+    paddingVertical: 6,
+    alignItems: "center"
   },
-  tabItem: {
-    flex: 1,
+  profileTabInner: {
     alignItems: "center",
-    paddingVertical: 10,
-    borderBottomWidth: 1.5,
-    borderBottomColor: "transparent"
+    gap: 6
   },
-  tabItemCompact: {
-    paddingVertical: 8
-  },
-  tabItemActive: {
-    borderBottomColor: colors.accent
-  },
-  tabInner: { alignItems: "center", gap: 4 },
-  tabLabel: {
-    fontSize: 12,
+  profileTabLabel: {
+    fontSize: figmaMobileProfile.contentTabLabelSize,
     fontWeight: "500",
-    color: colors.muted,
-    letterSpacing: 0
+    lineHeight: figmaMobileProfile.contentTabLabelLineHeight,
+    color: figmaMobileProfile.statLabelColor,
+    textAlign: "center"
   },
-  tabLabelCompact: {
-    fontSize: 11
+  profileTabLabelActive: {
+    color: figmaMobile.accentGold,
+    fontWeight: "500"
   },
-  tabLabelActive: {
-    color: colors.accent,
-    fontWeight: "600"
+  avatarWrap: {
+    position: "relative"
   },
-  grid: {
+  avatar: {
+    width: figmaMobileProfile.avatarSize,
+    height: figmaMobileProfile.avatarSize,
+    borderRadius: figmaMobileProfile.avatarRadius,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: figmaMobileProfile.pillBorder,
+    backgroundColor: "#FFFFFF"
+  },
+  avatarPlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF"
+  },
+  avatarLetter: {
+    fontSize: 36,
+    fontWeight: "700",
+    color: figmaMobile.avatarInitialInk
+  },
+  avatarBadge: {
+    position: "absolute",
+    right: -1,
+    bottom: -1,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: figmaMobile.canvas
+  },
+  avatarUploading: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: figmaMobileProfile.avatarRadius,
+    backgroundColor: figmaMobile.gradientBottom,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  avatarUploadingText: {
+    fontWeight: "700",
+    color: figmaMobile.text,
+    fontSize: 18
+  },
+  profileGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 1,
-    backgroundColor: colors.border
+    gap: figmaMobileProfile.gridGap,
+    paddingHorizontal: figmaMobileProfile.gridPadH,
+    paddingTop: 4,
+    backgroundColor: "transparent"
   },
   tile: {
     overflow: "hidden",
-    backgroundColor: colors.card
+    borderRadius: figmaMobileProfile.gridTileRadius,
+    backgroundColor: figmaMobileProfile.gridTileBg
   },
   tileImage: {
     width: "100%",
@@ -735,66 +716,72 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.surface,
+    backgroundColor: figmaMobileProfile.gridTileBg,
     paddingHorizontal: 6
   },
   tileFallbackVideo: {
-    backgroundColor: "#1f2937"
+    backgroundColor: figmaMobileProfile.gridTileBg
   },
   tileFallbackText: {
-    color: colors.muted,
+    color: figmaMobile.textMuted,
     fontSize: 11,
     fontWeight: "600",
     textAlign: "center"
   },
   tileBadge: {
     position: "absolute",
-    right: 6,
-    top: 6,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    right: 8,
+    top: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.9)"
+    backgroundColor: "rgba(0,0,0,0.52)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: figmaMobile.glassBorder
   },
   productTile: {
-    padding: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
     justifyContent: "center",
     alignItems: "stretch"
   },
   productTileTitle: {
     fontSize: 12,
     fontWeight: "700",
-    color: colors.text
+    color: figmaMobile.text,
+    letterSpacing: -0.1,
+    lineHeight: 16
   },
   productTilePrice: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
-    color: colors.accent,
-    marginTop: 6
+    color: figmaMobile.accentGold,
+    marginTop: 8,
+    letterSpacing: -0.05
   },
   productTileStatus: {
     fontSize: 10,
     fontWeight: "600",
-    color: colors.muted,
+    color: figmaMobile.textMuted,
     marginTop: 4,
     textTransform: "capitalize"
   },
   emptyGrid: {
     alignItems: "center",
-    paddingVertical: 40,
-    paddingHorizontal: 24,
-    gap: 8
+    paddingVertical: 44,
+    paddingHorizontal: spacing.breathing,
+    gap: 10
   },
   emptyGridTitle: {
     fontSize: 17,
     fontWeight: "700",
-    color: colors.text
+    color: figmaMobile.text
   },
   emptyGridSub: {
     fontSize: 14,
-    color: colors.muted,
+    color: figmaMobile.textMuted,
     textAlign: "center"
   }
 });

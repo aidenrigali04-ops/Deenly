@@ -22,7 +22,6 @@ import {
 } from "../../components/PostPublishSuccessOverlay";
 import { AccentSwitch } from "../../components/AccentSwitch";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BottomTabScreenProps, useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { CompositeScreenProps } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { ApiError, apiRequest } from "../../lib/api";
@@ -39,7 +38,7 @@ import {
   shouldShowExperimentPrompt,
   trackClientExperimentEvent
 } from "../../lib/experiments";
-import type { AppTabParamList, CreateTabStackParamList, RootStackParamList } from "../../navigation/AppNavigator";
+import type { CreateTabStackParamList, RootStackParamList } from "../../navigation/AppNavigator";
 import {
   CreateAppBar,
   FormCard,
@@ -65,7 +64,7 @@ type UploadSignatureResponse = {
 };
 type Props = CompositeScreenProps<
   NativeStackScreenProps<CreateTabStackParamList, "CreatePost">,
-  CompositeScreenProps<BottomTabScreenProps<AppTabParamList, "CreateTab">, NativeStackScreenProps<RootStackParamList>>
+  NativeStackScreenProps<RootStackParamList>
 >;
 
 function deriveMediaType(mimeType: string): "image" | "video" | null {
@@ -118,7 +117,6 @@ export function CreateScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { height: viewportHeight } = useWindowDimensions();
   const compact = viewportHeight <= 700;
-  const tabBarHeight = useBottomTabBarHeight();
   const [postType, setPostType] = useState<"post" | "marketplace" | "reel">("post");
   const [content, setContent] = useState("");
   const [tagsInput, setTagsInput] = useState("");

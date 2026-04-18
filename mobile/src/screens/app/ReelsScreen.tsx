@@ -8,16 +8,21 @@ import {
   useWindowDimensions,
   View
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
+import type { CompositeScreenProps } from "@react-navigation/native";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppVideoView } from "../../components/AppVideoView";
 import { apiRequest } from "../../lib/api";
 import { followUser, unfollowUser } from "../../lib/follows";
 import { resolveMediaUrl } from "../../lib/media-url";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
+import { figmaMobile, radii, spacing } from "../../theme";
 import type { FeedItem } from "../../types";
-import type { RootStackParamList } from "../../navigation/AppNavigator";
+import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 
 type FeedResponse = {
   items: FeedItem[];
@@ -25,7 +30,14 @@ type FeedResponse = {
   hasMore?: boolean;
 };
 
-type Props = NativeStackScreenProps<RootStackParamList, "Reels">;
+type Props = CompositeScreenProps<
+  BottomTabScreenProps<AppTabParamList, "ReelsTab">,
+  NativeStackScreenProps<RootStackParamList>
+>;
+
+const ICON = 22;
+const RAIL_ICON = 26;
+const SCRIM_HEIGHT_RATIO = 0.42;
 
 function ReelRow({
   item,
@@ -53,6 +65,7 @@ function ReelRow({
   const uri = resolveMediaUrl(item.media_url) || undefined;
   const following = Boolean(item.is_following_author);
   const liked = Boolean(item.liked_by_viewer);
+  const scrimH = Math.max(160, height * SCRIM_HEIGHT_RATIO);
 
   return (
     <View style={[styles.slide, { height }]}>
@@ -60,7 +73,7 @@ function ReelRow({
         <AppVideoView
           uri={uri}
           style={StyleSheet.absoluteFillObject}
-          contentFit="contain"
+          contentFit="cover"
           loop
           play={active}
           muted={muted}
@@ -70,7 +83,13 @@ function ReelRow({
           <Text style={styles.noVideoText}>No video</Text>
         </View>
       )}
-      <View style={[styles.overlay, { paddingBottom: bottomPad + 16 }]}>
+      <LinearGradient
+        pointerEvents="none"
+        colors={["transparent", figmaMobile.gradientBottom]}
+        locations={[0.15, 1]}
+        style={[styles.bottomScrim, { height: scrimH }]}
+      />
+      <View style={[styles.overlay, { paddingBottom: bottomPad + spacing.tight }]} pointerEvents="box-none">
         <View style={styles.overlayRow}>
           <View style={styles.captionBlock}>
             <Text style={styles.author} numberOfLines={1}>
@@ -80,23 +99,44 @@ function ReelRow({
               {item.content}
             </Text>
           </View>
-          <View style={styles.actions}>
+          <View style={styles.actions} accessibilityRole="toolbar">
             <Pressable
-              style={styles.actionBtn}
+              style={({ pressed }) => [styles.railBtn, pressed && styles.railBtnPressed]}
               onPress={onLike}
               disabled={likeBusy}
+              accessibilityRole="button"
+              accessibilityLabel={liked ? "Unlike" : "Like"}
             >
-              <Text style={styles.actionBtnText}>{liked ? "Liked" : "Like"}</Text>
+              <Ionicons
+                name={liked ? "heart" : "heart-outline"}
+                size={RAIL_ICON}
+                color={liked ? figmaMobile.accentGold : figmaMobile.text}
+              />
             </Pressable>
             <Pressable
-              style={styles.actionBtn}
+              style={({ pressed }) => [styles.railBtn, pressed && styles.railBtnPressed]}
               onPress={onFollow}
               disabled={followBusy}
+              accessibilityRole="button"
+              accessibilityLabel={following ? "Unfollow author" : "Follow author"}
             >
-              <Text style={styles.actionBtnText}>{following ? "Following" : "Follow"}</Text>
+              <Ionicons
+                name={following ? "checkmark-circle" : "person-add-outline"}
+                size={RAIL_ICON}
+                color={figmaMobile.text}
+              />
             </Pressable>
-            <Pressable style={styles.actionBtn} onPress={onToggleMute}>
-              <Text style={styles.actionBtnText}>{muted ? "Unmute" : "Mute"}</Text>
+            <Pressable
+              style={({ pressed }) => [styles.railBtn, pressed && styles.railBtnPressed]}
+              onPress={onToggleMute}
+              accessibilityRole="button"
+              accessibilityLabel={muted ? "Unmute" : "Mute"}
+            >
+              <Ionicons
+                name={muted ? "volume-mute" : "volume-medium"}
+                size={RAIL_ICON}
+                color={figmaMobile.text}
+              />
             </Pressable>
           </View>
         </View>
@@ -196,26 +236,47 @@ export function ReelsScreen({ navigation }: Props) {
 
   return (
     <View style={styles.root}>
-      <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
-        <Pressable style={styles.topBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.topBtnText}>Back</Text>
+      <View style={[styles.topBar, { paddingTop: insets.top + 4 }]}>
+        <Pressable
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate("HomeTab");
+            }
+          }}
+          style={({ pressed }) => [styles.iconWell, pressed && styles.iconWellPressed]}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <Ionicons name="chevron-back" size={ICON + 2} color={figmaMobile.text} />
         </Pressable>
-        <Pressable style={styles.topBtn} onPress={() => navigation.navigate("AppTabs", { screen: "CreateTab" })}>
-          <Text style={styles.topBtnText}>New reel</Text>
+        <Pressable
+          onPress={() => navigation.navigate("CreateFlow", { screen: "CreateHub" })}
+          style={({ pressed }) => [styles.iconWell, pressed && styles.iconWellPressed]}
+          accessibilityRole="button"
+          accessibilityLabel="New reel"
+        >
+          <Ionicons name="add-circle-outline" size={ICON} color={figmaMobile.text} />
         </Pressable>
       </View>
 
-      {feedQuery.isLoading ? <LoadingState label="Loading reels..." /> : null}
+      {feedQuery.isLoading ? <LoadingState label="Loading reels..." surface="dark" /> : null}
       {feedQuery.error ? (
         <ErrorState
           message={(feedQuery.error as Error).message}
           onRetry={() => feedQuery.refetch()}
+          surface="dark"
         />
       ) : null}
 
       {!feedQuery.isLoading && !feedQuery.error && items.length === 0 ? (
         <View style={styles.emptyWrap}>
-          <EmptyState title="No reels yet" subtitle="Create a reel from the Upload + tab (choose Reel)." />
+          <EmptyState
+            title="No reels yet"
+            subtitle="Create a reel from the Upload + tab (choose Reel)."
+            surface="dark"
+          />
         </View>
       ) : null}
 
@@ -248,7 +309,7 @@ export function ReelsScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#000"
+    backgroundColor: figmaMobile.canvas
   },
   list: {
     flex: 1
@@ -261,85 +322,98 @@ const styles = StyleSheet.create({
     zIndex: 10,
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingHorizontal: 12,
-    gap: 8
+    alignItems: "center",
+    paddingHorizontal: spacing.pagePaddingH,
+    gap: spacing.tight
   },
-  topBtn: {
-    backgroundColor: "rgba(255,255,255,0.15)",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999
+  iconWell: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: figmaMobile.glassSoft,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: figmaMobile.glassBorderSoft,
+    alignItems: "center",
+    justifyContent: "center"
   },
-  topBtnText: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "600"
+  iconWellPressed: {
+    opacity: 0.85
   },
   slide: {
     width: "100%",
-    backgroundColor: "#000"
+    backgroundColor: figmaMobile.canvas
   },
   noVideo: {
     flex: 1,
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
+    backgroundColor: figmaMobile.mediaSurface
   },
   noVideoText: {
-    color: "rgba(255,255,255,0.6)",
+    color: figmaMobile.textMuted,
     fontSize: 14
+  },
+  bottomScrim: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0
   },
   overlay: {
     position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,
-    paddingHorizontal: 16,
-    paddingTop: 48,
+    paddingHorizontal: spacing.pagePaddingH,
+    paddingTop: 40,
     backgroundColor: "transparent"
   },
   overlayRow: {
     flexDirection: "row",
     alignItems: "flex-end",
     justifyContent: "space-between",
-    gap: 12
+    gap: spacing.tight
   },
   captionBlock: {
     flex: 1,
     minWidth: 0
   },
   author: {
-    color: "#fff",
+    color: figmaMobile.text,
     fontWeight: "700",
-    fontSize: 14,
-    textShadowColor: "rgba(0,0,0,0.5)",
+    fontSize: 15,
+    textShadowColor: figmaMobile.gradientTop,
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2
+    textShadowRadius: 3
   },
   caption: {
     marginTop: 6,
-    color: "rgba(255,255,255,0.92)",
-    fontSize: 13,
-    textShadowColor: "rgba(0,0,0,0.5)",
+    color: figmaMobile.textSecondary,
+    fontSize: 14,
+    lineHeight: 20,
+    textShadowColor: figmaMobile.gradientTop,
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2
+    textShadowRadius: 3
   },
   actions: {
-    gap: 8
+    gap: 10
   },
-  actionBtn: {
-    backgroundColor: "rgba(255,255,255,0.15)",
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 999
+  railBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: radii.pill,
+    backgroundColor: figmaMobile.glassSoft,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: figmaMobile.glassBorderSoft,
+    alignItems: "center",
+    justifyContent: "center"
   },
-  actionBtnText: {
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: "600"
+  railBtnPressed: {
+    opacity: 0.88
   },
   emptyWrap: {
     flex: 1,
-    padding: 24,
+    padding: spacing.breathing,
     justifyContent: "center"
   }
 });

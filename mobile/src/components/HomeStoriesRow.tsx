@@ -1,19 +1,18 @@
-import { LinearGradient } from "expo-linear-gradient";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { figmaMobile } from "../theme";
 
 const storySeeds = [
   { id: "my-story", label: "Your story", initials: "+", isOwn: true },
-  { id: "s1", label: "QuranDaily", initials: "QD", isOwn: false },
-  { id: "s2", label: "UpliftHub", initials: "UH", isOwn: false },
-  { id: "s3", label: "SunnahPath", initials: "SP", isOwn: false },
-  { id: "s4", label: "MercyNotes", initials: "MN", isOwn: false }
+  { id: "s1", label: "Name 1", initials: "QD", isOwn: false },
+  { id: "s2", label: "Name 2", initials: "UH", isOwn: false },
+  { id: "s3", label: "Name 3", initials: "SP", isOwn: false },
+  { id: "s4", label: "Name 4", initials: "MN", isOwn: false }
 ];
 
-/** Circle sizes — subtle Instagram-style story indicator */
-const RING_OUTER = 68;
-const RING_BORDER = 2;
-const RING_GAP = 1;
-const AVATAR_SIZE = 62;
+/** Figma home — 70px story rings on dark canvas */
+const RING_OUTER = 70;
+const AVATAR_SIZE = 64;
 
 export function HomeStoriesRow() {
   return (
@@ -31,26 +30,24 @@ export function HomeStoriesRow() {
             accessibilityLabel={story.label}
           >
             {story.isOwn ? (
-              /* Add-story circle: dashed border with "+" */
               <View style={styles.addRing}>
                 <Text style={styles.addPlus}>+</Text>
               </View>
             ) : (
-              /* Other stories: gradient ring (warm pink-to-yellow) */
-              <LinearGradient
-                colors={["#F5C842", "#E8608A", "#C084FC"]}
-                start={{ x: 0, y: 1 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.gradientRing}
-              >
+              <View style={styles.storyRing}>
                 <View style={styles.avatarInner}>
                   <Text style={styles.initials}>{story.initials}</Text>
                 </View>
-              </LinearGradient>
+              </View>
             )}
-            <Text style={styles.label} numberOfLines={1} ellipsizeMode="tail">
-              {story.label}
-            </Text>
+            <View style={styles.labelRow}>
+              <Text style={styles.label} numberOfLines={1} ellipsizeMode="tail">
+                {story.label}
+              </Text>
+              {!story.isOwn ? (
+                <Ionicons name="checkmark-circle" size={12} color={figmaMobile.text} />
+              ) : null}
+            </View>
           </Pressable>
         ))}
       </ScrollView>
@@ -60,69 +57,72 @@ export function HomeStoriesRow() {
 
 const styles = StyleSheet.create({
   section: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2
+    backgroundColor: "transparent",
+    paddingVertical: 4,
+    paddingHorizontal: 0
   },
   row: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 12
+    gap: 8
   },
   chip: {
     alignItems: "center",
-    width: 76
+    width: 78
   },
   addRing: {
     width: RING_OUTER,
     height: RING_OUTER,
     borderRadius: RING_OUTER / 2,
-    borderWidth: 2,
-    borderColor: "#8A8480",
-    borderStyle: "dashed",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: figmaMobile.glassBorder,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FFFFFF"
+    backgroundColor: figmaMobile.glassSoft
   },
   addPlus: {
     fontSize: 28,
     fontWeight: "300",
-    color: "#8A8480",
+    color: figmaMobile.text,
     marginTop: -1
   },
-  gradientRing: {
+  storyRing: {
     width: RING_OUTER,
     height: RING_OUTER,
     borderRadius: RING_OUTER / 2,
     padding: (RING_OUTER - AVATAR_SIZE) / 2,
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
+    backgroundColor: figmaMobile.text,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.92)"
   },
   avatarInner: {
     width: AVATAR_SIZE,
     height: AVATAR_SIZE,
     borderRadius: AVATAR_SIZE / 2,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: figmaMobile.text,
     alignItems: "center",
     justifyContent: "center"
   },
   initials: {
-    color: "#0F0E0D",
+    color: figmaMobile.avatarInitialInk,
     fontSize: 15,
     fontWeight: "600"
   },
   label: {
-    marginTop: 6,
-    maxWidth: 72,
-    fontSize: 11,
-    color: "#8A8480",
+    maxWidth: 62,
+    fontSize: 12,
+    color: figmaMobile.text,
     textAlign: "center",
     fontWeight: "500"
+  },
+  labelRow: {
+    marginTop: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+    maxWidth: 76
   }
 });

@@ -1,4 +1,5 @@
 import type {
+  ReferralCodePeekResponse,
   ReferralsMeResponse,
   ReferralShareRecordedResponse,
   RewardsLedgerPageResponse,
@@ -27,6 +28,12 @@ export async function fetchRewardsLedgerPage(params?: {
 
 export async function fetchReferralsMe(): Promise<ReferralsMeResponse> {
   return apiRequest<ReferralsMeResponse>("/referrals/me", { auth: true });
+}
+
+export async function fetchReferralCodePreview(code: string): Promise<ReferralCodePeekResponse> {
+  const sp = new URLSearchParams();
+  sp.set("code", code);
+  return apiRequest<ReferralCodePeekResponse>(`/referrals/code-preview?${sp.toString()}`, { auth: false });
 }
 
 export async function postReferralShareRecorded(body?: { surface?: string }): Promise<ReferralShareRecordedResponse> {

@@ -31,7 +31,7 @@ function LedgerBlock({ row }: { row: RewardsLedgerEntryDto }) {
   let tone = colors.text;
   try {
     const n = BigInt(row.deltaPoints);
-    if (n > 0n) tone = "#065f46";
+    if (n > 0n) tone = colors.success;
     else if (n < 0n) tone = colors.danger;
   } catch {
     /* ignore */

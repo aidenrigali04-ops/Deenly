@@ -9,8 +9,10 @@ import {
   useWindowDimensions
 } from "react-native";
 import { useEffect, useState } from "react";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import { AppVideoView } from "./AppVideoView";
-import { colors, primaryButtonOutline, radii, shadows, spacing, type } from "../theme";
+import { colors, figmaMobile, figmaMobileHome, primaryButtonOutline, radii, spacing } from "../theme";
 import { resolveMediaUrl } from "../lib/media-url";
 import type { FeedItem } from "../types";
 import { formatMinorCurrency } from "../lib/monetization";
@@ -28,6 +30,23 @@ export function formatFeedTimestamp(iso: string) {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+/** Figma home card secondary line — “45 minutes ago” under 7d, then short date */
+export function formatHomeRelativeTime(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const diffMs = Date.now() - d.getTime();
+  if (diffMs < 0) return formatFeedTimestamp(iso);
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 45) return "Just now";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} ${min === 1 ? "minute" : "minutes"} ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} ${hr === 1 ? "hour" : "hours"} ago`;
+  const days = Math.floor(hr / 24);
+  if (days < 7) return `${days} ${days === 1 ? "day" : "days"} ago`;
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
 export function isImageMedia(item: FeedItem) {
   if (item.media_mime_type?.startsWith("image/")) {
     return true;
@@ -36,6 +55,22 @@ export function isImageMedia(item: FeedItem) {
     return false;
   }
   return /\.(png|jpe?g|gif|webp|bmp|heic)$/i.test(item.media_url);
+}
+
+/** Figma-style compact counts (e.g. 1.2K, 12M) */
+export function formatEngagementCount(n: number): string {
+  const abs = Math.max(0, Math.floor(Number.isFinite(n) ? n : 0));
+  if (abs >= 1_000_000) {
+    const v = abs / 1_000_000;
+    const s = v >= 10 ? String(Math.round(v)) : v.toFixed(1).replace(/\.0$/, "");
+    return `${s}M`;
+  }
+  if (abs >= 1000) {
+    const v = abs / 1000;
+    const s = v >= 100 ? String(Math.round(v)) : v.toFixed(1).replace(/\.0$/, "");
+    return `${s}K`;
+  }
+  return String(abs);
 }
 
 export function PostCard({
@@ -51,7 +86,8 @@ export function PostCard({
   followBusy = false,
   /** When false, video is paused and muted (e.g. off-screen in feed). Default true. */
   mediaPlaybackActive = true,
-  onOpenPost
+  onOpenPost,
+  onPostMenu
 }: {
   item: FeedItem;
   onLike?: () => void;
@@ -66,6 +102,8 @@ export function PostCard({
   mediaPlaybackActive?: boolean;
   /** Open full post (e.g. comments) */
   onOpenPost?: () => void;
+  /** Ellipsis — follow / share live in parent (e.g. Alert) */
+  onPostMenu?: () => void;
 }) {
   const { height: viewportHeight } = useWindowDimensions();
   const compact = viewportHeight <= 700;
@@ -91,175 +129,196 @@ export function PostCard({
   }, [item.liked_by_viewer, item.benefited_count]);
 
   if (layout === "home") {
-    const typeLabel =
-      item.post_type === "marketplace" ? "Marketplace" : item.post_type === "reel" ? "Reel" : "Post";
-    const metaLine = [
-      item.sponsored ? item.sponsored_label || "Sponsored" : null,
-      typeLabel,
-      formatFeedTimestamp(item.created_at)
-    ]
-      .filter(Boolean)
-      .join(" · ");
+    const timeLine = item.sponsored
+      ? [item.sponsored_label || "Sponsored", formatHomeRelativeTime(item.created_at)].filter(Boolean).join(" · ")
+      : formatHomeRelativeTime(item.created_at);
+
+    const tags = item.tags?.length ? item.tags.slice(0, 8) : [];
 
     return (
-      <View style={[styles.homeCard, compact && styles.homeCardCompact]}>
-        <View style={[styles.homeHeader, compact && styles.homeHeaderCompact]}>
-          <View style={styles.homeAuthorRow}>
-            <View style={styles.homeAvatar}>
-              {authorAvatarUri ? (
-                <Image source={{ uri: authorAvatarUri }} style={styles.homeAvatarImage} resizeMode="cover" />
-              ) : (
-                <Text style={styles.homeAvatarText}>{initials || "U"}</Text>
-              )}
+      <View style={[styles.homeCardShell, compact && styles.homeCardShellCompact]}>
+        <View style={styles.homeCardBase} />
+        <LinearGradient
+          colors={[figmaMobile.gradientTop, "transparent"]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={styles.homeScrimTop}
+          pointerEvents="none"
+        />
+        <LinearGradient
+          colors={["transparent", figmaMobile.gradientBottom]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={styles.homeScrimBottom}
+          pointerEvents="none"
+        />
+        <View style={styles.homeCardForeground}>
+          <View style={[styles.homeHeader, compact && styles.homeHeaderCompact]}>
+            <View style={[styles.homeAuthorRow, styles.homeAuthorPill]}>
+              <View style={styles.homeAvatar}>
+                {authorAvatarUri ? (
+                  <Image source={{ uri: authorAvatarUri }} style={styles.homeAvatarImage} resizeMode="cover" />
+                ) : (
+                  <Text style={styles.homeAvatarText}>{initials || "U"}</Text>
+                )}
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.homeAuthor} numberOfLines={1}>
+                  {item.author_display_name}
+                </Text>
+                <Text style={styles.homeSubtle} numberOfLines={1}>
+                  {timeLine}
+                </Text>
+              </View>
             </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.homeAuthor} numberOfLines={1}>
-                {item.author_display_name}
-              </Text>
-              <Text style={styles.homeSubtle} numberOfLines={1}>
-                {metaLine}
-              </Text>
-            </View>
+            {onPostMenu ? (
+              <Pressable
+                style={({ pressed }) => [styles.homeMenuBtn, pressed && styles.homeMenuBtnPressed]}
+                onPress={onPostMenu}
+                accessibilityRole="button"
+                accessibilityLabel="Post options"
+              >
+                <Ionicons name="ellipsis-horizontal" size={22} color={figmaMobile.text} />
+              </Pressable>
+            ) : null}
           </View>
-          {onToggleFollow ? (
+
+          {canRenderMedia ? (
+            isImageMedia(item) ? (
+              <Image
+                source={{ uri: mediaUri }}
+                style={styles.homeMedia}
+                resizeMode="cover"
+                onError={() => setMediaFailed(true)}
+              />
+            ) : (
+              <AppVideoView
+                uri={mediaUri!}
+                style={styles.homeMedia}
+                contentFit="cover"
+                nativeControls
+                loop={false}
+                play={mediaPlaybackActive}
+                muted={!mediaPlaybackActive}
+                onError={() => setMediaFailed(true)}
+              />
+            )
+          ) : (
+            <View style={styles.homeMediaPlaceholder}>
+              <Text style={styles.homeMediaPlaceholderText}>
+                {item.media_url ? "Media unavailable right now." : "No media on this post yet."}
+              </Text>
+            </View>
+          )}
+
+          <View style={[styles.homeCaptionWrap, compact && styles.homeCaptionWrapCompact]}>
+            {item.attached_product_id ? (
+              <View style={styles.monetizationChip}>
+                <Text style={styles.monetizationChipText}>
+                  {item.attached_product_title || "Creator product"} ·{" "}
+                  {formatMinorCurrency(
+                    Number(item.attached_product_price_minor || 0),
+                    item.attached_product_currency || "usd"
+                  )}
+                </Text>
+              </View>
+            ) : null}
+            <Text style={styles.homeCaption}>{item.content}</Text>
+            {item.audience_target ? (
+              <Text style={[styles.homeMetaText, compact && styles.homeMetaTextCompact]}>
+                {item.audience_target === "b2b"
+                  ? "B2B"
+                  : item.audience_target === "b2c"
+                    ? "B2C"
+                    : "B2B/B2C"}
+                {item.business_category ? ` - ${item.business_category.replace(/_/g, " ")}` : ""}
+              </Text>
+            ) : null}
+            {tags.length > 0 ? (
+              <Text style={styles.homeTagsWrap} numberOfLines={4}>
+                {tags.map((tag, i) => (
+                  <Text key={`${tag}-${i}`} style={styles.homeTagSegment}>
+                    #{tag}
+                    {i < tags.length - 1 ? " " : ""}
+                  </Text>
+                ))}
+              </Text>
+            ) : null}
+            {item.attached_product_id ? (
+              <View style={styles.productCtaRow}>
+                <Pressable
+                  style={[styles.homeButtonSecondary, styles.productCtaHalf]}
+                  onPress={() => {
+                    void hapticTap();
+                    onViewOffer?.(item.attached_product_id as number);
+                  }}
+                >
+                  <Text style={styles.homeButtonText}>View offer</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.homeButtonPrimary, styles.productCtaHalf, buyBusy && styles.buttonDisabled]}
+                  onPress={() => {
+                    void hapticPrimary();
+                    onBuyNow?.(item.attached_product_id as number);
+                  }}
+                  disabled={buyBusy}
+                >
+                  <Text style={styles.homeButtonPrimaryText}>
+                    {buyHandoffProductId === item.attached_product_id
+                      ? "Securely opening..."
+                      : buyBusy
+                        ? "Opening..."
+                        : "Buy now"}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
+          </View>
+
+          <View style={[styles.homeEngageIcons, compact && styles.homeEngageIconsCompact]}>
             <Pressable
-              style={[styles.followPill, compact && styles.followPillCompact]}
-              onPress={() => onToggleFollow(item.author_id, isFollowing)}
-              disabled={followBusy}
+              style={styles.engageIconBtn}
+              onPress={() => {
+                const next = !liked;
+                setLiked(next);
+                setBenefitedCount((value) => Math.max(0, value + (next ? 1 : -1)));
+                onLike?.();
+              }}
+              disabled={liking}
+              accessibilityRole="button"
+              accessibilityLabel={liked ? "Unlike" : "Like"}
             >
-              <Text style={[styles.followPillText, compact && styles.followPillTextCompact]}>
-                {followBusy ? "…" : isFollowing ? "Following" : "Follow"}
+              <Ionicons
+                name={liked ? "heart" : "heart-outline"}
+                size={figmaMobileHome.engageIconSize}
+                color={liked ? figmaMobile.accentGold : figmaMobile.text}
+              />
+              <Text style={[styles.engageCount, liked && styles.engageCountActive]}>
+                {formatEngagementCount(benefitedCount)}
               </Text>
             </Pressable>
-          ) : null}
-        </View>
-
-        {canRenderMedia ? (
-          isImageMedia(item) ? (
-            <Image
-              source={{ uri: mediaUri }}
-              style={styles.homeMedia}
-              resizeMode="contain"
-              onError={() => setMediaFailed(true)}
-            />
-          ) : (
-            <AppVideoView
-              uri={mediaUri!}
-              style={styles.homeMedia}
-              contentFit="contain"
-              nativeControls
-              loop={false}
-              play={mediaPlaybackActive}
-              muted={!mediaPlaybackActive}
-              onError={() => setMediaFailed(true)}
-            />
-          )
-        ) : (
-          <View style={styles.homeMediaPlaceholder}>
-            <Text style={styles.muted}>
-              {item.media_url ? "Media unavailable right now." : "No media on this post yet."}
-            </Text>
-          </View>
-        )}
-
-        <View style={[styles.homeEngageRow, compact && styles.homeEngageRowCompact]}>
-          <Pressable
-            style={styles.engageBtn}
-            onPress={() => {
-              const next = !liked;
-              setLiked(next);
-              setBenefitedCount((value) => Math.max(0, value + (next ? 1 : -1)));
-              onLike?.();
-            }}
-            disabled={liking}
-          >
-            <Text style={[styles.engageBtnText, liked && styles.engageBtnTextActive]}>
-              {liked ? "Helpful" : "Mark helpful"}
-            </Text>
-          </Pressable>
-          <Pressable style={styles.engageBtn} onPress={() => onOpenPost?.()} disabled={!onOpenPost}>
-            <Text style={[styles.engageBtnText, !onOpenPost && styles.engageBtnTextDisabled]}>
-              {item.comment_count || 0} comments
-            </Text>
-          </Pressable>
-          <Pressable
-            style={styles.engageBtn}
-            onPress={() => {
-              void Share.share({
-                message: `${item.author_display_name} on Deenly\n${(item.content || "").slice(0, 280)}`
-              });
-            }}
-          >
-            <Text style={styles.engageBtnText}>Share</Text>
-          </Pressable>
-          <Pressable style={styles.engageBtn} onPress={() => void hapticTap()}>
-            <Text style={styles.engageBtnText}>Save</Text>
-          </Pressable>
-        </View>
-        <View style={styles.homeHelpfulMeta}>
-          <Text style={styles.homeHelpfulMetaText}>
-            {benefitedCount} marked helpful
-          </Text>
-        </View>
-
-        <View style={[styles.homeCaptionWrap, compact && styles.homeCaptionWrapCompact]}>
-          {item.attached_product_id ? (
-            <View style={styles.monetizationChip}>
-              <Text style={styles.monetizationChipText}>
-                {item.attached_product_title || "Creator product"} ·{" "}
-                {formatMinorCurrency(
-                  Number(item.attached_product_price_minor || 0),
-                  item.attached_product_currency || "usd"
-                )}
+            <Pressable
+              style={styles.engageIconBtn}
+              onPress={() => onOpenPost?.()}
+              disabled={!onOpenPost}
+              accessibilityRole="button"
+              accessibilityLabel="Comments"
+            >
+              <Ionicons name="chatbubble-outline" size={figmaMobileHome.engageIconSize} color={figmaMobile.text} />
+              <Text style={[styles.engageCount, !onOpenPost && styles.engageBtnTextDisabled]}>
+                {formatEngagementCount(item.comment_count || 0)}
               </Text>
-            </View>
-          ) : null}
-          <Text style={styles.content}>
-            <Text style={styles.captionAuthor}>{item.author_display_name} </Text>
-            {item.content}
-          </Text>
-          {item.audience_target ? (
-            <Text style={[styles.homeMetaText, compact && styles.homeMetaTextCompact]}>
-              {item.audience_target === "b2b"
-                ? "B2B"
-                : item.audience_target === "b2c"
-                  ? "B2C"
-                  : "B2B/B2C"}
-              {item.business_category ? ` - ${item.business_category.replace(/_/g, " ")}` : ""}
-            </Text>
-          ) : null}
-          {item.tags?.length ? (
-            <Text style={[styles.homeMetaText, compact && styles.homeMetaTextCompact]}>#{item.tags.slice(0, 3).join(" #")}</Text>
-          ) : null}
-          {item.attached_product_id ? (
-            <View style={styles.productCtaRow}>
-              <Pressable
-                style={[styles.buttonSecondary, styles.productCtaHalf]}
-                onPress={() => {
-                  void hapticTap();
-                  onViewOffer?.(item.attached_product_id as number);
-                }}
-              >
-                <Text style={styles.buttonText}>View offer</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.buttonPrimary, styles.productCtaHalf, buyBusy && styles.buttonDisabled]}
-                onPress={() => {
-                  void hapticPrimary();
-                  onBuyNow?.(item.attached_product_id as number);
-                }}
-                disabled={buyBusy}
-              >
-                <Text style={styles.buttonPrimaryText}>
-                  {buyHandoffProductId === item.attached_product_id
-                    ? "Securely opening..."
-                    : buyBusy
-                      ? "Opening..."
-                      : "Buy now"}
-                </Text>
-              </Pressable>
-            </View>
-          ) : null}
+            </Pressable>
+            <Pressable
+              style={styles.engageIconBtn}
+              onPress={() => void hapticTap()}
+              accessibilityRole="button"
+              accessibilityLabel="Save"
+            >
+              <Ionicons name="bookmark-outline" size={figmaMobileHome.engageIconSize} color={figmaMobile.text} />
+              <Text style={styles.engageCount}>{formatEngagementCount(item.reflect_later_count || 0)}</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
     );
@@ -348,67 +407,102 @@ export function PostCard({
 }
 
 const styles = StyleSheet.create({
-  homeCard: {
-    backgroundColor: colors.card,
-    borderColor: colors.border,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radii.card,
+  homeCardShell: {
+    borderRadius: figmaMobileHome.feedCardRadius,
     overflow: "hidden",
-    ...shadows.card
+    position: "relative"
   },
-  homeCardCompact: {
-    borderRadius: radii.card
+  homeCardShellCompact: {
+    borderRadius: figmaMobileHome.feedCardRadius
+  },
+  homeCardBase: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: figmaMobileHome.feedCardBg
+  },
+  homeScrimTop: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    height: `${Math.round(figmaMobileHome.scrimTopHeightRatio * 100)}%`,
+    minHeight: 96,
+    zIndex: 0
+  },
+  homeScrimBottom: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: `${Math.round(figmaMobileHome.scrimBottomHeightRatio * 100)}%`,
+    minHeight: 120,
+    zIndex: 0
+  },
+  homeCardForeground: {
+    position: "relative",
+    zIndex: 1
   },
   homeHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: spacing.cardPadding - 4,
-    paddingVertical: 12
+    paddingHorizontal: 20,
+    paddingTop: 19,
+    paddingBottom: 10,
+    gap: 10
   },
   homeHeaderCompact: {
-    paddingHorizontal: 12,
-    paddingVertical: 10
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 8
   },
-  followPill: {
-    borderColor: colors.border,
+  homeMenuBtn: {
+    width: figmaMobileHome.menuBtnSize,
+    height: figmaMobileHome.menuBtnSize,
+    borderRadius: figmaMobileHome.menuBtnRadius,
+    backgroundColor: figmaMobile.glass,
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radii.pill,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    minHeight: 34,
+    borderColor: figmaMobile.glassBorder,
+    alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.surface
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 8, height: 4 },
+        shadowOpacity: 0.06,
+        shadowRadius: 28
+      },
+      android: { elevation: 4 },
+      default: {}
+    })
   },
-  followPillCompact: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    minHeight: 32
-  },
-  followPillText: {
-    color: colors.text,
-    fontSize: type.meta.fontSize,
-    fontWeight: "600"
-  },
-  followPillTextCompact: {
-    fontSize: 12
+  homeMenuBtnPressed: {
+    opacity: 0.88
   },
   homeAuthorRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
     flex: 1,
     minWidth: 0
   },
-  homeAvatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 999,
-    borderColor: colors.border,
+  homeAuthorPill: {
+    backgroundColor: figmaMobile.glass,
     borderWidth: StyleSheet.hairlineWidth,
-    backgroundColor: colors.surface,
+    borderColor: figmaMobile.glassBorder,
+    borderRadius: figmaMobileHome.authorPillRadius,
+    paddingVertical: figmaMobileHome.authorPillPadV,
+    paddingLeft: figmaMobileHome.authorPillPadLeft,
+    paddingRight: figmaMobileHome.authorPillPadRight
+  },
+  homeAvatar: {
+    width: figmaMobileHome.authorAvatarSize,
+    height: figmaMobileHome.authorAvatarSize,
+    borderRadius: figmaMobileHome.authorAvatarSize / 2,
+    borderWidth: 0,
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
+    overflow: "hidden"
   },
   homeAvatarImage: {
     width: "100%",
@@ -416,103 +510,112 @@ const styles = StyleSheet.create({
     borderRadius: 999
   },
   homeAvatarText: {
-    color: colors.text,
-    fontSize: 13,
+    color: figmaMobile.avatarInitialInk,
+    fontSize: 15,
     fontWeight: "600"
   },
   homeAuthor: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: "600"
+    color: figmaMobile.text,
+    fontSize: figmaMobileHome.authorNameSize,
+    fontWeight: "500",
+    lineHeight: figmaMobileHome.authorNameLineHeight
   },
   homeSubtle: {
-    color: colors.mutedLight,
-    fontSize: 13,
+    color: figmaMobileHome.authorTimeColor,
+    fontSize: figmaMobileHome.authorTimeSize,
+    fontWeight: "400",
+    lineHeight: 16,
     marginTop: 2
   },
   homeMedia: {
     width: "100%",
     aspectRatio: 4 / 5,
-    backgroundColor: colors.background
+    backgroundColor: figmaMobile.mediaSurface
   },
   homeMediaPlaceholder: {
     width: "100%",
     aspectRatio: 4 / 5,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.background
+    backgroundColor: figmaMobile.mediaSurface
   },
-  homeEngageRow: {
+  homeMediaPlaceholderText: {
+    color: figmaMobile.textMuted,
+    fontSize: 13,
+    paddingHorizontal: 16,
+    textAlign: "center"
+  },
+  homeEngageIcons: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.cardPadding - 4,
-    paddingTop: 10,
-    paddingBottom: 4
+    paddingHorizontal: 24,
+    paddingTop: 6,
+    paddingBottom: 18,
+    gap: figmaMobileHome.engageRowGap
   },
-  homeEngageRowCompact: {
-    paddingHorizontal: 12,
-    paddingTop: 8
+  homeEngageIconsCompact: {
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    gap: 28
   },
-  engageBtn: {
-    flex: 1,
+  engageIconBtn: {
+    flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 8
+    gap: 4,
+    minHeight: 44,
+    paddingVertical: 4
   },
-  engageBtnText: {
-    ...type.meta,
-    color: colors.text,
-    fontWeight: "600"
+  engageCount: {
+    fontSize: figmaMobileHome.engageCountSize,
+    lineHeight: figmaMobileHome.engageCountLineHeight,
+    color: figmaMobile.text,
+    fontWeight: "500"
   },
-  engageBtnTextActive: {
-    color: colors.accent
+  engageCountActive: {
+    color: figmaMobile.accentGold
   },
   engageBtnTextDisabled: {
     opacity: 0.45
   },
-  homeHelpfulMeta: {
-    paddingHorizontal: spacing.cardPadding - 4,
-    paddingBottom: 4
-  },
-  homeHelpfulMetaText: {
-    fontSize: 12,
-    color: colors.mutedLight
-  },
   homeCaptionWrap: {
-    paddingHorizontal: spacing.cardPadding - 4,
+    paddingHorizontal: 20,
     paddingTop: 10,
-    paddingBottom: spacing.cardPadding,
+    paddingBottom: 4,
     gap: 6
   },
   homeCaptionWrapCompact: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: 12,
+    paddingBottom: 4,
     gap: 4
   },
-  captionAuthor: {
-    color: colors.text,
-    fontSize: 16,
+  homeTagsWrap: {
+    fontSize: 13,
+    lineHeight: 19,
+    flexWrap: "wrap"
+  },
+  homeTagSegment: {
+    color: figmaMobile.accentGold,
     fontWeight: "600"
   },
   homeMetaText: {
-    color: colors.muted,
+    color: figmaMobile.textMuted,
     fontSize: 12
   },
   homeMetaTextCompact: {
     fontSize: 11
   },
   monetizationChip: {
-    borderColor: colors.border,
-    borderWidth: 1,
+    borderColor: figmaMobile.glassBorder,
+    borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 4,
     alignSelf: "flex-start",
-    backgroundColor: colors.surface
+    backgroundColor: figmaMobile.glassSoft
   },
   monetizationChipText: {
-    color: colors.text,
+    color: figmaMobile.text,
     fontSize: 11,
     fontWeight: "600"
   },
@@ -549,6 +652,12 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5
   },
+  homeCaption: {
+    color: figmaMobile.text,
+    fontSize: figmaMobileHome.captionSize,
+    fontWeight: "400",
+    lineHeight: figmaMobileHome.captionLineHeight
+  },
   content: {
     color: colors.text,
     fontSize: 14,
@@ -580,6 +689,30 @@ const styles = StyleSheet.create({
   productCtaHalf: {
     flex: 1,
     alignItems: "center"
+  },
+  homeButtonSecondary: {
+    borderColor: figmaMobile.glassBorder,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.control,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: figmaMobile.glassSoft
+  },
+  homeButtonText: {
+    color: figmaMobile.text,
+    fontWeight: "600"
+  },
+  homeButtonPrimary: {
+    borderRadius: radii.button,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: figmaMobile.brandTeal,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  homeButtonPrimaryText: {
+    color: colors.onAccent,
+    fontWeight: "600"
   },
   buttonSecondary: {
     borderColor: colors.border,

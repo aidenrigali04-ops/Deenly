@@ -39,8 +39,7 @@
 }
 
 body {
-  @apply bg-background font-sans text-text antialiased;
-  font-feature-settings: "liga" 1, "kern" 1;
+  @apply bg-background text-text antialiased;
 }
 
 a {
@@ -573,105 +572,4 @@ a {
 
 .profile-feed-card-like-count {
   @apply tabular-nums text-[11px] text-muted;
-}
-
-/* —— Social shell (Figma “Social Media App UI”) —— */
-.social-shell {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-.social-shell .surface-card {
-  border-color: rgb(255 255 255 / 0.12);
-  background: rgb(255 255 255 / 0.06);
-  color: #fff;
-  box-shadow: none;
-}
-
-.social-shell .surface-card .text-text {
-  color: rgb(255 255 255 / 0.96);
-}
-
-.social-shell .text-muted {
-  color: rgb(255 255 255 / 0.65);
-}
-
-.social-shell .btn-secondary {
-  border-color: rgb(255 255 255 / 0.18);
-  background: rgb(255 255 255 / 0.06);
-  color: #fff;
-}
-
-.social-shell .btn-secondary:hover {
-  background: rgb(255 255 255 / 0.1);
-  color: #fff;
-}
-
-.social-shell .input {
-  border-color: rgb(255 255 255 / 0.15);
-  background: rgb(0 0 0 / 0.35);
-  color: #fff;
-}
-
-.social-shell .messages-shell {
-  border-color: rgb(255 255 255 / 0.12);
-  background: rgb(255 255 255 / 0.04);
-}
-
-.social-shell .messages-sidebar {
-  border-color: rgb(255 255 255 / 0.1);
-  background: rgb(0 0 0 / 0.25);
-}
-
-.social-shell .messages-sidebar-header,
-.social-shell .messages-thread-header,
-.social-shell .messages-composer {
-  border-color: rgb(255 255 255 / 0.1);
-}
-
-.social-shell .messages-thread-shell {
-  background: rgb(0 0 0 / 0.2);
-}
-
-.social-shell .messages-thread-body {
-  background: rgb(0 0 0 / 0.15);
-}
-
-.social-shell .messages-conversation-item-active {
-  border-color: rgb(255 255 255 / 0.15);
-  background: rgb(255 255 255 / 0.06);
-}
-
-.social-shell .messages-bubble:not(.messages-bubble-mine) {
-  border-color: rgb(255 255 255 / 0.12);
-  background: rgb(255 255 255 / 0.08);
-  color: #fff;
-}
-
-.social-shell .profile-stat-value,
-.social-shell .profile-tab-active {
-  color: #fff;
-}
-
-.social-shell .profile-tab {
-  color: rgb(255 255 255 / 0.65);
-}
-
-.social-shell .profile-tab:hover {
-  color: #fff;
-}
-
-.social-shell .profile-stat-label {
-  color: rgb(255 255 255 / 0.6);
-}
-
-.social-shell .skeleton {
-  background: linear-gradient(
-    110deg,
-    rgb(255 255 255 / 0.06) 0%,
-    rgb(255 255 255 / 0.06) 40%,
-    rgb(255 255 255 / 0.12) 50%,
-    rgb(255 255 255 / 0.06) 60%,
-    rgb(255 255 255 / 0.06) 100%
-  );
 }

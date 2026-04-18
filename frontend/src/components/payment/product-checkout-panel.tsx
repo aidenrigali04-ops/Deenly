@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   createGuestProductCheckout,
@@ -11,6 +11,19 @@ import {
   type PublicCatalogProduct
 } from "@/lib/monetization";
 import { useSessionStore } from "@/store/session-store";
+
+function rewardsDenyReasonsSuggestWallet(reasons: string[]) {
+  const blob = reasons.join(" ").toLowerCase();
+  return (
+    blob.includes("balance") ||
+    blob.includes("insufficient") ||
+    blob.includes("cooldown") ||
+    blob.includes("cool-down") ||
+    blob.includes("last redemption") ||
+    blob.includes("per day") ||
+    blob.includes("per purchase")
+  );
+}
 
 export function CheckoutExplainer({ variant = "full" }: { variant?: "full" | "compact" }) {
   const stepWrap =
@@ -80,11 +93,17 @@ export function ProductCheckoutPanel({
     queryKey: ["rewards-checkout-preview", productId, useMaxPoints],
     queryFn: () =>
       fetchProductCheckoutRewardsPreview(productId, {
-        redeemEnabled: useMaxPoints,
-        redeemPointsMinor: useMaxPoints ? undefined : undefined
+        redeemEnabled: useMaxPoints
       }),
-    enabled: Boolean(sessionUser && useMaxPoints)
+    enabled: Boolean(sessionUser)
   });
+
+  const productRewardsEligible = rewardsPreviewQuery.data?.productRewardsEligible !== false;
+  useEffect(() => {
+    if (rewardsPreviewQuery.data?.productRewardsEligible === false) {
+      setUseMaxPoints(false);
+    }
+  }, [rewardsPreviewQuery.data?.productRewardsEligible]);
 
   const checkoutMutation = useMutation({
     mutationFn: () =>
@@ -165,7 +184,10 @@ export function ProductCheckoutPanel({
             disabled={
               checkoutMutation.isPending ||
               (useMaxPoints &&
-                (!rewardsPreviewQuery.data?.eligible || rewardsPreviewQuery.isLoading || rewardsPreviewQuery.isError))
+                (!rewardsPreviewQuery.data?.eligible ||
+                  rewardsPreviewQuery.isLoading ||
+                  rewardsPreviewQuery.isError ||
+                  rewardsPreviewQuery.data?.productRewardsEligible === false))
             }
             onClick={() => checkoutMutation.mutate()}
           >
@@ -212,32 +234,50 @@ export function ProductCheckoutPanel({
 
       {sessionUser ? (
         <div className="rounded-control border border-black/10 bg-surface/60 px-3 py-3 text-sm">
-          <label className="flex cursor-pointer items-center gap-2 font-medium text-text">
+          <label
+            className={`flex items-center gap-2 font-medium text-text ${productRewardsEligible ? "cursor-pointer" : "cursor-not-allowed opacity-70"}`}
+          >
             <input
               type="checkbox"
               checked={useMaxPoints}
+              disabled={!productRewardsEligible}
               onChange={(e) => setUseMaxPoints(e.target.checked)}
             />
             Apply reward points (max eligible)
           </label>
-          {useMaxPoints ? (
-            rewardsPreviewQuery.isLoading ? (
-              <p className="mt-2 text-xs text-muted">Checking points…</p>
-            ) : rewardsPreviewQuery.data ? (
-              <div className="mt-2 space-y-1 text-xs text-muted">
-                <p>
-                  Balance: {rewardsPreviewQuery.data.balanceMinor.toLocaleString()} pts
-                  {rewardsPreviewQuery.data.eligible
-                    ? ` · −${formatMinorCurrency(rewardsPreviewQuery.data.discountMinor, currency)}`
-                    : null}
-                </p>
-                {!rewardsPreviewQuery.data.eligible && rewardsPreviewQuery.data.denyReasons?.length ? (
-                  <p className="text-amber-700 dark:text-amber-400" role="status">
-                    Points cannot be applied ({rewardsPreviewQuery.data.denyReasons.join(", ")}).
+          {rewardsPreviewQuery.isLoading ? (
+            <p className="mt-2 text-xs text-muted">Checking points…</p>
+          ) : rewardsPreviewQuery.data && !rewardsPreviewQuery.data.productRewardsEligible ? (
+            <p className="mt-2 text-xs text-muted" role="status">
+              Reward points cannot be applied to this product at checkout.
+            </p>
+          ) : rewardsPreviewQuery.data ? (
+            <div className="mt-2 space-y-1 text-xs text-muted">
+              <p>Balance: {rewardsPreviewQuery.data.balanceMinor.toLocaleString()} pts</p>
+              {useMaxPoints && rewardsPreviewQuery.data.eligible ? (
+                <div className="space-y-0.5 border-t border-black/10 pt-2 dark:border-white/10">
+                  <p>List price: {formatMinorCurrency(rewardsPreviewQuery.data.listPriceMinor, currency)}</p>
+                  <p>Points discount: −{formatMinorCurrency(rewardsPreviewQuery.data.discountMinor, currency)}</p>
+                  <p className="font-medium text-text">
+                    You pay: {formatMinorCurrency(rewardsPreviewQuery.data.chargedMinor, currency)}
                   </p>
-                ) : null}
-              </div>
-            ) : null
+                </div>
+              ) : useMaxPoints && !rewardsPreviewQuery.data.eligible && rewardsPreviewQuery.data.denyReasons?.length ? (
+                <p className="text-amber-700 dark:text-amber-400" role="status">
+                  Points cannot be applied ({rewardsPreviewQuery.data.denyReasons.join(", ")}).
+                  {rewardsDenyReasonsSuggestWallet(rewardsPreviewQuery.data.denyReasons) ? (
+                    <>
+                      {" "}
+                      <Link href="/account/rewards" className="text-sky-700 underline-offset-2 hover:underline">
+                        View wallet
+                      </Link>
+                    </>
+                  ) : null}
+                </p>
+              ) : !useMaxPoints ? (
+                <p className="text-[11px] leading-relaxed">Turn on to preview the largest eligible points discount.</p>
+              ) : null}
+            </div>
           ) : null}
         </div>
       ) : null}

@@ -7,7 +7,6 @@ import { clearTokens, getAccessToken } from "@/lib/storage";
 import { ApiError } from "@/lib/api";
 import { useSessionStore } from "@/store/session-store";
 import { Nav } from "@/components/nav";
-import { SocialBottomNav, SocialCreateFab } from "@/components/social/social-bottom-nav";
 import { BusinessPersonalizerDialog } from "@/components/business-personalizer-dialog";
 import { ackPrayerReminder, fetchPrayerStatus, type PrayerStatus } from "@/lib/prayer";
 
@@ -26,8 +25,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     () => pathname === "/auth/login" || pathname === "/auth/signup",
     [pathname]
   );
-  const isAdminShell = Boolean(pathname?.startsWith("/admin"));
-  const hideCreateFab = Boolean(pathname?.startsWith("/create") || pathname?.startsWith("/reels"));
 
   useEffect(() => {
     let mounted = true;
@@ -144,75 +141,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (isAdminShell) {
-    return (
-      <div className="relative min-h-screen">
-        <div className="app-shell-atmosphere" aria-hidden />
-        <a
-          href="#main-content"
-          className="absolute left-[-9999px] top-0 z-[100] whitespace-nowrap rounded-control bg-card px-4 py-2 text-sm font-semibold text-text shadow-lg outline-none ring-2 ring-transparent transition focus:left-4 focus:top-4 focus:ring-black/25"
-        >
-          Skip to main content
-        </a>
-        <div className="container-shell flex min-h-screen flex-col gap-4 py-4 md:flex-row md:items-start md:gap-6 md:py-6">
-          {prayerReminder ? (
-            <div className="fixed left-1/2 top-4 z-30 w-[min(92vw,480px)] -translate-x-1/2 glass-panel-subtle px-4 py-3">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-medium">
-                  Time for Salah {prayerReminder.reminderPrayer ? `(${prayerReminder.reminderPrayer})` : ""}
-                </p>
-                <button
-                  className="btn-secondary px-3 py-1.5 text-xs"
-                  onClick={async () => {
-                    const reminderKey = prayerReminder.reminderKey;
-                    setPrayerReminder(null);
-                    if (reminderKey) {
-                      await ackPrayerReminder(reminderKey);
-                    }
-                  }}
-                >
-                  Dismiss
-                </button>
-              </div>
-            </div>
-          ) : null}
-          <BusinessPersonalizerDialog />
-          <Nav />
-          <main
-            id="main-content"
-            className="min-w-0 flex-1 px-1 pb-12 pt-2 sm:px-3 md:px-4 md:pb-14 md:pt-1"
-            tabIndex={-1}
-          >
-            {children}
-          </main>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="social-shell relative min-h-dvh bg-social-bg text-white">
-      <div
-        className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
-        aria-hidden
-      >
-        <div className="social-atmosphere-blob absolute -left-[22%] -top-[28%] h-[min(120vw,520px)] w-[min(120vw,520px)] rounded-full bg-[radial-gradient(circle_at_30%_30%,rgba(120,30,40,0.55),transparent_62%)] blur-2xl" />
-        <div className="social-atmosphere-blob absolute -right-[18%] top-[8%] h-[min(100vw,440px)] w-[min(100vw,440px)] rounded-full bg-[radial-gradient(circle_at_70%_40%,rgba(80,20,35,0.45),transparent_58%)] blur-2xl" />
-      </div>
+    <div className="relative min-h-screen">
+      <div className="app-shell-atmosphere" aria-hidden />
       <a
         href="#main-content"
-        className="absolute left-[-9999px] top-0 z-[100] whitespace-nowrap rounded-control bg-white px-4 py-2 text-sm font-semibold text-black shadow-lg outline-none ring-2 ring-transparent transition focus:left-4 focus:top-4 focus:ring-social-accent"
+        className="absolute left-[-9999px] top-0 z-[100] whitespace-nowrap rounded-control bg-card px-4 py-2 text-sm font-semibold text-text shadow-lg outline-none ring-2 ring-transparent transition focus:left-4 focus:top-4 focus:ring-black/25"
       >
         Skip to main content
       </a>
+      <div className="container-shell flex min-h-screen flex-col gap-4 py-4 md:flex-row md:items-start md:gap-6 md:py-6">
       {prayerReminder ? (
-        <div className="fixed left-1/2 top-4 z-30 w-[min(92vw,480px)] -translate-x-1/2 rounded-2xl border border-white/15 bg-black/70 px-4 py-3 text-white shadow-lg backdrop-blur-xl">
+        <div className="fixed left-1/2 top-4 z-30 w-[min(92vw,480px)] -translate-x-1/2 glass-panel-subtle px-4 py-3">
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm font-medium">
               Time for Salah {prayerReminder.reminderPrayer ? `(${prayerReminder.reminderPrayer})` : ""}
             </p>
             <button
-              className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/15"
+              className="btn-secondary px-3 py-1.5 text-xs"
               onClick={async () => {
                 const reminderKey = prayerReminder.reminderKey;
                 setPrayerReminder(null);
@@ -227,15 +173,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       ) : null}
       <BusinessPersonalizerDialog />
+      <Nav />
       <main
         id="main-content"
-        className="relative z-[1] mx-auto w-full max-w-[390px] px-5 pb-[calc(5.25rem+env(safe-area-inset-bottom))] pt-2 sm:pb-28"
+        className="min-w-0 flex-1 px-1 pb-12 pt-2 sm:px-3 md:px-4 md:pb-14 md:pt-1"
         tabIndex={-1}
       >
         {children}
       </main>
-      <SocialBottomNav />
-      {hideCreateFab ? null : <SocialCreateFab />}
+      </div>
     </div>
   );
 }

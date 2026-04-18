@@ -1121,7 +1121,7 @@ describeIfDatabase("integration api flows", () => {
     expect(applyProfessionalPersona.body.profile_kind).toBe("professional");
     expect(applyProfessionalPersona.body.persona_capabilities?.can_create_products).toBe(true);
     expect(applyProfessionalPersona.body.persona_capabilities?.can_manage_memberships).toBe(false);
-    expect(applyProfessionalPersona.body.default_feed_tab).toBe("opportunities");
+    expect(applyProfessionalPersona.body.default_feed_tab).toBe("for_you");
     expect(applyProfessionalPersona.body.app_landing).toBe("home");
     expect(applyProfessionalPersona.body.business_onboarding_dismissed_at).toBeTruthy();
     expect(Array.isArray(applyProfessionalPersona.body.onboarding_intents)).toBe(true);

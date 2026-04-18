@@ -264,11 +264,6 @@ function createFeedRouter({ db, config, mediaStorage, analytics: feedAnalytics =
          AND p.removed_at IS NULL
          AND (
            ($2::text = 'for_you' AND p.post_type IN ('post', 'marketplace'))
-           OR (
-             $2::text = 'opportunities'
-             AND p.post_type = 'marketplace'
-             AND p.audience_target IN ('b2b', 'both')
-           )
            OR ($2::text = 'marketplace' AND p.post_type = 'marketplace')
          )
          AND (
@@ -381,7 +376,10 @@ function createFeedRouter({ db, config, mediaStorage, analytics: feedAnalytics =
       const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 50);
       const followingOnly = String(req.query.followingOnly || "false") === "true";
       const postType = req.query.postType || null;
-      const feedTab = String(req.query.feedTab || "for_you").trim().toLowerCase();
+      let feedTab = String(req.query.feedTab || "for_you").trim().toLowerCase();
+      if (feedTab === "opportunities") {
+        feedTab = "for_you";
+      }
       const authorId = req.query.authorId ? Number(req.query.authorId) : null;
       const minCreatedAt = req.query.minCreatedAt
         ? new Date(String(req.query.minCreatedAt))
@@ -406,8 +404,8 @@ function createFeedRouter({ db, config, mediaStorage, analytics: feedAnalytics =
       if (postType && !["post", "marketplace", "reel"].includes(postType)) {
         throw httpError(400, "postType must be post, marketplace, or reel");
       }
-      if (!["for_you", "opportunities", "marketplace", "reels"].includes(feedTab)) {
-        throw httpError(400, "feedTab must be for_you, opportunities, marketplace, or reels");
+      if (!["for_you", "marketplace", "reels"].includes(feedTab)) {
+        throw httpError(400, "feedTab must be for_you, marketplace, or reels");
       }
       if (req.query.authorId && !authorId) {
         throw httpError(400, "authorId must be a number");
@@ -598,9 +596,6 @@ function createFeedRouter({ db, config, mediaStorage, analytics: feedAnalytics =
                   ELSE 0
                 END AS interest_boost,
                 CASE
-                  WHEN $18::text = 'opportunities' AND p.audience_target = 'b2b' THEN 320
-                  WHEN $18::text = 'opportunities' AND p.audience_target = 'both' THEN 140
-                  WHEN $18::text = 'opportunities' AND p.audience_target = 'b2c' THEN -80
                   WHEN $18::text = 'marketplace' AND p.audience_target = 'b2c' THEN 320
                   WHEN $18::text = 'marketplace' AND p.audience_target = 'both' THEN 140
                   WHEN $18::text = 'marketplace' AND p.audience_target = 'b2b' THEN -80
@@ -707,11 +702,6 @@ function createFeedRouter({ db, config, mediaStorage, analytics: feedAnalytics =
              $3::int IS NOT NULL
              OR (
                ($18::text = 'for_you' AND p.post_type IN ('post', 'marketplace'))
-               OR (
-                 $18::text = 'opportunities'
-                 AND p.post_type = 'marketplace'
-                 AND p.audience_target IN ('b2b', 'both')
-               )
                OR ($18::text = 'marketplace' AND p.post_type = 'marketplace')
                OR (
                  $18::text = 'reels'

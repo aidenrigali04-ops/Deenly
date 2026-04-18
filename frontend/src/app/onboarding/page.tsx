@@ -53,7 +53,9 @@ export default function OnboardingPage() {
       setIntents(oi);
     }
     if (meQuery.data.default_feed_tab) {
-      setDefaultFeedTab(meQuery.data.default_feed_tab);
+      const tab =
+        meQuery.data.default_feed_tab === "opportunities" ? "for_you" : meQuery.data.default_feed_tab;
+      setDefaultFeedTab(tab === "marketplace" || tab === "for_you" ? tab : "for_you");
     }
     if (meQuery.data.app_landing) {
       setAppLanding(meQuery.data.app_landing);
@@ -173,9 +175,11 @@ export default function OnboardingPage() {
               value={defaultFeedTab}
               onChange={(e) => setDefaultFeedTab(e.target.value)}
             >
-              <option value="for_you">For You</option>
-              <option value="opportunities">Opportunities</option>
-              <option value="marketplace">Marketplace</option>
+              {FEED_TAB_OPTIONS.map((opt) => (
+                <option key={opt.key} value={opt.key}>
+                  {opt.label}
+                </option>
+              ))}
             </select>
           </label>
           <label className="space-y-1 text-sm">

@@ -1,13 +1,10 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { supportsNativeBlur } from "../lib/blur-support";
-import { colors, type as typeStyles } from "../theme";
+import { figmaMobile, type as typeStyles } from "../theme";
 
-const ICON_SIZE = 24;
-const ICON_COLOR = colors.text;
-const INK = "#0F0E0D";
+const ICON_SIZE = 22;
+const ICON_COLOR = figmaMobile.text;
 
 type Props = {
   onPressReels: () => void;
@@ -17,31 +14,23 @@ type Props = {
 
 export function HomeTopBar({ onPressReels, onPressAlerts, onPressSearch }: Props) {
   const insets = useSafeAreaInsets();
-  const useBlur = supportsNativeBlur();
   return (
-    <View style={[styles.wrap, { paddingTop: insets.top + 6 }]} accessibilityRole="header">
-      {useBlur ? (
-        <BlurView intensity={72} tint="light" style={StyleSheet.absoluteFill} />
-      ) : (
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.glassFill }]} />
-      )}
+    <View style={[styles.wrap, { paddingTop: insets.top + 4 }]} accessibilityRole="header">
       <View style={styles.row}>
         <Pressable
           onPress={onPressReels}
-          style={styles.sideHit}
+          style={({ pressed }) => [styles.iconWell, pressed && styles.iconWellPressed]}
           accessibilityRole="button"
           accessibilityLabel="Reels"
         >
-          <View style={styles.reelsBox}>
-            <Ionicons name="play" size={14} color={INK} style={{ marginLeft: 1 }} />
-          </View>
+          <Ionicons name="play" size={15} color={ICON_COLOR} style={{ marginLeft: 1 }} />
         </Pressable>
         <Text style={styles.wordmark}>Deenly</Text>
         <View style={styles.rightCluster}>
           {onPressSearch ? (
             <Pressable
               onPress={onPressSearch}
-              style={styles.sideHit}
+              style={({ pressed }) => [styles.iconWell, pressed && styles.iconWellPressed]}
               accessibilityRole="button"
               accessibilityLabel="Search"
             >
@@ -50,7 +39,7 @@ export function HomeTopBar({ onPressReels, onPressAlerts, onPressSearch }: Props
           ) : null}
           <Pressable
             onPress={onPressAlerts}
-            style={styles.sideHit}
+            style={({ pressed }) => [styles.iconWell, pressed && styles.iconWellPressed]}
             accessibilityRole="button"
             accessibilityLabel="Notifications"
           >
@@ -64,42 +53,39 @@ export function HomeTopBar({ onPressReels, onPressAlerts, onPressSearch }: Props
 
 const styles = StyleSheet.create({
   wrap: {
-    overflow: "hidden",
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border
+    backgroundColor: "transparent",
+    borderBottomWidth: 0
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingBottom: 8,
-    minHeight: 44,
+    paddingBottom: 10,
+    minHeight: 48,
     zIndex: 1
   },
   rightCluster: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4
+    gap: 8
   },
-  sideHit: {
-    minWidth: 44,
-    minHeight: 44,
+  iconWell: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: figmaMobile.glassSoft,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: figmaMobile.glassBorderSoft,
     alignItems: "center",
     justifyContent: "center"
   },
-  reelsBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: INK,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FFFFFF"
+  iconWellPressed: {
+    opacity: 0.85
   },
   wordmark: {
-    color: colors.text,
-    ...typeStyles.navChromeTitle
+    color: figmaMobile.text,
+    ...typeStyles.navChromeTitle,
+    letterSpacing: -0.45
   }
 });

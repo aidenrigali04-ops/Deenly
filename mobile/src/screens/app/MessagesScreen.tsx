@@ -8,8 +8,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "../../lib/api";
 import { createOrOpenConversation, markConversationRead } from "../../lib/messages";
 import { ErrorState, LoadingState } from "../../components/States";
-import { SectionCard, TabScreenHeader, TabScreenRoot } from "../../components/TabScreenChrome";
-import { colors, primaryButtonOutline, radii, secondaryButton, spacing } from "../../theme";
+import { SectionCard, TabScreenRoot } from "../../components/TabScreenChrome";
+import { colors, figmaMobile, radii, spacing } from "../../theme";
 import { useTabSceneBottomPadding, useTabSceneTopPadding } from "../../hooks/useTabSceneInsets";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 import { useSessionStore } from "../../store/session-store";
@@ -19,6 +19,7 @@ type ConversationItem = {
   other_display_name: string;
   other_username: string;
   unread_count: number;
+  last_message_body?: string | null;
 };
 
 type SearchUserRow = {
@@ -159,32 +160,27 @@ export function MessagesScreen({ navigation }: Props) {
         contentContainerStyle={[styles.scrollContent, { paddingTop: topPad, paddingBottom: bottomPad }]}
         showsVerticalScrollIndicator={false}
       >
-        <TabScreenHeader title="Messages" subtitle="Chats with people you connect with on Deenly." />
-
-        <View style={styles.newMessageSection}>
-          <View style={styles.searchFieldWrap}>
-            <Ionicons name="search-outline" size={20} color={colors.muted} style={styles.searchIcon} />
-            <TextInput
-              style={styles.searchField}
-              placeholder="Search name or @username"
-              placeholderTextColor={colors.mutedLight}
-              autoCapitalize="none"
-              autoCorrect={false}
-              value={usernameLookupInput}
-              onChangeText={setUsernameLookupInput}
-              onSubmitEditing={() => usernameLookupMutation.mutate(usernameLookupInput)}
-              returnKeyType="search"
-            />
-          </View>
-          <Text style={styles.searchHelper}>Matches the same people directory as Explore.</Text>
+        <View style={styles.hero}>
+          <Text style={styles.heroTitle}>Messages</Text>
+          <Text style={styles.heroSubtitle}>Direct messages with other members.</Text>
+          <TextInput
+            style={styles.chromeSearch}
+            placeholder="Search"
+            placeholderTextColor={figmaMobile.messagesChromePlaceholder}
+            autoCapitalize="none"
+            autoCorrect={false}
+            value={usernameLookupInput}
+            onChangeText={setUsernameLookupInput}
+            onSubmitEditing={() => usernameLookupMutation.mutate(usernameLookupInput)}
+            returnKeyType="search"
+          />
           <Pressable
-            style={styles.startChatBtn}
-            onPress={() => usernameLookupMutation.mutate(usernameLookupInput)}
-            disabled={usernameLookupMutation.isPending}
+            style={styles.findPeopleChrome}
+            onPress={() => navigation.navigate("SearchTab")}
+            accessibilityRole="button"
+            accessibilityLabel="Find people"
           >
-            <Text style={styles.startChatBtnText}>
-              {usernameLookupMutation.isPending ? "Searching…" : "Start new chat"}
-            </Text>
+            <Text style={styles.findPeopleChromeText}>Find people</Text>
           </Pressable>
           {usernameLookupMutation.isError ? (
             <Text style={styles.lookupError}>{(usernameLookupMutation.error as Error).message}</Text>
@@ -200,7 +196,7 @@ export function MessagesScreen({ navigation }: Props) {
                     style={({ pressed }) => [styles.lookupRow, pressed && styles.rowPressed]}
                     onPress={() => createConversation.mutate(row.user_id)}
                     disabled={createConversation.isPending}
-                    android_ripple={{ color: "rgba(0,0,0,0.06)" }}
+                    android_ripple={{ color: "rgba(255,255,255,0.08)" }}
                   >
                     <Text style={styles.lookupRowName} numberOfLines={1}>
                       {row.display_name}
@@ -215,20 +211,22 @@ export function MessagesScreen({ navigation }: Props) {
           ) : null}
         </View>
 
-        {conversationsQuery.isLoading ? <LoadingState label="Loading conversations..." /> : null}
+        <View style={styles.sectionDivider} />
+
+        {conversationsQuery.isLoading ? <LoadingState label="Loading conversations..." surface="dark" /> : null}
         {conversationsQuery.error ? (
-          <ErrorState message={(conversationsQuery.error as Error).message} />
+          <ErrorState message={(conversationsQuery.error as Error).message} surface="dark" />
         ) : null}
 
-        <SectionCard title="Inbox">
+        <View style={styles.inboxSection}>
           {inboxEmpty ? (
             <View style={styles.emptyInbox}>
               <View style={styles.emptyIconCircle}>
-                <Ionicons name="chatbubbles-outline" size={28} color={colors.accentTextOnTint} />
+                <Ionicons name="chatbubbles-outline" size={28} color={figmaMobile.accentGold} />
               </View>
               <Text style={styles.emptyInboxTitle}>No conversations yet</Text>
-              <Text style={styles.emptyInboxText}>Start a chat from Explore or Market.</Text>
-              <Pressable style={styles.findPeopleBtn} onPress={() => navigation.navigate("Search")}>
+              <Text style={styles.emptyInboxText}>Start a chat from Discover or Market.</Text>
+              <Pressable style={styles.findPeopleBtn} onPress={() => navigation.navigate("SearchTab")}>
                 <Text style={styles.findPeopleBtnText}>Find people</Text>
               </Pressable>
               <Pressable style={styles.browseMarketLink} onPress={() => navigation.navigate("MarketplaceTab")}>
@@ -237,48 +235,51 @@ export function MessagesScreen({ navigation }: Props) {
             </View>
           ) : (
             <View style={styles.inboxList}>
-              {conversations.map((item) => (
-                <Pressable
-                  key={item.conversation_id}
-                  style={({ pressed }) => [
-                    styles.inboxRow,
-                    selectedConversationId === item.conversation_id ? styles.inboxRowActive : null,
-                    pressed && styles.rowPressed
-                  ]}
-                  onPress={() => setSelectedConversationId(item.conversation_id)}
-                  android_ripple={{ color: "rgba(0,0,0,0.06)" }}
-                >
-                  <View style={styles.inboxRowAvatar}>
-                    <Text style={styles.inboxRowAvatarText}>
-                      {(item.other_display_name || item.other_username).slice(0, 1).toUpperCase()}
-                    </Text>
-                  </View>
-                  <View style={styles.inboxRowMain}>
-                    <View style={styles.inboxRowTitleLine}>
-                      <Text style={styles.inboxRowName} numberOfLines={1}>
-                        {item.other_display_name}
+              {conversations.map((item) => {
+                const preview =
+                  typeof item.last_message_body === "string" && item.last_message_body.trim()
+                    ? item.last_message_body.trim()
+                    : "Start the conversation";
+                return (
+                  <Pressable
+                    key={item.conversation_id}
+                    style={({ pressed }) => [
+                      styles.inboxRow,
+                      selectedConversationId === item.conversation_id ? styles.inboxRowActive : null,
+                      pressed && styles.rowPressed
+                    ]}
+                    onPress={() => setSelectedConversationId(item.conversation_id)}
+                    android_ripple={{ color: "rgba(255,255,255,0.06)" }}
+                  >
+                    <View style={styles.inboxRowAvatar} />
+                    <View style={styles.inboxRowMain}>
+                      <View style={styles.inboxRowTitleLine}>
+                        <Text style={styles.inboxRowName} numberOfLines={1}>
+                          {item.other_display_name || item.other_username}
+                        </Text>
+                        {item.unread_count > 0 ? (
+                          <View style={styles.unreadBadge}>
+                            <Text style={styles.unreadBadgeText}>
+                              {item.unread_count > 99 ? "99+" : item.unread_count}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+                      <Text style={styles.inboxRowPreview} numberOfLines={1}>
+                        {preview}
                       </Text>
-                      {item.unread_count > 0 ? (
-                        <View style={styles.unreadBadge}>
-                          <Text style={styles.unreadBadgeText}>{item.unread_count > 99 ? "99+" : item.unread_count}</Text>
-                        </View>
-                      ) : null}
                     </View>
-                    <Text style={styles.inboxRowSub} numberOfLines={1}>
-                      @{item.other_username}
-                    </Text>
-                  </View>
-                  <Text style={styles.chevron}>›</Text>
-                </Pressable>
-              ))}
+                  </Pressable>
+                );
+              })}
             </View>
           )}
-        </SectionCard>
+        </View>
 
         {selectedConversation ? (
           <SectionCard title={`Chat · ${selectedConversation.other_display_name}`}>
-            {messagesQuery.isLoading ? <LoadingState label="Loading messages..." /> : null}
-            {messagesQuery.error ? <ErrorState message={(messagesQuery.error as Error).message} /> : null}
+            {messagesQuery.isLoading ? <LoadingState label="Loading messages..." surface="dark" /> : null}
+            {messagesQuery.error ? <ErrorState message={(messagesQuery.error as Error).message} surface="dark" /> : null}
             <View style={styles.threadStack}>
               {orderedMessages.map((message) => {
                 const mine = sessionUserId != null && message.sender_id === sessionUserId;
@@ -293,7 +294,7 @@ export function MessagesScreen({ navigation }: Props) {
             <TextInput
               style={styles.input}
               placeholder="Type your message..."
-              placeholderTextColor={colors.muted}
+              placeholderTextColor={figmaMobile.textMuted}
               value={body}
               onChangeText={setBody}
             />
@@ -316,132 +317,169 @@ export function MessagesScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  scrollContent: { gap: spacing.sectionGap },
-  newMessageSection: {
+  scrollContent: { gap: spacing.tight },
+  hero: {
     marginHorizontal: spacing.pagePaddingH,
-    gap: 10,
-    marginBottom: 8
+    gap: 14,
+    paddingBottom: 4
   },
-  searchFieldWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    minHeight: 48,
-    borderRadius: radii.control + 2,
-    borderWidth: 0,
-    backgroundColor: colors.surfaceField,
-    paddingHorizontal: 14
+  heroTitle: {
+    fontSize: 30,
+    fontWeight: "700",
+    color: figmaMobile.text,
+    letterSpacing: -0.6,
+    lineHeight: 36
   },
-  searchIcon: { marginRight: 8 },
-  searchField: {
-    flex: 1,
+  heroSubtitle: {
+    fontSize: 15,
+    lineHeight: 21,
+    color: figmaMobile.textMuted,
+    fontWeight: "400",
+    letterSpacing: -0.2
+  },
+  chromeSearch: {
+    backgroundColor: figmaMobile.messagesChrome,
+    borderRadius: radii.pill,
+    minHeight: 52,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
     fontSize: 16,
-    color: colors.text,
-    paddingVertical: 12
+    color: figmaMobile.messagesChromeText,
+    fontWeight: "400"
+  },
+  findPeopleChrome: {
+    backgroundColor: figmaMobile.messagesChrome,
+    borderRadius: radii.pill,
+    minHeight: 52,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  findPeopleChromeText: {
+    color: figmaMobile.messagesChromeText,
+    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: -0.2
+  },
+  sectionDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: figmaMobile.glassBorder,
+    marginTop: 8,
+    marginBottom: 4,
+    marginHorizontal: spacing.pagePaddingH
+  },
+  inboxSection: {
+    marginHorizontal: spacing.pagePaddingH,
+    paddingBottom: 8
   },
   searchHelper: {
     fontSize: 13,
-    color: colors.muted,
+    color: figmaMobile.textMuted,
     lineHeight: 18
-  },
-  startChatBtn: {
-    alignSelf: "flex-start",
-    ...secondaryButton,
-    minHeight: 44,
-    paddingVertical: 10
-  },
-  startChatBtnText: {
-    color: colors.accentTextOnTint,
-    fontSize: 15,
-    fontWeight: "600"
   },
   lookupError: { color: colors.danger, fontSize: 13, marginTop: 8 },
   lookupList: {
     marginTop: 10,
     gap: 0,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle,
-    borderRadius: radii.grouped,
+    borderColor: figmaMobile.glassBorder,
+    borderRadius: radii.feedCard,
     overflow: "hidden",
-    backgroundColor: colors.surface
+    backgroundColor: figmaMobile.card
   },
   lookupRow: {
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderSubtle,
-    backgroundColor: colors.surface
+    borderBottomColor: figmaMobile.glassBorder,
+    backgroundColor: figmaMobile.card
   },
-  rowPressed: { backgroundColor: colors.statePressed },
-  lookupRowName: { fontSize: 15, fontWeight: "700", color: colors.text },
-  lookupRowSub: { fontSize: 12, color: colors.muted, marginTop: 2 },
+  rowPressed: { backgroundColor: "rgba(255,255,255,0.06)" },
+  lookupRowName: { fontSize: 15, fontWeight: "700", color: figmaMobile.text },
+  lookupRowSub: { fontSize: 12, color: figmaMobile.textMuted2, marginTop: 2 },
   input: {
-    borderColor: colors.border,
+    borderColor: figmaMobile.glassBorder,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.control,
-    color: colors.text,
-    backgroundColor: colors.surface,
+    color: figmaMobile.text,
+    backgroundColor: figmaMobile.glassSoft,
     padding: 14,
     fontSize: 16
   },
   buttonSecondary: {
-    borderColor: colors.border,
+    borderColor: figmaMobile.glassBorder,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.control,
     paddingHorizontal: 14,
     paddingVertical: 10,
     alignSelf: "flex-start",
-    backgroundColor: colors.surface
+    backgroundColor: figmaMobile.glassSoft
   },
-  buttonText: { color: colors.text, fontWeight: "600" },
+  buttonText: { color: figmaMobile.text, fontWeight: "600" },
   emptyInbox: { gap: 12, alignItems: "center", paddingVertical: 8 },
   emptyIconCircle: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: colors.accentTint,
+    backgroundColor: figmaMobile.glassSoft,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 4
   },
-  emptyInboxTitle: { fontSize: 18, fontWeight: "600", color: colors.text },
-  emptyInboxText: { color: colors.muted, fontSize: 14, lineHeight: 21, textAlign: "center" },
+  emptyInboxTitle: { fontSize: 18, fontWeight: "600", color: figmaMobile.text },
+  emptyInboxText: { color: figmaMobile.textMuted, fontSize: 14, lineHeight: 21, textAlign: "center" },
   findPeopleBtn: {
     alignSelf: "stretch",
     marginTop: 4,
-    ...primaryButtonOutline
+    backgroundColor: figmaMobile.messagesChrome,
+    borderRadius: radii.pill,
+    minHeight: 52,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20
   },
-  findPeopleBtnText: { color: colors.onAccent, fontWeight: "600", fontSize: 15 },
+  findPeopleBtnText: {
+    color: figmaMobile.messagesChromeText,
+    fontWeight: "700",
+    fontSize: 16
+  },
   browseMarketLink: { paddingVertical: 8 },
-  browseMarketLinkText: { fontSize: 15, fontWeight: "500", color: colors.muted },
+  browseMarketLinkText: { fontSize: 15, fontWeight: "500", color: figmaMobile.textMuted },
   inboxList: { gap: 0 },
   inboxRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderSubtle,
+    borderBottomColor: figmaMobile.glassBorder,
     gap: 12
   },
   inboxRowActive: {
-    backgroundColor: colors.accentTint
+    backgroundColor: figmaMobile.glassSoft
   },
   inboxRowAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.subtleFill,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: figmaMobile.messagesChrome
   },
-  inboxRowAvatarText: { fontSize: 18, fontWeight: "700", color: colors.text },
   inboxRowMain: { flex: 1, minWidth: 0 },
   inboxRowTitleLine: { flexDirection: "row", alignItems: "center", gap: 8 },
-  inboxRowName: { fontSize: 16, fontWeight: "700", color: colors.text, flex: 1 },
-  inboxRowSub: { fontSize: 13, color: colors.muted, marginTop: 2 },
+  inboxRowName: {
+    fontSize: 15,
+    fontWeight: "400",
+    color: figmaMobile.textMuted,
+    flex: 1
+  },
+  inboxRowPreview: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: figmaMobile.text,
+    marginTop: 4
+  },
   unreadBadge: {
-    backgroundColor: colors.accent,
+    backgroundColor: figmaMobile.brandTeal,
     minWidth: 22,
     height: 22,
     borderRadius: 11,
@@ -450,7 +488,6 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
   unreadBadgeText: { color: colors.onAccent, fontSize: 11, fontWeight: "800" },
-  chevron: { fontSize: 22, color: colors.muted, fontWeight: "300" },
   threadStack: { gap: 8 },
   message: {
     borderWidth: 0,
@@ -460,12 +497,12 @@ const styles = StyleSheet.create({
     gap: 4,
     alignSelf: "flex-start",
     maxWidth: "92%",
-    backgroundColor: colors.surfaceSecondary
+    backgroundColor: figmaMobile.glassSoft
   },
   messageMine: {
     alignSelf: "flex-end",
-    backgroundColor: colors.accentTint
+    backgroundColor: figmaMobile.glass
   },
-  muted: { color: colors.muted, fontSize: 12 },
-  body: { color: colors.text }
+  muted: { color: figmaMobile.textMuted, fontSize: 12 },
+  body: { color: figmaMobile.text }
 });

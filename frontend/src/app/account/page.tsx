@@ -249,7 +249,7 @@ export default function AccountPage() {
 
   return (
     <div className="page-stack">
-      <ProfilePageShell appearance="social">
+      <ProfilePageShell>
         <ProfileLayoutColumns
           avatar={avatarBlock}
           main={

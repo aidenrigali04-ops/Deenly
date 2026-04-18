@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Image,
   Linking,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,10 +10,11 @@ import {
   View,
   useWindowDimensions
 } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { apiRequest } from "../../lib/api";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
-import { colors, radii } from "../../theme";
+import { colors, figmaMobile, radii } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { useSessionStore } from "../../store/session-store";
 import type { FeedItem } from "../../types";
@@ -158,9 +158,30 @@ export function UserProfileScreen({ route, navigation }: Props) {
     }
   });
 
-  if (profileQuery.isLoading) return <LoadingState label="Loading user profile..." />;
-  if (profileQuery.error) return <ErrorState message={(profileQuery.error as Error).message} />;
-  if (!profileQuery.data) return <EmptyState title="User not found" />;
+  if (profileQuery.isLoading) {
+    return (
+      <View style={styles.screenRoot}>
+        <StatusBar style="light" />
+        <LoadingState label="Loading user profile..." surface="dark" />
+      </View>
+    );
+  }
+  if (profileQuery.error) {
+    return (
+      <View style={styles.screenRoot}>
+        <StatusBar style="light" />
+        <ErrorState message={(profileQuery.error as Error).message} surface="dark" />
+      </View>
+    );
+  }
+  if (!profileQuery.data) {
+    return (
+      <View style={styles.screenRoot}>
+        <StatusBar style="light" />
+        <EmptyState title="User not found" surface="dark" />
+      </View>
+    );
+  }
 
   const user = profileQuery.data;
   const avatarUri = resolveMediaUrl(user.avatar_url);
@@ -168,7 +189,9 @@ export function UserProfileScreen({ route, navigation }: Props) {
   const catalogProducts = creatorProductsQuery.data?.items || [];
   const tileSize = Math.floor((width - 32 - 8) / 3);
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <>
+      <StatusBar style="light" />
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.card}>
         {avatarUri ? <Image source={{ uri: avatarUri }} style={styles.avatar} resizeMode="cover" /> : null}
         <Text style={styles.title}>{user.display_name}</Text>
@@ -185,10 +208,10 @@ export function UserProfileScreen({ route, navigation }: Props) {
         </View>
         <View style={styles.row}>
           <Pressable
-            style={styles.buttonSecondary}
+            style={user.is_following ? styles.buttonSecondary : styles.buttonFollow}
             onPress={() => (user.is_following ? unfollowMutation.mutate() : followMutation.mutate())}
           >
-            <Text style={styles.buttonText}>
+            <Text style={user.is_following ? styles.buttonText : styles.buttonFollowText}>
               {followMutation.isPending || unfollowMutation.isPending
                 ? "Updating..."
                 : user.is_following
@@ -209,8 +232,8 @@ export function UserProfileScreen({ route, navigation }: Props) {
               <Text style={styles.buttonText}>Message</Text>
             </Pressable>
           ) : null}
-          <Pressable style={styles.buttonSecondary} onPress={() => supportMutation.mutate()}>
-            <Text style={styles.buttonText}>
+          <Pressable style={styles.buttonSupport} onPress={() => supportMutation.mutate()}>
+            <Text style={styles.buttonSupportText}>
               {supportMutation.isPending ? "Opening..." : "Support $5"}
             </Text>
           </Pressable>
@@ -228,38 +251,40 @@ export function UserProfileScreen({ route, navigation }: Props) {
                 {tier.title} - {formatMinorCurrency(tier.monthly_price_minor, tier.currency)}/mo
               </Text>
               <Pressable
-                style={styles.buttonSecondary}
+                style={styles.buttonSubscribe}
                 onPress={() => tierMutation.mutate(tier.id)}
                 disabled={tierMutation.isPending}
               >
-                <Text style={styles.buttonText}>{tierMutation.isPending ? "Opening..." : "Subscribe"}</Text>
+                <Text style={styles.buttonSubscribeText}>
+                  {tierMutation.isPending ? "Opening..." : "Subscribe"}
+                </Text>
               </Pressable>
             </View>
           ))}
         </View>
       ) : null}
-      <View style={styles.row}>
+      <View style={styles.tabBar}>
         <Pressable
-          style={[styles.buttonSecondary, activeTab === "posts" ? styles.buttonActive : null]}
+          style={[styles.tabItem, activeTab === "posts" ? styles.tabItemActive : null]}
           onPress={() => setActiveTab("posts")}
         >
-          <Text style={[styles.buttonText, activeTab === "posts" ? styles.buttonTextActive : null]}>Posts</Text>
+          <Text style={[styles.tabLabel, activeTab === "posts" ? styles.tabLabelActive : null]}>Posts</Text>
         </Pressable>
         <Pressable
-          style={[styles.buttonSecondary, activeTab === "products" ? styles.buttonActive : null]}
+          style={[styles.tabItem, activeTab === "products" ? styles.tabItemActive : null]}
           onPress={() => setActiveTab("products")}
         >
-          <Text style={[styles.buttonText, activeTab === "products" ? styles.buttonTextActive : null]}>
-            Products
-          </Text>
+          <Text style={[styles.tabLabel, activeTab === "products" ? styles.tabLabelActive : null]}>Products</Text>
         </Pressable>
       </View>
       {activeTab === "posts" ? (
         <>
-          {postsQuery.isLoading ? <LoadingState label="Loading posts..." /> : null}
-          {postsQuery.error ? <ErrorState message={(postsQuery.error as Error).message} /> : null}
+          {postsQuery.isLoading ? <LoadingState label="Loading posts..." surface="dark" /> : null}
+          {postsQuery.error ? (
+            <ErrorState message={(postsQuery.error as Error).message} surface="dark" />
+          ) : null}
           {!postsQuery.isLoading && !postsQuery.error && items.length === 0 ? (
-            <EmptyState title="No posts yet" />
+            <EmptyState title="No posts yet" surface="dark" />
           ) : null}
           <View style={styles.grid}>
             {items.map((item) => {
@@ -287,7 +312,7 @@ export function UserProfileScreen({ route, navigation }: Props) {
                     ) : null}
                   </Pressable>
                   <Pressable
-                    style={styles.tileLike}
+                    style={({ pressed }) => [styles.tileLike, pressed && styles.tileLikePressed]}
                     onPress={() => likeMutation.mutate(item.id)}
                     disabled={likeMutation.isPending}
                   >
@@ -300,14 +325,16 @@ export function UserProfileScreen({ route, navigation }: Props) {
         </>
       ) : (
         <>
-          {creatorProductsQuery.isLoading ? <LoadingState label="Loading products..." /> : null}
+          {creatorProductsQuery.isLoading ? (
+            <LoadingState label="Loading products..." surface="dark" />
+          ) : null}
           {creatorProductsQuery.error ? (
-            <ErrorState message={(creatorProductsQuery.error as Error).message} />
+            <ErrorState message={(creatorProductsQuery.error as Error).message} surface="dark" />
           ) : null}
           {!creatorProductsQuery.isLoading &&
           !creatorProductsQuery.error &&
           catalogProducts.length === 0 ? (
-            <EmptyState title="No products listed" />
+            <EmptyState title="No products listed" surface="dark" />
           ) : null}
           <View style={styles.grid}>
             {catalogProducts.map((prod) => (
@@ -327,47 +354,74 @@ export function UserProfileScreen({ route, navigation }: Props) {
           </View>
         </>
       )}
-    </ScrollView>
+      </ScrollView>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: 16, gap: 14 },
-  card: {
-    backgroundColor: colors.card,
-    borderColor: colors.border,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radii.panel,
+  screenRoot: {
+    flex: 1,
+    backgroundColor: figmaMobile.canvas,
     padding: 16,
-    gap: 8,
-    ...Platform.select({
-      ios: {
-        shadowColor: colors.shadow,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 1,
-        shadowRadius: 16
-      },
-      android: { elevation: 2 }
-    })
+    justifyContent: "center"
   },
-  title: { color: colors.text, fontSize: 22, fontWeight: "700" },
-  avatar: { width: 64, height: 64, borderRadius: 999, borderWidth: 1, borderColor: colors.border },
-  muted: { color: colors.muted },
-  text: { color: colors.text },
-  row: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  container: { flex: 1, backgroundColor: figmaMobile.canvas },
+  content: { padding: 16, gap: 14, paddingBottom: 32 },
+  card: {
+    backgroundColor: figmaMobile.card,
+    borderColor: figmaMobile.glassBorder,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.feedCard,
+    padding: 16,
+    gap: 8
+  },
+  title: { color: figmaMobile.text, fontSize: 22, fontWeight: "700", letterSpacing: -0.3 },
+  avatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: figmaMobile.glassBorder
+  },
+  muted: { color: figmaMobile.textMuted, fontSize: 14 },
+  text: { color: figmaMobile.text, fontSize: 15, lineHeight: 22 },
+  row: { flexDirection: "row", gap: 8, flexWrap: "wrap", alignItems: "center" },
+  tabBar: {
+    flexDirection: "row",
+    marginTop: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: figmaMobile.glassBorder
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 10,
+    borderBottomWidth: 1.5,
+    borderBottomColor: "transparent"
+  },
+  tabItemActive: {
+    borderBottomColor: figmaMobile.accentGold
+  },
+  tabLabel: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: figmaMobile.textMuted
+  },
+  tabLabelActive: {
+    color: figmaMobile.accentGold,
+    fontWeight: "600"
+  },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 4
+    gap: 1,
+    backgroundColor: figmaMobile.glassBorder
   },
   tile: {
     position: "relative",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
     overflow: "hidden",
-    borderRadius: radii.control
+    backgroundColor: figmaMobile.card
   },
   tileOpen: {
     flex: 1
@@ -381,14 +435,14 @@ const styles = StyleSheet.create({
     width: "100%",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.surface,
+    backgroundColor: figmaMobile.card,
     paddingHorizontal: 6
   },
   tileFallbackVideo: {
     backgroundColor: "#1f2937"
   },
   tileFallbackText: {
-    color: colors.muted,
+    color: figmaMobile.textMuted,
     fontSize: 11,
     fontWeight: "600",
     textAlign: "center"
@@ -401,11 +455,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(0,0,0,0.12)",
-    backgroundColor: "rgba(255,255,255,0.88)"
+    borderColor: figmaMobile.glassBorder,
+    backgroundColor: "rgba(0,0,0,0.45)"
   },
   tileBadgeText: {
-    color: colors.text,
+    color: figmaMobile.text,
     fontSize: 9,
     fontWeight: "700"
   },
@@ -417,36 +471,67 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(0,0,0,0.12)",
-    backgroundColor: "rgba(255,255,255,0.88)"
+    borderColor: figmaMobile.glassBorder,
+    backgroundColor: "rgba(0,0,0,0.45)"
+  },
+  tileLikePressed: {
+    opacity: 0.85
   },
   tileLikeText: {
-    color: colors.text,
+    color: figmaMobile.text,
     fontSize: 10,
     fontWeight: "700"
   },
   buttonSecondary: {
-    borderColor: colors.border,
+    borderColor: figmaMobile.glassBorder,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.control,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: colors.surface
+    paddingVertical: 10,
+    backgroundColor: figmaMobile.glassSoft
   },
-  buttonActive: {
-    backgroundColor: colors.accentTint,
-    borderWidth: 0
+  buttonFollow: {
+    borderRadius: radii.button,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: figmaMobile.brandTeal
   },
-  buttonText: { color: colors.text, fontWeight: "600" },
-  buttonTextActive: { color: colors.accentTextOnTint },
-  productTile: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
+  buttonFollowText: {
+    color: colors.onAccent,
+    fontWeight: "600",
+    fontSize: 14
+  },
+  buttonSupport: {
     borderRadius: radii.control,
-    padding: 8,
-    justifyContent: "center"
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "transparent",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: figmaMobile.accentGold
   },
-  productTileTitle: { fontSize: 12, fontWeight: "700", color: colors.text },
-  productTilePrice: { fontSize: 11, fontWeight: "600", color: colors.accent, marginTop: 6 }
+  buttonSupportText: {
+    color: figmaMobile.accentGold,
+    fontWeight: "600",
+    fontSize: 14
+  },
+  buttonSubscribe: {
+    borderRadius: radii.button,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: figmaMobile.brandTeal
+  },
+  buttonSubscribeText: {
+    color: colors.onAccent,
+    fontWeight: "600",
+    fontSize: 13
+  },
+  buttonText: { color: figmaMobile.text, fontWeight: "600", fontSize: 14 },
+  productTile: {
+    padding: 8,
+    justifyContent: "center",
+    backgroundColor: figmaMobile.card,
+    alignItems: "stretch"
+  },
+  productTileTitle: { fontSize: 12, fontWeight: "700", color: figmaMobile.text },
+  productTilePrice: { fontSize: 11, fontWeight: "600", color: figmaMobile.accentGold, marginTop: 6 }
 });

@@ -1,10 +1,10 @@
-import { Pressable, StyleSheet, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { figmaMobile, figmaMobileHome, type } from "../theme";
 
-const INK = "#0F0E0D";
-const HAIRLINE = "#EBEBEB";
-const ICON = 24;
+const ICON = 22;
+const INK = figmaMobile.text;
 
 type Props = {
   onPressReels: () => void;
@@ -13,35 +13,30 @@ type Props = {
 };
 
 /**
- * Marketplace chrome — top bar: reels icon · center logo · search + bell.
+ * Marketplace chrome — matches Home social header: reels · Market · search + alerts.
  */
 export function MarketplaceTopBar({ onPressReels, onPressSearch, onPressNotifications }: Props) {
   const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.wrap, { paddingTop: insets.top }]}>
+    <View style={[styles.wrap, { paddingTop: insets.top + figmaMobileHome.headerPadVTop }]}>
       <View style={styles.row}>
-        {/* Reels icon — rounded square with play triangle */}
         <Pressable
           onPress={onPressReels}
-          style={styles.hit}
+          style={({ pressed }) => [styles.iconWell, pressed && styles.iconWellPressed]}
           accessibilityRole="button"
           accessibilityLabel="Reels"
         >
-          <View style={styles.reelsBox}>
-            <Ionicons name="play" size={14} color={INK} style={{ marginLeft: 1 }} />
-          </View>
+          <Ionicons name="play" size={15} color={INK} style={{ marginLeft: 1 }} />
         </Pressable>
 
-        {/* Center logo mark — rounded square with Deenly icon */}
-        <View style={styles.logoMark} accessibilityRole="header" accessibilityLabel="Deenly">
-          <Ionicons name="diamond-outline" size={20} color={INK} />
-        </View>
+        <Text style={styles.title} accessibilityRole="header">
+          Market
+        </Text>
 
-        {/* Right: search + bell */}
         <View style={styles.right}>
           <Pressable
             onPress={onPressSearch}
-            style={styles.hit}
+            style={({ pressed }) => [styles.iconWell, pressed && styles.iconWellPressed]}
             accessibilityRole="button"
             accessibilityLabel="Search"
           >
@@ -49,7 +44,7 @@ export function MarketplaceTopBar({ onPressReels, onPressSearch, onPressNotifica
           </Pressable>
           <Pressable
             onPress={onPressNotifications}
-            style={styles.hit}
+            style={({ pressed }) => [styles.iconWell, pressed && styles.iconWellPressed]}
             accessibilityRole="button"
             accessibilityLabel="Notifications"
           >
@@ -63,46 +58,48 @@ export function MarketplaceTopBar({ onPressReels, onPressSearch, onPressNotifica
 
 const styles = StyleSheet.create({
   wrap: {
-    backgroundColor: "#FFFFFF",
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: HAIRLINE
+    backgroundColor: "transparent",
+    borderBottomWidth: 0
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    height: 56
+    paddingHorizontal: figmaMobileHome.pagePadH,
+    paddingBottom: figmaMobileHome.headerPadVBottom,
+    minHeight: 48
   },
-  hit: {
-    minWidth: 44,
-    minHeight: 44,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  reelsBox: {
-    width: 34,
-    height: 34,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: INK,
+  iconWell: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255, 255, 255, 0.08)",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FFFFFF"
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 8, height: 4 },
+        shadowOpacity: 0.06,
+        shadowRadius: 28
+      },
+      android: { elevation: 2 },
+      default: {}
+    })
   },
-  logoMark: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1.5,
-    borderColor: INK,
-    alignItems: "center",
-    justifyContent: "center"
+  iconWellPressed: {
+    opacity: 0.85
+  },
+  title: {
+    ...type.navChromeTitle,
+    color: INK,
+    letterSpacing: -0.45
   },
   right: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4
+    gap: 8
   }
 });

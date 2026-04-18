@@ -12,7 +12,7 @@ const { getPrayerSettings, updatePrayerSettings } = require("../../services/pray
 const { resolvePersonaCapabilities } = require("../../services/persona-capabilities");
 const { resolvePostAuthorUserId } = require("../../services/anonymous-posting-user");
 const INTEREST_KEYS = new Set(["post", "marketplace", "reel"]);
-const FEED_TAB_PREFS = new Set(["for_you", "opportunities", "marketplace"]);
+const FEED_TAB_PREFS = new Set(["for_you", "marketplace"]);
 const APP_LANDING_PREFS = new Set(["home", "marketplace"]);
 const ONBOARDING_INTENT_KEYS = new Set(["community", "shop", "sell", "b2b"]);
 const PROFILE_KINDS = new Set(["consumer", "professional", "business_interest"]);
@@ -70,7 +70,7 @@ const USAGE_PERSONA_BUNDLES = {
   professional: {
     profileKind: "professional",
     onboardingIntents: ["community", "b2b"],
-    defaultFeedTab: "opportunities",
+    defaultFeedTab: "for_you",
     appLanding: "home",
     businessOnboardingStep: 1
   },
@@ -285,9 +285,10 @@ function createUsersRouter({ db, config, analytics }) {
         if (v === null || v === "") {
           sets.push("default_feed_tab = NULL");
         } else {
-          const t = String(v).trim();
+          const raw = String(v).trim();
+          const t = raw === "opportunities" ? "for_you" : raw;
           if (!FEED_TAB_PREFS.has(t)) {
-            throw httpError(400, "defaultFeedTab must be for_you, opportunities, or marketplace");
+            throw httpError(400, "defaultFeedTab must be for_you or marketplace");
           }
           sets.push(`default_feed_tab = $${i}`);
           vals.push(t);

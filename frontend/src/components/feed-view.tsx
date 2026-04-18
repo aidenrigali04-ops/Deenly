@@ -23,7 +23,7 @@ function isFeedPostItem(item: FeedListItem): item is FeedItem {
   return typeof item.id === "number";
 }
 
-type FeedTabId = "for_you" | "opportunities" | "marketplace";
+type FeedTabId = "for_you" | "marketplace";
 
 const FEED_STAGGER_FIRST = 14;
 
@@ -58,40 +58,11 @@ type FeedViewProps = {
   feedSubtitle?: string;
   showStories?: boolean;
   homeStyle?: boolean;
-  /** Dark “Social Media App UI” chrome (Figma-aligned cards + tabs). */
-  socialUi?: boolean;
   /** Applied once when the home feed loads (from saved profile preference). */
   initialFeedTab?: FeedTabId;
 };
 
-function FeedSkeletonList({ homeStyle = false, socialUi = false }: { homeStyle?: boolean; socialUi?: boolean }) {
-  if (socialUi) {
-    return (
-      <div className="space-y-3" aria-hidden="true">
-        {[0, 1].map((key) => (
-          <article key={key} className="overflow-hidden rounded-[32px] bg-social-card p-0">
-            <div className="flex items-center justify-between px-5 pt-5">
-              <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2 py-1.5">
-                <div className="skeleton h-10 w-10 rounded-full bg-white/10" />
-                <div className="space-y-1.5 pr-4">
-                  <div className="skeleton h-3 w-24 bg-white/10" />
-                  <div className="skeleton h-2.5 w-28 bg-white/10" />
-                </div>
-              </div>
-              <div className="skeleton h-[54px] w-[54px] rounded-full bg-white/10" />
-            </div>
-            <div className="mt-3 px-5">
-              <div className="skeleton aspect-[4/5] w-full rounded-2xl bg-white/10" />
-            </div>
-            <div className="space-y-2 px-5 py-4">
-              <div className="skeleton h-3 w-full bg-white/10" />
-              <div className="skeleton h-3 w-2/3 bg-white/10" />
-            </div>
-          </article>
-        ))}
-      </div>
-    );
-  }
+function FeedSkeletonList({ homeStyle = false }: { homeStyle?: boolean }) {
   if (homeStyle) {
     return (
       <div className="space-y-3" aria-hidden="true">
@@ -149,7 +120,6 @@ export function FeedView({
   feedSubtitle,
   showStories = false,
   homeStyle = false,
-  socialUi = false,
   initialFeedTab
 }: FeedViewProps) {
   const [postType, setPostType] = useState(fixedPostType);
@@ -317,50 +287,12 @@ export function FeedView({
   const emptySubtitle =
     feedTab === "marketplace"
       ? "Publish a marketplace post with an attached product, or browse Home for general updates."
-      : feedTab === "opportunities"
-        ? "No B2B-style listings match this feed yet."
-        : "Try changing filters or be the first to share.";
-
-  const cardLayout = socialUi && homeStyle ? "social" : homeStyle ? "home" : "default";
+      : "Try changing filters or be the first to share.";
 
   return (
     <section
-      className={`flex w-full flex-col gap-4 md:gap-5 ${
-        homeStyle ? (socialUi ? "max-w-full" : "mx-auto max-w-[680px]") : "mx-auto max-w-[1100px]"
-      }`}
+      className={`flex w-full flex-col gap-4 md:gap-5 ${homeStyle ? "mx-auto max-w-[680px]" : "mx-auto max-w-[1100px]"}`}
     >
-      {socialUi ? (
-        <div className="space-y-2">
-          {heading ? (
-            <div className="px-0.5">
-              <h1 className="text-lg font-semibold leading-6 tracking-tight text-white">{heading}</h1>
-              {feedSubtitle ? <p className="mt-0.5 text-xs font-normal leading-4 text-white/65">{feedSubtitle}</p> : null}
-            </div>
-          ) : null}
-          {fixedFeedTab ? null : (
-            <div className="flex flex-wrap gap-x-[22px] gap-y-1 border-b border-white/10">
-              {[
-                { id: "for_you" as const, label: "For You" },
-                { id: "opportunities" as const, label: "Opportunities" },
-                { id: "marketplace" as const, label: "Marketplace" }
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  className={`border-b-2 pb-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-social-accent focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
-                    feedTab === tab.id
-                      ? "border-social-accent text-social-accent"
-                      : "border-transparent text-white/90 hover:text-white"
-                  }`}
-                  onClick={() => setFeedTab(tab.id)}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      ) : (
       <header className="glass-panel sticky top-4 z-10 space-y-3 px-4 py-4">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
@@ -387,7 +319,6 @@ export function FeedView({
           <div className="flex flex-wrap gap-2">
             {[
               { id: "for_you" as const, label: "For You" },
-              { id: "opportunities" as const, label: "Opportunities" },
               { id: "marketplace" as const, label: "Marketplace" }
             ].map((tab) => (
               <button
@@ -433,16 +364,15 @@ export function FeedView({
           </div>
         </div>
       </header>
-      )}
 
-      {showStories ? <HomeStoriesRow variant={socialUi ? "social" : "default"} /> : null}
+      {showStories ? <HomeStoriesRow /> : null}
 
       <div className={`grid gap-3 ${homeStyle ? "" : "xl:grid-cols-[minmax(0,620px)_240px] xl:justify-center xl:gap-6"}`}>
         <div className="space-y-4 md:space-y-5">
           {feedQuery.isLoading ? (
             <>
               <LoadingState label="Loading feed..." />
-              <FeedSkeletonList homeStyle={homeStyle} socialUi={socialUi} />
+              <FeedSkeletonList homeStyle={homeStyle} />
             </>
           ) : null}
           {feedQuery.error ? (
@@ -461,7 +391,7 @@ export function FeedView({
                   <FeedCard
                     key={item.id}
                     item={item}
-                    layout={cardLayout}
+                    layout={homeStyle ? "home" : "default"}
                     onToggleFollow={toggleFollow}
                     followBusy={busyAuthorId === item.author_id}
                   />
@@ -485,7 +415,7 @@ export function FeedView({
                   ) : isFeedPostItem(item) ? (
                     <FeedCard
                       item={item}
-                      layout={cardLayout}
+                      layout={homeStyle ? "home" : "default"}
                       onToggleFollow={toggleFollow}
                       followBusy={busyAuthorId === item.author_id}
                     />
@@ -497,12 +427,7 @@ export function FeedView({
 
           {feedQuery.hasNextPage ? (
             <button
-              type="button"
-              className={
-                socialUi
-                  ? "w-full rounded-full border border-white/15 bg-white/5 py-3 text-sm font-medium text-white transition hover:bg-white/10 disabled:opacity-50"
-                  : "btn-secondary w-full"
-              }
+              className="btn-secondary w-full"
               disabled={feedQuery.isFetchingNextPage}
               onClick={() => feedQuery.fetchNextPage()}
             >
@@ -511,7 +436,7 @@ export function FeedView({
           ) : null}
         </div>
 
-        <aside className={`hidden space-y-3 xl:block ${homeStyle || socialUi ? "xl:hidden" : ""}`}>
+        <aside className={`hidden space-y-3 xl:block ${homeStyle ? "xl:hidden" : ""}`}>
           <div className="surface-card space-y-2">
             <p className="text-xs uppercase tracking-[0.14em] text-muted">Signed in as</p>
             <p className="text-sm font-medium">{user?.email || "Guest"}</p>

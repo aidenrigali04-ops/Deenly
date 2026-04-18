@@ -3,15 +3,6 @@ import path from "path";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  images: {
-    remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "www.figma.com",
-        pathname: "/api/mcp/asset/**"
-      }
-    ]
-  },
   // Allow imports from repo `shared/` (onboarding copy, etc.).
   experimental: {
     externalDir: true

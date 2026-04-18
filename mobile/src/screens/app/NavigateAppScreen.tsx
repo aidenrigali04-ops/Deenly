@@ -6,18 +6,21 @@ import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNa
 
 type Props = NativeStackScreenProps<RootStackParamList, "NavigateApp">;
 
-type TabName = "HomeTab" | "MarketplaceTab" | "MessagesTab" | "CreateTab" | "AccountTab";
+type TabName = "HomeTab" | "SearchTab" | "MarketplaceTab" | "ReelsTab" | "MessagesTab" | "AccountTab";
+
+type StackName = "CreateFlow" | "RewardsWallet" | "Referrals";
 
 const ROWS: (
   | { tab: TabName; title: string; subtitle: string }
-  | { stack: "Search" | "RewardsWallet" | "Referrals"; title: string; subtitle: string }
+  | { stack: StackName; title: string; subtitle: string }
 )[] = [
   { tab: "HomeTab", title: "Home", subtitle: "Main feed" },
+  { tab: "SearchTab", title: "Discover", subtitle: "People, posts, and near me" },
   { tab: "MarketplaceTab", title: "Market", subtitle: "Browse listings" },
-  { stack: "Search", title: "Explore", subtitle: "People, posts, and near me" },
+  { tab: "ReelsTab", title: "Reels", subtitle: "Short video feed" },
   { tab: "MessagesTab", title: "Messages", subtitle: "Direct messages" },
-  { tab: "CreateTab", title: "Create", subtitle: "Post, product, or event" },
   { tab: "AccountTab", title: "Profile", subtitle: "Your grid and products" },
+  { stack: "CreateFlow", title: "Create", subtitle: "Post, product, or event" },
   { stack: "RewardsWallet", title: "Rewards wallet", subtitle: "Points balance and history" },
   { stack: "Referrals", title: "Referrals", subtitle: "Your code and invite link" }
 ];
@@ -32,6 +35,10 @@ export function NavigateAppScreen({ navigation }: Props) {
             key={"stack" in row ? row.stack : row.tab}
             onPress={() => {
               if ("stack" in row) {
+                if (row.stack === "CreateFlow") {
+                  navigation.navigate("CreateFlow", { screen: "CreateHub" });
+                  return;
+                }
                 navigation.navigate(row.stack);
                 return;
               }

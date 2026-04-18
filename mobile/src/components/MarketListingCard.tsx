@@ -12,18 +12,19 @@ import { useEffect, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { AppVideoView } from "./AppVideoView";
-import { formatFeedTimestamp, isImageMedia } from "./PostCard";
+import { formatFeedTimestamp, formatHomeRelativeTime, isImageMedia } from "./PostCard";
 import { resolveMediaUrl } from "../lib/media-url";
 import type { FeedItem } from "../types";
 import { formatMinorCurrency } from "../lib/monetization";
 import { hapticTap } from "../lib/haptics";
+import { figmaMobile, figmaMobileHome } from "../theme";
 
-/* ── Design tokens ── */
-const PRIMARY = "#0F0E0D";
-const MUTED = "#8A8480";
-const HAIRLINE = "#EBEBEB";
-const CARD_BG = "#FFFFFF";
-const CARD_RADIUS = 16;
+/* ── Figma dark market listing (node 1-118) ── */
+const PRIMARY = figmaMobile.text;
+const MUTED = figmaMobile.textMuted;
+const HAIRLINE = figmaMobile.glassBorder;
+const CARD_BG = figmaMobileHome.feedCardBg;
+const CARD_RADIUS = figmaMobileHome.feedCardRadius;
 
 function listingTitle(item: FeedItem) {
   if (item.attached_product_title?.trim()) {
@@ -144,7 +145,7 @@ export function MarketListingCard({
               ) : null}
             </View>
             <Text style={styles.dateLine} numberOfLines={1}>
-              {formatListingDate(item.created_at) || formatFeedTimestamp(item.created_at)}
+              {formatHomeRelativeTime(item.created_at) || formatListingDate(item.created_at)}
             </Text>
           </View>
         </Pressable>
@@ -161,37 +162,69 @@ export function MarketListingCard({
         ) : null}
       </View>
 
-      {/* ── Media area — full-bleed within card ── */}
+      {/* ── Media hero — dual scrim (parity with home PostCard) ── */}
       {canRenderMedia ? (
-        isImageMedia(item) ? (
-          <Image
-            source={{ uri: mediaUri }}
-            style={styles.media}
-            resizeMode="cover"
-            onError={() => setMediaFailed(true)}
+        <View style={styles.mediaHero}>
+          {isImageMedia(item) ? (
+            <Image
+              source={{ uri: mediaUri }}
+              style={styles.mediaFill}
+              resizeMode="cover"
+              onError={() => setMediaFailed(true)}
+            />
+          ) : (
+            <AppVideoView
+              uri={mediaUri!}
+              style={styles.mediaFill}
+              contentFit="cover"
+              nativeControls
+              loop={false}
+              play={mediaPlaybackActive}
+              muted={!mediaPlaybackActive}
+              onError={() => setMediaFailed(true)}
+            />
+          )}
+          <LinearGradient
+            colors={[figmaMobile.gradientTop, "transparent"]}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={styles.mediaScrimTop}
+            pointerEvents="none"
           />
-        ) : (
-          <AppVideoView
-            uri={mediaUri!}
-            style={styles.media}
-            contentFit="cover"
-            nativeControls
-            loop={false}
-            play={mediaPlaybackActive}
-            muted={!mediaPlaybackActive}
-            onError={() => setMediaFailed(true)}
+          <LinearGradient
+            colors={["transparent", figmaMobile.gradientBottom]}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={styles.mediaScrimBottom}
+            pointerEvents="none"
           />
-        )
+        </View>
       ) : (
-        <LinearGradient
-          colors={["#6D28D9", "#1E1B4B", "#0A0A0A"]}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-          style={styles.mediaPlaceholder}
-        >
-          <Text style={styles.placeholderTitle}>{title}</Text>
-          <Text style={styles.placeholderSub}>Tap View offer for details</Text>
-        </LinearGradient>
+        <View style={styles.mediaHero}>
+          <LinearGradient
+            colors={["#6D28D9", "#1E1B4B", "#0A0A0A"]}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={styles.mediaPlaceholderFill}
+          >
+            <Text style={styles.placeholderTitle}>{title}</Text>
+            <Text style={styles.placeholderSub}>Tap View offer for details</Text>
+          </LinearGradient>
+          <LinearGradient
+            colors={[figmaMobile.gradientTop, "transparent"]}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={styles.mediaScrimTop}
+            pointerEvents="none"
+          />
+          <LinearGradient
+            colors={["transparent", figmaMobile.gradientBottom]}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={styles.mediaScrimBottom}
+            pointerEvents="none"
+          />
+        </View>
       )}
 
       {/* ── Footer row 1: username + product name | View Offer + price ── */}
@@ -218,19 +251,24 @@ export function MarketListingCard({
 
       {/* ── Footer row 2: engagement bar ── */}
       <View style={styles.engageRow}>
-        <Pressable style={styles.engageItem} onPress={onHeart} disabled={!onLike || liking}>
-          <Ionicons name={liked ? "heart" : "heart-outline"} size={20} color={liked ? "#EF4444" : MUTED} />
-          <Text style={styles.engageCount}>{benefitedCount}</Text>
-        </Pressable>
-        <Pressable style={styles.engageItem} onPress={() => onOpenPost?.()} disabled={!onOpenPost}>
-          <Ionicons name="chatbubble-outline" size={18} color={MUTED} />
-          <Text style={styles.engageCount}>{item.comment_count || 0}</Text>
-        </Pressable>
-        <View style={styles.engageItem}>
-          <Ionicons name="star-outline" size={20} color={MUTED} />
-          <Text style={styles.engageCount}>{MOCK_STAR}</Text>
+        <View style={styles.engageCluster}>
+          <Pressable style={styles.engageItem} onPress={onHeart} disabled={!onLike || liking}>
+            <Ionicons
+              name={liked ? "heart" : "heart-outline"}
+              size={figmaMobileHome.engageIconSize}
+              color={liked ? figmaMobile.accentGold : PRIMARY}
+            />
+            <Text style={styles.engageCount}>{benefitedCount}</Text>
+          </Pressable>
+          <Pressable style={styles.engageItem} onPress={() => onOpenPost?.()} disabled={!onOpenPost}>
+            <Ionicons name="chatbubble-outline" size={figmaMobileHome.engageIconSize} color={PRIMARY} />
+            <Text style={styles.engageCount}>{item.comment_count || 0}</Text>
+          </Pressable>
+          <View style={styles.engageItem}>
+            <Ionicons name="star-outline" size={figmaMobileHome.engageIconSize} color={PRIMARY} />
+            <Text style={styles.engageCount}>{MOCK_STAR}</Text>
+          </View>
         </View>
-        <View style={styles.engageSpacer} />
         <Pressable
           style={styles.bookmarkHit}
           onPress={() => {
@@ -244,7 +282,7 @@ export function MarketListingCard({
             });
           }}
         >
-          <Ionicons name="bookmark-outline" size={20} color={MUTED} />
+          <Ionicons name="bookmark-outline" size={figmaMobileHome.engageIconSize} color={PRIMARY} />
         </Pressable>
       </View>
     </View>
@@ -256,18 +294,8 @@ const styles = StyleSheet.create({
     backgroundColor: CARD_BG,
     borderRadius: CARD_RADIUS,
     overflow: "hidden",
-    marginHorizontal: 16,
-    marginBottom: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8
-      },
-      android: { elevation: 3 },
-      default: {}
-    })
+    marginHorizontal: 0,
+    marginBottom: 0
   },
 
   /* ── Header ── */
@@ -289,7 +317,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#F0EFED",
+    backgroundColor: figmaMobile.text,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden"
@@ -301,7 +329,7 @@ const styles = StyleSheet.create({
   avatarLetter: {
     fontSize: 15,
     fontWeight: "600",
-    color: PRIMARY
+    color: "#1a1a1a"
   },
   headerText: {
     flex: 1,
@@ -328,17 +356,17 @@ const styles = StyleSheet.create({
     fontWeight: "400"
   },
   followPill: {
-    borderWidth: 1.5,
-    borderColor: PRIMARY,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: figmaMobile.glassBorder,
     borderRadius: 999,
     paddingHorizontal: 14,
     height: 32,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "transparent"
+    backgroundColor: figmaMobile.glassSoft
   },
   followPillFollowing: {
-    backgroundColor: "rgba(15,14,13,0.05)"
+    backgroundColor: figmaMobile.glass
   },
   followPillText: {
     fontSize: 15,
@@ -349,15 +377,37 @@ const styles = StyleSheet.create({
     fontWeight: "500"
   },
 
-  /* ── Media ── */
-  media: {
+  /* ── Media hero + Figma scrims ── */
+  mediaHero: {
     width: "100%",
     aspectRatio: 1,
-    backgroundColor: "#F0EFED"
+    position: "relative",
+    backgroundColor: figmaMobile.mediaSurface,
+    overflow: "hidden"
   },
-  mediaPlaceholder: {
+  mediaFill: {
+    ...StyleSheet.absoluteFillObject,
     width: "100%",
-    aspectRatio: 1,
+    height: "100%"
+  },
+  mediaScrimTop: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    height: `${Math.round(figmaMobileHome.scrimTopHeightRatio * 100)}%`,
+    minHeight: 96
+  },
+  mediaScrimBottom: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: `${Math.round(figmaMobileHome.scrimBottomHeightRatio * 100)}%`,
+    minHeight: 120
+  },
+  mediaPlaceholderFill: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
@@ -403,7 +453,7 @@ const styles = StyleSheet.create({
     gap: 4
   },
   viewOfferBtn: {
-    backgroundColor: PRIMARY,
+    backgroundColor: figmaMobile.brandTeal,
     borderRadius: 999,
     paddingHorizontal: 14,
     height: 34,
@@ -426,22 +476,26 @@ const styles = StyleSheet.create({
   engageRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingBottom: 12
+    justifyContent: "space-between",
+    paddingHorizontal: 24,
+    paddingBottom: 16
+  },
+  engageCluster: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: figmaMobileHome.engageRowGap,
+    flexShrink: 1
   },
   engageItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    marginRight: 8
+    gap: 4
   },
   engageCount: {
-    fontSize: 13,
-    fontWeight: "400",
-    color: MUTED
-  },
-  engageSpacer: {
-    flex: 1
+    fontSize: figmaMobileHome.engageCountSize,
+    lineHeight: figmaMobileHome.engageCountLineHeight,
+    fontWeight: "500",
+    color: PRIMARY
   },
   bookmarkHit: {
     padding: 6,

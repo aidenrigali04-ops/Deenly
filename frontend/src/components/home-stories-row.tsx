@@ -8,22 +8,10 @@ const storySeeds = [
   { id: "s4", label: "MercyNotes", initials: "MN" }
 ];
 
-type HomeStoriesRowProps = {
-  variant?: "default" | "social";
-};
-
-export function HomeStoriesRow({ variant = "default" }: HomeStoriesRowProps) {
-  const isSocial = variant === "social";
+export function HomeStoriesRow() {
   return (
-    <section
-      className={
-        isSocial
-          ? "rounded-2xl border border-white/10 bg-transparent py-1"
-          : "surface-card p-2.5 md:p-3"
-      }
-      aria-label="Stories"
-    >
-      <div className={`flex items-center gap-2 overflow-x-auto pb-1 ${isSocial ? "px-0.5" : ""}`}>
+    <section className="surface-card p-2.5 md:p-3" aria-label="Stories">
+      <div className="flex items-center gap-3 overflow-x-auto pb-1">
         {storySeeds.map((story) => (
           <button
             key={story.id}
@@ -32,32 +20,10 @@ export function HomeStoriesRow({ variant = "default" }: HomeStoriesRowProps) {
             aria-label={story.label}
             title={story.label}
           >
-            <span
-              className={`inline-flex rounded-full border p-[2px] ${
-                story.isOwn
-                  ? isSocial
-                    ? "border-white/25"
-                    : "story-ring-own"
-                  : isSocial
-                    ? "border-white/15"
-                    : "story-ring"
-              }`}
-            >
-              <span
-                className={`grid h-[70px] w-[70px] place-items-center rounded-full border text-xs font-semibold ${
-                  isSocial
-                    ? story.isOwn
-                      ? "border-white/12 bg-white/[0.08] text-white"
-                      : "border-white/10 bg-white text-black"
-                    : "story-avatar h-14 w-14 border-black/10 bg-surface text-black"
-                }`}
-              >
-                {story.initials}
-              </span>
+            <span className={`story-ring ${story.isOwn ? "story-ring-own" : ""}`}>
+              <span className="story-avatar">{story.initials}</span>
             </span>
-            <span className={`max-w-[70px] truncate text-center text-xs font-medium ${isSocial ? "text-white" : "text-muted"}`}>
-              {story.label}
-            </span>
+            <span className="max-w-16 truncate text-[11px] text-muted">{story.label}</span>
           </button>
         ))}
       </div>

@@ -2,18 +2,45 @@ import "react-native-gesture-handler";
 import { useEffect, useState } from "react";
 import NetInfo from "@react-native-community/netinfo";
 import * as Sentry from "@sentry/react-native";
+import {
+  useFonts,
+  Urbanist_400Regular,
+  Urbanist_500Medium,
+  Urbanist_600SemiBold,
+  Urbanist_700Bold
+} from "@expo-google-fonts/urbanist";
+import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 import { ReliabilityBanner } from "./src/components/ReliabilityBanner";
 import { flushQueuedMutations, getQueuedMutationCount } from "./src/lib/mutation-queue";
+import { applyUrbanistTextDefaults } from "./src/lib/urbanist-defaults";
+
+void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 const queryClient = new QueryClient();
 
 function App() {
+  const [fontsLoaded, fontError] = useFonts({
+    Urbanist_400Regular,
+    Urbanist_500Medium,
+    Urbanist_600SemiBold,
+    Urbanist_700Bold
+  });
   const [isOffline, setIsOffline] = useState(false);
   const [queuedMutations, setQueuedMutations] = useState(0);
+
+  useEffect(() => {
+    if (!fontsLoaded && !fontError) {
+      return;
+    }
+    if (fontsLoaded) {
+      applyUrbanistTextDefaults();
+    }
+    void SplashScreen.hideAsync().catch(() => undefined);
+  }, [fontsLoaded, fontError]);
 
   useEffect(() => {
     let mounted = true;
@@ -43,6 +70,10 @@ function App() {
       unsubscribe();
     };
   }, []);
+
+  if (!fontsLoaded && !fontError) {
+    return null;
+  }
 
   return (
     <SafeAreaProvider>

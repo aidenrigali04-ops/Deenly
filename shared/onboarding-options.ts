@@ -20,11 +20,10 @@ export const INTENT_OPTIONS: { key: IntentKey; label: string }[] = [
   { key: "b2b", label: "Discover B2B-style opportunities" }
 ];
 
-export type FeedTabKey = "for_you" | "opportunities" | "marketplace";
+export type FeedTabKey = "for_you" | "marketplace";
 
 export const FEED_TAB_OPTIONS: { key: FeedTabKey; label: string }[] = [
   { key: "for_you", label: "For You" },
-  { key: "opportunities", label: "Opportunities" },
   { key: "marketplace", label: "Marketplace" }
 ];
 

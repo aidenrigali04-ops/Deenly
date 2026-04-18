@@ -1,21 +1,18 @@
 import type React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CompositeScreenProps } from "@react-navigation/native";
-import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { AppTabParamList, CreateTabStackParamList, RootStackParamList } from "../../navigation/AppNavigator";
-import { useTabSceneBottomPadding } from "../../hooks/useTabSceneInsets";
-import { colors, radii, shadows, spacing, type } from "../../theme";
+import type { CreateTabStackParamList, RootStackParamList } from "../../navigation/AppNavigator";
+import { useDetachedSceneBottomPadding } from "../../hooks/useTabSceneInsets";
+import { figmaMobile, radii, shadows, spacing, type } from "../../theme";
 import { hapticTap } from "../../lib/haptics";
-
-/* ── Design tokens ─────────────────────────────────────────── */
-const PAGE_BG = "#F9F8F6";
 
 type Props = CompositeScreenProps<
   NativeStackScreenProps<CreateTabStackParamList, "CreateHub">,
-  CompositeScreenProps<BottomTabScreenProps<AppTabParamList, "CreateTab">, NativeStackScreenProps<RootStackParamList>>
+  NativeStackScreenProps<RootStackParamList>
 >;
 
 type OptionRowProps = {
@@ -34,20 +31,20 @@ function OptionRow({ icon, title, description, onPress }: OptionRowProps) {
       accessibilityLabel={title}
     >
       <View style={styles.iconBox}>
-        <Ionicons name={icon} size={20} color={colors.muted} />
+        <Ionicons name={icon} size={20} color={figmaMobile.textMuted} />
       </View>
       <View style={styles.optionText}>
         <Text style={styles.optionTitle}>{title}</Text>
         <Text style={styles.optionDescription}>{description}</Text>
       </View>
-      <Ionicons name="chevron-forward" size={18} color={colors.mutedLight} />
+      <Ionicons name="chevron-forward" size={18} color={figmaMobile.textMuted2} />
     </Pressable>
   );
 }
 
 export function CreateHubScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const bottomPad = useTabSceneBottomPadding(24);
+  const bottomPad = useDetachedSceneBottomPadding(32);
 
   const goPost = () => {
     void hapticTap();
@@ -64,6 +61,7 @@ export function CreateHubScreen({ navigation }: Props) {
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + spacing.pagePaddingTop, paddingBottom: bottomPad }]}>
+      <StatusBar style="light" />
       <Text style={styles.title}>Create</Text>
       <Text style={styles.subtitle}>Share, sell, or gather your community in one place.</Text>
 
@@ -94,17 +92,17 @@ export function CreateHubScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: PAGE_BG,
+    backgroundColor: figmaMobile.canvas,
     paddingHorizontal: spacing.pagePaddingH,
     gap: spacing.sectionGap
   },
   title: {
     ...type.pageTitle,
-    color: colors.text
+    color: figmaMobile.text
   },
   subtitle: {
     fontSize: 15,
-    color: colors.muted,
+    color: figmaMobile.textMuted,
     lineHeight: 22,
     marginTop: -12
   },
@@ -117,21 +115,22 @@ const styles = StyleSheet.create({
     minHeight: 88,
     paddingVertical: 16,
     paddingHorizontal: spacing.cardPaddingLg,
-    borderRadius: radii.card,
-    borderWidth: 0,
-    backgroundColor: colors.surface,
+    borderRadius: radii.feedCard,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: figmaMobile.glassBorder,
+    backgroundColor: figmaMobile.card,
     gap: 14,
     ...shadows.card
   },
   optionCardPressed: {
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: figmaMobile.glassSoft,
     transform: [{ scale: 0.99 }]
   },
   iconBox: {
     width: 36,
     height: 36,
     borderRadius: radii.control,
-    backgroundColor: colors.accentTint,
+    backgroundColor: figmaMobile.glassSoft,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -142,11 +141,11 @@ const styles = StyleSheet.create({
   },
   optionTitle: {
     ...type.cardTitle,
-    color: colors.text
+    color: figmaMobile.text
   },
   optionDescription: {
     fontSize: 14,
-    color: colors.muted,
+    color: figmaMobile.textMuted,
     lineHeight: 20
   }
 });

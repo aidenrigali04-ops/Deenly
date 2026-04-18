@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Image, Linking, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { AppVideoView } from "../../components/AppVideoView";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -7,7 +8,7 @@ import { ApiError, apiRequest } from "../../lib/api";
 import { resolveMediaUrl } from "../../lib/media-url";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { enqueueMutation } from "../../lib/mutation-queue";
-import { colors, primaryButtonOutline } from "../../theme";
+import { colors, figmaMobile, primaryButtonOutline, radii } from "../../theme";
 import type { FeedItem } from "../../types";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { createGuestProductCheckout, createProductCheckout, formatMinorCurrency } from "../../lib/monetization";
@@ -186,13 +187,28 @@ export function PostDetailScreen({ route, navigation }: Props) {
     setCheckoutPriceLabel(formatMinorCurrency(priceMinor, currency || "usd"));
   };
   if (postQuery.isLoading) {
-    return <LoadingState label="Loading post..." />;
+    return (
+      <View style={styles.screenRoot}>
+        <StatusBar style="light" />
+        <LoadingState label="Loading post..." surface="dark" />
+      </View>
+    );
   }
   if (postQuery.error) {
-    return <ErrorState message={(postQuery.error as Error).message} onRetry={postQuery.refetch} />;
+    return (
+      <View style={styles.screenRoot}>
+        <StatusBar style="light" />
+        <ErrorState message={(postQuery.error as Error).message} onRetry={postQuery.refetch} surface="dark" />
+      </View>
+    );
   }
   if (!postQuery.data) {
-    return <EmptyState title="Post not found" />;
+    return (
+      <View style={styles.screenRoot}>
+        <StatusBar style="light" />
+        <EmptyState title="Post not found" surface="dark" />
+      </View>
+    );
   }
 
   const post = postQuery.data;
@@ -203,6 +219,7 @@ export function PostDetailScreen({ route, navigation }: Props) {
 
   return (
     <>
+      <StatusBar style="light" />
       <ProductCheckoutSheet
         visible={checkoutProductId !== null}
         title={checkoutProductTitle}
@@ -237,7 +254,7 @@ export function PostDetailScreen({ route, navigation }: Props) {
         }}
       />
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.card}>
+      <View style={styles.cardMain}>
         <Text style={styles.title}>{post.content}</Text>
         <Text style={styles.muted}>{post.author_display_name}</Text>
         {canRenderMedia ? (
@@ -355,7 +372,7 @@ export function PostDetailScreen({ route, navigation }: Props) {
           </Pressable>
         ) : null}
         {post.attached_product_id ? (
-          <View style={styles.card}>
+          <View style={styles.cardInset}>
             <Text style={styles.label}>{post.attached_product_title || "Creator product"}</Text>
             <Text style={styles.muted}>
               {formatMinorCurrency(
@@ -379,7 +396,7 @@ export function PostDetailScreen({ route, navigation }: Props) {
               </Pressable>
               <Pressable
                 style={({ pressed }) => [
-                  styles.buttonSecondary,
+                  isOwnAttachedProduct || buyPending ? styles.buttonSecondary : styles.buttonPrimaryBuy,
                   styles.productCtaHalf,
                   pressed && !isOwnAttachedProduct && !buyPending && styles.buttonPressed
                 ]}
@@ -398,7 +415,11 @@ export function PostDetailScreen({ route, navigation }: Props) {
                   buyPending
                 }
               >
-                <Text style={styles.buttonText}>
+                <Text
+                  style={
+                    isOwnAttachedProduct || buyPending ? styles.buttonText : styles.buttonPrimaryBuyText
+                  }
+                >
                   {isOwnAttachedProduct
                     ? "Your product"
                     : buyPending
@@ -411,13 +432,13 @@ export function PostDetailScreen({ route, navigation }: Props) {
         ) : null}
       </View>
 
-      <View style={styles.card}>
+      <View style={styles.cardMain}>
         <Text style={styles.label}>Add comment</Text>
         <TextInput
           style={styles.input}
           multiline
           placeholder="Write a respectful comment..."
-          placeholderTextColor={colors.muted}
+          placeholderTextColor={figmaMobile.textMuted}
           value={comment}
           onChangeText={setComment}
         />
@@ -449,7 +470,7 @@ export function PostDetailScreen({ route, navigation }: Props) {
         </Pressable>
       </View>
 
-      <View style={styles.card}>
+      <View style={styles.cardMain}>
         <Text style={styles.label}>Report post</Text>
         <Text style={styles.muted}>
           Reports are reviewed by moderators. During beta we aim to triage serious safety issues within one business day.
@@ -457,21 +478,21 @@ export function PostDetailScreen({ route, navigation }: Props) {
         <TextInput
           style={styles.inputSingle}
           placeholder="Reason"
-          placeholderTextColor={colors.muted}
+          placeholderTextColor={figmaMobile.textMuted}
           value={reportReason}
           onChangeText={setReportReason}
         />
         <TextInput
           style={styles.inputSingle}
           placeholder="Category (haram_content, misinformation, harassment, spam, other)"
-          placeholderTextColor={colors.muted}
+          placeholderTextColor={figmaMobile.textMuted}
           value={reportCategory}
           onChangeText={setReportCategory}
         />
         <TextInput
           style={styles.inputSingle}
           placeholder="Evidence URL (optional)"
-          placeholderTextColor={colors.muted}
+          placeholderTextColor={figmaMobile.textMuted}
           value={reportEvidenceUrl}
           onChangeText={setReportEvidenceUrl}
         />
@@ -513,29 +534,48 @@ export function PostDetailScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
+  screenRoot: {
+    flex: 1,
+    backgroundColor: figmaMobile.canvas,
+    padding: 16,
+    justifyContent: "center"
+  },
   container: {
     flex: 1,
-    backgroundColor: colors.background
+    backgroundColor: figmaMobile.canvas
   },
   content: {
     padding: 14,
-    gap: 12
+    gap: 12,
+    paddingBottom: 28
   },
-  card: {
-    backgroundColor: colors.card,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 10,
+  cardMain: {
+    backgroundColor: figmaMobile.card,
+    borderColor: figmaMobile.glassBorder,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.feedCard,
+    padding: 16,
+    gap: 10
+  },
+  cardInset: {
+    backgroundColor: figmaMobile.glassSoft,
+    borderColor: figmaMobile.glassBorder,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.control,
     padding: 12,
-    gap: 8
+    gap: 8,
+    marginTop: 4
   },
   title: {
-    color: colors.text,
+    color: figmaMobile.text,
     fontSize: 18,
-    fontWeight: "700"
+    fontWeight: "700",
+    lineHeight: 24
   },
   muted: {
-    color: colors.muted
+    color: figmaMobile.textMuted,
+    fontSize: 14,
+    lineHeight: 20
   },
   metrics: {
     flexDirection: "row",
@@ -545,8 +585,8 @@ const styles = StyleSheet.create({
   video: {
     width: "100%",
     height: 240,
-    borderRadius: 10,
-    backgroundColor: colors.surface
+    borderRadius: radii.control,
+    backgroundColor: "#2a2a2a"
   },
   row: {
     flexDirection: "row",
@@ -554,49 +594,67 @@ const styles = StyleSheet.create({
     flexWrap: "wrap"
   },
   label: {
-    color: colors.text,
-    fontWeight: "700"
+    color: figmaMobile.text,
+    fontWeight: "700",
+    fontSize: 15
   },
   input: {
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 10,
+    borderColor: figmaMobile.glassBorder,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.control,
     minHeight: 100,
-    color: colors.text,
-    backgroundColor: colors.surface,
-    padding: 10,
+    color: figmaMobile.text,
+    backgroundColor: figmaMobile.glassSoft,
+    padding: 12,
     textAlignVertical: "top"
   },
   inputSingle: {
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 10,
-    color: colors.text,
-    backgroundColor: colors.surface,
-    padding: 10
+    borderColor: figmaMobile.glassBorder,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.control,
+    color: figmaMobile.text,
+    backgroundColor: figmaMobile.glassSoft,
+    padding: 12
   },
   button: {
-    borderRadius: 10,
-    paddingVertical: 10,
+    borderRadius: radii.button,
+    paddingVertical: 12,
     ...primaryButtonOutline
   },
   buttonPrimaryText: {
     color: colors.onAccent,
-    fontWeight: "600"
+    fontWeight: "600",
+    fontSize: 16
   },
   buttonSecondary: {
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 10,
+    borderColor: figmaMobile.glassBorder,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.control,
     paddingHorizontal: 12,
-    paddingVertical: 8
+    paddingVertical: 10,
+    backgroundColor: figmaMobile.glassSoft
+  },
+  buttonPrimaryBuy: {
+    borderRadius: radii.button,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: figmaMobile.brandTeal,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  buttonPrimaryBuyText: {
+    color: colors.onAccent,
+    fontWeight: "600",
+    fontSize: 14
   },
   buttonPressed: {
-    transform: [{ scale: 0.99 }]
+    transform: [{ scale: 0.99 }],
+    opacity: 0.92
   },
   buttonText: {
-    color: colors.text,
-    fontWeight: "600"
+    color: figmaMobile.text,
+    fontWeight: "600",
+    fontSize: 14
   },
   productCtaRow: {
     flexDirection: "row",

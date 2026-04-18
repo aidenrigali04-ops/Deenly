@@ -1,17 +1,17 @@
 import { StyleSheet, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { atmosphereGradient } from "../theme";
+import { figmaAtmosphere } from "../theme";
 
 /**
- * Full-screen soft gradient behind transparent tab scenes (glass / liquid-style depth).
+ * Full-screen gradient behind tab scenes — matches Figma dark social canvas.
  */
 export function AtmosphereBackdrop() {
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <LinearGradient
-        colors={[...atmosphereGradient.colors]}
-        start={atmosphereGradient.start}
-        end={atmosphereGradient.end}
+        colors={[...figmaAtmosphere.colors]}
+        start={figmaAtmosphere.start}
+        end={figmaAtmosphere.end}
         style={StyleSheet.absoluteFill}
       />
     </View>

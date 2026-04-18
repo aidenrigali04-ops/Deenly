@@ -230,7 +230,7 @@ paths:
           name: feedTab
           schema:
             type: string
-            enum: [for_you, opportunities, marketplace]
+            enum: [for_you, marketplace, reels]
         - in: query
           name: followingOnly
           schema: { type: boolean }

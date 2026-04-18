@@ -9,7 +9,6 @@ export default function MarketplacePage() {
       fixedFeedTab="marketplace"
       feedSubtitle="Promotions and creator offers (all marketplace listings)."
       homeStyle
-      socialUi
     />
   );
 }

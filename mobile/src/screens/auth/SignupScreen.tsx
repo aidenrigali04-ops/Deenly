@@ -6,10 +6,11 @@ import { fetchSessionMe, signup } from "../../lib/auth";
 import { useSessionStore } from "../../store/session-store";
 import { colors, primaryButtonOutline, radii } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
+import { ReferralSignupCallout } from "../../components/ReferralSignupCallout";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Signup">;
 
-export function SignupScreen({ navigation }: Props) {
+export function SignupScreen({ navigation, route }: Props) {
   const setUser = useSessionStore((state) => state.setUser);
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
@@ -17,12 +18,19 @@ export function SignupScreen({ navigation }: Props) {
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const referralCode = route.params?.referralCode?.trim();
 
   const onSubmit = async () => {
     setIsSubmitting(true);
     setError("");
     try {
-      await signup({ email, username, displayName, password });
+      await signup({
+        email,
+        username,
+        displayName,
+        password,
+        ...(referralCode ? { referralCode } : {})
+      });
       const me = await fetchSessionMe();
       setUser(me);
     } catch (err) {
@@ -36,6 +44,7 @@ export function SignupScreen({ navigation }: Props) {
   return (
     <View style={styles.container}>
       <Text style={styles.heading}>Create account</Text>
+      {referralCode ? <ReferralSignupCallout code={referralCode} /> : null}
       <TextInput
         style={styles.input}
         autoCapitalize="none"

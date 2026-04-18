@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Linking from "expo-linking";
@@ -15,7 +15,8 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchSessionMe } from "../lib/auth";
 import { getAccessToken } from "../lib/storage";
 import { useSessionStore } from "../store/session-store";
-import { colors } from "../theme";
+import { Ionicons } from "@expo/vector-icons";
+import { colors, figmaMobile, figmaMobileNav, fonts } from "../theme";
 import { apiRequest } from "../lib/api";
 import { LoginScreen } from "../screens/auth/LoginScreen";
 import { SignupScreen } from "../screens/auth/SignupScreen";
@@ -74,17 +75,20 @@ export type CreateTabStackParamList = {
 
 export type AppTabParamList = {
   HomeTab: undefined;
+  SearchTab: undefined;
   MarketplaceTab: undefined;
+  ReelsTab: undefined;
   MessagesTab: { openUserId?: number };
-  CreateTab: NavigatorScreenParams<CreateTabStackParamList> | undefined;
   AccountTab: undefined;
 };
 
 export type RootStackParamList = {
   Welcome: undefined;
   Login: undefined;
-  Signup: undefined;
+  Signup: { referralCode?: string } | undefined;
   AppTabs: NavigatorScreenParams<AppTabParamList> | undefined;
+  /** Create hub + post composer (was center tab; now root stack). */
+  CreateFlow: NavigatorScreenParams<CreateTabStackParamList> | undefined;
   PostDetail: { id: number };
   UserProfile: { id: number };
   Onboarding: undefined;
@@ -105,7 +109,6 @@ export type RootStackParamList = {
   PlaidLink: undefined;
   CreateProduct: { initialDraft?: ProductImportDraft; editProductId?: number } | undefined;
   ProductDetail: { productId: number };
-  Reels: undefined;
   Notifications: undefined;
   AddBusiness: undefined;
   BusinessDetail: { id: number };
@@ -119,12 +122,37 @@ export type RootStackParamList = {
   AdminHub: undefined;
   CreateEvent: undefined;
   EventDetail: { id: number; inviteToken?: string };
-  Search: undefined;
 };
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<AppTabParamList>();
 const CreateStack = createNativeStackNavigator<CreateTabStackParamList>();
+
+function TabIconFrame({ focused, children }: { focused: boolean; children: ReactNode }) {
+  return (
+    <View style={[tabIconFrameStyles.base, focused ? tabIconFrameStyles.on : tabIconFrameStyles.off]}>{children}</View>
+  );
+}
+
+const tabIconFrameStyles = StyleSheet.create({
+  base: {
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: figmaMobileNav.tabIconFrameMinWidth,
+    minHeight: figmaMobileNav.tabIconFrameMinHeight,
+    paddingHorizontal: figmaMobileNav.tabIconFramePadHorizontal,
+    paddingVertical: figmaMobileNav.tabIconFramePadVertical,
+    borderRadius: figmaMobileNav.tabIconFrameRadius
+  },
+  off: {
+    backgroundColor: "transparent"
+  },
+  on: {
+    backgroundColor: figmaMobileNav.tabIconFrameFillFocused,
+    borderWidth: figmaMobileNav.tabBarBorderWidth,
+    borderColor: figmaMobileNav.tabIconFrameBorderFocused
+  }
+});
 
 function CreateTabFlow() {
   return (
@@ -132,7 +160,7 @@ function CreateTabFlow() {
       initialRouteName="CreateHub"
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: colors.atmosphere }
+        contentStyle: { backgroundColor: figmaMobile.canvas }
       }}
     >
       <CreateStack.Screen name="CreateHub" component={CreateHubScreen} />
@@ -143,125 +171,186 @@ function CreateTabFlow() {
 
 function AppTabs() {
   const insets = useSafeAreaInsets();
-  const tabPadBottom = Math.max(insets.bottom, 14);
-  const horizontalInset = 16;
+  const tabPadBottom = Math.max(insets.bottom, figmaMobileNav.tabBarInsetBottomMin);
+  const horizontalInset = figmaMobileNav.tabBarInsetHorizontal;
+  const user = useSessionStore((s) => s.user);
+  const { data: convData } = useQuery({
+    queryKey: ["mobile-messages-conversations"],
+    queryFn: () =>
+      apiRequest<{ items: { unread_count: number }[] }>("/messages/conversations?limit=25", { auth: true }),
+    enabled: Boolean(user?.id),
+    staleTime: 20_000
+  });
+  const hasUnreadMessages = useMemo(() => {
+    return (convData?.items || []).some((row) => (row.unread_count || 0) > 0);
+  }, [convData?.items]);
 
   return (
     <View style={{ flex: 1 }}>
       <AtmosphereBackdrop />
       <View style={{ flex: 1 }}>
-      <Tab.Navigator
-        screenOptions={{
-          headerShown: false,
-          tabBarStyle: {
-            position: "absolute",
-            left: horizontalInset,
-            right: horizontalInset,
-            bottom: tabPadBottom,
-            backgroundColor: "#FFFFFF",
-            borderTopWidth: 0,
-            borderWidth: 0,
-            borderRadius: 24,
-            paddingTop: 8,
-            paddingBottom: 10,
-            minHeight: 64,
-            elevation: 8,
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.08,
-            shadowRadius: 16
-          },
-        tabBarActiveTintColor: "#0F0E0D",
-        tabBarInactiveTintColor: "#8A8480",
-        tabBarActiveBackgroundColor: "transparent",
-        tabBarShowLabel: true,
-        tabBarLabel: ({ focused, color, children }) => (
-          <Text
-            numberOfLines={1}
-            ellipsizeMode="tail"
-            style={{
-              fontSize: 11,
-              fontWeight: focused ? "700" : "600",
-              marginTop: 2,
-              letterSpacing: 0,
-              color,
-              opacity: focused ? 1 : 0.72,
-              textAlign: "center"
-            }}
-          >
-            {children}
-          </Text>
-        ),
-        tabBarLabelStyle: {
-          marginTop: 0
-        },
-        tabBarIconStyle: { marginTop: 2 },
-        tabBarItemStyle: {
-          paddingVertical: 2
-        },
-        tabBarBackground: () => (
-          <View
-            style={{
-              ...StyleSheet.absoluteFillObject,
-              backgroundColor: "#FFFFFF",
-              borderRadius: 24,
-              overflow: "hidden"
+        <Tab.Navigator
+          screenOptions={{
+            headerShown: false,
+            tabBarStyle: {
+              position: "absolute",
+              left: horizontalInset,
+              right: horizontalInset,
+              bottom: tabPadBottom,
+              backgroundColor: figmaMobile.tabBarFill,
+              borderTopWidth: 0,
+              borderWidth: figmaMobileNav.tabBarBorderWidth,
+              borderColor: figmaMobile.tabBarBorder,
+              borderRadius: figmaMobileNav.tabBarCapsuleBorderRadius,
+              paddingTop: figmaMobileNav.tabBarPaddingTop,
+              paddingBottom: figmaMobileNav.tabBarPaddingBottom,
+              minHeight: figmaMobileNav.tabBarMinHeight,
+              elevation: figmaMobileNav.tabBarElevationAndroid,
+              shadowColor: figmaMobileNav.tabBarShadowColorIOS,
+              shadowOffset: {
+                width: figmaMobileNav.tabBarShadowOffsetXIOS,
+                height: figmaMobileNav.tabBarShadowOffsetYIOS
+              },
+              shadowOpacity: figmaMobileNav.tabBarShadowOpacityIOS,
+              shadowRadius: figmaMobileNav.tabBarShadowRadiusIOS
+            },
+            tabBarActiveTintColor: figmaMobile.text,
+            tabBarInactiveTintColor: figmaMobile.textMuted2,
+            tabBarActiveBackgroundColor: "transparent",
+            tabBarShowLabel: true,
+            tabBarLabel: ({ focused, color, children }) => (
+              <Text
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                style={{
+                  fontFamily: focused ? fonts.bold : fonts.semiBold,
+                  fontSize: figmaMobileNav.tabLabelFontSize,
+                  fontWeight: focused ? "700" : "600",
+                  marginTop: figmaMobileNav.tabLabelMarginTop,
+                  letterSpacing: figmaMobileNav.tabLabelLetterSpacing,
+                  color,
+                  opacity: focused ? 1 : 0.72,
+                  textAlign: "center",
+                  maxWidth: figmaMobileNav.tabLabelMaxWidth
+                }}
+              >
+                {children}
+              </Text>
+            ),
+            tabBarLabelStyle: {
+              marginTop: 0
+            },
+            tabBarIconStyle: { marginTop: 0 },
+            tabBarItemStyle: {
+              paddingVertical: 0,
+              paddingHorizontal: 0
+            },
+            tabBarBackground: () => (
+              <View
+                style={{
+                  ...StyleSheet.absoluteFillObject,
+                  backgroundColor: figmaMobile.tabBarFill,
+                  borderRadius: figmaMobileNav.tabBarCapsuleBorderRadius,
+                  overflow: "hidden"
+                }}
+              />
+            )
+          }}
+        >
+          <Tab.Screen
+            name="HomeTab"
+            component={FeedScreen}
+            options={{
+              title: "Home",
+              tabBarIcon: ({ color, size, focused }) => (
+                <TabIconFrame focused={focused}>
+                  <Ionicons name={focused ? "home" : "home-outline"} size={(size ?? 24) - 2} color={color} />
+                </TabIconFrame>
+              )
             }}
           />
-        )
-      }}
-    >
-      <Tab.Screen
-        name="HomeTab"
-        component={FeedScreen}
-        options={{
-          title: "Home",
-          tabBarIcon: ({ color, size, focused }) => (
-            <NavTabIcon kind="home" color={color} size={size ?? 24} focused={focused} />
-          )
-        }}
-      />
-      <Tab.Screen
-        name="MarketplaceTab"
-        component={MarketplaceFeedScreen}
-        options={{
-          title: "Market",
-          tabBarIcon: ({ color, size, focused }) => (
-            <NavTabIcon kind="marketplace" color={color} size={size ?? 24} focused={focused} />
-          )
-        }}
-      />
-      <Tab.Screen
-        name="MessagesTab"
-        component={MessagesScreen}
-        options={{
-          title: "Discover",
-          tabBarIcon: ({ color, size, focused }) => (
-            <NavTabIcon kind="send" color={color} size={size ?? 24} focused={focused} />
-          )
-        }}
-      />
-      <Tab.Screen
-        name="CreateTab"
-        component={CreateTabFlow}
-        options={{
-          title: "Create",
-          tabBarIcon: ({ color, size, focused }) => (
-            <NavTabIcon kind="upload" color={color} size={size ?? 24} focused={focused} />
-          )
-        }}
-      />
-      <Tab.Screen
-        name="AccountTab"
-        component={ProfileScreen}
-        options={{
-          title: "Profile",
-          tabBarIcon: ({ color, size, focused }) => (
-            <NavTabIcon kind="user" color={color} size={size ?? 24} focused={focused} />
-          )
-        }}
-      />
-    </Tab.Navigator>
+          <Tab.Screen
+            name="SearchTab"
+            component={SearchScreen}
+            options={{
+              title: "Discover",
+              tabBarIcon: ({ color, size, focused }) => (
+                <TabIconFrame focused={focused}>
+                  <Ionicons name={focused ? "search" : "search-outline"} size={(size ?? 24) - 2} color={color} />
+                </TabIconFrame>
+              )
+            }}
+          />
+          <Tab.Screen
+            name="MarketplaceTab"
+            component={MarketplaceFeedScreen}
+            options={{
+              title: "Market",
+              tabBarIcon: ({ color, size, focused }) => (
+                <TabIconFrame focused={focused}>
+                  <NavTabIcon kind="marketplace" color={color} size={(size ?? 24) - 2} focused={focused} />
+                </TabIconFrame>
+              )
+            }}
+          />
+          <Tab.Screen
+            name="ReelsTab"
+            component={ReelsScreen}
+            options={{
+              title: "Reels",
+              tabBarIcon: ({ color, size, focused }) => (
+                <TabIconFrame focused={focused}>
+                  <Ionicons name={focused ? "videocam" : "videocam-outline"} size={(size ?? 24) - 2} color={color} />
+                </TabIconFrame>
+              )
+            }}
+          />
+          <Tab.Screen
+            name="MessagesTab"
+            component={MessagesScreen}
+            options={{
+              title: "Messages",
+              tabBarIcon: ({ color, size, focused }) => (
+                <TabIconFrame focused={focused}>
+                  <View style={{ width: 30, height: 26, alignItems: "center", justifyContent: "center" }}>
+                    <Ionicons
+                      name={focused ? "chatbubbles" : "chatbubbles-outline"}
+                      size={(size ?? 24) - 2}
+                      color={color}
+                    />
+                    {hasUnreadMessages ? (
+                      <View
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          right: 2,
+                          width: figmaMobileNav.unreadBadgeSize,
+                          height: figmaMobileNav.unreadBadgeSize,
+                          borderRadius: figmaMobileNav.unreadBadgeSize / 2,
+                          backgroundColor: figmaMobile.accentGold,
+                          borderWidth: figmaMobileNav.unreadBadgeBorderWidth,
+                          borderColor: figmaMobileNav.unreadBadgeBorderColor
+                        }}
+                      />
+                    ) : null}
+                  </View>
+                </TabIconFrame>
+              )
+            }}
+          />
+          <Tab.Screen
+            name="AccountTab"
+            component={ProfileScreen}
+            options={{
+              title: "Profile",
+              tabBarIcon: ({ color, size, focused }) => (
+                <TabIconFrame focused={focused}>
+                  <NavTabIcon kind="user" color={color} size={(size ?? 24) - 2} focused={focused} />
+                </TabIconFrame>
+              )
+            }}
+          />
+        </Tab.Navigator>
       </View>
     </View>
   );
@@ -336,11 +425,11 @@ export function AppNavigator() {
     ...DefaultTheme,
     colors: {
       ...DefaultTheme.colors,
-      background: user ? colors.atmosphere : colors.background,
-      card: colors.surface,
-      text: colors.text,
-      border: colors.border,
-      primary: colors.accent
+      background: user ? figmaMobile.canvas : colors.background,
+      card: user ? figmaMobile.card : colors.surface,
+      text: user ? figmaMobile.text : colors.text,
+      border: user ? figmaMobile.glassBorder : colors.border,
+      primary: user ? figmaMobile.accentGold : colors.accent
     }
   };
 
@@ -383,7 +472,18 @@ export function AppNavigator() {
         screens: {
           Welcome: "",
           Login: "login",
-          Signup: "signup",
+          Signup: {
+            path: "signup",
+            parse: {
+              referralCode: (value?: string) => {
+                if (typeof value !== "string") {
+                  return undefined;
+                }
+                const t = value.trim();
+                return t.length > 0 ? t : undefined;
+              }
+            }
+          },
           ...eventDetail
         }
       }
@@ -403,9 +503,11 @@ export function AppNavigator() {
       <Fragment>
         <RootStack.Navigator
           screenOptions={{
-            headerStyle: { backgroundColor: colors.surface },
-            headerTintColor: colors.text,
-            contentStyle: { backgroundColor: user ? colors.atmosphere : colors.background }
+            headerStyle: { backgroundColor: user ? figmaMobile.card : colors.surface },
+            headerTintColor: user ? figmaMobile.text : colors.text,
+            headerTitleStyle: { fontFamily: fonts.semiBold, fontSize: 17, fontWeight: "600" },
+            headerBackTitleStyle: { fontFamily: fonts.regular },
+            contentStyle: { backgroundColor: user ? figmaMobile.canvas : colors.background }
           }}
         >
           {!user ? (
@@ -418,7 +520,7 @@ export function AppNavigator() {
           ) : (
             <>
               <RootStack.Screen name="AppTabs" component={AppTabs} options={{ headerShown: false }} />
-              <RootStack.Screen name="Search" component={SearchScreen} options={{ title: "Explore" }} />
+              <RootStack.Screen name="CreateFlow" component={CreateTabFlow} options={{ headerShown: false }} />
               <RootStack.Screen name="PostDetail" component={PostDetailScreen} options={{ title: "Post" }} />
               <RootStack.Screen name="UserProfile" component={UserProfileScreen} options={{ title: "User" }} />
               <RootStack.Screen name="Onboarding" component={OnboardingScreen} options={{ title: "Setup & feed" }} />
@@ -433,7 +535,6 @@ export function AppNavigator() {
               <RootStack.Screen name="Support" component={SupportScreen} options={{ title: "Support" }} />
               <RootStack.Screen name="Guidelines" component={GuidelinesScreen} options={{ title: "Guidelines" }} />
               <RootStack.Screen name="Dhikr" component={DhikrScreen} options={{ title: "Dhikr Mode" }} />
-              <RootStack.Screen name="Reels" component={ReelsScreen} options={{ title: "Reels", headerShown: false }} />
               <RootStack.Screen name="Notifications" component={NotificationsScreen} options={{ title: "Notifications" }} />
               <RootStack.Screen name="QuranReader" component={QuranReaderScreen} options={{ title: "Quran Reader" }} />
               <RootStack.Screen name="SalahSettings" component={SalahSettingsScreen} options={{ title: "Salah Settings" }} />

@@ -7,6 +7,7 @@ export async function signup(payload: {
   username: string;
   password: string;
   displayName: string;
+  referralCode?: string;
 }) {
   const response = await apiRequest<AuthResponse>("/auth/register", {
     method: "POST",
