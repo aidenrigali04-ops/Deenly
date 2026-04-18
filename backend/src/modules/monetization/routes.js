@@ -19,6 +19,11 @@ const {
   SellerBoostNotFoundError
 } = require("../seller-boosts/seller-boost-errors");
 const { createRankingSignalHooks } = require("../feed/feed-rank-signals");
+const {
+  disputeClosedMerchantLost,
+  resolvePaymentIntentIdFromDispute,
+  isFullDisputeAgainstCharge
+} = require("./stripe-payment-intent-resolve");
 
 function extractCheckoutCustomerContact(sessionObj) {
   const d = sessionObj?.customer_details || {};
@@ -205,6 +210,7 @@ function createMonetizationRouter({
   referralService = null,
   rewardsLedgerService = null,
   rewardsCheckoutService = null,
+  rewardsOrderEarnHooks = null,
   trustFlagService = null,
   sellerBoostService = null
 }) {
@@ -406,6 +412,128 @@ function createMonetizationRouter({
       return;
     }
     await rewardsCheckoutService.reverseActiveCheckoutRedemptionIfAny({ stripeSessionId, reasonLabel });
+  }
+
+  /**
+   * Marks matching catalog orders refunded and runs referral + purchase-earn compensating ledger rows.
+   * @param {{ paymentIntentId: string, referralReason: string, ledgerReversalReason?: string, trustRapidRefund?: { isFullRefund: boolean } | null }} params
+   */
+  async function invalidateCompletedOrdersForStripePaymentIntent({
+    paymentIntentId,
+    referralReason,
+    ledgerReversalReason,
+    trustRapidRefund
+  }) {
+    if (!paymentIntentId) {
+      return;
+    }
+    const or = await db.query(
+      `SELECT id, status, buyer_user_id, amount_minor, created_at FROM orders WHERE stripe_payment_intent_id = $1`,
+      [paymentIntentId]
+    );
+    const thrRefund = trustRapidRefund ? getTrustSignalThresholds(config) : null;
+    for (const row of or.rows) {
+      if (String(row.status) !== "completed") {
+        continue;
+      }
+      await db.query(`UPDATE orders SET status = 'refunded' WHERE id = $1`, [row.id]);
+      if (
+        trustRapidRefund &&
+        trustRapidRefund.isFullRefund &&
+        trustFlagService &&
+        typeof trustFlagService.recordFlag === "function" &&
+        thrRefund &&
+        thrRefund.enabled &&
+        row.buyer_user_id
+      ) {
+        const createdMs = row.created_at ? new Date(row.created_at).getTime() : NaN;
+        const hoursSince = Number.isFinite(createdMs)
+          ? (Date.now() - createdMs) / 3600000
+          : Number.POSITIVE_INFINITY;
+        if (hoursSince <= thrRefund.refundRapidFlagWithinHours) {
+          await trustFlagService.recordFlag(config, {
+            domain: "refund",
+            flagType: "refund_full_rapid_after_order",
+            severity: "low",
+            subjectUserId: Number(row.buyer_user_id),
+            relatedEntityType: "order",
+            relatedEntityId: String(row.id),
+            metadata: {
+              hoursSinceOrder: Math.round(hoursSince * 100) / 100,
+              paymentIntent: paymentIntentId,
+              amountMinor: row.amount_minor
+            }
+          });
+        }
+      }
+      if (referralService) {
+        try {
+          await referralService.onOrderFinanciallyInvalidated({
+            orderId: row.id,
+            reason: referralReason
+          });
+        } catch (err) {
+          log.warn({ err, orderId: row.id }, "referral_financial_invalidation_hook_failed");
+        }
+      }
+      if (
+        rewardsOrderEarnHooks &&
+        typeof rewardsOrderEarnHooks.reverseEarnsForRefundedOrder === "function" &&
+        row.buyer_user_id
+      ) {
+        try {
+          await rewardsOrderEarnHooks.reverseEarnsForRefundedOrder({
+            orderId: row.id,
+            buyerUserId: Number(row.buyer_user_id),
+            ledgerReversalReason: ledgerReversalReason || "order_refunded"
+          });
+        } catch (err) {
+          log.warn({ err, orderId: row.id }, "rewards_order_earn_financial_invalidation_reverse_failed");
+        }
+      }
+    }
+  }
+
+  async function reverseActiveCheckoutRedemptionIfFullInvalidation({ paymentIntentId, reasonLabel, when }) {
+    if (!when || !paymentIntentId || !rewardsCheckoutService || !rewardsLedgerService) {
+      return;
+    }
+    const red = await rewardsCheckoutService.findRedemptionByPaymentIntentId(paymentIntentId);
+    if (red && String(red.status) === "active") {
+      await reverseCheckoutPointsIfAny({
+        stripeSessionId: String(red.stripe_checkout_session_id),
+        reasonLabel
+      });
+    }
+  }
+
+  async function applySellerBoostRefundHooksForPaymentIntent({ paymentIntentId, when }) {
+    if (!when || !paymentIntentId || !sellerBoostService) {
+      return;
+    }
+    const sbp = await db.query(
+      `SELECT id, seller_user_id
+       FROM seller_boost_purchases
+       WHERE metadata->>'stripePaymentIntentId' = $1
+       LIMIT 2`,
+      [paymentIntentId]
+    );
+    if (sbp.rowCount > 1) {
+      log.warn({ pi: paymentIntentId, count: sbp.rowCount }, "seller_boost_refund_ambiguous_payment_intent_match");
+    } else if (sbp.rowCount === 1) {
+      try {
+        await sellerBoostService.recordPurchaseRefunded({
+          purchaseId: Number(sbp.rows[0].id),
+          sellerUserId: Number(sbp.rows[0].seller_user_id)
+        });
+      } catch (err) {
+        const benign =
+          err instanceof SellerBoostInvalidStateError || err instanceof SellerBoostNotFoundError;
+        if (!benign) {
+          log.warn({ err, pi: paymentIntentId }, "seller_boost_refund_webhook_failed");
+        }
+      }
+    }
   }
 
   async function resolveAffiliateCode({ rawCode, sellerUserId, buyerUserId }) {
@@ -2210,89 +2338,67 @@ function createMonetizationRouter({
           Number.isFinite(amountRefunded) &&
           amountRefunded >= chargeAmount;
         if (pi) {
-          const or = await db.query(
-            `SELECT id, status, buyer_user_id, amount_minor, created_at FROM orders WHERE stripe_payment_intent_id = $1`,
-            [pi]
-          );
-          const thrRefund = getTrustSignalThresholds(config);
-          for (const row of or.rows) {
-            if (String(row.status) === "completed") {
-              await db.query(`UPDATE orders SET status = 'refunded' WHERE id = $1`, [row.id]);
-              if (
-                isFullRefund &&
-                trustFlagService &&
-                typeof trustFlagService.recordFlag === "function" &&
-                thrRefund.enabled &&
-                row.buyer_user_id
-              ) {
-                const createdMs = row.created_at ? new Date(row.created_at).getTime() : NaN;
-                const hoursSince = Number.isFinite(createdMs)
-                  ? (Date.now() - createdMs) / 3600000
-                  : Number.POSITIVE_INFINITY;
-                if (hoursSince <= thrRefund.refundRapidFlagWithinHours) {
-                  await trustFlagService.recordFlag(config, {
-                    domain: "refund",
-                    flagType: "refund_full_rapid_after_order",
-                    severity: "low",
-                    subjectUserId: Number(row.buyer_user_id),
-                    relatedEntityType: "order",
-                    relatedEntityId: String(row.id),
-                    metadata: {
-                      hoursSinceOrder: Math.round(hoursSince * 100) / 100,
-                      paymentIntent: pi,
-                      amountMinor: row.amount_minor
-                    }
-                  });
-                }
-              }
-              if (referralService) {
-                try {
-                  await referralService.onOrderFinanciallyInvalidated({
-                    orderId: row.id,
-                    reason: "refunded"
-                  });
-                } catch (err) {
-                  log.warn({ err, orderId: row.id }, "referral_refund_hook_failed");
-                }
-              }
-            }
-          }
-          if (isFullRefund && rewardsCheckoutService && rewardsLedgerService) {
-            const red = await rewardsCheckoutService.findRedemptionByPaymentIntentId(pi);
-            if (red && String(red.status) === "active") {
-              await reverseCheckoutPointsIfAny({
-                stripeSessionId: String(red.stripe_checkout_session_id),
-                reasonLabel: "checkout_refund"
-              });
-            }
-          }
-          if (isFullRefund && sellerBoostService) {
-            const sbp = await db.query(
-              `SELECT id, seller_user_id
-               FROM seller_boost_purchases
-               WHERE metadata->>'stripePaymentIntentId' = $1
-               LIMIT 2`,
-              [pi]
-            );
-            if (sbp.rowCount > 1) {
-              log.warn({ pi, count: sbp.rowCount }, "seller_boost_refund_ambiguous_payment_intent_match");
-            } else if (sbp.rowCount === 1) {
-              try {
-                await sellerBoostService.recordPurchaseRefunded({
-                  purchaseId: Number(sbp.rows[0].id),
-                  sellerUserId: Number(sbp.rows[0].seller_user_id)
-                });
-              } catch (err) {
-                const benign =
-                  err instanceof SellerBoostInvalidStateError || err instanceof SellerBoostNotFoundError;
-                if (!benign) {
-                  log.warn({ err, pi }, "seller_boost_refund_webhook_failed");
-                }
-              }
-            }
-          }
+          await invalidateCompletedOrdersForStripePaymentIntent({
+            paymentIntentId: pi,
+            referralReason: "refunded",
+            ledgerReversalReason: "order_refunded",
+            trustRapidRefund: { isFullRefund }
+          });
+          await reverseActiveCheckoutRedemptionIfFullInvalidation({
+            paymentIntentId: pi,
+            reasonLabel: "checkout_refund",
+            when: isFullRefund
+          });
+          await applySellerBoostRefundHooksForPaymentIntent({ paymentIntentId: pi, when: isFullRefund });
         }
         return res.status(200).json({ received: true, processed: true, kind: "charge.refunded" });
+      }
+
+      if (event.type === "charge.dispute.closed") {
+        const conflictDispute = await db.query(
+          `INSERT INTO webhook_events (provider, event_id, event_type, payload)
+           VALUES ('stripe', $1, $2, $3::jsonb)
+           ON CONFLICT (provider, event_id)
+           DO NOTHING
+           RETURNING id`,
+          [event.id, event.type, JSON.stringify(event.data.object || {})]
+        );
+        if (conflictDispute.rowCount === 0) {
+          return res.status(200).json({ received: true, duplicate: true, kind: "charge.dispute.closed" });
+        }
+        const dispute = event.data.object || {};
+        const dStatus = String(dispute.status || "").toLowerCase();
+        if (!disputeClosedMerchantLost(dStatus)) {
+          return res.status(200).json({
+            received: true,
+            ignored: true,
+            kind: "charge.dispute.closed",
+            reason: "dispute_status"
+          });
+        }
+        const { paymentIntentId, charge } = await resolvePaymentIntentIdFromDispute({
+          dispute,
+          retrieveCharge: (chargeId) => monetizationGateway.retrieveCharge({ chargeId })
+        });
+        const fullDispute = isFullDisputeAgainstCharge(dispute, charge);
+        if (paymentIntentId) {
+          await invalidateCompletedOrdersForStripePaymentIntent({
+            paymentIntentId,
+            referralReason: "dispute_lost",
+            ledgerReversalReason: "order_dispute_lost",
+            trustRapidRefund: null
+          });
+          await reverseActiveCheckoutRedemptionIfFullInvalidation({
+            paymentIntentId,
+            reasonLabel: "checkout_dispute_lost",
+            when: fullDispute
+          });
+          await applySellerBoostRefundHooksForPaymentIntent({
+            paymentIntentId,
+            when: fullDispute
+          });
+        }
+        return res.status(200).json({ received: true, processed: true, kind: "charge.dispute.closed" });
       }
 
       if (event.type !== "checkout.session.completed") {
@@ -2680,6 +2786,14 @@ function createMonetizationRouter({
           await referralService.onOrderCompleted({ orderId: completedOrderId });
         } catch (err) {
           log.warn({ err, orderId: completedOrderId }, "referral_order_completed_hook_failed");
+        }
+      }
+
+      if (completedOrderId != null && rewardsOrderEarnHooks && typeof rewardsOrderEarnHooks.afterOrderCompletedEarn === "function") {
+        try {
+          await rewardsOrderEarnHooks.afterOrderCompletedEarn({ orderId: completedOrderId });
+        } catch (err) {
+          log.warn({ err, orderId: completedOrderId }, "rewards_order_earn_after_completed_failed");
         }
       }
 

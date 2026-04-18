@@ -140,6 +140,58 @@ function createMemoryRewardsLedgerRepository() {
     return rows[0].created_at.toISOString();
   }
 
+  async function findLedgerEntryByUserIdAndIdempotencyKey(_query, userId, idempotencyKey) {
+    const aid = accountsByUserId.get(userId);
+    if (!aid) {
+      return null;
+    }
+    const e = entries.find((x) => x.reward_account_id === aid && x.idempotency_key === idempotencyKey);
+    if (!e) {
+      return null;
+    }
+    return {
+      id: e.id,
+      reward_account_id: e.reward_account_id,
+      delta_points: e.delta_points,
+      entry_kind: e.entry_kind,
+      reason: e.reason,
+      idempotency_key: e.idempotency_key,
+      metadata: e.metadata,
+      reverses_ledger_entry_id: e.reverses_ledger_entry_id,
+      created_at: e.created_at
+    };
+  }
+
+  async function sumEarnDeltaForAccountInUtcRange(_query, rewardAccountId, startIso, endExclusiveIso) {
+    const start = new Date(startIso).getTime();
+    const end = new Date(endExclusiveIso).getTime();
+    let t = 0n;
+    for (const e of entriesForAccount(rewardAccountId)) {
+      if (e.entry_kind !== "earn") {
+        continue;
+      }
+      const et = e.created_at.getTime();
+      if (et >= start && et < end) {
+        t += BigInt(String(e.delta_points));
+      }
+    }
+    return String(t);
+  }
+
+  async function countEarnEntriesForAccountSince(_query, rewardAccountId, sinceIso) {
+    const since = new Date(sinceIso).getTime();
+    let n = 0;
+    for (const e of entriesForAccount(rewardAccountId)) {
+      if (e.entry_kind !== "earn") {
+        continue;
+      }
+      if (e.created_at.getTime() >= since) {
+        n += 1;
+      }
+    }
+    return n;
+  }
+
   async function listHistoryForUser(_query, userId, { cursor, limit }) {
     const accountId = await getRewardAccountIdForUser(null, userId);
     if (!accountId) {
@@ -202,6 +254,9 @@ function createMemoryRewardsLedgerRepository() {
     getRewardAccountIdForUser,
     getLastCatalogCheckoutRedemptionAt,
     listHistoryForUser,
+    findLedgerEntryByUserIdAndIdempotencyKey,
+    sumEarnDeltaForAccountInUtcRange,
+    countEarnEntriesForAccountSince,
     /** Test introspection */
     _entries() {
       return entries.slice();

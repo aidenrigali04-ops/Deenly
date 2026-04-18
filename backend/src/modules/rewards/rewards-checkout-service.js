@@ -1,4 +1,5 @@
 const { createRewardsLedgerRepository } = require("./rewards-ledger-repository");
+const { buildFullEarnActionPointsTable } = require("./rewards-earn-action-points");
 const { planCheckoutProductRedemption } = require("./checkout-redemption-planner");
 const { redemptionRulesFromAppConfig } = require("./rewards-redemption-defaults");
 const { InsufficientPointsError } = require("./rewards-ledger-errors");
@@ -54,7 +55,7 @@ function buildRulesConfigFromAppConfig(config) {
       maxSingleGrantMinor: Number.isFinite(maxSingle) && maxSingle > 0 ? maxSingle : 2000
     },
     earn: {
-      actionPointsMinor: {},
+      actionPointsMinor: buildFullEarnActionPointsTable(c),
       minQualityForEngagementEarn: Number.isFinite(c.rewardsRulesMinQualityForEngagementEarn)
         ? c.rewardsRulesMinQualityForEngagementEarn
         : 0.55,

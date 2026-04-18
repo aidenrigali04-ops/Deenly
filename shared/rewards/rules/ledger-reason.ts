@@ -10,10 +10,13 @@ export function earnActionToRewardEarnReasonKey(action: EarnActionKey): RewardEa
       return "signup_complete";
     case "first_post_published":
       return "first_post_published";
+    case "first_product_order_completed":
+      return "first_product_order_completed";
     case "qualified_comment":
     case "qualified_reaction":
       return "qualified_engagement";
     case "referral_qualified":
+    case "referral_qualified_referee":
       return "referral_qualified";
     case "purchase_completed":
       return "purchase_completed";

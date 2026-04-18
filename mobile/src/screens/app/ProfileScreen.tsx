@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as DocumentPicker from "expo-document-picker";
 import {
+  ActivityIndicator,
   Image,
   Linking,
   Pressable,
@@ -18,7 +19,8 @@ import { BottomTabScreenProps, useBottomTabBarHeight } from "@react-navigation/b
 import { CompositeScreenProps } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { fetchSessionMe } from "../../lib/auth";
-import { apiRequest } from "../../lib/api";
+import { apiRequest, ApiError } from "../../lib/api";
+import { useRewardsWalletMeQuery } from "../../hooks/use-rewards-wallet";
 import { fetchMyProducts, formatMinorCurrency } from "../../lib/monetization";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { colors, resolveFigmaMobile, resolveFigmaProfile, spacing, type as typeStyles } from "../../theme";
@@ -46,6 +48,22 @@ function formatProfileStatCount(n: number) {
     return new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n);
   } catch {
     return String(n);
+  }
+}
+
+function formatWalletPointsDisplay(raw: string): string {
+  try {
+    return BigInt(raw).toLocaleString("en-US");
+  } catch {
+    return raw;
+  }
+}
+
+function formatWalletWhen(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  } catch {
+    return iso;
   }
 }
 
@@ -415,6 +433,98 @@ function buildProfileStyles(fig: ReturnType<typeof resolveFigmaMobile>, fp: Retu
       fontSize: 14,
       color: fig.textMuted,
       textAlign: "center"
+    },
+    walletCard: {
+      marginHorizontal: fp.heroPadH,
+      marginTop: 14,
+      paddingTop: 14,
+      paddingBottom: 14,
+      paddingHorizontal: fp.infoPanelPadH,
+      borderRadius: fp.infoPanelRadius,
+      backgroundColor: fp.infoPanelBg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: fp.infoPanelBorder,
+      gap: 10
+    },
+    walletCardCompact: {
+      marginTop: 12,
+      paddingTop: 12,
+      paddingBottom: 12
+    },
+    walletHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 8
+    },
+    walletSectionTitle: {
+      fontSize: 12,
+      fontWeight: "700",
+      letterSpacing: 0.6,
+      textTransform: "uppercase",
+      color: fp.statLabelColor
+    },
+    walletMainPress: {
+      gap: 4
+    },
+    walletBalanceRow: {
+      flexDirection: "row",
+      alignItems: "baseline",
+      flexWrap: "wrap",
+      gap: 6
+    },
+    walletBalance: {
+      fontSize: 28,
+      fontWeight: "700",
+      color: fig.text,
+      letterSpacing: -0.45,
+      fontVariant: ["tabular-nums"]
+    },
+    walletCurrency: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: fig.textMuted
+    },
+    walletHint: {
+      fontSize: 13,
+      fontWeight: "500",
+      color: fig.textMuted,
+      letterSpacing: -0.1
+    },
+    walletMeta: {
+      fontSize: 12,
+      fontWeight: "500",
+      color: fp.statLabelColor,
+      marginTop: 2
+    },
+    walletReferralsRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingTop: 4,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: fp.statsRowBorder
+    },
+    walletReferralsText: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: fig.accentGold,
+      letterSpacing: -0.2
+    },
+    walletMuted: {
+      fontSize: 13,
+      fontWeight: "500",
+      color: fig.textMuted,
+      lineHeight: 18
+    },
+    walletError: {
+      fontSize: 13,
+      fontWeight: "500",
+      color: fig.textMuted
+    },
+    walletLoader: {
+      paddingVertical: 8,
+      alignItems: "flex-start"
     }
   });
 }
@@ -473,6 +583,7 @@ export function ProfileScreen({ navigation }: Props) {
     queryFn: () => fetchMyProducts(),
     enabled: Boolean(sessionQuery.data?.id)
   });
+  const walletQuery = useRewardsWalletMeQuery(Boolean(sessionQuery.data?.id));
 
   const items = postsQuery.data?.items || [];
   const productItems = productsQuery.data?.items || [];
@@ -679,6 +790,57 @@ export function ProfileScreen({ navigation }: Props) {
                   </Pressable>
                 ) : null}
               </View>
+            </View>
+
+            <View style={[styles.walletCard, compact && styles.walletCardCompact]}>
+              <View style={styles.walletHeader}>
+                <Text style={styles.walletSectionTitle}>Wallet</Text>
+                {walletQuery.isLoading ? (
+                  <View style={styles.walletLoader}>
+                    <ActivityIndicator color={figma.accentGold} size="small" />
+                  </View>
+                ) : null}
+              </View>
+              {walletQuery.error instanceof ApiError && walletQuery.error.status === 404 ? (
+                <Text style={styles.walletMuted}>Rewards wallet is not available on this server yet.</Text>
+              ) : null}
+              {walletQuery.isError && !(walletQuery.error instanceof ApiError && walletQuery.error.status === 404) ? (
+                <Text style={styles.walletError}>
+                  {(walletQuery.error as Error)?.message || "Could not load wallet."}
+                </Text>
+              ) : null}
+              {walletQuery.data ? (
+                <>
+                  <Pressable
+                    onPress={() => navigation.navigate("RewardsWallet")}
+                    style={({ pressed }) => [styles.walletMainPress, pressed && styles.heroPillPressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Open rewards wallet"
+                  >
+                    <View style={styles.walletBalanceRow}>
+                      <Text style={styles.walletBalance}>{formatWalletPointsDisplay(walletQuery.data.balancePoints)}</Text>
+                      <Text style={styles.walletCurrency}>{walletQuery.data.currencyCode}</Text>
+                    </View>
+                    <Text style={styles.walletHint}>Points balance · tap for history and redemptions</Text>
+                    {walletQuery.data.lastCatalogCheckoutRedemptionAt ? (
+                      <Text style={styles.walletMeta}>
+                        Last redemption {formatWalletWhen(walletQuery.data.lastCatalogCheckoutRedemptionAt)}
+                      </Text>
+                    ) : (
+                      <Text style={styles.walletMeta}>No catalog redemptions yet.</Text>
+                    )}
+                  </Pressable>
+                  <Pressable
+                    onPress={() => navigation.navigate("Referrals")}
+                    style={({ pressed }) => [styles.walletReferralsRow, pressed && styles.heroPillPressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Open referrals"
+                  >
+                    <Text style={styles.walletReferralsText}>Referrals</Text>
+                    <Text style={[styles.walletReferralsText, { opacity: 0.85 }]}>→</Text>
+                  </Pressable>
+                </>
+              ) : null}
             </View>
 
             {canUseBusinessDirectoryTools && !hasBusinessListing ? (

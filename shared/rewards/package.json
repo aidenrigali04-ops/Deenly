@@ -1,12 +1,15 @@
 {
   "name": "@deenly/rewards-shared",
   "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "engines": {
     "node": ">=20 <25",
     "npm": ">=10"
   },
   "description": "Shared rewards types and pure rules engine (Vitest runs here).",
   "scripts": {
+    "build": "tsc -p tsconfig.cjs.json",
     "test": "vitest run",
     "test:watch": "vitest"
   },

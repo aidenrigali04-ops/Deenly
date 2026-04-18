@@ -34,7 +34,14 @@ function encodeCommentsCursor(row) {
   ).toString("base64url");
 }
 
-function createInteractionsRouter({ db, config, analytics, pushNotifications }) {
+function createInteractionsRouter({
+  db,
+  config,
+  analytics,
+  pushNotifications,
+  logger = null,
+  rewardsQualifiedCommentEarnHook = null
+}) {
   const router = express.Router();
   const rankingSignalHooks = createRankingSignalHooks({ db, analytics, config });
   const authMiddleware = authenticate({
@@ -150,6 +157,21 @@ function createInteractionsRouter({ db, config, analytics, pushNotifications }) 
         });
       } catch {
         /* best-effort ranking signal hook */
+      }
+
+      if (interactionType === "comment" && rewardsQualifiedCommentEarnHook) {
+        try {
+          await rewardsQualifiedCommentEarnHook.maybeCreditAfterCommentInsert({
+            userId: req.user.id,
+            postId,
+            interactionId: Number(result.rows[0].id),
+            commentText,
+            postAuthorId: postOwnerId
+          });
+        } catch (earnErr) {
+          const log = logger && typeof logger.warn === "function" ? logger : { warn() {} };
+          log.warn({ err: earnErr, postId, userId: req.user.id }, "rewards_comment_earn_hook_failed");
+        }
       }
 
       return res.status(201).json(result.rows[0]);

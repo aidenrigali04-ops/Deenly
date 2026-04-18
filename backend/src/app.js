@@ -78,7 +78,10 @@ function createApp({
   rewardsReadService = null,
   referralReadService = null,
   trustFlagService = null,
-  sellerBoostService: sellerBoostServiceOverride = null
+  sellerBoostService: sellerBoostServiceOverride = null,
+  rewardsEarnService = null,
+  rewardsOrderEarnHooks = null,
+  rewardsQualifiedCommentEarnHook = null
 }) {
   function requireAdminOwner(req, _res, next) {
     const ownerEmail = String(config.adminOwnerEmail || "").toLowerCase();
@@ -95,6 +98,8 @@ function createApp({
   const app = express();
   const metrics = createMetrics();
   app.locals.analytics = analytics || null;
+  app.locals.rewardsEarnService = rewardsEarnService || null;
+  app.locals.rewardsQualifiedCommentEarnHook = rewardsQualifiedCommentEarnHook || null;
   app.locals.mediaStorage = mediaStorage;
   app.locals.pushNotifications = pushNotifications || null;
   app.locals.monetizationGateway = monetizationGateway || createMonetizationGateway({ config });
@@ -291,7 +296,9 @@ function createApp({
       db,
       config,
       analytics: app.locals.analytics,
-      pushNotifications: app.locals.pushNotifications
+      pushNotifications: app.locals.pushNotifications,
+      logger,
+      rewardsQualifiedCommentEarnHook: app.locals.rewardsQualifiedCommentEarnHook || null
     })
   );
   apiRouter.use(
@@ -349,6 +356,7 @@ function createApp({
       referralService,
       rewardsLedgerService,
       rewardsCheckoutService,
+      rewardsOrderEarnHooks,
       trustFlagService,
       sellerBoostService
     })

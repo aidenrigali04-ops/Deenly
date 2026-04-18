@@ -13,6 +13,9 @@ const { createReferralRepository } = require("./modules/referrals/referral-repos
 const { createReferralService } = require("./modules/referrals/referral-service");
 const { getReferralDomainConfig } = require("./modules/referrals/referral-config");
 const { createRewardsReadService } = require("./modules/rewards/rewards-read-service");
+const { createRewardsEarnService } = require("./modules/rewards/rewards-earn-service");
+const { createRewardsQualifiedCommentEarnHook } = require("./modules/rewards/rewards-qualified-comment-earn-hook");
+const { createRewardsOrderEarnHooks } = require("./modules/rewards/rewards-order-earn-hooks");
 const { createReferralReadService } = require("./modules/referrals/referral-read-service");
 const { createTrustFlagService } = require("./modules/trust/create-trust-flag-service");
 
@@ -69,6 +72,35 @@ const rewardsReadService = createRewardsReadService({
   logger
 });
 
+const rewardsEarnService =
+  config.databaseUrl && rewardsLedgerService
+    ? createRewardsEarnService({
+        db,
+        rewardsLedgerService,
+        appConfig: config,
+        logger
+      })
+    : null;
+
+const rewardsOrderEarnHooks =
+  config.databaseUrl && rewardsEarnService && rewardsLedgerService
+    ? createRewardsOrderEarnHooks({
+        db,
+        rewardsEarnService,
+        rewardsLedgerService,
+        appConfig: config,
+        logger
+      })
+    : null;
+
+const rewardsQualifiedCommentEarnHook = rewardsEarnService
+  ? createRewardsQualifiedCommentEarnHook({
+      rewardsEarnService,
+      appConfig: config,
+      logger
+    })
+  : null;
+
 let referralReadService = null;
 if (config.referralsEnabled && config.databaseUrl && referralService) {
   referralReadService = createReferralReadService({
@@ -94,7 +126,10 @@ const app = createApp({
   rewardsCheckoutService,
   rewardsReadService,
   referralReadService,
-  trustFlagService
+  trustFlagService,
+  rewardsEarnService,
+  rewardsOrderEarnHooks,
+  rewardsQualifiedCommentEarnHook
 });
 
 const listenHost = process.env.BIND_HOST || "0.0.0.0";

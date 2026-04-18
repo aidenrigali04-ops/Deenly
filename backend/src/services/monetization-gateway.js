@@ -173,6 +173,15 @@ function createMonetizationGateway({ config }) {
   }
 
   /**
+   * Used by Stripe webhooks when only a charge id is present (e.g. some dispute payloads).
+   * @param {{ chargeId: string }} params
+   */
+  async function retrieveCharge({ chargeId }) {
+    const client = requireStripeClient();
+    return client.charges.retrieve(String(chargeId || "").trim());
+  }
+
+  /**
    * List active prices on a Connect account (expanded product) for import UI.
    */
   async function listConnectAccountPrices({ stripeAccountId, limit = 30, startingAfter = null }) {
@@ -237,6 +246,7 @@ function createMonetizationGateway({ config }) {
     createCheckoutSession,
     constructWebhookEvent,
     retrieveCheckoutSession,
+    retrieveCharge,
     listConnectAccountPrices,
     listConnectAccountPricesByProduct,
     retrieveConnectAccountPrice,

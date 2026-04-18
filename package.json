@@ -7,7 +7,7 @@
     "npm": ">=10"
   },
   "scripts": {
-    "install:all": "npm ci --prefix mobile && npm ci --prefix frontend && npm ci --prefix backend && npm ci --prefix shared/rewards",
+    "install:all": "npm ci --prefix mobile && npm ci --prefix frontend && npm ci --prefix shared/rewards && npm ci --prefix backend",
     "install:mobile": "npm ci --prefix mobile",
     "install:frontend": "npm ci --prefix frontend",
     "install:backend": "npm ci --prefix backend",

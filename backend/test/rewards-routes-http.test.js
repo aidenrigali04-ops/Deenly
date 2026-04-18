@@ -102,6 +102,11 @@ describe("rewards user routes (GET /api/v1/rewards/*)", () => {
     expect(res.body.currencyCode).toBe("DEEN_PTS");
     expect(Number.isInteger(res.body.pointsDecimals)).toBe(true);
     expect(res.body).toHaveProperty("lastCatalogCheckoutRedemptionAt");
+    expect(res.body.display).toMatchObject({
+      balanceTitleKey: expect.stringMatching(/^rewards\.wallet\./),
+      ledgerSectionTitleKey: expect.stringMatching(/^rewards\.wallet\./),
+      historyHintKey: expect.stringMatching(/^rewards\.wallet\./)
+    });
     expect(analytics.trackEvent).toHaveBeenCalledWith("rewards_wallet_viewed", { userId: 99 });
   });
 
@@ -122,6 +127,16 @@ describe("rewards user routes (GET /api/v1/rewards/*)", () => {
     expect(Array.isArray(res.body.items)).toBe(true);
     expect(res.body.items.length).toBeGreaterThanOrEqual(1);
     expect(res.body).toHaveProperty("nextCursor");
+    const item = res.body.items.find((x) => x.reason === "test_grant");
+    expect(item).toBeTruthy();
+    expect(item.display).toMatchObject({
+      variant: "earn",
+      titleKey: expect.stringMatching(/^rewards\.ledger\.earn\./)
+    });
+    expect(item).toHaveProperty("ledgerReasonKey");
+    expect(item).toHaveProperty("source");
+    expect(item).toHaveProperty("reversalOf");
+    expect(item).toHaveProperty("redemption");
     expect(analytics.trackEvent).toHaveBeenCalledWith(
       "rewards_ledger_viewed",
       expect.objectContaining({ userId: 100 })

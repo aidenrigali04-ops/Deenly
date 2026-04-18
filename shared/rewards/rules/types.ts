@@ -12,9 +12,12 @@ import type { RewardMinorAmount, RewardSpendReasonKey } from "../types";
 export const EARN_ACTION_KEYS = [
   "signup_complete",
   "first_post_published",
+  "first_product_order_completed",
   "qualified_comment",
   "qualified_reaction",
   "referral_qualified",
+  /** Referee side of referral qualification (referrer uses `referral_qualified`). */
+  "referral_qualified_referee",
   "purchase_completed",
   "daily_active_streak",
   "admin_grant"

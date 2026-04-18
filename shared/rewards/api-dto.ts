@@ -9,12 +9,56 @@ export type ReferralAttributionApiStatus =
   | "voided"
   | "expired";
 
+/** Stable i18n keys for wallet chrome (server-provided; clients map to copy). */
+export interface RewardsWalletDisplayDto {
+  readonly balanceTitleKey: string;
+  readonly ledgerSectionTitleKey: string;
+  readonly historyHintKey: string;
+}
+
 /** GET /api/v1/rewards/me */
 export interface RewardsWalletMeResponse {
   readonly balancePoints: string;
   readonly currencyCode: string;
   readonly pointsDecimals: 0 | 2 | 3;
   readonly lastCatalogCheckoutRedemptionAt: string | null;
+  /** Presentation keys for balance / history sections (additive). */
+  readonly display: RewardsWalletDisplayDto;
+}
+
+export type RewardsLedgerUiVariant = "earn" | "spend" | "reversal";
+
+/** Normalized source hints derived from `metadata` (additive). */
+export interface RewardsLedgerSourceDto {
+  readonly kind: "order" | "attribution" | "checkout" | "post" | "comment";
+  readonly orderId?: number;
+  readonly orderKind?: string;
+  readonly attributionId?: number;
+  readonly productId?: number;
+  readonly postId?: number;
+  readonly commentId?: number;
+}
+
+export interface RewardsLedgerDisplayDto {
+  readonly variant: RewardsLedgerUiVariant;
+  /** i18n lookup key for the primary line title. */
+  readonly titleKey: string;
+  readonly subtitleKey?: string;
+  /** Suggested icon token for clients that support it (optional). */
+  readonly iconKey?: string;
+}
+
+export interface RewardsLedgerReversalOfDto {
+  readonly originalLedgerEntryId: number;
+}
+
+/** Checkout redemption spend row enrichment (subset of `metadata`). */
+export interface RewardsLedgerRedemptionDto {
+  readonly surface?: string;
+  readonly productId?: number;
+  readonly redeemClientRequestId?: string;
+  readonly discountMinor?: number;
+  readonly listPriceMinor?: number;
 }
 
 /** Single ledger line (camelCase; matches server serialization). */
@@ -28,6 +72,16 @@ export interface RewardsLedgerEntryDto {
   readonly metadata: Readonly<Record<string, unknown>>;
   readonly reversesLedgerEntryId: number | null;
   readonly createdAt: string;
+  /** Taxonomy key for the stored `reason` (trimmed); use with `entryKind` for display. */
+  readonly ledgerReasonKey: string;
+  /** Rules engine action when present on earn metadata (e.g. `qualified_comment` vs ledger `qualified_engagement`). */
+  readonly resolvedEarnAction: string | null;
+  readonly source: RewardsLedgerSourceDto | null;
+  readonly display: RewardsLedgerDisplayDto;
+  /** Present when this row reverses another ledger entry. */
+  readonly reversalOf: RewardsLedgerReversalOfDto | null;
+  /** Present for catalog checkout spend rows. */
+  readonly redemption: RewardsLedgerRedemptionDto | null;
 }
 
 /** GET /api/v1/rewards/ledger */

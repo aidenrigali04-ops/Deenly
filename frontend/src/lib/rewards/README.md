@@ -1,5 +1,6 @@
-# Rewards client (scaffold)
+# Web rewards imports
 
-<!-- TODO(Rewards-Growth-Sprint5): Add API client helpers aligned with docs/api-contracts.md; no UI until contracts stable. -->
+- **`rewards.ts`** — Re-exports [`shared/rewards`](../../../../shared/rewards) as `@deenly/rewards` for types, DTOs, and rules helpers used by the web app.
+- **HTTP client** — Buyer-facing API calls live in `frontend/src/lib/rewards-api.ts` (wallet, ledger, referrals, referral code preview) aligned with [docs/api-contracts.md](../../../../docs/api-contracts.md).
 
-Reserved for web **Rewards** API client utilities. Empty of code intentionally.
+Do not fork policy numbers here; extend `shared/rewards` and re-export.

@@ -1,7 +1,5 @@
 # Deenly schema notes
 
-<!-- TODO(Rewards-Growth-Sprint1): Add ER diagram or link to generated schema after first migration lands. -->
-
 ## Existing (reference only)
 
 Document tables that already exist in `backend/migrations/` as the source of truth. Highlights relevant to planning:
@@ -20,5 +18,7 @@ Source of truth: `backend/migrations/*.js`.
 | `referral_codes` | One primary code per referrer (`referrer_user_id` unique), redemption cap. |
 | `referral_attributions` | Referee ↔ code relationship; statuses include `pending_purchase`, `pending_clear`, `qualified`, `voided`, `expired`, etc. |
 | `checkout_reward_redemptions` | Product checkout reward spend: Stripe session id, buyer, points spent, fiat discount, link to `reward_ledger_entries` spend row; `active` / `reversed`. |
+| `reward_fraud_flags` | Typed fraud / risk queue for rewards (distinct from generic trust flags when a rewards FK is needed). |
+| `rewards_admin_actions` | Append-only audit log for moderator/admin actions on rewards entities. |
 
 **Rule:** Do not overload `analytics_events` for balances. Mirror events there only if dashboards need them.

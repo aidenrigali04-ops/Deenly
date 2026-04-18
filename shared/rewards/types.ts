@@ -13,10 +13,22 @@ export type RewardEarnReasonKey =
   | "qualified_engagement"
   | "referral_qualified"
   | "purchase_completed"
+  | "first_product_order_completed"
   | "daily_active_streak"
   | "admin_grant";
 
 export type RewardSpendReasonKey = "redemption_catalog" | "admin_adjustment" | "expiration";
+
+/**
+ * Buyer earn milestones driven by `REWARDS_EARN_*` env (see backend `loadEnv`).
+ * Point amounts are mirrored into `RewardsRulesConfig.earn.actionPointsMinor` for rules evaluation.
+ */
+export interface RewardsBuyerEarnMilestoneFlags {
+  readonly firstPostPublishedEnabled: boolean;
+  readonly firstPostPublishedPointsMinor: number;
+  readonly firstProductOrderCompletedEnabled: boolean;
+  readonly firstProductOrderCompletedPointsMinor: number;
+}
 
 export type ReferralAttributionStatus = "pending" | "qualified" | "rejected" | "expired";
 

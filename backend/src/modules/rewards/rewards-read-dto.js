@@ -4,12 +4,15 @@
  * @typedef {0 | 2 | 3} RewardsPointsDecimals
  */
 
+const { buildLedgerReadProjection, buildWalletDisplayDto } = require("./rewards-ledger-read-projection");
+
 /**
  * @typedef {object} RewardsWalletMeDto
  * @property {string} balancePoints
  * @property {string} currencyCode
  * @property {RewardsPointsDecimals} pointsDecimals
  * @property {string | null} lastCatalogCheckoutRedemptionAt
+ * @property {object} display Stable i18n keys for wallet chrome (additive).
  */
 
 /**
@@ -23,6 +26,12 @@
  * @property {object} metadata
  * @property {number | null} reversesLedgerEntryId
  * @property {string} createdAt
+ * @property {string} ledgerReasonKey
+ * @property {string | null} resolvedEarnAction
+ * @property {object | null} source
+ * @property {object} display
+ * @property {object | null} reversalOf
+ * @property {object | null} redemption
  */
 
 /**
@@ -60,7 +69,8 @@ function toRewardsWalletMeDto(input) {
     lastCatalogCheckoutRedemptionAt:
       input.lastCatalogCheckoutRedemptionAt == null || input.lastCatalogCheckoutRedemptionAt === ""
         ? null
-        : String(input.lastCatalogCheckoutRedemptionAt)
+        : String(input.lastCatalogCheckoutRedemptionAt),
+    display: buildWalletDisplayDto()
   };
 }
 
@@ -74,7 +84,7 @@ function toRewardsLedgerEntryDto(row) {
     throw new TypeError(`Invalid ledger entryKind: ${rawKind}`);
   }
   const rev = row.reversesLedgerEntryId;
-  return {
+  const base = {
     id: Number(row.id),
     rewardAccountId: Number(row.rewardAccountId),
     deltaPoints: String(row.deltaPoints),
@@ -85,6 +95,8 @@ function toRewardsLedgerEntryDto(row) {
     reversesLedgerEntryId: rev == null ? null : Number(rev),
     createdAt: String(row.createdAt || "")
   };
+  const projection = buildLedgerReadProjection(base);
+  return { ...base, ...projection };
 }
 
 /**
@@ -102,5 +114,7 @@ module.exports = {
   toRewardsWalletMeDto,
   toRewardsLedgerEntryDto,
   toRewardsLedgerPageDto,
-  normalizePointsDecimals
+  normalizePointsDecimals,
+  buildLedgerReadProjection,
+  buildWalletDisplayDto
 };

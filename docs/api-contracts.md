@@ -1,6 +1,6 @@
 # API contracts (Deenly)
 
-<!-- TODO(Rewards-Growth-Sprint2): OpenAPI fragment or copy-paste JSON examples for each table below. -->
+<!-- TODO: OpenAPI or copy-paste JSON examples per resource (rewards, referrals, monetization checkout). -->
 
 Stable public API prefix: **`/api/v1`** (see backend README).
 
@@ -10,9 +10,23 @@ Authoritative shapes today live in route handlers under `backend/src/modules/*`.
 
 ## Rewards + Growth Engine
 
+### Points lifecycle (server — authoritative)
+
+| Direction | Mechanism | User-visible result |
+| --------- | --------- | ------------------- |
+| **Earn** | `reward_ledger_entries` with `entry_kind = earn` | Balance increases; idempotent per `(account, idempotency_key)`. Sources today: qualifying **purchase completed** (and optional **first product order** milestone) after Stripe marks the order `completed`; **qualified comment** after a real comment insert when enabled. |
+| **Spend** | `entry_kind = spend` (e.g. `redemption_catalog`) | Balance decreases; used for **catalog product checkout** discount before Stripe Checkout. |
+| **Reverse** | `entry_kind = reversal` linked to original earn/spend | Compensating row; original row kept (immutable ledger). Triggers: purchase earn reversals on order financial invalidation; checkout redemption reversal on session failure, expiry, **full** refund, or **full-charge** dispute loss. |
+
+**Not supported as points:** creator cash payouts, seller boost card charges, or seller wallets — those stay in monetization / `earnings_ledger`.
+
+**Deferred:** `first_post_published` has config/points in env and shared rules, but **no** post-publish server hook credits it yet.
+
+**Config:** See `backend/src/config/env.js` (`REWARDS_*`, checkout caps, earn toggles) and [backend/src/modules/rewards/README.md](../backend/src/modules/rewards/README.md).
+
 ### Rewards (buyer read API)
 
-**Status:** Implemented when `rewardsReadService` is mounted (see `backend/src/index.js` / `app.js`).
+**Status:** **Implemented** in production wiring: `backend/src/index.js` passes `rewardsReadService` into `createApp`, which mounts `/api/v1/rewards` (see `backend/src/app.js`). Test-only apps that omit `rewardsReadService` will not expose these routes.
 
 | Method | Path | Description |
 | ------ | ---- | ----------- |
@@ -21,18 +35,18 @@ Authoritative shapes today live in route handlers under `backend/src/modules/*`.
 
 ### Rewards at product checkout (monetization)
 
-**Status:** Implemented when `rewardsLedgerService` and `rewardsCheckoutService` are wired into `createMonetizationRouter` (see `backend/src/app.js`).
+**Status:** **Implemented** when `rewardsLedgerService` and `rewardsCheckoutService` are passed into `createMonetizationRouter` (default in `index.js` / `app.js`).
 
 | Method | Path | Description |
 | ------ | ---- | ----------- |
 | `GET` | `/api/v1/monetization/checkout/product/:productId/rewards-preview` | Query: `redeemEnabled`, optional `redeemPointsMinor`. Response: `eligible`, `denyReasons`, `balanceMinor`, `pointsToSpend`, `discountMinor`, `chargedMinor`, `listPriceMinor`, `productRewardsEligible`. Eligibility/planning uses `rewardsCheckoutService` + shared-aligned planner (`checkout-redemption-planner.js`). Analytics: `rewards_checkout_eligibility_viewed`. |
 | `POST` | `/api/v1/monetization/checkout/product/:productId` | Optional body: `redeemMaxPoints`, `redeemPointsMinor`, required `redeemClientRequestId` when redeeming. Applies ledger spend (`redemption_catalog`) before Stripe session creation; persists `checkout_reward_redemptions` on success. Reverses spend on Stripe session failure, record insert failure, checkout expiry webhook, or full refund when a matching active redemption exists. |
 
-**Server-only:** Stripe webhooks call `reverseActiveCheckoutRedemptionIfAny` for `checkout.session.expired` and full `charge.refunded` paths (see `backend/src/modules/monetization/routes.js`).
+**Server-only (Stripe webhooks):** `backend/src/modules/monetization/routes.js` reverses active checkout redemption via `reverseActiveCheckoutRedemptionIfAny` on `checkout.session.expired` and when `charge.refunded` indicates a **full** refund. **`charge.dispute.closed`** with merchant-loss status (`lost`, `charge_refunded`) resolves the charge’s `payment_intent`, invalidates completed catalog orders (same hooks as refund for purchase earn reversals), and reverses checkout redemption when the dispute covers the **full** charge amount. Referral invalidation uses the same order path with reason `dispute_lost`.
 
 ### Referrals (buyer read API)
 
-**Status:** Implemented when referrals are enabled and `referralReadService` is mounted.
+**Status:** **Implemented** when `REFERRALS_ENABLED=true`, `DATABASE_URL` is set, and `referralReadService` is passed into `createApp` (see `backend/src/index.js`).
 
 | Method | Path | Description |
 | ------ | ---- | ----------- |

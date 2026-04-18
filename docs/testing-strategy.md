@@ -12,18 +12,16 @@
 
 - **HTTP**: `backend/test/rewards-routes-http.test.js` (`/rewards/me`, `/rewards/ledger`), `backend/test/referrals-routes-http.test.js` (`/referrals/me`, `/referrals/me/share`, public `/referrals/code-preview`).
 - **Read services**: `backend/test/rewards-read-service.test.js`, `backend/test/referral-read-service.test.js` (includes analytics assertions where applicable).
+- **Ledger + earn**: `backend/test/rewards-ledger-service.test.js`, `backend/test/rewards-earn-service.test.js`, `backend/test/rewards-order-earn-hooks.test.js`, `backend/test/rewards-qualified-comment-earn-hook.test.js`, `backend/test/stripe-payment-intent-resolve.test.js` (Stripe dispute → `payment_intent` helpers for webhooks).
 - **Shared rules**: `cd shared/rewards && npm test` (Vitest).
 
-## Rewards + Growth Engine (planned)
-
-<!-- TODO(Rewards-Growth-Sprint2): Idempotency tests for grant handler; DB constraints tests. -->
-<!-- TODO(Rewards-Growth-Sprint3+): Integration tests for earn-rule hooks; optional e2e for balance UI. -->
+## Rewards + Growth Engine (ongoing)
 
 | Area | Approach |
 | ---- | -------- |
-| Ledger / grants | Integration tests with real Postgres; assert duplicate idempotency keys do not double-credit. |
-| API contracts | Contract tests or snapshot of JSON responses vs [api-contracts.md](./api-contracts.md). |
-| Client | Minimal e2e: “ledger empty” → grant fixture → “ledger shows one row” (when UI exists). |
+| Ledger / reversals | Unit tests with in-memory repository + idempotency assertions; Postgres integration where `DATABASE_URL` is set. |
+| API contracts | Contract tests or snapshot of JSON responses vs [api-contracts.md](./api-contracts.md); OpenAPI fragments still TODO in contracts doc. |
+| Client | Web e2e optional for wallet/checkout; mobile checkout points UI not mirrored in repo (see api-contracts client map). |
 
 ## Principles
 

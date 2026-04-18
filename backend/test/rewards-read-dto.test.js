@@ -5,15 +5,19 @@ const {
 } = require("../src/modules/rewards/rewards-read-dto");
 
 describe("rewards-read-dto", () => {
-  it("toRewardsWalletMeDto normalizes pointsDecimals", () => {
-    expect(
-      toRewardsWalletMeDto({
-        balancePoints: "10",
-        currencyCode: "DEEN_PTS",
-        pointsDecimals: 2,
-        lastCatalogCheckoutRedemptionAt: null
-      }).pointsDecimals
-    ).toBe(2);
+  it("toRewardsWalletMeDto normalizes pointsDecimals and adds display keys", () => {
+    const dto = toRewardsWalletMeDto({
+      balancePoints: "10",
+      currencyCode: "DEEN_PTS",
+      pointsDecimals: 2,
+      lastCatalogCheckoutRedemptionAt: null
+    });
+    expect(dto.pointsDecimals).toBe(2);
+    expect(dto.display.balanceTitleKey).toMatch(/^rewards\.wallet\./);
+    expect(dto.display.ledgerSectionTitleKey).toMatch(/^rewards\.wallet\./);
+  });
+
+  it("toRewardsWalletMeDto clamps invalid pointsDecimals to 0", () => {
     expect(
       toRewardsWalletMeDto({
         balancePoints: "0",
@@ -22,6 +26,26 @@ describe("rewards-read-dto", () => {
         lastCatalogCheckoutRedemptionAt: "2026-01-01T00:00:00.000Z"
       }).pointsDecimals
     ).toBe(0);
+  });
+
+  it("toRewardsLedgerEntryDto includes projection fields", () => {
+    const row = toRewardsLedgerEntryDto({
+      id: 2,
+      rewardAccountId: 1,
+      deltaPoints: "-5",
+      entryKind: "spend",
+      reason: "redemption_catalog",
+      idempotencyKey: "checkout:product:1:x",
+      metadata: { surface: "product_checkout", productId: 9 },
+      reversesLedgerEntryId: null,
+      createdAt: "2026-01-01T00:00:00.000Z"
+    });
+    expect(row.ledgerReasonKey).toBe("redemption_catalog");
+    expect(row.display.variant).toBe("spend");
+    expect(row.display.titleKey).toBe("rewards.ledger.spend.redemption_catalog");
+    expect(row.redemption?.productId).toBe(9);
+    expect(row.resolvedEarnAction).toBeNull();
+    expect(row.reversalOf).toBeNull();
   });
 
   it("toRewardsLedgerPageDto maps items", () => {
@@ -43,6 +67,9 @@ describe("rewards-read-dto", () => {
     });
     expect(dto.items).toHaveLength(1);
     expect(dto.items[0].entryKind).toBe("earn");
+    expect(dto.items[0].ledgerReasonKey).toBe("grant");
+    expect(dto.items[0].display.variant).toBe("earn");
+    expect(dto.items[0].display.titleKey).toBe("rewards.ledger.earn._unknown");
     expect(dto.nextCursor).toBe("n1");
   });
 

@@ -523,6 +523,37 @@ function loadEnv(envSource = process.env) {
       0,
       Math.min(3600, Math.round(parseNumber(envSource.REWARDS_RULES_MIN_DWELL_SECONDS_FOR_REACTION, 3)))
     ),
+    rewardsEarnFirstPostPublishedEnabled: parseBoolean(
+      envSource.REWARDS_EARN_FIRST_POST_PUBLISHED_ENABLED,
+      false
+    ),
+    rewardsEarnFirstPostPublishedPointsMinor: Math.max(
+      0,
+      Math.round(parseNumber(envSource.REWARDS_EARN_FIRST_POST_PUBLISHED_POINTS_MINOR, 0))
+    ),
+    rewardsEarnFirstProductOrderCompletedEnabled: parseBoolean(
+      envSource.REWARDS_EARN_FIRST_PRODUCT_ORDER_COMPLETED_ENABLED,
+      false
+    ),
+    rewardsEarnFirstProductOrderCompletedPointsMinor: Math.max(
+      0,
+      Math.round(parseNumber(envSource.REWARDS_EARN_FIRST_PRODUCT_ORDER_COMPLETED_POINTS_MINOR, 0))
+    ),
+    rewardsEarnPurchaseCompletedEnabled: parseBoolean(envSource.REWARDS_EARN_PURCHASE_COMPLETED_ENABLED, false),
+    rewardsEarnPurchaseCompletedPointsMinor: Math.max(
+      0,
+      Math.round(parseNumber(envSource.REWARDS_EARN_PURCHASE_COMPLETED_POINTS_MINOR, 100))
+    ),
+    /** When true, awards `qualified_comment` only after a real `interactions` comment INSERT (server-verified). Default off. */
+    rewardsEarnQualifiedCommentEnabled: parseBoolean(envSource.REWARDS_EARN_QUALIFIED_COMMENT_ENABLED, false),
+    rewardsEarnQualifiedCommentMinChars: Math.max(
+      8,
+      Math.round(parseNumber(envSource.REWARDS_EARN_QUALIFIED_COMMENT_MIN_CHARS, 32))
+    ),
+    rewardsEarnQualifiedCommentMinWords: Math.max(
+      2,
+      Math.round(parseNumber(envSource.REWARDS_EARN_QUALIFIED_COMMENT_MIN_WORDS, 5))
+    ),
     rewardsReversalFullRefundClawbackRatio: (() => {
       const v = parseNumber(envSource.REWARDS_REVERSAL_FULL_REFUND_CLAWBACK_RATIO, 1);
       return Number.isFinite(v) && v >= 0 && v <= 1 ? v : 1;

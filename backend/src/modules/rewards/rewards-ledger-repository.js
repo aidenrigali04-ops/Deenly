@@ -163,6 +163,58 @@ function createRewardsLedgerRepository() {
     return res.rowCount ? res.rows[0].id : null;
   }
 
+  /**
+   * Idempotent earn lookup for orchestration (duplicate path before re-running rules).
+   * @param {function} query - `(text, params) => Promise<pg.QueryResult>`
+   */
+  async function findLedgerEntryByUserIdAndIdempotencyKey(query, userId, idempotencyKey) {
+    const res = await query(
+      `SELECT e.id,
+              e.reward_account_id,
+              e.delta_points,
+              e.entry_kind,
+              e.reason,
+              e.idempotency_key,
+              e.metadata,
+              e.reverses_ledger_entry_id,
+              e.created_at
+       FROM reward_ledger_entries e
+       JOIN reward_accounts a ON a.id = e.reward_account_id
+       WHERE a.user_id = $1 AND e.idempotency_key = $2
+       LIMIT 1`,
+      [userId, idempotencyKey]
+    );
+    return res.rowCount ? mapLedgerRow(res.rows[0]) : null;
+  }
+
+  /**
+   * Gross points issued via earn rows in `[startIso, endExclusiveIso)` (UTC timestamps).
+   */
+  async function sumEarnDeltaForAccountInUtcRange(query, rewardAccountId, startIso, endExclusiveIso) {
+    const res = await query(
+      `SELECT COALESCE(SUM(e.delta_points), 0)::text AS total
+       FROM reward_ledger_entries e
+       WHERE e.reward_account_id = $1
+         AND e.entry_kind = 'earn'
+         AND e.created_at >= $2::timestamptz
+         AND e.created_at < $3::timestamptz`,
+      [rewardAccountId, startIso, endExclusiveIso]
+    );
+    return res.rows[0]?.total ?? "0";
+  }
+
+  async function countEarnEntriesForAccountSince(query, rewardAccountId, sinceIso) {
+    const res = await query(
+      `SELECT COUNT(*)::int AS c
+       FROM reward_ledger_entries e
+       WHERE e.reward_account_id = $1
+         AND e.entry_kind = 'earn'
+         AND e.created_at >= $2::timestamptz`,
+      [rewardAccountId, sinceIso]
+    );
+    return Number(res.rows[0]?.c ?? 0);
+  }
+
   async function getLastCatalogCheckoutRedemptionAt(query, userId) {
     const res = await query(
       `SELECT e.created_at
@@ -235,7 +287,10 @@ function createRewardsLedgerRepository() {
     getBalanceForUserId,
     getRewardAccountIdForUser,
     getLastCatalogCheckoutRedemptionAt,
-    listHistoryForUser
+    listHistoryForUser,
+    findLedgerEntryByUserIdAndIdempotencyKey,
+    sumEarnDeltaForAccountInUtcRange,
+    countEarnEntriesForAccountSince
   };
 }
 

@@ -1,6 +1,6 @@
 # Deenly documentation index
 
-Core product and engineering references. **Rewards + Growth Engine**: buyer read APIs, referrals, checkout redemption, and admin surfaces are **partially implemented** — see [api-contracts.md](./api-contracts.md) for what is published; deeper planning and TODOs remain in the other docs.
+Core product and engineering references. **Rewards + Growth Engine**: buyer **points** ledger, **earn** hooks (purchase, qualified comment), **catalog checkout redemption**, **referrals** (when enabled), Stripe **refund/dispute** invalidation hooks, and **admin/moderator HTTP** for ops are **implemented** in the backend; see [api-contracts.md](./api-contracts.md) and [architecture.md](./architecture.md). Shipped **buyer** web/mobile UIs cover wallet, ledger, referrals, and web checkout points; dedicated internal ops UI remains deferred.
 
 | Document | Purpose |
 | -------- | ------- |

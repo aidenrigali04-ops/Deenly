@@ -340,12 +340,22 @@ function createRewardsLedgerService({ db, analytics, logger, repository, trustFl
     };
   }
 
+  /**
+   * Read-through for orchestrators (same repository instance as earn/spend/reverse).
+   */
+  async function findLedgerEntryRowByUserIdempotencyKey(userId, idempotencyKey) {
+    const uid = validateUserId(userId);
+    const key = validateIdempotencyKey(idempotencyKey);
+    return repo.findLedgerEntryByUserIdAndIdempotencyKey(poolQuery, uid, key);
+  }
+
   return {
     earnPoints,
     spendPoints,
     reverseEntry,
     getBalance,
-    getHistory
+    getHistory,
+    findLedgerEntryRowByUserIdempotencyKey
   };
 }
 

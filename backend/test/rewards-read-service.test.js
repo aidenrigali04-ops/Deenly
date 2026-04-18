@@ -43,6 +43,7 @@ describe("createRewardsReadService", () => {
     expect(wallet.currencyCode).toBe("DEEN_PTS");
     expect(wallet.pointsDecimals).toBe(0);
     expect(wallet.lastCatalogCheckoutRedemptionAt).toBeNull();
+    expect(wallet.display.balanceTitleKey).toMatch(/^rewards\.wallet\./);
     expect(analytics.trackEvent).toHaveBeenCalledWith("rewards_wallet_viewed", { userId: 7 });
   });
 
@@ -58,6 +59,9 @@ describe("createRewardsReadService", () => {
     const page = await read.getLedgerPage({ userId: 8, limit: 10 });
     expect(page.items.length).toBe(1);
     expect(page.items[0].deltaPoints).toBe("10");
+    expect(page.items[0].ledgerReasonKey).toBe("test");
+    expect(page.items[0].display.variant).toBe("earn");
+    expect(page.items[0].reversalOf).toBeNull();
     expect(analytics.trackEvent).toHaveBeenCalledWith(
       "rewards_ledger_viewed",
       expect.objectContaining({ userId: 8, itemCount: 1 })

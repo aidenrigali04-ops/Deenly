@@ -82,9 +82,12 @@ export const REWARDS_RULES_ENGINE_VERSION = "1.2.0";
 const DEFAULT_ACTION_POINTS: EarnActionPointsTable = {
   signup_complete: 250,
   first_post_published: 150,
+  /** Wired from env when buyer milestone hooks ship; default 0 = off. */
+  first_product_order_completed: 0,
   qualified_comment: 40,
   qualified_reaction: 15,
   referral_qualified: 500,
+  referral_qualified_referee: 0,
   purchase_completed: 100,
   daily_active_streak: 25,
   admin_grant: 0
