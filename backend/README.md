@@ -157,7 +157,9 @@ Production-focused Node/Express backend for the Deenly Muslim social platform.
 ## Railway Deployment and Rollback Runbook
 
 1. Push validated commit to `main`.
-2. Set the Railway service **Root Directory** to the **repository root** (`.` — not `backend`). The API lives under `backend/`, but installs must run from the monorepo root so `shared/rewards` is present for `@deenly/rewards-shared` (`file:../shared/rewards`) and the backend `postinstall` build. Repo root includes `nixpacks.toml` and `railway.json` for Nixpacks (`npm ci --prefix backend`). If Root Directory stays `backend` only, Docker/Nixpacks cannot see `../shared/rewards` and `npm ci` fails.
+2. **Railway Root Directory** — either pattern works:
+   - **Repository root** (`.`): use the repo-level `nixpacks.toml` (`npm ci --prefix backend`) and `railway.json` start command under `cd backend && …`.
+   - **`backend` only**: keep Root Directory as `backend`. Nixpacks reads `backend/nixpacks.toml`, which clones the GitHub monorepo into `/tmp`, symlinks `/shared/rewards` → `../shared/rewards` from the app dir, then runs `npm ci` so `@deenly/rewards-shared` (`file:../shared/rewards`) and `postinstall` succeed. The clone URL is `https://github.com/aidenrigali04-ops/Deenly.git` (public repo); for a private fork, change that URL in `backend/nixpacks.toml` or switch to repo-root installs.
 3. Confirm required production env vars (see `.env.example`):
    - `NODE_ENV=production`
    - `DATABASE_URL=${{Postgres.DATABASE_URL}}`

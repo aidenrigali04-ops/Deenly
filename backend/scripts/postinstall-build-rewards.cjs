@@ -1,10 +1,11 @@
 "use strict";
 
 /**
- * Build file-linked @deenly/rewards-shared (../shared/rewards) after backend npm ci.
- * Resolves paths from this script's location so it works even when process.cwd() is wrong.
- * Requires the monorepo layout: repo/backend/scripts → repo/shared/rewards
- * (deploy with Docker/Railway build context = repo root, not only backend/).
+ * Build file-linked @deenly/rewards-shared (../shared/rewards) after backend `npm ci`.
+ *
+ * Resolves from this script location (not process.cwd) so paths are stable.
+ * In Docker/Nixpacks when the service root is `backend/`, `../shared/rewards` is
+ * `/shared/rewards`; `backend/nixpacks.toml` clones the monorepo and symlinks that path.
  */
 
 const fs = require("fs");
@@ -18,9 +19,9 @@ const rewardsPkg = path.join(rewardsDir, "package.json");
 if (!fs.existsSync(rewardsPkg)) {
   console.error(
     "[deenly-backend postinstall] Expected shared rewards at:\n  %s\n\n" +
-      "Deploy from the monorepo root so backend/../shared/rewards exists. " +
-      "On Railway: set the service Root Directory to \".\" (repository root), not \"backend\". " +
-      "See backend/README.md → Railway Deployment.\n",
+      "Local dev: clone the full monorepo so backend/../shared/rewards exists.\n" +
+      "Railway/Nixpacks (root = backend): ensure backend/nixpacks.toml is applied so the install phase creates /shared/rewards before npm ci.\n" +
+      "Alternatively set the service Root Directory to the repository root and use the repo-level nixpacks.toml.\n",
     rewardsDir
   );
   process.exit(1);

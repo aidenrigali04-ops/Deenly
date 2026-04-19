@@ -1,0 +1,17 @@
+# Used when Railway (or Nixpacks) service Root Directory is `backend/`.
+# Backend depends on `file:../shared/rewards` → from WORKDIR /app that is `/shared/rewards`.
+# Clone the monorepo and symlink so `npm ci` + postinstall can compile shared/rewards.
+
+providers = ["node"]
+
+[phases.install]
+# One shell so clone + symlink always run before npm ci (avoids Nixpacks merging a default npm ci ahead of our steps).
+cmds = [
+  "bash -c 'set -e; command -v git >/dev/null 2>&1 || (apt-get update && apt-get install -y git) || apk add --no-cache git; rm -rf /tmp/deenly-mono-clone; git clone --depth 1 https://github.com/aidenrigali04-ops/Deenly.git /tmp/deenly-mono-clone; mkdir -p /shared; ln -sfn /tmp/deenly-mono-clone/shared/rewards /shared/rewards; npm ci'"
+]
+
+[phases.build]
+cmds = []
+
+[start]
+cmd = "npm run migrate:up && npm start"

@@ -322,6 +322,8 @@ function AppTabs() {
             options={{
               title: "Create",
               tabBarShowLabel: false,
+              /** Override shared `tabBarLabel` in screenOptions (it always renders Text). */
+              tabBarLabel: () => null,
               tabBarAccessibilityLabel: "Create",
               tabBarIcon: ({ focused }) => <CreateTabBarIcon focused={focused} />
             }}
