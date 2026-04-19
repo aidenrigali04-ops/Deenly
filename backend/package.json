@@ -18,7 +18,7 @@
     "migrate:create": "node-pg-migrate create --config-file ./node-pg-migrate.config.json",
     "migrate:up": "node-pg-migrate up --config-file ./node-pg-migrate.config.json",
     "migrate:down": "node-pg-migrate down --config-file ./node-pg-migrate.config.json",
-    "postinstall": "npm run build --prefix ../shared/rewards"
+    "postinstall": "node scripts/postinstall-build-rewards.cjs"
   },
   "engines": {
     "node": ">=20"

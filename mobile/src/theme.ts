@@ -42,16 +42,30 @@ export const figmaMobile = {
   glassSoft: "rgba(255,255,255,0.08)",
   glassBorderSoft: "rgba(255,255,255,0.08)",
   accentGold: "#feb101",
-  linkCyan: "#01dcfe",
+  /** Create / marketing links on dark canvas (was cyan; kit uses gold) */
+  linkCyan: "#feb101",
   /** Tab bar capsule — slightly lifted glass, softer edge than pure black */
   tabBarFill: "rgba(18,18,20,0.55)",
   tabBarBorder: "rgba(255,255,255,0.09)",
   gradientTop: "rgba(0,0,0,0.35)",
   gradientBottom: "rgba(0,0,0,0.45)",
-  /** Deenly brand actions (checkout, verified flows) */
+  /** Deenly brand actions outside create-flow gold kit */
   brandTeal: "#156B75",
   /** In-card media / letterbox (dark kit) */
   mediaSurface: "#2a2a2a",
+  /** Create-flow: white panels on black canvas */
+  createFlowPanel: "#FFFFFF",
+  createFlowPanelBorder: "rgba(10,10,11,0.1)",
+  createFlowInk: "#0A0A0B",
+  createFlowInkMuted: "rgba(10,10,11,0.55)",
+  createFlowInkMuted2: "rgba(10,10,11,0.42)",
+  createFlowField: "#F2F2F5",
+  /** Chips on white create panels */
+  createFlowChipOnPanel: "rgba(10,10,11,0.06)",
+  createFlowChipOnPanelBorder: "rgba(10,10,11,0.1)",
+  /** Chips on black canvas (e.g. listing kind toggle) */
+  createFlowChipOnCanvas: "rgba(255,255,255,0.1)",
+  createFlowChipOnCanvasBorder: "rgba(255,255,255,0.16)",
   /** Initials on bright avatar placeholder */
   avatarInitialInk: "#1a1a1a",
   /** Grid tile fallback under video thumbs */
@@ -253,13 +267,23 @@ export const figmaMobileLight = {
   glassSoft: "rgba(0,0,0,0.04)",
   glassBorderSoft: "rgba(0,0,0,0.08)",
   accentGold: "#feb101",
-  linkCyan: "#018799",
+  linkCyan: "#C28A00",
   tabBarFill: "rgba(255,255,255,0.94)",
   tabBarBorder: "rgba(0,0,0,0.08)",
   gradientTop: "rgba(0,0,0,0.22)",
   gradientBottom: "rgba(0,0,0,0.32)",
   brandTeal: "#156B75",
   mediaSurface: "#E8E8EA",
+  createFlowPanel: "#FFFFFF",
+  createFlowPanelBorder: "rgba(10,10,11,0.1)",
+  createFlowInk: "#0A0A0B",
+  createFlowInkMuted: "rgba(10,10,11,0.55)",
+  createFlowInkMuted2: "rgba(10,10,11,0.42)",
+  createFlowField: "#F2F2F5",
+  createFlowChipOnPanel: "rgba(10,10,11,0.06)",
+  createFlowChipOnPanelBorder: "rgba(10,10,11,0.1)",
+  createFlowChipOnCanvas: "rgba(10,10,11,0.06)",
+  createFlowChipOnCanvasBorder: "rgba(10,10,11,0.1)",
   avatarInitialInk: "#1a1a1a",
   videoThumbFallback: "#e5e7eb",
   messagesChrome: "#FFFFFF",

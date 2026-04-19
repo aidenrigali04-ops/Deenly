@@ -1,22 +1,16 @@
 import { useCallback, useState } from "react";
-import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View
-} from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { PostPublishSuccessOverlay } from "../../components/PostPublishSuccessOverlay";
 import { ApiError } from "../../lib/api";
 import { assistPostText } from "../../lib/ai-assist";
 import { parseEventStartsAtInput } from "../../lib/event-starts-at";
 import { createEvent } from "../../lib/events";
-import { colors } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import {
+  CreateAppBar,
   FormCard,
   SoftTextInput,
   SoftTextArea,
@@ -24,11 +18,9 @@ import {
   UploadCard,
   SubtypeSegmentedControl,
   AIHelperRow,
-  CollapsibleSection,
+  CollapsibleSection
 } from "../../components/create";
-
-/* ── Design tokens ─────────────────────────────────────────── */
-const PAGE_BG = "#F9F8F6";
+import { useCreateFlowTheme } from "../../components/ui";
 
 /* ── Helper ────────────────────────────────────────────────── */
 function buildEventAssistDraft(
@@ -49,8 +41,11 @@ function buildEventAssistDraft(
 type Props = NativeStackScreenProps<RootStackParamList, "CreateEvent">;
 
 export function CreateEventScreen({ navigation }: Props) {
+  const insets = useSafeAreaInsets();
+  const cf = useCreateFlowTheme();
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
+  const [tagline, setTagline] = useState("");
   const [description, setDescription] = useState("");
   const [startsAtInput, setStartsAtInput] = useState("");
   const [endsAtInput, setEndsAtInput] = useState("");
@@ -86,9 +81,13 @@ export function CreateEventScreen({ navigation }: Props) {
       const t = title.trim();
       if (t.length < 3) throw new Error("Title must be at least 3 characters.");
       const startsAt = parseEventStartsAtInput(startsAtInput);
+      const tag = tagline.trim();
+      const desc = description.trim();
+      const combinedDescription =
+        tag && desc ? `${tag}\n\n${desc}` : tag || desc ? tag || desc : null;
       return createEvent({
         title: t,
-        description: description.trim() || null,
+        description: combinedDescription,
         startsAt: startsAt.toISOString(),
         addressDisplay: addressDisplay.trim() || null,
         isOnline: locationType === "online" || Boolean(onlineUrl.trim()),
@@ -100,6 +99,7 @@ export function CreateEventScreen({ navigation }: Props) {
     onSuccess: async (event) => {
       await queryClient.invalidateQueries({ queryKey: ["mobile-events-near"] });
       setTitle("");
+      setTagline("");
       setDescription("");
       setStartsAtInput("");
       setEndsAtInput("");
@@ -112,17 +112,18 @@ export function CreateEventScreen({ navigation }: Props) {
   const canCreate = title.trim().length >= 3;
 
   return (
-    <View style={styles.root}>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <View style={cf.layout}>
+      <CreateAppBar title="Create event" onBack={() => navigation.goBack()} />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView
-          style={styles.flex}
-          contentContainerStyle={styles.scrollContent}
+          style={{ flex: 1 }}
+          contentContainerStyle={[cf.scrollContent, { paddingBottom: insets.bottom + 110 }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           {/* ── Event Basics ── */}
           <FormCard>
-            <Text style={styles.cardHeading}>Event basics</Text>
+            <Text style={cf.sectionTitle}>Event basics</Text>
             <SoftTextInput
               label="Title"
               placeholder="Event title"
@@ -140,14 +141,15 @@ export function CreateEventScreen({ navigation }: Props) {
             <SoftTextInput
               label="Short summary (optional)"
               placeholder="A brief subtitle for your event"
-              value=""
-              onChangeText={() => {}}
+              value={tagline}
+              onChangeText={setTagline}
+              maxLength={220}
             />
           </FormCard>
 
           {/* ── Schedule ── */}
           <FormCard>
-            <Text style={styles.cardHeading}>Schedule</Text>
+            <Text style={cf.sectionTitle}>Schedule</Text>
             <SoftTextInput
               label="Starts"
               placeholder="e.g. 2026-04-18 18:30 or 12:30"
@@ -160,16 +162,16 @@ export function CreateEventScreen({ navigation }: Props) {
               value={endsAtInput}
               onChangeText={setEndsAtInput}
             />
-            <Text style={styles.helper}>Time zone is detected automatically from your device.</Text>
+            <Text style={cf.helperSmall}>Time zone is detected automatically from your device.</Text>
           </FormCard>
 
           {/* ── Location (conditional) ── */}
           <FormCard>
-            <Text style={styles.cardHeading}>Location</Text>
+            <Text style={cf.sectionTitle}>Location</Text>
             <SubtypeSegmentedControl
               options={[
                 { key: "in_person", label: "In-person" },
-                { key: "online", label: "Online" },
+                { key: "online", label: "Online" }
               ]}
               value={locationType}
               onChange={(k) => setLocationType(k as "in_person" | "online")}
@@ -197,7 +199,7 @@ export function CreateEventScreen({ navigation }: Props) {
 
           {/* ── Description / Tools ── */}
           <FormCard>
-            <Text style={styles.cardHeading}>Description</Text>
+            <Text style={cf.sectionTitle}>Description</Text>
             <SoftTextArea
               placeholder="Tell people about your event..."
               value={description}
@@ -212,13 +214,13 @@ export function CreateEventScreen({ navigation }: Props) {
               disabled={!canPolishDescription}
             />
             {assistMutation.isError ? (
-              <Text style={styles.errorSmall}>
+              <Text style={cf.errorSmall}>
                 {assistMutation.error instanceof ApiError
                   ? assistMutation.error.message
                   : "Could not polish. Try again."}
               </Text>
             ) : null}
-            <Text style={styles.helper}>
+            <Text style={cf.helper}>
               Add title plus time, place, link, or rough notes — then polish into a clear description.
             </Text>
           </FormCard>
@@ -226,21 +228,21 @@ export function CreateEventScreen({ navigation }: Props) {
           {/* ── Event options (collapsed) ── */}
           <FormCard>
             <CollapsibleSection title="Event options">
-              <Text style={styles.helper}>RSVP limit, public/private, and event chat settings.</Text>
-              <View style={styles.optionRow}>
-                <Text style={styles.optionLabel}>Public event</Text>
-                <Text style={styles.optionValue}>Yes</Text>
+              <Text style={cf.helper}>RSVP limit, public/private, and event chat settings.</Text>
+              <View style={cf.metaRow}>
+                <Text style={cf.metaRowLabel}>Public event</Text>
+                <Text style={cf.metaRowValue}>Yes</Text>
               </View>
-              <View style={styles.optionRow}>
-                <Text style={styles.optionLabel}>Event chat</Text>
-                <Text style={styles.optionValue}>Enabled</Text>
+              <View style={cf.metaRow}>
+                <Text style={cf.metaRowLabel}>Event chat</Text>
+                <Text style={cf.metaRowValue}>Enabled</Text>
               </View>
             </CollapsibleSection>
           </FormCard>
 
           {/* ── Errors ── */}
           {createMutation.error ? (
-            <Text style={styles.error}>
+            <Text style={cf.error}>
               {createMutation.error instanceof Error
                 ? createMutation.error.message
                 : "Could not create event."}
@@ -265,53 +267,3 @@ export function CreateEventScreen({ navigation }: Props) {
     </View>
   );
 }
-
-/* ── Styles ──────────────────────────────────────────────────── */
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: PAGE_BG,
-  },
-  flex: { flex: 1 },
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 24,
-    gap: 24,
-  },
-  cardHeading: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: colors.text,
-    marginBottom: 4,
-  },
-  helper: {
-    fontSize: 12,
-    color: colors.muted,
-    lineHeight: 18,
-  },
-  error: {
-    color: colors.danger,
-    fontSize: 14,
-  },
-  errorSmall: {
-    fontSize: 12,
-    color: colors.danger,
-  },
-  optionRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    minHeight: 44,
-    paddingVertical: 4,
-  },
-  optionLabel: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: colors.text,
-  },
-  optionValue: {
-    fontSize: 14,
-    color: colors.muted,
-  }
-});

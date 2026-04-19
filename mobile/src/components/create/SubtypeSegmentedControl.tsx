@@ -1,5 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { colors } from "../../theme";
+import { Pressable, Text, View } from "react-native";
+import { useCreateFlowTheme } from "../ui";
 
 type Props = {
   options: { key: string; label: string }[];
@@ -8,53 +8,24 @@ type Props = {
 };
 
 export function SubtypeSegmentedControl({ options, value, onChange }: Props) {
+  const t = useCreateFlowTheme();
+
   return (
-    <View style={styles.track}>
+    <View style={t.segmentTrackPanel}>
       {options.map((opt) => {
         const active = opt.key === value;
         return (
           <Pressable
             key={opt.key}
             onPress={() => onChange(opt.key)}
-            style={[styles.pill, active && styles.pillActive]}
+            style={[t.segmentPill, active ? t.segmentPillActive : t.segmentPillIdle]}
             accessibilityRole="tab"
             accessibilityState={{ selected: active }}
           >
-            <Text style={[styles.text, active && styles.textActive]}>
-              {opt.label}
-            </Text>
+            <Text style={active ? t.segmentTextActive : t.segmentTextIdlePanel}>{opt.label}</Text>
           </Pressable>
         );
       })}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  track: {
-    flexDirection: "row",
-    backgroundColor: "#F5F4F2",
-    borderRadius: 999,
-    padding: 3,
-    gap: 4,
-  },
-  pill: {
-    flex: 1,
-    height: 36,
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pillActive: {
-    backgroundColor: colors.accentMuted,
-  },
-  text: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: colors.muted,
-  },
-  textActive: {
-    fontWeight: "600",
-    color: colors.accent,
-  },
-});

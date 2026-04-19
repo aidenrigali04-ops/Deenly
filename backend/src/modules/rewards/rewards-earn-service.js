@@ -9,7 +9,7 @@ const {
 let _rulesEngineModule = null;
 function loadRulesEngine() {
   if (!_rulesEngineModule) {
-    // Built by `npm run build --prefix ../shared/rewards` (backend postinstall).
+    // Built by backend postinstall (`scripts/postinstall-build-rewards.cjs` → shared/rewards `npm run build`).
     _rulesEngineModule = require("@deenly/rewards-shared");
   }
   return _rulesEngineModule;

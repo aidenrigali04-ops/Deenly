@@ -157,7 +157,7 @@ Production-focused Node/Express backend for the Deenly Muslim social platform.
 ## Railway Deployment and Rollback Runbook
 
 1. Push validated commit to `main`.
-2. Ensure Railway backend service points to `backend` root.
+2. Set the Railway service **Root Directory** to the **repository root** (`.` — not `backend`). The API lives under `backend/`, but installs must run from the monorepo root so `shared/rewards` is present for `@deenly/rewards-shared` (`file:../shared/rewards`) and the backend `postinstall` build. Repo root includes `nixpacks.toml` and `railway.json` for Nixpacks (`npm ci --prefix backend`). If Root Directory stays `backend` only, Docker/Nixpacks cannot see `../shared/rewards` and `npm ci` fails.
 3. Confirm required production env vars (see `.env.example`):
    - `NODE_ENV=production`
    - `DATABASE_URL=${{Postgres.DATABASE_URL}}`

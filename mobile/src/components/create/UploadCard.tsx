@@ -1,7 +1,7 @@
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { AppVideoView } from "../AppVideoView";
-import { colors } from "../../theme";
+import { useCreateFlowTheme } from "../ui";
 
 type Props = {
   /** Height of the card */
@@ -39,63 +39,50 @@ export function UploadCard({
   error,
   onPress,
   onReplace,
-  onRemove,
+  onRemove
 }: Props) {
+  const t = useCreateFlowTheme();
   const hasMedia = Boolean(uri);
   const showVideo = hasMedia && (isVideo || mimeType?.startsWith("video/"));
 
   return (
-    <View style={styles.wrapper}>
+    <View style={{ gap: 10 }}>
       <Pressable
         onPress={onPress}
         style={({ pressed }) => [
-          styles.card,
+          t.uploadSurface,
           { minHeight: height },
-          error && styles.cardError,
-          pressed && styles.cardPressed,
+          error && { borderWidth: 1.5, borderColor: "#FF6B6B" },
+          pressed && { opacity: 0.92 }
         ]}
         accessibilityRole="button"
         accessibilityLabel={hasMedia ? "Change media" : title}
       >
         {hasMedia && showVideo ? (
-          <AppVideoView
-            key={uri!}
-            uri={uri!}
-            style={[styles.fill, { height }]}
-            contentFit="cover"
-            loop
-            play
-            muted
-          />
+          <AppVideoView key={uri!} uri={uri!} style={[{ width: "100%" }, { height }]} contentFit="cover" loop play muted />
         ) : hasMedia && uri ? (
-          <Image source={{ uri }} style={[styles.fill, { height }]} resizeMode="cover" />
+          <Image source={{ uri }} style={[{ width: "100%" }, { height }]} resizeMode="cover" />
         ) : (
-          <View style={[styles.empty, { minHeight: height }]}>
-            <Ionicons name={icon as any} size={40} color={colors.accent} />
-            <Text style={styles.emptyTitle}>{title}</Text>
-            <Text style={styles.emptyHint}>{hint}</Text>
+          <View style={{ minHeight: height, alignItems: "center", justifyContent: "center", paddingVertical: 32, paddingHorizontal: 24, gap: 8 }}>
+            <Ionicons name={icon as keyof typeof Ionicons.glyphMap} size={40} color={t.f.accentGold} />
+            <Text style={t.uploadEmptyTitle}>{title}</Text>
+            <Text style={t.uploadEmptyHint}>{hint}</Text>
           </View>
         )}
       </Pressable>
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      {error ? <Text style={t.errorSmall}>{error}</Text> : null}
       {hasMedia && (onReplace || onRemove) ? (
-        <View style={styles.actions}>
+        <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 16 }}>
           {onReplace ? (
-            <Pressable
-              onPress={onReplace}
-              style={({ pressed }) => [styles.actionBtn, pressed && styles.cardPressed]}
-            >
-              <Ionicons name="image-outline" size={18} color={colors.text} />
-              <Text style={styles.actionText}>Replace</Text>
+            <Pressable onPress={onReplace} style={({ pressed }) => [{ flexDirection: "row", alignItems: "center", gap: 6, minHeight: 44 }, pressed && { opacity: 0.7 }]}>
+              <Ionicons name="image-outline" size={18} color={t.f.createFlowInk ?? "#0A0A0B"} />
+              <Text style={{ fontSize: 14, fontWeight: "600" as const, color: t.f.createFlowInk ?? "#0A0A0B" }}>Replace</Text>
             </Pressable>
           ) : null}
           {onRemove ? (
-            <Pressable
-              onPress={onRemove}
-              style={({ pressed }) => [styles.actionBtn, pressed && styles.cardPressed]}
-            >
-              <Ionicons name="trash-outline" size={18} color={colors.danger} />
-              <Text style={[styles.actionText, { color: colors.danger }]}>Remove</Text>
+            <Pressable onPress={onRemove} style={({ pressed }) => [{ flexDirection: "row", alignItems: "center", gap: 6, minHeight: 44 }, pressed && { opacity: 0.7 }]}>
+              <Ionicons name="trash-outline" size={18} color="#FF6B6B" />
+              <Text style={{ fontSize: 14, fontWeight: "600" as const, color: "#FF6B6B" }}>Remove</Text>
             </Pressable>
           ) : null}
         </View>
@@ -103,68 +90,3 @@ export function UploadCard({
     </View>
   );
 }
-
-const TOKENS = {
-  inputFill: "#F5F4F2",
-};
-
-const styles = StyleSheet.create({
-  wrapper: { gap: 10 },
-  card: {
-    borderRadius: 16,
-    backgroundColor: TOKENS.inputFill,
-    overflow: "hidden",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cardError: {
-    borderWidth: 1.5,
-    borderColor: colors.danger,
-  },
-  cardPressed: {
-    opacity: 0.92,
-  },
-  fill: {
-    width: "100%",
-  },
-  empty: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 32,
-    paddingHorizontal: 24,
-    gap: 8,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.text,
-    textAlign: "center",
-  },
-  emptyHint: {
-    fontSize: 13,
-    color: colors.muted,
-    textAlign: "center",
-    lineHeight: 18,
-  },
-  errorText: {
-    fontSize: 12,
-    color: colors.danger,
-  },
-  actions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 16,
-  },
-  actionBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    minHeight: 44,
-    paddingVertical: 8,
-  },
-  actionText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: colors.text,
-  },
-});

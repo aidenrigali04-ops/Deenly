@@ -574,8 +574,16 @@ export function AppNavigator() {
                 options={{ title: "Boost checkout" }}
               />
               <RootStack.Screen name="PlaidLink" component={PlaidLinkScreen} options={{ title: "Link bank (Plaid)" }} />
-              <RootStack.Screen name="CreateProduct" component={CreateProductScreen} options={{ title: "Add product" }} />
-              <RootStack.Screen name="CreateEvent" component={CreateEventScreen} options={{ title: "Create event" }} />
+              <RootStack.Screen
+                name="CreateProduct"
+                component={CreateProductScreen}
+                options={{ headerShown: false, title: "Add product" }}
+              />
+              <RootStack.Screen
+                name="CreateEvent"
+                component={CreateEventScreen}
+                options={{ headerShown: false, title: "Create event" }}
+              />
               <RootStack.Screen name="ProductDetail" component={ProductDetailScreen} options={{ title: "Product" }} />
               <RootStack.Screen name="EventDetail" component={EventDetailScreen} options={{ title: "Event" }} />
               <RootStack.Screen name="AddBusiness" component={AddBusinessScreen} options={{ title: "Add business" }} />

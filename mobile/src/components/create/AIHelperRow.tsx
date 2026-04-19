@@ -1,6 +1,6 @@
-import { Pressable, StyleSheet, Text } from "react-native";
+import { Pressable, Text } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors } from "../../theme";
+import { useCreateFlowTheme } from "../ui";
 
 type Props = {
   label?: string;
@@ -9,44 +9,22 @@ type Props = {
   disabled?: boolean;
 };
 
-export function AIHelperRow({
-  label = "Improve with AI",
-  onPress,
-  busy,
-  disabled,
-}: Props) {
+export function AIHelperRow({ label = "Improve with AI", onPress, busy, disabled }: Props) {
+  const t = useCreateFlowTheme();
+  const off = busy || disabled;
+
   return (
     <Pressable
       onPress={onPress}
-      disabled={busy || disabled}
+      disabled={off}
       style={({ pressed }) => [
-        styles.row,
-        (busy || disabled) && styles.disabled,
-        pressed && styles.pressed,
+        { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, minHeight: 44 },
+        off && { opacity: 0.45 },
+        pressed && !off && { opacity: 0.75 }
       ]}
     >
-      <Ionicons name="sparkles-outline" size={16} color={colors.accent} />
-      <Text style={styles.label}>{busy ? "Working..." : label}</Text>
+      <Ionicons name="sparkles-outline" size={18} color={t.f.accentGold} />
+      <Text style={{ fontSize: 14, fontWeight: "600" as const, color: t.f.accentGold }}>{busy ? "Working…" : label}</Text>
     </Pressable>
   );
 }
-
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingVertical: 6,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: colors.accent,
-  },
-  disabled: {
-    opacity: 0.5,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-});

@@ -1,5 +1,5 @@
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import { colors } from "../../theme";
+import { Platform, Pressable, Text, View } from "react-native";
+import { useCreateFlowTheme } from "../ui";
 
 export type PostingType = "post" | "product" | "event" | "reel";
 
@@ -13,72 +13,46 @@ const LABELS: Record<PostingType, string> = {
   post: "Post",
   product: "Product",
   event: "Event",
-  reel: "Reel",
+  reel: "Reel"
 };
 
 export function PostingTypeSegmentedControl({
   value,
   onChange,
-  options = ["post", "product", "event", "reel"],
+  options = ["post", "product", "event", "reel"]
 }: Props) {
+  const t = useCreateFlowTheme();
+
   return (
-    <View style={styles.track}>
+    <View style={t.postingTrack}>
       {options.map((type) => {
         const active = type === value;
         return (
           <Pressable
             key={type}
             onPress={() => onChange(type)}
-            style={[styles.pill, active && styles.pillActive]}
+            style={[
+              t.postingPill,
+              active ? t.postingPillActive : t.postingPillIdle,
+              active &&
+                Platform.select({
+                  ios: {
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.2,
+                    shadowRadius: 5
+                  },
+                  android: { elevation: 2 },
+                  default: {}
+                })
+            ]}
             accessibilityRole="tab"
             accessibilityState={{ selected: active }}
           >
-            <Text style={[styles.pillText, active && styles.pillTextActive]}>
-              {LABELS[type]}
-            </Text>
+            <Text style={active ? t.postingTextActive : t.postingTextIdle}>{LABELS[type]}</Text>
           </Pressable>
         );
       })}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  track: {
-    flexDirection: "row",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 999,
-    padding: 4,
-    gap: 8,
-  },
-  pill: {
-    flex: 1,
-    height: 40,
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FFFFFF",
-  },
-  pillActive: {
-    backgroundColor: colors.accentMuted,
-    ...Platform.select({
-      ios: {
-        shadowColor: colors.accent,
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.12,
-        shadowRadius: 4,
-      },
-      android: { elevation: 1 },
-      default: {},
-    }),
-  },
-  pillText: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: colors.muted,
-  },
-  pillTextActive: {
-    fontWeight: "600",
-    color: colors.accent,
-  },
-});

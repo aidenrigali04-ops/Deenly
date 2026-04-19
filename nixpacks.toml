@@ -1,0 +1,14 @@
+# Backend lives in backend/ but depends on ../shared/rewards (file: link).
+# Nixpacks/Railway: set the service "Root Directory" to the repository root (.),
+# not "backend", so the build context includes shared/rewards.
+
+providers = ["node"]
+
+[phases.install]
+cmds = ["npm ci --prefix backend"]
+
+[phases.build]
+cmds = []
+
+[start]
+cmd = "cd backend && npm run migrate:up && npm start"

@@ -1,4 +1,6 @@
 export { CreateAppBar } from "./CreateAppBar";
+export { ComposerIdentityRow } from "./ComposerIdentityRow";
+export { CreateFlowSwitch } from "./CreateFlowSwitch";
 export { PostingTypeSegmentedControl, type PostingType } from "./PostingTypeSegmentedControl";
 export { SubtypeSegmentedControl } from "./SubtypeSegmentedControl";
 export { FormCard } from "./FormCard";

@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors } from "../../theme";
+import { useCreateFlowTheme } from "../ui";
 
 type Props = {
   label: string;
@@ -17,7 +17,7 @@ function formatDate(d: Date): string {
     day: "numeric",
     year: "numeric",
     hour: "numeric",
-    minute: "2-digit",
+    minute: "2-digit"
   };
   return d.toLocaleString(undefined, opts);
 }
@@ -27,16 +27,16 @@ export function DateTimePickerRow({
   value,
   onChange,
   optional,
-  placeholder = "Tap to set",
+  placeholder = "Tap to set"
 }: Props) {
   const [pickerVisible, setPickerVisible] = useState(false);
+  const t = useCreateFlowTheme();
+  const ink = t.f.createFlowInk ?? "#0A0A0B";
+  const inkMuted = t.f.createFlowInkMuted ?? "rgba(10,10,11,0.55)";
+  const inkMuted2 = t.f.createFlowInkMuted2 ?? "rgba(10,10,11,0.42)";
 
   const openPicker = () => {
-    // On mobile we use the native date picker approach.
-    // For simplicity we toggle a state that parents can use,
-    // or we provide a basic text-based fallback.
     setPickerVisible(true);
-    // Provide a default date if none set
     if (!value) {
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
@@ -48,53 +48,30 @@ export function DateTimePickerRow({
   return (
     <Pressable
       onPress={openPicker}
-      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        {
+          flexDirection: "row",
+          alignItems: "center",
+          minHeight: 48,
+          gap: 10,
+          paddingVertical: 8
+        },
+        pressed && { opacity: 0.72 }
+      ]}
       accessibilityRole="button"
     >
-      <View style={styles.labelWrap}>
-        <Text style={styles.label}>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: 15, fontWeight: "500" as const, color: ink }}>
           {label}
-          {optional ? <Text style={styles.optional}> (optional)</Text> : null}
+          {optional ? (
+            <Text style={{ fontSize: 13, color: inkMuted, fontWeight: "400" as const }}> (optional)</Text>
+          ) : null}
         </Text>
       </View>
-      <Text style={[styles.value, !value && styles.placeholder]}>
+      <Text style={{ fontSize: 14, fontWeight: "500" as const, color: value ? ink : inkMuted2 }}>
         {value ? formatDate(value) : placeholder}
       </Text>
-      <Ionicons name="calendar-outline" size={18} color={colors.muted} />
+      <Ionicons name="calendar-outline" size={18} color={inkMuted} />
     </Pressable>
   );
 }
-
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    minHeight: 48,
-    gap: 10,
-    paddingVertical: 8,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  labelWrap: {
-    flex: 1,
-  },
-  label: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: colors.text,
-  },
-  optional: {
-    fontSize: 13,
-    color: colors.muted,
-    fontWeight: "400",
-  },
-  value: {
-    fontSize: 14,
-    color: colors.text,
-    fontWeight: "500",
-  },
-  placeholder: {
-    color: colors.muted,
-  },
-});

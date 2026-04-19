@@ -1,6 +1,6 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors } from "../../theme";
+import { useCreateFlowTheme } from "../ui";
 
 type Props = {
   primaryLabel: string;
@@ -19,83 +19,38 @@ export function StickyCtaBar({
   primaryLoading,
   secondaryLabel,
   onSecondary,
-  secondaryDisabled,
+  secondaryDisabled
 }: Props) {
   const insets = useSafeAreaInsets();
+  const t = useCreateFlowTheme();
+  const disabled = primaryDisabled || primaryLoading;
 
   return (
-    <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+    <View style={[t.stickyBar, { paddingBottom: Math.max(insets.bottom, 14) }]}>
       <Pressable
         onPress={onPrimary}
-        disabled={primaryDisabled || primaryLoading}
+        disabled={disabled}
         style={({ pressed }) => [
-          styles.primary,
-          (primaryDisabled || primaryLoading) && styles.primaryDisabled,
-          pressed && styles.pressed,
+          t.primaryCta,
+          disabled && t.primaryCtaDisabled,
+          pressed && !disabled && { opacity: 0.92, transform: [{ scale: 0.998 }] }
         ]}
       >
         {primaryLoading ? (
-          <ActivityIndicator color="#FFFFFF" />
+          <ActivityIndicator color="#0A0A0B" />
         ) : (
-          <Text style={styles.primaryText}>{primaryLabel}</Text>
+          <Text style={t.primaryCtaLabel}>{primaryLabel}</Text>
         )}
       </Pressable>
       {secondaryLabel && onSecondary ? (
         <Pressable
           onPress={onSecondary}
           disabled={secondaryDisabled}
-          style={({ pressed }) => [
-            styles.secondary,
-            secondaryDisabled && styles.secondaryDisabled,
-            pressed && styles.pressed,
-          ]}
+          style={({ pressed }) => [t.secondaryCta, secondaryDisabled && { opacity: 0.45 }, pressed && { opacity: 0.75 }]}
         >
-          <Text style={styles.secondaryText}>{secondaryLabel}</Text>
+          <Text style={t.secondaryCtaLabel}>{secondaryLabel}</Text>
         </Pressable>
       ) : null}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  bar: {
-    backgroundColor: "#F9F8F6",
-    borderTopWidth: 1,
-    borderTopColor: "#EBEBEB",
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    gap: 8,
-  },
-  primary: {
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: colors.accent,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  primaryDisabled: {
-    backgroundColor: "rgba(16, 85, 219, 0.35)",
-  },
-  primaryText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-  secondary: {
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  secondaryDisabled: {
-    opacity: 0.5,
-  },
-  secondaryText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.accent,
-  },
-  pressed: {
-    opacity: 0.88,
-    transform: [{ scale: 0.995 }],
-  },
-});

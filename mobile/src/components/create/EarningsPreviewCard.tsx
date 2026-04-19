@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
-import { colors } from "../../theme";
+import { useCreateFlowTheme } from "../ui";
+import { fonts } from "../../theme";
 
 type Props = {
   buyerPays: string | null;
@@ -15,35 +16,43 @@ export function EarningsPreviewCard({
   platformFee,
   platformFeeLabel = "Platform fee",
   affiliateImpact,
-  youReceive,
+  youReceive
 }: Props) {
+  const t = useCreateFlowTheme();
   const hasPrice = Boolean(buyerPays);
 
   return (
-    <View style={styles.card}>
-      <Text style={styles.heading}>Earnings preview</Text>
+    <View style={[t.card, { gap: 10 }]}>
+      <Text style={[t.upperLabel, { marginTop: 0 }]}>Earnings preview</Text>
       {!hasPrice ? (
-        <Text style={styles.empty}>Enter a price to see earnings</Text>
+        <Text style={[t.helper, { fontStyle: "italic" }]}>Enter a price to see earnings</Text>
       ) : (
         <>
           <View style={styles.row}>
-            <Text style={styles.rowLabel}>Buyer pays</Text>
-            <Text style={styles.rowValueBold}>{buyerPays}</Text>
+            <Text style={[t.helper, { flex: 1 }]}>Buyer pays</Text>
+            <Text
+              style={[
+                t.helper,
+                { fontFamily: fonts.semiBold, fontWeight: "700" as const, color: t.f.createFlowInk ?? "#0A0A0B" }
+              ]}
+            >
+              {buyerPays}
+            </Text>
           </View>
           <View style={styles.row}>
-            <Text style={styles.rowLabel}>{platformFeeLabel}</Text>
-            <Text style={styles.rowValue}>{platformFee}</Text>
+            <Text style={[t.helper, { flex: 1 }]}>{platformFeeLabel}</Text>
+            <Text style={t.helper}>{platformFee}</Text>
           </View>
           {affiliateImpact ? (
             <View style={styles.row}>
-              <Text style={styles.rowLabel}>Affiliate impact (up to 7%)</Text>
-              <Text style={styles.rowValue}>{affiliateImpact}</Text>
+              <Text style={[t.helper, { flex: 1 }]}>Affiliate impact (up to 7%)</Text>
+              <Text style={t.helper}>{affiliateImpact}</Text>
             </View>
           ) : null}
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: t.f.glassBorder }]} />
           <View style={styles.row}>
-            <Text style={styles.receiveLabel}>You receive (est.)</Text>
-            <Text style={styles.receiveValue}>{youReceive}</Text>
+            <Text style={[t.sectionTitle, { marginBottom: 0, fontSize: 15 }]}>You receive (est.)</Text>
+            <Text style={{ fontSize: 17, fontWeight: "700" as const, color: t.f.accentGold }}>{youReceive}</Text>
           </View>
         </>
       )}
@@ -52,57 +61,14 @@ export function EarningsPreviewCard({
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
-    gap: 8,
-  },
-  heading: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.muted,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  empty: {
-    fontSize: 14,
-    color: colors.muted,
-    fontStyle: "italic",
-    paddingVertical: 8,
-  },
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-  },
-  rowLabel: {
-    fontSize: 14,
-    color: colors.muted,
-  },
-  rowValue: {
-    fontSize: 14,
-    color: colors.muted,
-  },
-  rowValueBold: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: colors.text,
+    gap: 12
   },
   divider: {
-    height: 1,
-    backgroundColor: "#EBEBEB",
-    marginVertical: 4,
-  },
-  receiveLabel: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  receiveValue: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: colors.accent,
-  },
+    height: StyleSheet.hairlineWidth,
+    marginVertical: 4
+  }
 });

@@ -37,9 +37,10 @@ import {
   type ProductImportDraft,
   type StripeProductImportRow
 } from "../../lib/monetization";
-import { colors } from "../../theme";
+import { useCreateFlowTheme } from "../../components/ui";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import {
+  CreateAppBar,
   FormCard,
   SoftTextInput,
   SoftTextArea,
@@ -51,11 +52,6 @@ import {
   SubtypeSegmentedControl,
   AIHelperRow,
 } from "../../components/create";
-
-/* ── Design tokens ─────────────────────────────────────────── */
-const PAGE_BG = "#F9F8F6";
-const INPUT_FILL = "#F5F4F2";
-const HAIRLINE = "#EBEBEB";
 
 /* ── Types ─────────────────────────────────────────────────── */
 type UploadSignatureResponse = {
@@ -196,6 +192,7 @@ function SuccessCheckOverlay({
   title: string;
   subtitle?: string;
 }) {
+  const cf = useCreateFlowTheme();
   const scale = useRef(new Animated.Value(0)).current;
   const fade = useRef(new Animated.Value(0)).current;
 
@@ -212,12 +209,60 @@ function SuccessCheckOverlay({
   return (
     <Modal visible={visible} transparent animationType="none">
       <Animated.View style={[styles.overlayBackdrop, { opacity: fade }]}>
-        <View style={styles.overlayCard}>
-          <Animated.View style={[styles.checkCircle, { transform: [{ scale }] }]}>
-            <Text style={styles.checkMark}>✓</Text>
+        <View
+          style={{
+            alignItems: "center",
+            maxWidth: 300,
+            width: "100%",
+            paddingVertical: 32,
+            paddingHorizontal: 24,
+            borderRadius: cf.f.cardRadiusMd,
+            backgroundColor: cf.f.createFlowPanel ?? "#FFFFFF",
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: cf.f.createFlowPanelBorder ?? "rgba(10,10,11,0.1)"
+          }}
+        >
+          <Animated.View
+            style={[
+              {
+                width: 72,
+                height: 72,
+                borderRadius: 36,
+                backgroundColor: "rgba(254,177,1,0.22)",
+                borderWidth: 2,
+                borderColor: cf.f.accentGold,
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: 16
+              },
+              { transform: [{ scale }] }
+            ]}
+          >
+            <Text style={{ fontSize: 36, color: cf.f.accentGold, fontWeight: "700" as const }}>✓</Text>
           </Animated.View>
-          <Text style={styles.overlayTitle}>{title}</Text>
-          {subtitle ? <Text style={styles.overlaySubtitle}>{subtitle}</Text> : null}
+          <Text
+            style={{
+              fontSize: 18,
+              fontWeight: "600" as const,
+              color: cf.f.createFlowInk ?? "#0A0A0B",
+              textAlign: "center"
+            }}
+          >
+            {title}
+          </Text>
+          {subtitle ? (
+            <Text
+              style={{
+                fontSize: 14,
+                color: cf.f.createFlowInkMuted ?? "rgba(10,10,11,0.55)",
+                textAlign: "center",
+                marginTop: 10,
+                lineHeight: 21
+              }}
+            >
+              {subtitle}
+            </Text>
+          ) : null}
         </View>
       </Animated.View>
     </Modal>
@@ -229,6 +274,7 @@ type ListingKind = "product" | "membership";
 
 export function CreateProductScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
+  const cf = useCreateFlowTheme();
   const queryClient = useQueryClient();
   const appliedInitialDraft = useRef(false);
   const [listingKind, setListingKind] = useState<ListingKind>("product");
@@ -260,6 +306,12 @@ export function CreateProductScreen({ navigation, route }: Props) {
   const [importNotice, setImportNotice] = useState("");
 
   const editProductId = route.params?.editProductId;
+
+  const appBarTitle = useMemo(() => {
+    if (editProductId) return "Edit product";
+    if (listingKind === "membership") return "Membership";
+    return "Add product";
+  }, [editProductId, listingKind]);
 
   /* ── Initial draft hydration ── */
   useEffect(() => {
@@ -552,7 +604,9 @@ export function CreateProductScreen({ navigation, route }: Props) {
 
   /* ── Render ── */
   return (
-    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <View style={cf.layout}>
+      <CreateAppBar title={appBarTitle} onBack={() => navigation.goBack()} />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <SuccessCheckOverlay
         visible={successKind !== null}
         title={successKind === "added" ? (listingKind === "membership" ? "Membership live" : "Product added") : "Draft saved"}
@@ -561,27 +615,29 @@ export function CreateProductScreen({ navigation, route }: Props) {
           : "Nothing was uploaded. Continue editing or publish when ready."}
       />
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 120 }]}
+        contentContainerStyle={[cf.scrollContent, { paddingBottom: insets.bottom + 120 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         {/* ── Listing kind toggle ── */}
         {!editProductId ? (
-          <View style={styles.kindRow}>
+          <View style={{ flexDirection: "row", gap: 8 }}>
             {canCreateProductsCap ? (
               <Pressable
-                style={[styles.kindChip, listingKind === "product" && styles.kindChipActive]}
+                style={[cf.chipCanvas, listingKind === "product" && cf.chipCanvasActive]}
                 onPress={() => setListingKind("product")}
               >
-                <Text style={[styles.kindChipText, listingKind === "product" && styles.kindChipTextActive]}>Product</Text>
+                <Text style={[cf.chipCanvasText, listingKind === "product" && cf.chipCanvasTextActive]}>Product</Text>
               </Pressable>
             ) : null}
             {canManageMembershipsCap ? (
               <Pressable
-                style={[styles.kindChip, listingKind === "membership" && styles.kindChipActive]}
+                style={[cf.chipCanvas, listingKind === "membership" && cf.chipCanvasActive]}
                 onPress={() => setListingKind("membership")}
               >
-                <Text style={[styles.kindChipText, listingKind === "membership" && styles.kindChipTextActive]}>Membership</Text>
+                <Text style={[cf.chipCanvasText, listingKind === "membership" && cf.chipCanvasTextActive]}>
+                  Membership
+                </Text>
               </Pressable>
             ) : null}
           </View>
@@ -605,7 +661,7 @@ export function CreateProductScreen({ navigation, route }: Props) {
             ) : (
               <EarningsPreviewCard buyerPays={null} platformFee={null} youReceive={null} />
             )}
-            {formError ? <Text style={styles.error}>{formError}</Text> : null}
+            {formError ? <Text style={cf.error}>{formError}</Text> : null}
           </>
         ) : null}
 
@@ -613,22 +669,22 @@ export function CreateProductScreen({ navigation, route }: Props) {
         {listingKind === "product" || editProductId ? (
           <>
             {editLoading ? (
-              <View style={styles.loadingRow}>
-                <ActivityIndicator color={colors.accent} />
-                <Text style={styles.loadingText}>Loading draft...</Text>
+              <View style={cf.loadingRow}>
+                <ActivityIndicator color={cf.f.accentGold} />
+                <Text style={cf.canvasHelper}>Loading draft...</Text>
               </View>
             ) : null}
-            {editError ? <Text style={styles.error}>Could not open this draft.</Text> : null}
+            {editError ? <Text style={cf.error}>Could not open this draft.</Text> : null}
             {editBlockedNonDraft ? (
-              <Text style={styles.error}>Only drafts can be edited here.</Text>
+              <Text style={cf.error}>Only drafts can be edited here.</Text>
             ) : null}
 
             {/* ── Stripe import (collapsed) ── */}
             <FormCard>
               <CollapsibleSection title="Import from Stripe">
-                <Text style={styles.helper}>After payout setup, import from your Stripe catalog by Product ID.</Text>
+                <Text style={cf.helper}>After payout setup, import from your Stripe catalog by Product ID.</Text>
                 <Pressable
-                  style={[styles.utilBtn, stripeBusy && styles.utilBtnDisabled]}
+                  style={[cf.surfaceTextButton, stripeBusy && cf.primaryCtaDisabled]}
                   onPress={() => {
                     setImportNotice("");
                     setStripeBusy(true);
@@ -646,7 +702,9 @@ export function CreateProductScreen({ navigation, route }: Props) {
                   }}
                   disabled={stripeBusy}
                 >
-                  <Text style={styles.utilBtnText}>{stripeBusy ? "Loading Stripe..." : "Load Stripe prices"}</Text>
+                  <Text style={cf.surfaceTextButtonLabel}>
+                    {stripeBusy ? "Loading Stripe..." : "Load Stripe prices"}
+                  </Text>
                 </Pressable>
                 <SoftTextInput
                   placeholder="prod_... (Stripe Product ID)"
@@ -655,7 +713,7 @@ export function CreateProductScreen({ navigation, route }: Props) {
                   autoCapitalize="none"
                 />
                 <Pressable
-                  style={[styles.utilBtn, stripePickBusy && styles.utilBtnDisabled]}
+                  style={[cf.surfaceTextButton, stripePickBusy && cf.primaryCtaDisabled]}
                   disabled={stripePickBusy}
                   onPress={() => {
                     const sid = stripeProductIdInput.trim();
@@ -680,14 +738,16 @@ export function CreateProductScreen({ navigation, route }: Props) {
                     })();
                   }}
                 >
-                  <Text style={styles.utilBtnText}>{stripePickBusy ? "Importing..." : "Import from Product ID"}</Text>
+                  <Text style={cf.surfaceTextButtonLabel}>
+                    {stripePickBusy ? "Importing..." : "Import from Product ID"}
+                  </Text>
                 </Pressable>
                 {stripeItems.length > 0 ? (
                   <View style={{ gap: 6 }}>
                     {stripeItems.map((row) => (
                       <Pressable
                         key={row.stripePriceId}
-                        style={[styles.stripeRow, stripePickBusy && styles.utilBtnDisabled]}
+                        style={[cf.selectableListRow, stripePickBusy && cf.primaryCtaDisabled]}
                         disabled={stripePickBusy}
                         onPress={() => {
                           setImportNotice("");
@@ -707,7 +767,7 @@ export function CreateProductScreen({ navigation, route }: Props) {
                           })();
                         }}
                       >
-                        <Text style={styles.stripeRowText} numberOfLines={2}>
+                        <Text style={cf.selectableListRowText} numberOfLines={2}>
                           {row.title} · {formatMinorCurrency(row.priceMinor, row.currency)}
                           {row.recurring ? ` / ${row.recurring.interval}` : ""}
                         </Text>
@@ -715,13 +775,13 @@ export function CreateProductScreen({ navigation, route }: Props) {
                     ))}
                   </View>
                 ) : null}
-                {importNotice ? <Text style={styles.importNotice}>{importNotice}</Text> : null}
+                {importNotice ? <Text style={cf.secondaryCtaLabel}>{importNotice}</Text> : null}
               </CollapsibleSection>
             </FormCard>
 
             {/* ── Basics card ── */}
             <FormCard>
-              <Text style={styles.cardHeading}>Basics</Text>
+              <Text style={cf.sectionTitle}>Basics</Text>
               <SubtypeSegmentedControl
                 options={[
                   { key: "digital", label: "Digital" },
@@ -733,7 +793,7 @@ export function CreateProductScreen({ navigation, route }: Props) {
               <SoftTextInput label="Title" placeholder="Product title" value={title} onChangeText={setTitle} maxLength={180} />
               <SoftTextArea label="Description" placeholder="What buyers get" value={description} onChangeText={setDescription} minHeight={100} />
 
-              <Text style={styles.fieldLabel}>Audience</Text>
+              <Text style={cf.upperLabel}>Audience</Text>
               <ChipRow
                 items={[
                   { key: "b2c", label: "Consumers" },
@@ -744,7 +804,7 @@ export function CreateProductScreen({ navigation, route }: Props) {
                 onSelect={(k) => setAudienceTarget(k as "b2b" | "b2c" | "both")}
               />
 
-              <Text style={styles.fieldLabel}>Category</Text>
+              <Text style={cf.upperLabel}>Category</Text>
               <ChipRow
                 wrap
                 items={[
@@ -761,7 +821,7 @@ export function CreateProductScreen({ navigation, route }: Props) {
 
             {/* ── Media / Delivery card ── */}
             <FormCard>
-              <Text style={styles.cardHeading}>Media & Delivery</Text>
+              <Text style={cf.sectionTitle}>Media & Delivery</Text>
               {productType === "digital" ? (
                 <UploadCard
                   height={140}
@@ -786,7 +846,7 @@ export function CreateProductScreen({ navigation, route }: Props) {
                     onPress={() => void generateServiceDescription()}
                     busy={serviceAssistBusy}
                   />
-                  {serviceAssistErr ? <Text style={styles.errorSmall}>{serviceAssistErr}</Text> : null}
+                  {serviceAssistErr ? <Text style={cf.errorSmall}>{serviceAssistErr}</Text> : null}
                   <SoftTextArea
                     label="Service description"
                     placeholder="Service description & value proposition"
@@ -802,9 +862,9 @@ export function CreateProductScreen({ navigation, route }: Props) {
 
             {/* ── Pricing card ── */}
             <FormCard>
-              <Text style={styles.cardHeading}>Pricing</Text>
-              <View style={styles.priceRow}>
-                <View style={styles.currencyWrap}>
+              <Text style={cf.sectionTitle}>Pricing</Text>
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <View style={{ width: 80 }}>
                   <SoftTextInput
                     placeholder="usd"
                     value={currency}
@@ -813,7 +873,7 @@ export function CreateProductScreen({ navigation, route }: Props) {
                     maxLength={3}
                   />
                 </View>
-                <View style={styles.priceWrap}>
+                <View style={{ flex: 1 }}>
                   {currency.toLowerCase() === "usd" && !useMinorPrice ? (
                     <SoftTextInput placeholder="9.99" value={priceUsd} onChangeText={setPriceUsd} keyboardType="decimal-pad" />
                   ) : (
@@ -821,8 +881,8 @@ export function CreateProductScreen({ navigation, route }: Props) {
                   )}
                 </View>
               </View>
-              <Pressable style={styles.toggleLink} onPress={() => setUseMinorPrice((x) => !x)}>
-                <Text style={styles.toggleLinkText}>
+              <Pressable style={cf.textLinkPressable} onPress={() => setUseMinorPrice((x) => !x)}>
+                <Text style={cf.secondaryCtaLabel}>
                   {useMinorPrice ? "Using minor units" : "Using USD"} — tap to toggle
                 </Text>
               </Pressable>
@@ -830,7 +890,7 @@ export function CreateProductScreen({ navigation, route }: Props) {
 
             {/* ── Distribution / Boost card ── */}
             <FormCard>
-              <Text style={styles.cardHeading}>Distribution & Boost</Text>
+              <Text style={cf.sectionTitle}>Distribution & Boost</Text>
               <ChipRow
                 items={enabledBoostTierRows.map(({ key, label, platformFeeBps }) => ({
                   key,
@@ -839,7 +899,7 @@ export function CreateProductScreen({ navigation, route }: Props) {
                 selected={boostTier}
                 onSelect={(k) => setBoostTier(k as MonetizationBoostTier)}
               />
-              <Text style={styles.helper}>
+              <Text style={cf.helper}>
                 Boost tiers are optional distribution upgrades. Start standard and change later.
               </Text>
             </FormCard>
@@ -857,14 +917,14 @@ export function CreateProductScreen({ navigation, route }: Props) {
             {draftItems.length > 0 && !editProductId ? (
               <FormCard>
                 <CollapsibleSection title="Your drafts">
-                  <Text style={styles.helper}>Tap to resume editing a draft.</Text>
+                  <Text style={cf.helper}>Tap to resume editing a draft.</Text>
                   {draftItems.map((d) => (
                     <Pressable
                       key={d.id}
-                      style={styles.stripeRow}
+                      style={cf.selectableListRow}
                       onPress={() => navigation.navigate("CreateProduct", { editProductId: d.id })}
                     >
-                      <Text style={styles.stripeRowText} numberOfLines={2}>
+                      <Text style={cf.selectableListRowText} numberOfLines={2}>
                         {d.title} · {formatMinorCurrency(Number(d.price_minor || 0), d.currency || "usd")}
                       </Text>
                     </Pressable>
@@ -873,7 +933,7 @@ export function CreateProductScreen({ navigation, route }: Props) {
               </FormCard>
             ) : null}
 
-            {formError ? <Text style={styles.error}>{formError}</Text> : null}
+            {formError ? <Text style={cf.error}>{formError}</Text> : null}
           </>
         ) : null}
       </ScrollView>
@@ -897,127 +957,18 @@ export function CreateProductScreen({ navigation, route }: Props) {
           secondaryDisabled={saveDraftPending || editLoading || editBlockedNonDraft}
         />
       ) : null}
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 /* ── Styles ──────────────────────────────────────────────────── */
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: PAGE_BG },
-  scroll: { padding: 16, gap: 24 },
-  /* Kind toggle */
-  kindRow: { flexDirection: "row", gap: 8 },
-  kindChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: "#FFFFFF",
-  },
-  kindChipActive: {
-    backgroundColor: colors.accentMuted,
-  },
-  kindChipText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: colors.muted,
-  },
-  kindChipTextActive: {
-    fontWeight: "600",
-    color: colors.accent,
-  },
-  /* Cards */
-  cardHeading: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: colors.text,
-    marginBottom: 4,
-  },
-  fieldLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.muted,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginTop: 4,
-  },
-  helper: {
-    fontSize: 12,
-    color: colors.muted,
-    lineHeight: 18,
-  },
-  /* Price row */
-  priceRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  currencyWrap: { width: 80 },
-  priceWrap: { flex: 1 },
-  toggleLink: { paddingVertical: 4 },
-  toggleLinkText: { fontSize: 13, color: colors.accent, fontWeight: "500" },
-  /* Utility buttons */
-  utilBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    backgroundColor: INPUT_FILL,
-    alignItems: "center"
-  },
-  utilBtnDisabled: { opacity: 0.5 },
-  utilBtnText: { fontSize: 14, fontWeight: "600", color: colors.accent },
-  /* Stripe rows */
-  stripeRow: {
-    borderRadius: 12,
-    padding: 12,
-    backgroundColor: INPUT_FILL,
-  },
-  stripeRowText: { fontSize: 13, color: colors.text, fontWeight: "600" },
-  importNotice: { fontSize: 13, color: colors.accent },
-  /* Loading */
-  loadingRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  loadingText: { fontSize: 14, color: colors.muted },
-  /* Errors */
-  error: { color: colors.danger, fontSize: 14 },
-  errorSmall: { fontSize: 12, color: colors.danger },
-  /* Overlay */
   overlayBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0,0,0,0.55)",
     justifyContent: "center",
     alignItems: "center",
     padding: 24
-  },
-  overlayCard: {
-    alignItems: "center",
-    maxWidth: 300,
-    width: "100%",
-    paddingVertical: 32,
-    paddingHorizontal: 24,
-    borderRadius: 16,
-    backgroundColor: "#FFFFFF",
-  },
-  checkCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: colors.accentMuted,
-    borderWidth: 2,
-    borderColor: colors.accent,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16
-  },
-  checkMark: { fontSize: 36, color: colors.accent, fontWeight: "700" },
-  overlayTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: colors.text,
-    textAlign: "center",
-  },
-  overlaySubtitle: {
-    fontSize: 14,
-    color: colors.muted,
-    textAlign: "center",
-    marginTop: 10,
-    lineHeight: 21,
-  },
+  }
 });

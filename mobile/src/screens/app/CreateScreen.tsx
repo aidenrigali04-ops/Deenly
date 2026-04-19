@@ -1,18 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
-  useWindowDimensions,
   View
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as DocumentPicker from "expo-document-picker";
 import { pickVisualMedia } from "../../lib/pick-visual-media";
 import { AppVideoView } from "../../components/AppVideoView";
@@ -20,8 +17,6 @@ import {
   PostPublishSuccessOverlay,
   type PostPublishVariant
 } from "../../components/PostPublishSuccessOverlay";
-import { AccentSwitch } from "../../components/AccentSwitch";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CompositeScreenProps } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { ApiError, apiRequest } from "../../lib/api";
@@ -30,7 +25,6 @@ import { fetchSessionMe } from "../../lib/auth";
 import { attachProductToPost, fetchMyProducts, type CreatorProductRow } from "../../lib/monetization";
 import { fetchInstagramStatus, requestInstagramCrossPost } from "../../lib/instagram";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { colors, primaryButtonOutline, radii, spacing, type as typo } from "../../theme";
 import { resolveMediaUrl } from "../../lib/media-url";
 import {
   growthExperiments,
@@ -40,7 +34,10 @@ import {
 } from "../../lib/experiments";
 import type { CreateTabStackParamList, RootStackParamList } from "../../navigation/AppNavigator";
 import {
+  AIHelperRow,
+  ComposerIdentityRow,
   CreateAppBar,
+  CreateFlowSwitch,
   FormCard,
   SoftTextArea,
   SoftTextInput,
@@ -49,11 +46,7 @@ import {
   CollapsibleSection,
   ChipRow,
 } from "../../components/create";
-
-/* ── Design tokens ─────────────────────────────────────────── */
-const PAGE_BG = "#F9F8F6";
-const INPUT_FILL = "#F5F4F2";
-const HAIRLINE = "#EBEBEB";
+import { useCreateFlowTheme } from "../../components/ui";
 
 /* ── Types ─────────────────────────────────────────────────── */
 type CreatePostResponse = { id: number };
@@ -115,8 +108,7 @@ function applyCatalogProductToPromoteForm(
 export function CreateScreen({ navigation }: Props) {
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
-  const { height: viewportHeight } = useWindowDimensions();
-  const compact = viewportHeight <= 700;
+  const cf = useCreateFlowTheme();
   const [postType, setPostType] = useState<"post" | "marketplace" | "reel">("post");
   const [content, setContent] = useState("");
   const [tagsInput, setTagsInput] = useState("");
@@ -479,45 +471,46 @@ export function CreateScreen({ navigation }: Props) {
 
   /* ── Render ── */
   return (
-    <View style={styles.root}>
+    <View style={cf.layout}>
       <CreateAppBar title="New post" onBack={() => navigation.goBack()} />
 
       <KeyboardAvoidingView
-        style={styles.flex}
+        style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
-          style={styles.flex}
-          contentContainerStyle={styles.scrollContent}
+          style={{ flex: 1 }}
+          contentContainerStyle={[cf.scrollContent, { paddingBottom: insets.bottom + 110 }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           {/* ── Post type selector ── */}
-          <View style={styles.segmentWrap}>
+          <View style={cf.segmentTrack}>
             {(
               [
                 ["post", "Post"],
                 ["marketplace", "Marketplace"],
                 ["reel", "Reel"]
               ] as const
-            ).map(([t, label]) => (
-              <Pressable
-                key={t}
-                onPress={() => selectPostType(t)}
-                style={[styles.segPill, postType === t && styles.segPillActive]}
-              >
-                <Text style={[styles.segPillText, postType === t && styles.segPillTextActive]}>
-                  {label}
-                </Text>
-              </Pressable>
-            ))}
+            ).map(([tk, label]) => {
+              const active = postType === tk;
+              return (
+                <Pressable
+                  key={tk}
+                  onPress={() => selectPostType(tk)}
+                  style={[cf.segmentPill, active ? cf.segmentPillActive : cf.segmentPillIdle]}
+                >
+                  <Text style={active ? cf.segmentTextActive : cf.segmentTextIdle}>{label}</Text>
+                </Pressable>
+              );
+            })}
           </View>
 
-          <View style={styles.schemaBox} accessibilityLabel="How creating a post works">
-            <Text style={styles.schemaTitle}>How it works</Text>
-            <Text style={styles.schemaStep}>1. Choose Post, Marketplace, or Reel above.</Text>
-            <Text style={styles.schemaStep}>2. Add media (recommended for reels and listings).</Text>
-            <Text style={styles.schemaStep}>3. Write your caption or description, then publish.</Text>
+          <View style={[cf.card, { padding: 16, gap: 8 }]} accessibilityLabel="How creating a post works">
+            <Text style={[cf.sectionTitle, { fontSize: 16, marginBottom: 2 }]}>How it works</Text>
+            <Text style={cf.helper}>1. Choose Post, Marketplace, or Reel above.</Text>
+            <Text style={cf.helper}>2. Add media (recommended for reels and listings).</Text>
+            <Text style={cf.helper}>3. Write your caption or description, then publish.</Text>
           </View>
 
           {/* ── Media upload ── */}
@@ -536,25 +529,16 @@ export function CreateScreen({ navigation }: Props) {
 
           {/* ── Reel: cover selection placeholder ── */}
           {isReel && selectedFile ? (
-            <View style={styles.coverRow}>
-              <Ionicons name="film-outline" size={18} color={colors.muted} />
-              <Text style={styles.coverText}>Cover frame auto-selected from first frame</Text>
+            <View style={cf.inlineHintRow}>
+              <Ionicons name="film-outline" size={18} color={cf.f.textMuted} />
+              <Text style={cf.canvasHelper}>Cover frame auto-selected from first frame</Text>
             </View>
           ) : null}
 
           {/* ── Composer card ── */}
           <FormCard>
             {/* Identity row */}
-            <View style={styles.identityRow}>
-              {avatarUri ? (
-                <Image source={{ uri: avatarUri }} style={styles.avatar} resizeMode="cover" />
-              ) : (
-                <View style={styles.avatarFallback}>
-                  <Text style={styles.avatarText}>{composerName.slice(0, 1).toUpperCase()}</Text>
-                </View>
-              )}
-              <Text style={styles.composerName} numberOfLines={1}>{composerName}</Text>
-            </View>
+            <ComposerIdentityRow avatarUri={avatarUri} displayName={composerName} />
 
             <SoftTextArea
               label={postType === "marketplace" ? "Description" : "Caption"}
@@ -564,19 +548,19 @@ export function CreateScreen({ navigation }: Props) {
               minHeight={isReel ? 80 : 120}
             />
             {content.length > 280 ? (
-              <Text style={styles.charCount}>{content.length} characters</Text>
+              <Text style={cf.helperSmall}>{content.length} characters</Text>
             ) : null}
           </FormCard>
 
           {/* ── Promote toggle (post mode, if eligible) ── */}
           {postType === "post" && canPromoteProducts ? (
             <FormCard>
-              <View style={styles.promoteRow}>
-                <View style={styles.promoteTextWrap}>
-                  <Text style={styles.promoteLabel}>Promote this post</Text>
-                  <Text style={styles.promoteHint}>Add offer or pricing details</Text>
+              <View style={cf.promoteRow}>
+                <View style={cf.promoteTextWrap}>
+                  <Text style={cf.promoteTitle}>Promote this post</Text>
+                  <Text style={cf.helper}>Add offer or pricing details</Text>
                 </View>
-                <AccentSwitch
+                <CreateFlowSwitch
                   value={sellThis}
                   onValueChange={setSellThis}
                   accessibilityLabel="Promote this post"
@@ -588,8 +572,8 @@ export function CreateScreen({ navigation }: Props) {
           {/* ── Marketplace listing header ── */}
           {postType === "marketplace" && canPromoteProducts ? (
             <FormCard>
-              <Text style={styles.cardHeading}>Listing details</Text>
-              <Text style={styles.cardSubtext}>
+              <Text style={cf.sectionTitle}>Listing details</Text>
+              <Text style={cf.helper}>
                 Set price, category, and delivery for a new listing, or attach an existing product from More options.
               </Text>
             </FormCard>
@@ -601,14 +585,14 @@ export function CreateScreen({ navigation }: Props) {
               {/* Attach catalog product chips */}
               {(myProductsQuery.data?.items || []).length > 0 ? (
                 <>
-                  <Text style={styles.fieldLabel}>Attach catalog product</Text>
-                  <Text style={styles.helperLight}>
+                  <Text style={cf.upperLabel}>Attach catalog product</Text>
+                  <Text style={cf.helper}>
                     Choose a listing first — pricing, type, and delivery pre-fill from that product.
                   </Text>
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.chipScrollContent}
+                    contentContainerStyle={cf.chipScrollRow}
                   >
                     {(myProductsQuery.data?.items || []).map((item) => {
                       const pid = Number(item.id);
@@ -633,10 +617,10 @@ export function CreateScreen({ navigation }: Props) {
                               setServiceAssistErr
                             });
                           }}
-                          style={[styles.attachChip, selectedProductId === pid && styles.attachChipActive]}
+                          style={[cf.chip, selectedProductId === pid && cf.chipActive]}
                         >
                           <Text
-                            style={[styles.attachChipText, selectedProductId === pid && styles.attachChipTextActive]}
+                            style={[cf.chipText, selectedProductId === pid && cf.chipTextActive]}
                             numberOfLines={1}
                           >
                             {item.title || `Product ${pid}`}
@@ -662,19 +646,19 @@ export function CreateScreen({ navigation }: Props) {
                         setProductFile(null);
                         setServiceAssistErr("");
                       }}
-                      style={styles.clearLink}
+                      style={cf.textLinkPressable}
                     >
-                      <Text style={styles.clearLinkText}>Clear attached product</Text>
+                      <Text style={cf.secondaryCtaLabel}>Clear attached product</Text>
                     </Pressable>
                   ) : null}
-                  <View style={styles.thinDivider} />
+                  <View style={cf.hairlineDivider} />
                 </>
               ) : null}
 
               {/* Price & type */}
-              <Text style={styles.fieldLabel}>Price & product type</Text>
+              <Text style={cf.upperLabel}>Price & product type</Text>
               {postType === "marketplace" ? (
-                <Text style={styles.helperLight}>USD, in cents (e.g. 2500 = $25.00).</Text>
+                <Text style={cf.helper}>USD, in cents (e.g. 2500 = $25.00).</Text>
               ) : null}
               <SoftTextInput
                 placeholder={postType === "marketplace" ? "Price in cents" : "Price (minor units)"}
@@ -692,7 +676,7 @@ export function CreateScreen({ navigation }: Props) {
               />
 
               {/* Audience */}
-              <Text style={styles.fieldLabel}>Who it is for</Text>
+              <Text style={cf.upperLabel}>Who it is for</Text>
               <ChipRow
                 items={[
                   { key: "b2c", label: "Consumers" },
@@ -704,7 +688,7 @@ export function CreateScreen({ navigation }: Props) {
               />
 
               {/* Category */}
-              <Text style={styles.fieldLabel}>Category</Text>
+              <Text style={cf.upperLabel}>Category</Text>
               <ChipRow
                 wrap
                 items={[
@@ -719,7 +703,7 @@ export function CreateScreen({ navigation }: Props) {
               />
 
               {/* Title & description */}
-              <Text style={styles.fieldLabel}>Title & offer copy</Text>
+              <Text style={cf.upperLabel}>Title & offer copy</Text>
               <SoftTextInput
                 placeholder={postType === "marketplace" ? "Listing title" : "Product title"}
                 value={productTitle}
@@ -733,21 +717,21 @@ export function CreateScreen({ navigation }: Props) {
               />
 
               {/* Delivery */}
-              <Text style={styles.fieldLabel}>Delivery</Text>
+              <Text style={cf.upperLabel}>Delivery</Text>
               {productType === "digital" ? (
-                <View style={styles.deliveryBlock}>
+                <View style={{ gap: 8 }}>
                   {selectedProductId ? (
-                    <Text style={styles.helperLight}>
+                    <Text style={cf.helper}>
                       Delivery media is stored on the attached catalog product — no upload needed.
                     </Text>
                   ) : (
                     <>
-                      <Pressable style={styles.uploadDeliveryBtn} onPress={pickProductFile}>
-                        <Ionicons name="cloud-upload-outline" size={18} color={colors.accent} />
-                        <Text style={styles.uploadDeliveryText}>Upload delivery file</Text>
+                      <Pressable style={cf.surfaceTextButtonLeading} onPress={pickProductFile}>
+                        <Ionicons name="cloud-upload-outline" size={18} color={cf.f.accentGold} />
+                        <Text style={cf.surfaceTextButtonLabel}>Upload delivery file</Text>
                       </Pressable>
                       {productFile ? (
-                        <Text style={styles.helperLight} numberOfLines={1}>{productFile.name}</Text>
+                        <Text style={cf.helper} numberOfLines={1}>{productFile.name}</Text>
                       ) : null}
                     </>
                   )}
@@ -760,17 +744,12 @@ export function CreateScreen({ navigation }: Props) {
                     onChangeText={setServiceKeyPoints}
                     minHeight={80}
                   />
-                  <Pressable
-                    style={[styles.aiBtn, serviceAssistBusy && { opacity: 0.6 }]}
+                  <AIHelperRow
+                    label="Generate concise draft"
                     onPress={() => void generateServiceDescriptionForSell()}
-                    disabled={serviceAssistBusy}
-                  >
-                    <Ionicons name="sparkles-outline" size={16} color={colors.accent} />
-                    <Text style={styles.aiBtnText}>
-                      {serviceAssistBusy ? "Generating..." : "Generate concise draft"}
-                    </Text>
-                  </Pressable>
-                  {serviceAssistErr ? <Text style={styles.errorSmall}>{serviceAssistErr}</Text> : null}
+                    busy={serviceAssistBusy}
+                  />
+                  {serviceAssistErr ? <Text style={cf.errorSmall}>{serviceAssistErr}</Text> : null}
                   <SoftTextArea
                     placeholder="Service description & value proposition"
                     value={serviceDetails}
@@ -795,7 +774,7 @@ export function CreateScreen({ navigation }: Props) {
 
           {/* ── Reel hint ── */}
           {isReel ? (
-            <Text style={styles.helperLight}>
+            <Text style={cf.canvasHelper}>
               Reels use one video only. Open the Reels tab to watch full-screen reels.
             </Text>
           ) : null}
@@ -804,11 +783,11 @@ export function CreateScreen({ navigation }: Props) {
           <FormCard>
             <CollapsibleSection title="More options">
               {/* Tags */}
-              <View style={styles.addonRow}>
-                <Ionicons name="pricetag-outline" size={20} color={colors.muted} />
-                <Text style={styles.addonLabel}>Tags</Text>
+              <View style={cf.settingsRow}>
+                <Ionicons name="pricetag-outline" size={20} color={cf.panelIconMuted} />
+                <Text style={[cf.settingsRowTitle, { flex: 1 }]}>Tags</Text>
                 {tagsInput.trim() ? (
-                  <Text style={styles.addonMeta}>{tagsInput.split(",").filter(Boolean).length}</Text>
+                  <Text style={cf.helperSmall}>{tagsInput.split(",").filter(Boolean).length}</Text>
                 ) : null}
               </View>
               <SoftTextInput
@@ -818,31 +797,31 @@ export function CreateScreen({ navigation }: Props) {
               />
 
               {/* Instagram cross-post */}
-              <View style={styles.crossPostRow}>
-                <Ionicons name="logo-instagram" size={22} color={colors.text} />
-                <View style={styles.crossPostText}>
-                  <Text style={styles.addonLabel}>Cross-post to Instagram</Text>
-                  <Text style={styles.helperLight}>
+              <View style={cf.settingsRow}>
+                <Ionicons name="logo-instagram" size={22} color={cf.panelIconMuted} />
+                <View style={cf.settingsRowTextCol}>
+                  <Text style={cf.settingsRowTitle}>Cross-post to Instagram</Text>
+                  <Text style={cf.helper}>
                     {igConnected ? "Runs after upload when media is attached." : "Connect Instagram from your profile."}
                   </Text>
                 </View>
                 {igConnected ? (
-                  <AccentSwitch value={crossPostToInstagram} onValueChange={setCrossPostToInstagram} />
+                  <CreateFlowSwitch value={crossPostToInstagram} onValueChange={setCrossPostToInstagram} />
                 ) : (
-                  <Text style={styles.helperLight}>Off</Text>
+                  <Text style={cf.helper}>Off</Text>
                 )}
               </View>
 
               {/* Attach product from more options (non-sell mode) */}
               {!sellThis && postType !== "reel" && (myProductsQuery.data?.items || []).length > 0 ? (
                 <>
-                  <View style={styles.thinDivider} />
-                  <Text style={styles.fieldLabel}>Attach catalog product</Text>
-                  <Text style={styles.helperLight}>Optional — link an existing listing without creating a new product.</Text>
+                  <View style={cf.hairlineDivider} />
+                  <Text style={cf.upperLabel}>Attach catalog product</Text>
+                  <Text style={cf.helper}>Optional — link an existing listing without creating a new product.</Text>
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.chipScrollContent}
+                    contentContainerStyle={cf.chipScrollRow}
                   >
                     {(myProductsQuery.data?.items || []).slice(0, 8).map((item) => {
                       const pid = Number(item.id);
@@ -851,10 +830,10 @@ export function CreateScreen({ navigation }: Props) {
                         <Pressable
                           key={pid}
                           onPress={() => setSelectedProductId(pid)}
-                          style={[styles.attachChip, selectedProductId === pid && styles.attachChipActive]}
+                          style={[cf.chip, selectedProductId === pid && cf.chipActive]}
                         >
                           <Text
-                            style={[styles.attachChipText, selectedProductId === pid && styles.attachChipTextActive]}
+                            style={[cf.chipText, selectedProductId === pid && cf.chipTextActive]}
                             numberOfLines={1}
                           >
                             {item.title || `Product ${pid}`}
@@ -864,8 +843,8 @@ export function CreateScreen({ navigation }: Props) {
                     })}
                   </ScrollView>
                   {selectedProductId ? (
-                    <Pressable onPress={() => setSelectedProductId(null)} style={styles.clearLink}>
-                      <Text style={styles.clearLinkText}>Clear</Text>
+                    <Pressable onPress={() => setSelectedProductId(null)} style={cf.textLinkPressable}>
+                      <Text style={cf.secondaryCtaLabel}>Clear</Text>
                     </Pressable>
                   ) : null}
                 </>
@@ -873,7 +852,7 @@ export function CreateScreen({ navigation }: Props) {
             </CollapsibleSection>
           </FormCard>
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {error ? <Text style={cf.error}>{error}</Text> : null}
         </ScrollView>
 
         {/* ── Sticky CTA ── */}
@@ -894,406 +873,3 @@ export function CreateScreen({ navigation }: Props) {
   );
 }
 
-/* ── Styles ──────────────────────────────────────────────────── */
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: PAGE_BG,
-  },
-  flex: { flex: 1 },
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 24,
-    gap: 24,
-  },
-  /* Segment control */
-  segmentWrap: {
-    flexDirection: "row",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 999,
-    padding: 4,
-    gap: 8,
-  },
-  segPill: {
-    flex: 1,
-    height: 40,
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FFFFFF",
-  },
-  segPillActive: {
-    backgroundColor: colors.accentMuted,
-  },
-  segPillText: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: colors.muted,
-  },
-  segPillTextActive: {
-    fontWeight: "600",
-    color: colors.accent,
-  },
-  /* Cover row (reels) */
-  coverRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 4,
-  },
-  coverText: {
-    fontSize: 13,
-    color: colors.muted,
-  },
-  /* Identity */
-  identityRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 999,
-  },
-  avatarFallback: {
-    width: 40,
-    height: 40,
-    borderRadius: 999,
-    backgroundColor: INPUT_FILL,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: colors.text,
-  },
-  composerName: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  charCount: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: colors.mutedLight,
-    alignSelf: "flex-end",
-  },
-  /* Promote */
-  promoteRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  promoteTextWrap: { flex: 1, minWidth: 0 },
-  promoteLabel: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: colors.text,
-  },
-  promoteHint: {
-    fontSize: 12,
-    color: colors.muted,
-    marginTop: 2,
-  },
-  /* Card heading */
-  cardHeading: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  cardSubtext: {
-    fontSize: 12,
-    color: colors.muted,
-  },
-  /* Field labels */
-  fieldLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.muted,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginTop: 4
-  },
-  typeRowWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8
-  },
-  typeRowWrapCompact: {
-    gap: 6
-  },
-  chipLight: {
-    borderColor: colors.composerBorder,
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: colors.composerInputBg
-  },
-  chipLightCompact: {
-    paddingHorizontal: 9,
-    paddingVertical: 5
-  },
-  chipLightActive: {
-    backgroundColor: colors.accentTint,
-    borderWidth: 0
-  },
-  chipLightText: {
-    color: colors.composerText,
-    fontSize: 12,
-    fontWeight: "700"
-  },
-  chipLightTextActive: {
-    color: colors.accentTextOnTint
-  },
-  buttonSecondaryLight: {
-    borderColor: colors.composerBorder,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    alignSelf: "flex-start",
-    backgroundColor: colors.composerInputBg
-  },
-  buttonSecondaryLightCompact: {
-    paddingHorizontal: 10,
-    paddingVertical: 7
-  },
-  buttonSecondaryLightText: {
-    color: colors.composerText,
-    fontWeight: "700",
-    fontSize: 14
-  },
-  mutedLight: {
-    color: colors.composerMuted,
-    fontSize: 12
-  },
-  helperLight: {
-    fontSize: 12,
-    color: colors.muted,
-  },
-  /* Chips */
-  chipScrollContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 4,
-  },
-  attachChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 999,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: HAIRLINE,
-  },
-  attachChipActive: {
-    backgroundColor: colors.accentMuted,
-    borderColor: colors.accent,
-  },
-  attachChipText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  attachChipTextActive: {
-    color: colors.accent,
-  },
-  clearLink: {
-    paddingVertical: 4,
-    alignSelf: "flex-start",
-  },
-  clearLinkText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: colors.accent,
-  },
-  thinDivider: {
-    height: 1,
-    backgroundColor: HAIRLINE,
-    marginVertical: 4,
-  },
-  /* Delivery */
-  deliveryBlock: { gap: 8 },
-  uploadDeliveryBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    backgroundColor: INPUT_FILL,
-    alignSelf: "flex-start",
-  },
-  uploadDeliveryText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: colors.accent,
-  },
-  /* AI assist */
-  aiBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingVertical: 6,
-    alignSelf: "flex-start",
-  },
-  aiBtnText: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: colors.accent,
-  },
-  errorSmall: {
-    fontSize: 12,
-    color: colors.danger,
-  },
-  /* Addon rows */
-  addonRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    minHeight: 40,
-  },
-  addonLabel: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.text,
-    flex: 1,
-  },
-  addonMeta: {
-    fontSize: 13,
-    color: colors.mutedLight,
-  },
-  /* Cross-post */
-  crossPostRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 4,
-  },
-  crossPostText: {
-    flex: 1,
-    minWidth: 0,
-    gap: 4
-  },
-  crossPostLabel: {
-    ...typo.button,
-    fontSize: 15,
-    color: colors.text
-  },
-  crossPostStatus: {
-    ...typo.meta,
-    color: colors.muted
-  },
-  attachProductBlock: {
-    gap: 10,
-    paddingTop: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.borderSubtle
-  },
-  attachProductHeading: {
-    ...typo.meta,
-    fontWeight: "600",
-    color: colors.text
-  },
-  stickyPublishWrap: {
-    backgroundColor: colors.background,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.borderSubtle,
-    paddingHorizontal: spacing.pagePaddingH,
-    paddingTop: 12
-  },
-  stickyPublishWrapCompact: {
-    paddingHorizontal: 14,
-    paddingTop: 10
-  },
-  stickyPublishBtn: {
-    borderRadius: radii.button,
-    minHeight: 52,
-    ...primaryButtonOutline
-  },
-  stickyPublishBtnCompact: {
-    minHeight: 48
-  },
-  stickyPublishBtnDisabled: {
-    opacity: 0.45
-  },
-  chip: {
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6
-  },
-  chipCompact: {
-    paddingHorizontal: 9,
-    paddingVertical: 5
-  },
-  chipActive: {
-    backgroundColor: colors.accentTint,
-    borderWidth: 0
-  },
-  chipText: {
-    color: colors.text,
-    fontSize: 12,
-    fontWeight: "700"
-  },
-  buttonPressed: {
-    opacity: 0.9,
-    transform: [{ scale: 0.995 }]
-  },
-  buttonPrimaryText: {
-    color: colors.onAccent,
-    fontWeight: "600",
-    fontSize: 16
-  },
-  buttonSecondary: {
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: radii.control,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: colors.surface
-  },
-  buttonText: {
-    color: colors.text,
-    fontWeight: "700"
-  },
-  fileRow: {
-    gap: 8
-  },
-  muted: {
-    color: colors.muted,
-    fontSize: 12
-  },
-  /* Error */
-  error: {
-    color: colors.danger,
-    fontSize: 14,
-  },
-  schemaBox: {
-    marginHorizontal: spacing.pagePaddingH,
-    padding: 14,
-    borderRadius: radii.grouped,
-    backgroundColor: INPUT_FILL,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: HAIRLINE,
-    gap: 6
-  },
-  schemaTitle: {
-    ...typo.sectionLabel,
-    fontSize: 13,
-    color: colors.text,
-    marginBottom: 2
-  },
-  schemaStep: {
-    fontSize: 13,
-    lineHeight: 19,
-    color: colors.muted
-  }
-});
