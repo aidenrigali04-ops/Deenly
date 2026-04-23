@@ -28,6 +28,7 @@ import { useAppChrome } from "../../lib/use-app-chrome";
 import type { FeedItem } from "../../types";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 import { resolveMediaUrl } from "../../lib/media-url";
+import { usePoints } from "../../features/points";
 import {
   IconCamera,
   IconGrid,
@@ -584,6 +585,7 @@ export function ProfileScreen({ navigation }: Props) {
     enabled: Boolean(sessionQuery.data?.id)
   });
   const walletQuery = useRewardsWalletMeQuery(Boolean(sessionQuery.data?.id));
+  const points = usePoints();
 
   const items = postsQuery.data?.items || [];
   const productItems = productsQuery.data?.items || [];
@@ -671,6 +673,31 @@ export function ProfileScreen({ navigation }: Props) {
 
   const websiteHref = p?.website_url ? normalizeWebsiteUrl(p.website_url) : null;
 
+  useEffect(() => {
+    const userId = sessionQuery.data?.id;
+    if (!userId) {
+      return;
+    }
+    let cancelled = false;
+    const syncPurchases = async () => {
+      try {
+        const response = await apiRequest<{
+          items: { order_id: number; status: string }[];
+        }>("/monetization/purchases/me?limit=200", { auth: true });
+        if (cancelled) {
+          return;
+        }
+        await points.syncCompletedOrders(response.items);
+      } catch {
+        /* ignore points sync failures */
+      }
+    };
+    void syncPurchases();
+    return () => {
+      cancelled = true;
+    };
+  }, [points.syncCompletedOrders, sessionQuery.data?.id]);
+
   return (
     <View style={styles.root}>
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
@@ -755,6 +782,12 @@ export function ProfileScreen({ navigation }: Props) {
                   <Pressable style={({ pressed }) => [styles.heroPill, pressed && styles.heroPillPressed]} onPress={shareProfile}>
                     <Text style={styles.heroPillTextGold}>Share</Text>
                   </Pressable>
+                <Pressable
+                  style={({ pressed }) => [styles.heroPill, pressed && styles.heroPillPressed]}
+                  onPress={() => navigation.navigate("Points")}
+                >
+                  <Text style={styles.heroPillText}>Points</Text>
+                </Pressable>
                 </View>
               </View>
             </View>

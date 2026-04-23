@@ -21,6 +21,7 @@ import { useSessionStore } from "../../store/session-store";
 import type { FeedItem } from "../../types";
 import { followUser, unfollowUser } from "../../lib/follows";
 import { resolveMediaUrl } from "../../lib/media-url";
+import { usePoints } from "../../features/points";
 import {
   createSupportCheckout,
   createTierCheckout,
@@ -55,6 +56,7 @@ export function UserProfileScreen({ route, navigation }: Props) {
   const statusBarStyle = mode === "light" ? "dark" : "light";
   const [activeTab, setActiveTab] = useState<"posts" | "products">("posts");
   const queryClient = useQueryClient();
+  const points = usePoints();
   const profileQuery = useQuery({
     queryKey: ["mobile-user-profile", userId],
     queryFn: () => apiRequest<UserProfile>(`/users/${userId}`, { auth: true })
@@ -79,6 +81,7 @@ export function UserProfileScreen({ route, navigation }: Props) {
       }
     },
     onSuccess: async () => {
+      void points.award("follow");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["mobile-user-profile", userId] }),
         queryClient.invalidateQueries({ queryKey: ["mobile-account-profile"] })
@@ -139,6 +142,7 @@ export function UserProfileScreen({ route, navigation }: Props) {
         }
       }),
     onSuccess: async () => {
+      void points.award("like");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["mobile-user-posts", userId] }),
         queryClient.invalidateQueries({ queryKey: ["mobile-user-profile", userId] })
@@ -155,7 +159,7 @@ export function UserProfileScreen({ route, navigation }: Props) {
   });
   const tierMutation = useMutation({
     mutationFn: (tierId: number) => createTierCheckout(tierId),
-    onSuccess: async (result) => {
+    onSuccess: async (result, tierId) => {
       if (result?.checkoutUrl) {
         await Linking.openURL(result.checkoutUrl);
       }

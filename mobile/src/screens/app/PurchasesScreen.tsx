@@ -1,7 +1,9 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { fetchMyPurchases, formatMinorCurrency } from "../../lib/monetization";
 import { colors, radii, shadows, spacing } from "../../theme";
+import { usePoints } from "../../features/points";
 
 function formatOrderStatus(raw: string) {
   const s = String(raw || "").replace(/_/g, " ").trim();
@@ -10,10 +12,18 @@ function formatOrderStatus(raw: string) {
 }
 
 export function PurchasesScreen() {
+  const points = usePoints();
   const query = useQuery({
     queryKey: ["mobile-purchases-me"],
     queryFn: () => fetchMyPurchases({ limit: 50 })
   });
+
+  useEffect(() => {
+    if (!query.data?.items || !points.userId) {
+      return;
+    }
+    void points.syncCompletedOrders(query.data.items.map((row) => ({ order_id: row.order_id, status: row.status })));
+  }, [points.syncCompletedOrders, points.userId, query.data?.items]);
 
   if (query.isLoading) {
     return (

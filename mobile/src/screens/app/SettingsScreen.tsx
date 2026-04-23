@@ -212,6 +212,11 @@ export function SettingsScreen({ navigation }: Props) {
           subtitle="Your code and invite link."
           onPress={() => navigation.navigate("Referrals")}
         />
+        <SettingsRow
+          title="Points"
+          subtitle="How you earn from scroll, likes, comments, purchases, and follows."
+          onPress={() => navigation.navigate("Points")}
+        />
         {caps?.can_access_creator_hub ? (
           <SettingsRow
             title={activePersona === "business" ? "Creator hub" : "Pro tools"}

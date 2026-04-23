@@ -99,6 +99,9 @@ export function RewardsWalletScreen({ navigation }: Props) {
       <Pressable onPress={() => navigation.navigate("Referrals")}>
         <Text style={styles.jumpLink}>Open referrals →</Text>
       </Pressable>
+      <Pressable onPress={() => navigation.navigate("Points")}>
+        <Text style={styles.jumpLink}>Open points system →</Text>
+      </Pressable>
 
       <View style={[styles.card, shadows.card]}>
         <Text style={styles.cardLabel}>Balance</Text>

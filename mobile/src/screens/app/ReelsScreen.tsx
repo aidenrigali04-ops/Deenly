@@ -24,6 +24,7 @@ import { radii, resolveFigmaMobile, spacing } from "../../theme";
 import { useAppChrome } from "../../lib/use-app-chrome";
 import type { FeedItem } from "../../types";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
+import { usePoints, useScrollPoints } from "../../features/points";
 
 type FeedResponse = {
   items: FeedItem[];
@@ -272,6 +273,8 @@ export function ReelsScreen({ navigation }: Props) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [muted, setMuted] = useState(true);
   const queryClient = useQueryClient();
+  const points = usePoints();
+  const awardScroll = useScrollPoints();
   const feedQueryKey = ["mobile-feed-reels"] as const;
 
   const feedQuery = useInfiniteQuery({
@@ -306,6 +309,11 @@ export function ReelsScreen({ navigation }: Props) {
           }),
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: feedQueryKey });
+    },
+    onSuccess: (_result, vars) => {
+      if (vars.nextLiked) {
+        void points.award("like");
+      }
     }
   });
 
@@ -314,6 +322,11 @@ export function ReelsScreen({ navigation }: Props) {
       nextFollowing ? followUser(authorId) : unfollowUser(authorId),
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: feedQueryKey });
+    },
+    onSuccess: (_result, vars) => {
+      if (vars.nextFollowing) {
+        void points.award("follow");
+      }
     }
   });
 
@@ -423,6 +436,10 @@ export function ReelsScreen({ navigation }: Props) {
             offset: height * index,
             index
           })}
+          onScroll={(event) => {
+            awardScroll(event.nativeEvent.contentOffset.y);
+          }}
+          scrollEventThrottle={120}
         />
       ) : null}
     </View>

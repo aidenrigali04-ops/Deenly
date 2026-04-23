@@ -17,6 +17,7 @@ import { ProductCheckoutSheet } from "../../components/ProductCheckoutSheet";
 import { hapticPrimary, hapticSuccess, hapticTap } from "../../lib/haptics";
 import { useSessionStore } from "../../store/session-store";
 import { getWebAppBaseUrl } from "../../lib/web-app";
+import { usePoints } from "../../features/points";
 
 type PostDetail = FeedItem & {
   view_count?: number;
@@ -57,6 +58,7 @@ export function PostDetailScreen({ route, navigation }: Props) {
   const [guestCheckoutEmail, setGuestCheckoutEmail] = useState("");
   const [checkoutHandoff, setCheckoutHandoff] = useState(false);
   const sessionUser = useSessionStore((state) => state.user);
+  const points = usePoints();
   const queryClient = useQueryClient();
   const { figma, mode } = useAppChrome();
   const styles = useMemo(() => buildPostDetailStyles(figma), [figma]);
@@ -101,7 +103,9 @@ export function PostDetailScreen({ route, navigation }: Props) {
         auth: true,
         body: { postId, ...payload }
       }),
-    onSuccess: () => postQuery.refetch()
+    onSuccess: () => {
+      postQuery.refetch();
+    }
   });
 
   const reportMutation = useMutation({
@@ -159,7 +163,7 @@ export function PostDetailScreen({ route, navigation }: Props) {
   }, [postQuery.data, benefitedCount]);
   const productCheckoutMutation = useMutation({
     mutationFn: (productId: number) => createProductCheckout(productId, { checkoutVariant }),
-    onSuccess: async (result) => {
+    onSuccess: async (result, productId) => {
       if (result?.checkoutUrl) {
         setCheckoutHandoff(true);
         await hapticSuccess();
@@ -172,7 +176,7 @@ export function PostDetailScreen({ route, navigation }: Props) {
   const guestProductCheckoutMutation = useMutation({
     mutationFn: ({ productId, email }: { productId: number; email?: string }) =>
       createGuestProductCheckout(productId, { smsOptIn: false, guestEmail: email, checkoutVariant }),
-    onSuccess: async (result) => {
+    onSuccess: async (result, variables) => {
       if (result?.checkoutUrl) {
         setCheckoutHandoff(true);
         await hapticSuccess();
@@ -307,6 +311,9 @@ export function PostDetailScreen({ route, navigation }: Props) {
                 }
                 setLiked(nextLiked);
                 setBenefitedCount((value) => Math.max(0, value + (nextLiked ? 1 : -1)));
+                if (nextLiked) {
+                  void points.award("like");
+                }
                 setMessage(nextLiked ? "Liked." : "Like removed.");
               } catch (error) {
                 if (error instanceof ApiError && error.status === 0) {
@@ -452,6 +459,7 @@ export function PostDetailScreen({ route, navigation }: Props) {
             if (!comment.trim()) return;
             try {
               await interact.mutateAsync({ interactionType: "comment", commentText: comment });
+              void points.award("comment");
               setComment("");
               setMessage("Comment posted.");
             } catch (error) {
