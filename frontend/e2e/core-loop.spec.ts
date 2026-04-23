@@ -1,10 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { test, expect, APIRequestContext, Page } from "@playwright/test";
 
 /** Valid short MP4 so `<video>` does not hit `onError` and get replaced by "Media unavailable". */
-const e2eMinimalMp4Path = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures", "e2e-minimal.mp4");
+const e2eMinimalMp4Path = path.resolve(process.cwd(), "e2e", "fixtures", "e2e-minimal.mp4");
 
 const backendBaseUrl =
   process.env.BACKEND_API_URL || "http://127.0.0.1:8080/api/v1";
