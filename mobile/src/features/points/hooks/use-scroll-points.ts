@@ -17,7 +17,7 @@ export function useScrollPoints() {
       if (delta < 140) {
         return;
       }
-      void points.award("scroll");
+      void points.award("scroll", { surface: "reels" });
     },
     [points]
   );

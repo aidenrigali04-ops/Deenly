@@ -329,7 +329,7 @@ export function ReelsScreen({ navigation }: Props) {
     },
     onSuccess: (_result, vars) => {
       if (vars.nextLiked) {
-        void points.award("like");
+        void points.award("like", { surface: "reels", postId: vars.postId });
       }
     }
   });
@@ -344,8 +344,12 @@ export function ReelsScreen({ navigation }: Props) {
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: feedQueryKey });
     },
-    onSuccess: () => {
-      void points.award("comment");
+    onSuccess: (_result, vars) => {
+      void points.award("comment", {
+        surface: "reels",
+        postId: vars.postId,
+        commentText: "Nice reel!"
+      });
     }
   });
 

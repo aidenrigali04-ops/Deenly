@@ -224,7 +224,7 @@ export function FeedScreen({ navigation }: Props) {
     },
     onSuccess: (_result, vars) => {
       if (vars.nextLiked) {
-        void points.award("like");
+        void points.award("like", { surface: "home_feed", postId: vars.postId });
       }
     }
   });

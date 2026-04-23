@@ -128,4 +128,15 @@ describe("points-local-service", () => {
     expect(state.actions.purchase.todayCount).toBe(3);
     expect(state.wallet.totalPoints).toBe(300);
   });
+
+  it("dedupes like awards when dedupe key is reused", async () => {
+    const first = await awardPointsForAction(userId, "like", { dedupeKey: "like:d:2026-04-23:post:77" });
+    expect(first.awarded).toBe(true);
+    const second = await awardPointsForAction(userId, "like", { dedupeKey: "like:d:2026-04-23:post:77" });
+    expect(second.awarded).toBe(false);
+    if (second.awarded) {
+      throw new Error("expected duplicate block");
+    }
+    expect(second.reason).toBe("duplicate");
+  });
 });

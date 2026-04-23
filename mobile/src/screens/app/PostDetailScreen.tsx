@@ -312,7 +312,7 @@ export function PostDetailScreen({ route, navigation }: Props) {
                 setLiked(nextLiked);
                 setBenefitedCount((value) => Math.max(0, value + (nextLiked ? 1 : -1)));
                 if (nextLiked) {
-                  void points.award("like");
+                  void points.award("like", { surface: "post_detail", postId });
                 }
                 setMessage(nextLiked ? "Liked." : "Like removed.");
               } catch (error) {
@@ -459,7 +459,11 @@ export function PostDetailScreen({ route, navigation }: Props) {
             if (!comment.trim()) return;
             try {
               await interact.mutateAsync({ interactionType: "comment", commentText: comment });
-              void points.award("comment");
+              void points.award("comment", {
+                surface: "post_detail",
+                postId,
+                commentText: comment
+              });
               setComment("");
               setMessage("Comment posted.");
             } catch (error) {

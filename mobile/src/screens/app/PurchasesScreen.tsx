@@ -22,7 +22,9 @@ export function PurchasesScreen() {
     if (!query.data?.items || !points.userId) {
       return;
     }
-    void points.syncCompletedOrders(query.data.items.map((row) => ({ order_id: row.order_id, status: row.status })));
+    void points.syncCompletedOrders(
+      query.data.items.map((row) => ({ order_id: row.order_id, status: row.status }))
+    );
   }, [points.syncCompletedOrders, points.userId, query.data?.items]);
 
   if (query.isLoading) {

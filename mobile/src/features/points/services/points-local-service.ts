@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { buildPurchaseDedupeKey } from "../domain/config/points-award-policy";
 import { POINT_ACTION_RULES } from "../domain/config/points-action-rules";
 import type { PointAction, PointTransaction, PointsEntity } from "../domain/models/points-entity";
 import {
@@ -264,7 +265,7 @@ export async function awardPointsForAction(
     const nowIso = now.toISOString();
     const lastAt = actionState.lastAt ? new Date(actionState.lastAt) : null;
 
-    if (action === "purchase" && options?.dedupeKey) {
+    if (options?.dedupeKey) {
       if (state.purchaseAwardedOrderIds.includes(options.dedupeKey)) {
         return {
           awarded: false,
@@ -316,7 +317,7 @@ export async function awardPointsForAction(
     };
     state.actions[action] = nextActionSnapshot;
 
-    if (action === "purchase" && options?.dedupeKey) {
+    if (options?.dedupeKey) {
       state.purchaseAwardedOrderIds = [...state.purchaseAwardedOrderIds, options.dedupeKey].slice(-500);
     }
 
@@ -348,7 +349,7 @@ export async function syncCompletedOrdersToPoints(
     if (String(order.status).toLowerCase() !== "completed") {
       continue;
     }
-    const dedupeKey = `order:${String(order.order_id)}`;
+    const dedupeKey = buildPurchaseDedupeKey(order.order_id);
     const result = await awardPointsForAction(userId, "purchase", { dedupeKey });
     if (result.awarded) {
       awardedCount += 1;

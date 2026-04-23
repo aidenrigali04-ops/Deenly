@@ -81,7 +81,7 @@ export function UserProfileScreen({ route, navigation }: Props) {
       }
     },
     onSuccess: async () => {
-      void points.award("follow");
+      void points.award("follow", { surface: "user_profile", targetUserId: userId });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["mobile-user-profile", userId] }),
         queryClient.invalidateQueries({ queryKey: ["mobile-account-profile"] })
@@ -141,8 +141,8 @@ export function UserProfileScreen({ route, navigation }: Props) {
           interactionType: "benefited"
         }
       }),
-    onSuccess: async () => {
-      void points.award("like");
+    onSuccess: async (_result, postId) => {
+      void points.award("like", { surface: "user_profile", postId });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["mobile-user-posts", userId] }),
         queryClient.invalidateQueries({ queryKey: ["mobile-user-profile", userId] })

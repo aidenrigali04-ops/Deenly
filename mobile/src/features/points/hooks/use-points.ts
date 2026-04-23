@@ -1,6 +1,14 @@
 import { useCallback, useEffect } from "react";
 import { useSessionStore } from "../../../store/session-store";
 import type { PointAction } from "../domain/models/points-entity";
+import {
+  buildCommentDedupeKey,
+  buildFollowDedupeKey,
+  buildLikeDedupeKey,
+  buildPurchaseDedupeKey,
+  canSurfaceAwardAction,
+  type PointAwardSurface
+} from "../domain/config/points-award-policy";
 import { usePointsStore } from "../store/points-store";
 
 export function usePoints() {
@@ -23,8 +31,34 @@ export function usePoints() {
   }, [clear, hydrate, userId]);
 
   const award = useCallback(
-    async (action: PointAction, options?: { dedupeKey?: string }) => {
-      return awardInternal(action, options);
+    async (
+      action: PointAction,
+      options: {
+        surface: PointAwardSurface;
+        dedupeKey?: string;
+        postId?: number | string;
+        targetUserId?: number | string;
+        orderId?: number | string;
+        commentText?: string;
+      }
+    ) => {
+      const surface = options.surface;
+      if (!canSurfaceAwardAction(surface, action)) {
+        return null;
+      }
+      let dedupeKey = options.dedupeKey;
+      if (!dedupeKey) {
+        if (action === "like" && options.postId != null) {
+          dedupeKey = buildLikeDedupeKey(options.postId);
+        } else if (action === "comment" && options.postId != null && options.commentText != null) {
+          dedupeKey = buildCommentDedupeKey(options.postId, options.commentText);
+        } else if (action === "follow" && options.targetUserId != null) {
+          dedupeKey = buildFollowDedupeKey(options.targetUserId);
+        } else if (action === "purchase" && options.orderId != null) {
+          dedupeKey = buildPurchaseDedupeKey(options.orderId);
+        }
+      }
+      return awardInternal(action, dedupeKey ? { dedupeKey } : undefined);
     },
     [awardInternal]
   );
