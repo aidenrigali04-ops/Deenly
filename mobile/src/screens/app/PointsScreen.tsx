@@ -29,7 +29,7 @@ function formatWhen(iso: string): string {
 }
 
 export function PointsScreen({ navigation }: Props) {
-  const { state, loading } = usePoints();
+  const { state, loading, source } = usePoints();
 
   const recentTransactions = useMemo(() => state?.transactions.slice(0, 40) ?? [], [state?.transactions]);
 
@@ -59,6 +59,9 @@ export function PointsScreen({ navigation }: Props) {
         <Text style={styles.meta}>
           Today {wallet.todayPoints.toLocaleString("en-US")} · Level {wallet.level} · Streak {wallet.streak} day
           {wallet.streak === 1 ? "" : "s"}
+        </Text>
+        <Text style={styles.sourceMeta}>
+          Source: {source === "remote" ? "server verified rewards ledger" : "local device cache"}
         </Text>
       </View>
 
@@ -135,6 +138,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5
   },
   meta: { fontSize: 14, color: colors.muted, lineHeight: 20 },
+  sourceMeta: { fontSize: 12, color: colors.muted },
   sectionTitle: { fontSize: 15, fontWeight: "700", color: colors.text },
   ruleRow: {
     borderRadius: radii.control,

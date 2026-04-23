@@ -2,16 +2,17 @@ import { useCallback, useEffect } from "react";
 import { useSessionStore } from "../../../store/session-store";
 import type { PointAction } from "../domain/models/points-entity";
 import { usePointsStore } from "../store/points-store";
-import { syncCompletedOrdersToPoints } from "../services/points-local-service";
 
 export function usePoints() {
   const sessionUser = useSessionStore((s) => s.user);
   const userId = sessionUser?.id != null ? String(sessionUser.id) : null;
   const state = usePointsStore((s) => s.state);
   const loading = usePointsStore((s) => s.loading);
+  const source = usePointsStore((s) => s.source);
   const hydrate = usePointsStore((s) => s.hydrate);
   const clear = usePointsStore((s) => s.clear);
   const awardInternal = usePointsStore((s) => s.award);
+  const syncCompletedOrdersInternal = usePointsStore((s) => s.syncCompletedOrders);
 
   useEffect(() => {
     if (!userId) {
@@ -30,21 +31,15 @@ export function usePoints() {
 
   const syncCompletedOrders = useCallback(
     async (orders: Array<{ order_id: number | string; status: string }>) => {
-      if (!userId) {
-        return 0;
-      }
-      const awarded = await syncCompletedOrdersToPoints(userId, orders);
-      if (awarded > 0) {
-        await hydrate(userId);
-      }
-      return awarded;
+      return syncCompletedOrdersInternal(orders);
     },
-    [hydrate, userId]
+    [syncCompletedOrdersInternal]
   );
 
   return {
     userId,
     loading,
+    source,
     state,
     award,
     syncCompletedOrders
