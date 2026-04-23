@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "bebb8886-51bb-4a3c-99fe-dc7d974c0df0"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.airigali.deenly",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    }
+  }
+}
