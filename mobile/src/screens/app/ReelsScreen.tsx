@@ -161,8 +161,10 @@ function ReelRow({
   height,
   bottomPad,
   onLike,
+  onComment,
   onFollow,
   likeBusy,
+  commentBusy,
   followBusy,
   muted,
   onToggleMute,
@@ -174,8 +176,10 @@ function ReelRow({
   height: number;
   bottomPad: number;
   onLike: () => void;
+  onComment: () => void;
   onFollow: () => void;
   likeBusy: boolean;
+  commentBusy: boolean;
   followBusy: boolean;
   muted: boolean;
   onToggleMute: () => void;
@@ -231,6 +235,19 @@ function ReelRow({
                 name={liked ? "heart" : "heart-outline"}
                 size={RAIL_ICON}
                 color={liked ? fm.accentGold : fm.text}
+              />
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [rx.railBtn, pressed && rx.railBtnPressed]}
+              onPress={onComment}
+              disabled={commentBusy}
+              accessibilityRole="button"
+              accessibilityLabel="Comment"
+            >
+              <Ionicons
+                name="chatbubble-outline"
+                size={RAIL_ICON}
+                color={fm.text}
               />
             </Pressable>
             <Pressable
@@ -317,16 +334,26 @@ export function ReelsScreen({ navigation }: Props) {
     }
   });
 
+  const commentMutation = useMutation({
+    mutationFn: ({ postId }: { postId: number }) =>
+      apiRequest("/interactions", {
+        method: "POST",
+        auth: true,
+        body: { postId, interactionType: "comment", commentText: "Nice reel!" }
+      }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: feedQueryKey });
+    },
+    onSuccess: () => {
+      void points.award("comment");
+    }
+  });
+
   const followMutation = useMutation({
     mutationFn: ({ authorId, nextFollowing }: { authorId: number; nextFollowing: boolean }) =>
       nextFollowing ? followUser(authorId) : unfollowUser(authorId),
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: feedQueryKey });
-    },
-    onSuccess: (_result, vars) => {
-      if (vars.nextFollowing) {
-        void points.award("follow");
-      }
     }
   });
 
@@ -355,6 +382,7 @@ export function ReelsScreen({ navigation }: Props) {
         muted={muted}
         onToggleMute={() => setMuted((m) => !m)}
         onLike={() => likeMutation.mutate({ postId: item.id, nextLiked: !item.liked_by_viewer })}
+        onComment={() => commentMutation.mutate({ postId: item.id })}
         onFollow={() =>
           followMutation.mutate({
             authorId: item.author_id,
@@ -362,12 +390,13 @@ export function ReelsScreen({ navigation }: Props) {
           })
         }
         likeBusy={likeMutation.isPending}
+        commentBusy={commentMutation.isPending}
         followBusy={followMutation.isPending}
         rx={rx}
         fm={fm}
       />
     ),
-    [activeIndex, height, insets.bottom, muted, likeMutation, followMutation, rx, fm]
+    [activeIndex, height, insets.bottom, muted, likeMutation, commentMutation, followMutation, rx, fm]
   );
 
   return (

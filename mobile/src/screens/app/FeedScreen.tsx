@@ -37,7 +37,7 @@ import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNa
 import { createGuestProductCheckout, createProductCheckout } from "../../lib/monetization";
 import { hapticSuccess } from "../../lib/haptics";
 import { useSessionStore } from "../../store/session-store";
-import { usePoints, useScrollPoints } from "../../features/points";
+import { usePoints } from "../../features/points";
 
 type FeedResponse = {
   items: FeedListItem[];
@@ -66,7 +66,6 @@ export function FeedScreen({ navigation }: Props) {
   const compact = viewportHeight <= 700;
   const sessionUser = useSessionStore((s) => s.user);
   const points = usePoints();
-  const awardScroll = useScrollPoints();
   const [buyHandoffProductId, setBuyHandoffProductId] = useState<number | null>(null);
   const [followingOnly, setFollowingOnly] = useState(false);
   const [feedTab, setFeedTab] = useState<"for_you" | "marketplace">("for_you");
@@ -238,11 +237,6 @@ export function FeedScreen({ navigation }: Props) {
       authorId: number;
       currentlyFollowing: boolean;
     }) => (currentlyFollowing ? unfollowUser(authorId) : followUser(authorId)),
-    onSuccess: (_result, vars) => {
-      if (!vars.currentlyFollowing) {
-        void points.award("follow");
-      }
-    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: feedQueryKey });
     }
@@ -559,10 +553,6 @@ export function FeedScreen({ navigation }: Props) {
         keyboardShouldPersistTaps="handled"
         onViewableItemsChanged={onViewableItemsChanged.current}
         viewabilityConfig={viewabilityConfig}
-        onScroll={(event) => {
-          awardScroll(event.nativeEvent.contentOffset.y);
-        }}
-        scrollEventThrottle={120}
       />
     </View>
   );
