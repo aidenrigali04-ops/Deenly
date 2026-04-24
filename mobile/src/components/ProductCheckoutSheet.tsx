@@ -7,6 +7,13 @@ type Props = {
   visible: boolean;
   title: string;
   priceLabel: string;
+  finalPriceLabel?: string;
+  pointsDiscountLabel?: string;
+  pointsSpendLabel?: string;
+  pointsApplyEnabled?: boolean;
+  pointsApplyDisabledReason?: string;
+  pointsApplyLoading?: boolean;
+  pointsApplyToggle?: boolean;
   isGuest: boolean;
   guestEmail: string;
   loading: boolean;
@@ -14,6 +21,7 @@ type Props = {
   checkoutVariant?: "trust_first" | "speed_first";
   errorMessage?: string;
   onGuestEmailChange: (value: string) => void;
+  onToggleUsePoints?: (next: boolean) => void;
   onClose: () => void;
   onConfirm: () => void;
 };
@@ -22,6 +30,13 @@ export function ProductCheckoutSheet({
   visible,
   title,
   priceLabel,
+  finalPriceLabel,
+  pointsDiscountLabel,
+  pointsSpendLabel,
+  pointsApplyEnabled = false,
+  pointsApplyDisabledReason,
+  pointsApplyLoading = false,
+  pointsApplyToggle = false,
   isGuest,
   guestEmail,
   loading,
@@ -29,6 +44,7 @@ export function ProductCheckoutSheet({
   checkoutVariant = "trust_first",
   errorMessage,
   onGuestEmailChange,
+  onToggleUsePoints,
   onClose,
   onConfirm
 }: Props) {
@@ -78,6 +94,11 @@ export function ProductCheckoutSheet({
               {title}
             </Text>
             <Text style={styles.price}>{priceLabel}</Text>
+            {finalPriceLabel && finalPriceLabel !== priceLabel ? (
+              <Text style={styles.finalPrice}>Final after points: {finalPriceLabel}</Text>
+            ) : null}
+            {pointsDiscountLabel ? <Text style={styles.discountLine}>Points discount: {pointsDiscountLabel}</Text> : null}
+            {pointsSpendLabel ? <Text style={styles.discountMeta}>Uses {pointsSpendLabel}</Text> : null}
 
             <View style={styles.stepsRow}>
               {[
@@ -98,6 +119,26 @@ export function ProductCheckoutSheet({
                 <Text style={styles.copy}>{point}</Text>
               </View>
             ))}
+
+            {!isGuest ? (
+              <View style={styles.pointsWrap}>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.pointsToggleBtn,
+                    pointsApplyToggle ? styles.pointsToggleBtnOn : null,
+                    (pointsApplyLoading || !pointsApplyEnabled) && styles.disabled,
+                    pressed && !pointsApplyLoading && pointsApplyEnabled && styles.btnPressed
+                  ]}
+                  disabled={pointsApplyLoading || !pointsApplyEnabled}
+                  onPress={() => onToggleUsePoints?.(!pointsApplyToggle)}
+                >
+                  <Text style={[styles.pointsToggleText, pointsApplyToggle ? styles.pointsToggleTextOn : null]}>
+                    {pointsApplyToggle ? "Using points on this checkout" : "Use points on this checkout"}
+                  </Text>
+                </Pressable>
+                {pointsApplyDisabledReason ? <Text style={styles.helperText}>{pointsApplyDisabledReason}</Text> : null}
+              </View>
+            ) : null}
 
             {isGuest ? (
               <View style={styles.guestWrap}>
@@ -191,6 +232,9 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 18, fontWeight: "600", color: colors.text, letterSpacing: -0.2 },
   price: { fontSize: 16, fontWeight: "600", color: colors.text },
+  finalPrice: { fontSize: 13, color: colors.text, fontWeight: "600", marginTop: 2 },
+  discountLine: { fontSize: 12, color: colors.accent, fontWeight: "600", marginTop: 1 },
+  discountMeta: { fontSize: 11, color: colors.muted, marginTop: 1 },
   stepsRow: {
     flexDirection: "row",
     alignItems: "stretch",
@@ -220,6 +264,21 @@ const styles = StyleSheet.create({
   pointRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
   pointDot: { color: colors.muted, fontSize: 15, lineHeight: 20 },
   copy: { fontSize: 14, color: colors.muted, lineHeight: 20, letterSpacing: -0.1 },
+  pointsWrap: { marginTop: 8, gap: 5 },
+  pointsToggleBtn: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: radii.control,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: colors.surface
+  },
+  pointsToggleBtnOn: {
+    backgroundColor: colors.accentTint,
+    borderColor: colors.accent
+  },
+  pointsToggleText: { color: colors.text, fontWeight: "600", fontSize: 13 },
+  pointsToggleTextOn: { color: colors.accentTextOnTint },
   guestWrap: { marginTop: 6, gap: 6 },
   label: { fontSize: 12, fontWeight: "600", color: colors.muted },
   input: {

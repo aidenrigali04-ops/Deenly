@@ -71,12 +71,59 @@ export async function createGuestProductCheckout(
   });
 }
 
-export async function createProductCheckout(productId: number, opts?: { smsOptIn?: boolean; checkoutVariant?: string }) {
+export async function createProductCheckout(
+  productId: number,
+  opts?: {
+    smsOptIn?: boolean;
+    checkoutVariant?: string;
+    redeemMaxPoints?: boolean;
+    redeemPointsMinor?: number;
+    redeemClientRequestId?: string;
+  }
+) {
   return apiRequest<{ checkoutUrl: string }>(`/monetization/checkout/product/${productId}`, {
     method: "POST",
     auth: true,
-    body: { smsOptIn: opts?.smsOptIn, checkoutVariant: opts?.checkoutVariant }
+    body: {
+      smsOptIn: opts?.smsOptIn,
+      checkoutVariant: opts?.checkoutVariant,
+      redeemMaxPoints: opts?.redeemMaxPoints,
+      redeemPointsMinor: opts?.redeemPointsMinor,
+      redeemClientRequestId: opts?.redeemClientRequestId
+    }
   });
+}
+
+export type ProductRewardsCheckoutPreview = {
+  eligible: boolean;
+  denyReasons: string[];
+  balanceMinor: number;
+  lastRedemptionAtIso: string | null;
+  pointsToSpend: number;
+  discountMinor: number;
+  chargedMinor: number;
+  listPriceMinor: number;
+  productRewardsEligible: boolean;
+};
+
+export async function fetchProductCheckoutRewardsPreview(
+  productId: number,
+  params?: { redeemPointsMinor?: number | null; redeemEnabled?: boolean }
+) {
+  const sp = new URLSearchParams();
+  if (params?.redeemPointsMinor != null) {
+    sp.set("redeemPointsMinor", String(Math.max(0, Math.floor(params.redeemPointsMinor))));
+  }
+  if (params?.redeemEnabled != null) {
+    sp.set("redeemEnabled", params.redeemEnabled ? "true" : "false");
+  }
+  const q = sp.toString();
+  return apiRequest<ProductRewardsCheckoutPreview>(
+    `/monetization/checkout/product/${productId}/rewards-preview${q ? `?${q}` : ""}`,
+    {
+      auth: true
+    }
+  );
 }
 
 export async function createEventTicketCheckout(eventId: number) {

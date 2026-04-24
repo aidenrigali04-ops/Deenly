@@ -7,6 +7,7 @@ import { fetchProductOverview } from "../../lib/ai-assist";
 import {
   createGuestProductCheckout,
   createProductCheckout,
+  fetchProductCheckoutRewardsPreview,
   fetchCatalogProduct,
   formatMinorCurrency
 } from "../../lib/monetization";
@@ -66,6 +67,7 @@ export function ProductDetailScreen({ route, navigation }: Props) {
   const [archiveError, setArchiveError] = useState("");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [checkoutHandoff, setCheckoutHandoff] = useState(false);
+  const [usePointsOnCheckout, setUsePointsOnCheckout] = useState(false);
   const [guestEmail, setGuestEmail] = useState("");
   const scrollRef = useRef<ScrollView>(null);
   const [offerSectionY, setOfferSectionY] = useState(0);
@@ -85,7 +87,11 @@ export function ProductDetailScreen({ route, navigation }: Props) {
   });
 
   const checkoutMutation = useMutation({
-    mutationFn: () => createProductCheckout(productId, { checkoutVariant }),
+    mutationFn: (opts?: {
+      checkoutVariant?: "trust_first" | "speed_first";
+      redeemMaxPoints?: boolean;
+      redeemClientRequestId?: string;
+    }) => createProductCheckout(productId, opts),
     onSuccess: async (result) => {
       if (result?.checkoutUrl) {
         setCheckoutHandoff(true);
@@ -109,6 +115,15 @@ export function ProductDetailScreen({ route, navigation }: Props) {
         setCheckoutHandoff(false);
       }
     }
+  });
+
+  const rewardsPreviewQuery = useQuery({
+    queryKey: ["mobile-product-checkout-rewards-preview", productId, usePointsOnCheckout],
+    queryFn: () =>
+      fetchProductCheckoutRewardsPreview(productId, {
+        redeemEnabled: usePointsOnCheckout
+      }),
+    enabled: Boolean(sessionUser) && checkoutOpen
   });
 
   const archiveProductMutation = useMutation({
@@ -170,10 +185,41 @@ export function ProductDetailScreen({ route, navigation }: Props) {
 
   const buyPending = checkoutMutation.isPending || guestCheckoutMutation.isPending;
   const checkoutError = checkoutMutation.error || guestCheckoutMutation.error;
+  const rewardsPreview = rewardsPreviewQuery.data;
   const creatorAvatarUri = resolveMediaUrl(product.creator_avatar_url) || undefined;
   const creatorHandle = product.creator_username ? `@${product.creator_username}` : null;
   const creatorName = product.creator_display_name || creatorHandle || "Creator";
   const priceLabel = formatMinorCurrency(Number(product.price_minor || 0), product.currency || "usd");
+
+  const pointsAvailable =
+    Boolean(sessionUser) &&
+    Boolean(rewardsPreview?.productRewardsEligible) &&
+    (Boolean(rewardsPreview?.eligible) || !usePointsOnCheckout);
+  const pointsToggleDisabledReason = !sessionUser
+    ? null
+    : !rewardsPreview
+      ? rewardsPreviewQuery.isLoading
+        ? "Checking points eligibility for this product..."
+        : rewardsPreviewQuery.isError
+          ? "Points redemption is temporarily unavailable."
+          : "Checking points eligibility for this product..."
+      : !rewardsPreview.productRewardsEligible
+        ? "Points are not eligible for this product."
+        : !rewardsPreview.eligible
+          ? "Points cannot be applied to this checkout right now."
+          : null;
+  const pointsDiscountLabel =
+    rewardsPreview && usePointsOnCheckout && rewardsPreview.discountMinor > 0
+      ? formatMinorCurrency(rewardsPreview.discountMinor, product.currency || "usd")
+      : null;
+  const pointsSpendLabel =
+    rewardsPreview && usePointsOnCheckout && rewardsPreview.pointsToSpend > 0
+      ? `${Number(rewardsPreview.pointsToSpend).toLocaleString("en-US")} pts`
+      : null;
+  const finalPriceLabel =
+    rewardsPreview && usePointsOnCheckout && rewardsPreview.discountMinor > 0
+      ? formatMinorCurrency(rewardsPreview.chargedMinor, product.currency || "usd")
+      : priceLabel;
 
   return (
     <>
@@ -181,6 +227,13 @@ export function ProductDetailScreen({ route, navigation }: Props) {
         visible={checkoutOpen}
         title={product.title}
         priceLabel={priceLabel}
+        finalPriceLabel={finalPriceLabel}
+        pointsDiscountLabel={pointsDiscountLabel ?? undefined}
+        pointsSpendLabel={pointsSpendLabel ?? undefined}
+        pointsApplyEnabled={Boolean(pointsAvailable) && !rewardsPreviewQuery.isLoading}
+        pointsApplyDisabledReason={pointsToggleDisabledReason ?? undefined}
+        pointsApplyLoading={rewardsPreviewQuery.isLoading}
+        pointsApplyToggle={usePointsOnCheckout}
         isGuest={!sessionUser}
         guestEmail={guestEmail}
         loading={buyPending}
@@ -188,14 +241,25 @@ export function ProductDetailScreen({ route, navigation }: Props) {
         checkoutVariant={checkoutVariant}
         errorMessage={checkoutError ? (checkoutError as Error).message : undefined}
         onGuestEmailChange={setGuestEmail}
+        onToggleUsePoints={(next) => {
+          setUsePointsOnCheckout(next);
+        }}
         onClose={() => {
           if (!buyPending) setCheckoutOpen(false);
         }}
         onConfirm={() => {
           setCheckoutHandoff(false);
           if (sessionUser) {
+            const redeemClientRequestId =
+              usePointsOnCheckout && rewardsPreview?.eligible
+                ? `redeem_${Date.now()}_${Math.floor(Math.random() * 1_000_000)}`
+                : undefined;
             void checkoutMutation
-              .mutateAsync()
+              .mutateAsync({
+                checkoutVariant,
+                redeemMaxPoints: Boolean(usePointsOnCheckout && rewardsPreview?.eligible),
+                redeemClientRequestId
+              })
               .then(() => setCheckoutOpen(false))
               .catch(() => undefined);
             return;
@@ -495,7 +559,7 @@ const styles = StyleSheet.create({
   aiBody: { marginTop: 10, gap: 8 },
   aiSummary: { fontSize: 14, color: colors.text, lineHeight: 22 },
   aiDisclaimer: { fontSize: 11, color: colors.muted },
-  errorText: { color: "#b91c1c", fontSize: 14 },
+  errorText: { color: colors.danger, fontSize: 14 },
   retry: { marginTop: 8 },
   retryText: { color: colors.accent, fontWeight: "600" }
 });
