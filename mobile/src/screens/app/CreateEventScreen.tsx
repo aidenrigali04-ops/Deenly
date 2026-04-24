@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
+import type { DocumentPickerAsset } from "expo-document-picker";
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -7,6 +8,7 @@ import { PostPublishSuccessOverlay } from "../../components/PostPublishSuccessOv
 import { ApiError } from "../../lib/api";
 import { assistPostText } from "../../lib/ai-assist";
 import { parseEventStartsAtInput } from "../../lib/event-starts-at";
+import { pickVisualMedia } from "../../lib/pick-visual-media";
 import { createEvent } from "../../lib/events";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import {
@@ -38,6 +40,15 @@ function buildEventAssistDraft(
   return lines.join("\n");
 }
 
+function assetLooksLikeImage(asset: Pick<DocumentPickerAsset, "mimeType" | "name">) {
+  const mimeType = String(asset.mimeType || "").toLowerCase();
+  if (mimeType.startsWith("image/")) {
+    return true;
+  }
+  const name = String(asset.name || "").toLowerCase();
+  return /\.(png|jpe?g|webp|gif|bmp|heic|heif)$/i.test(name);
+}
+
 type Props = NativeStackScreenProps<RootStackParamList, "CreateEvent">;
 
 export function CreateEventScreen({ navigation }: Props) {
@@ -52,6 +63,7 @@ export function CreateEventScreen({ navigation }: Props) {
   const [locationType, setLocationType] = useState<"in_person" | "online">("in_person");
   const [addressDisplay, setAddressDisplay] = useState("");
   const [onlineUrl, setOnlineUrl] = useState("");
+  const [coverAsset, setCoverAsset] = useState<DocumentPickerAsset | null>(null);
   const [createdEventId, setCreatedEventId] = useState<number | null>(null);
 
   const handleEventCelebrationFinish = useCallback(() => {
@@ -74,6 +86,19 @@ export function CreateEventScreen({ navigation }: Props) {
   const canPolishDescription =
     title.trim().length >= 3 &&
     Boolean(description.trim() || startsAtInput.trim() || addressDisplay.trim() || onlineUrl.trim());
+
+  const pickCoverImage = useCallback(() => {
+    pickVisualMedia({ kind: "post" }, (asset) => {
+      if (!asset) {
+        return;
+      }
+      if (!assetLooksLikeImage(asset)) {
+        Alert.alert("Image required", "Please pick an image from your library, camera, or files.");
+        return;
+      }
+      setCoverAsset(asset);
+    });
+  }, []);
 
   /* ── Create event ── */
   const createMutation = useMutation({
@@ -105,6 +130,7 @@ export function CreateEventScreen({ navigation }: Props) {
       setEndsAtInput("");
       setAddressDisplay("");
       setOnlineUrl("");
+      setCoverAsset(null);
       setCreatedEventId(event.id);
     }
   });
@@ -134,9 +160,13 @@ export function CreateEventScreen({ navigation }: Props) {
             <UploadCard
               height={120}
               title="Cover photo (optional)"
-              hint="Add a cover image for your event"
+              hint="Tap to choose from library, camera, or files"
               icon="image-outline"
-              onPress={() => {}}
+              uri={coverAsset?.uri}
+              mimeType={coverAsset?.mimeType || null}
+              onPress={pickCoverImage}
+              onReplace={coverAsset ? pickCoverImage : undefined}
+              onRemove={coverAsset ? () => setCoverAsset(null) : undefined}
             />
             <SoftTextInput
               label="Short summary (optional)"

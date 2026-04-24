@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import * as DocumentPicker from "expo-document-picker";
+import type { DocumentPickerAsset } from "expo-document-picker";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Linking,
   Pressable,
@@ -29,6 +30,7 @@ import type { FeedItem } from "../../types";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 import { resolveMediaUrl } from "../../lib/media-url";
 import { usePoints } from "../../features/points";
+import { pickVisualMedia } from "../../lib/pick-visual-media";
 import {
   IconCamera,
   IconGrid,
@@ -72,6 +74,15 @@ function normalizeWebsiteUrl(raw: string) {
   const t = raw.trim();
   if (!t) return null;
   return /^https?:\/\//i.test(t) ? t : `https://${t}`;
+}
+
+function assetLooksLikeImage(asset: Pick<DocumentPickerAsset, "mimeType" | "name">) {
+  const mimeType = String(asset.mimeType || "").toLowerCase();
+  if (mimeType.startsWith("image/")) {
+    return true;
+  }
+  const name = String(asset.name || "").toLowerCase();
+  return /\.(png|jpe?g|webp|gif|bmp|heic|heif)$/i.test(name);
 }
 
 function buildProfileStyles(fig: ReturnType<typeof resolveFigmaMobile>, fp: ReturnType<typeof resolveFigmaProfile>) {
@@ -617,59 +628,78 @@ export function ProfileScreen({ navigation }: Props) {
     }
   }, [username]);
 
-  const uploadAvatar = async () => {
-    if (!profileQuery.data) return;
-    const picked = await DocumentPicker.getDocumentAsync({
-      type: ["image/*"],
-      copyToCacheDirectory: true
-    });
-    if (picked.canceled || picked.assets.length === 0) {
+  const uploadAvatarAsset = useCallback(
+    async (file: DocumentPickerAsset) => {
+      if (!profileQuery.data) return;
+      if (!assetLooksLikeImage(file)) {
+        Alert.alert("Image required", "Please choose an image from your library or files.");
+        return;
+      }
+      const mimeType = String(file.mimeType || "").toLowerCase().startsWith("image/")
+        ? String(file.mimeType)
+        : "image/jpeg";
+      setAvatarUploading(true);
+      try {
+        const signature = await apiRequest<{
+          uploadUrl: string;
+          headers: Record<string, string>;
+          key: string;
+        }>("/media/upload-signature", {
+          method: "POST",
+          auth: true,
+          body: {
+            mediaType: "image",
+            mimeType,
+            originalFilename: file.name || "avatar.jpg",
+            fileSizeBytes: file.size || 1
+          }
+        });
+        const fileResponse = await fetch(file.uri);
+        const fileBlob = await fileResponse.blob();
+        const uploadResponse = await fetch(signature.uploadUrl, {
+          method: "PUT",
+          headers: signature.headers,
+          body: fileBlob
+        });
+        if (!uploadResponse.ok) {
+          throw new Error("Unable to upload profile photo.");
+        }
+        await apiRequest("/users/me", {
+          method: "PUT",
+          auth: true,
+          body: {
+            displayName: profileQuery.data.display_name,
+            bio: profileQuery.data.bio,
+            avatarUrl: signature.key,
+            businessOffering: profileQuery.data.business_offering ?? null,
+            websiteUrl: profileQuery.data.website_url ?? null
+          }
+        });
+        await queryClient.invalidateQueries({ queryKey: ["mobile-account-profile"] });
+        await queryClient.invalidateQueries({ queryKey: ["mobile-feed"] });
+      } catch (error) {
+        Alert.alert(
+          "Upload failed",
+          error instanceof ApiError ? error.message : "Could not upload profile photo."
+        );
+      } finally {
+        setAvatarUploading(false);
+      }
+    },
+    [profileQuery.data, queryClient]
+  );
+
+  const uploadAvatar = useCallback(() => {
+    if (!profileQuery.data || avatarUploading) {
       return;
     }
-    const file = picked.assets[0];
-    setAvatarUploading(true);
-    try {
-      const signature = await apiRequest<{
-        uploadUrl: string;
-        headers: Record<string, string>;
-        key: string;
-      }>("/media/upload-signature", {
-        method: "POST",
-        auth: true,
-        body: {
-          mediaType: "image",
-          mimeType: file.mimeType || "image/jpeg",
-          originalFilename: file.name || "avatar.jpg",
-          fileSizeBytes: file.size || 1
-        }
-      });
-      const fileResponse = await fetch(file.uri);
-      const fileBlob = await fileResponse.blob();
-      const uploadResponse = await fetch(signature.uploadUrl, {
-        method: "PUT",
-        headers: signature.headers,
-        body: fileBlob
-      });
-      if (!uploadResponse.ok) {
-        throw new Error("Unable to upload profile photo.");
+    pickVisualMedia({ kind: "post" }, (asset) => {
+      if (!asset) {
+        return;
       }
-      await apiRequest("/users/me", {
-        method: "PUT",
-        auth: true,
-        body: {
-          displayName: profileQuery.data.display_name,
-          bio: profileQuery.data.bio,
-          avatarUrl: signature.key,
-          businessOffering: profileQuery.data.business_offering ?? null,
-          websiteUrl: profileQuery.data.website_url ?? null
-        }
-      });
-      await queryClient.invalidateQueries({ queryKey: ["mobile-account-profile"] });
-      await queryClient.invalidateQueries({ queryKey: ["mobile-feed"] });
-    } finally {
-      setAvatarUploading(false);
-    }
-  };
+      void uploadAvatarAsset(asset);
+    });
+  }, [avatarUploading, profileQuery.data, uploadAvatarAsset]);
 
   const websiteHref = p?.website_url ? normalizeWebsiteUrl(p.website_url) : null;
 
