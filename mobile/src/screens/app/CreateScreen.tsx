@@ -304,6 +304,7 @@ export function CreateScreen({ navigation }: Props) {
       const meIdForPost = sessionQuery.data?.id;
       if (crossPostToInstagram && !meIdForPost) throw new Error("Sign in to cross-post to Instagram.");
       const inlineSellThisProduct = Boolean(sellThis && selectedProductId == null);
+      const shouldRefreshCreatorCatalog = inlineSellThisProduct;
       if (inlineSellThisProduct && !meIdForPost) throw new Error("Sign in to publish a post with a new product.");
       if (selectedProductId != null && !meIdForPost) throw new Error("Sign in to attach a product to your post.");
 
@@ -357,68 +358,96 @@ export function CreateScreen({ navigation }: Props) {
         }
       });
 
+      const postFinalizeTasks: Promise<void>[] = [];
       if (selectedFile) {
-        const fallbackMime = selectedFile.name?.toLowerCase().match(/\.(png|jpe?g|webp|gif)$/) ? "image/jpeg" : "video/mp4";
-        const mimeType = selectedFile.mimeType || fallbackMime;
-        const mediaType = deriveMediaType(mimeType);
-        if (!mediaType) throw new Error("Only image and video uploads are supported.");
+        postFinalizeTasks.push(
+          (async () => {
+            const fallbackMime = selectedFile.name?.toLowerCase().match(/\.(png|jpe?g|webp|gif)$/)
+              ? "image/jpeg"
+              : "video/mp4";
+            const mimeType = selectedFile.mimeType || fallbackMime;
+            const mediaType = deriveMediaType(mimeType);
+            if (!mediaType) throw new Error("Only image and video uploads are supported.");
 
-        const signature = await apiRequest<UploadSignatureResponse>("/media/upload-signature", {
-          method: "POST",
-          auth: true,
-          body: {
-            mediaType,
-            mimeType,
-            originalFilename: selectedFile.name,
-            fileSizeBytes: selectedFile.size || 1
-          }
-        });
-        const fileResponse = await fetch(selectedFile.uri);
-        const fileBlob = await fileResponse.blob();
-        const uploadResponse = await fetch(signature.uploadUrl, {
-          method: "PUT",
-          headers: signature.headers,
-          body: fileBlob
-        });
-        if (!uploadResponse.ok) throw new Error("Unable to upload selected media.");
+            const signature = await apiRequest<UploadSignatureResponse>("/media/upload-signature", {
+              method: "POST",
+              auth: true,
+              body: {
+                mediaType,
+                mimeType,
+                originalFilename: selectedFile.name,
+                fileSizeBytes: selectedFile.size || 1
+              }
+            });
+            const fileResponse = await fetch(selectedFile.uri);
+            const fileBlob = await fileResponse.blob();
+            const uploadResponse = await fetch(signature.uploadUrl, {
+              method: "PUT",
+              headers: signature.headers,
+              body: fileBlob
+            });
+            if (!uploadResponse.ok) throw new Error("Unable to upload selected media.");
 
-        await apiRequest(`/media/posts/${post.id}/attach`, {
-          method: "POST",
-          auth: true,
-          body: {
-            mediaKey: signature.key,
-            mediaUrl: signature.key,
-            mimeType,
-            fileSizeBytes: selectedFile.size || fileBlob.size || 1
-          }
-        });
-
-        if (crossPostToInstagram) {
-          try { await requestInstagramCrossPost(post.id); } catch { /* non-blocking */ }
-        }
+            await apiRequest(`/media/posts/${post.id}/attach`, {
+              method: "POST",
+              auth: true,
+              body: {
+                mediaKey: signature.key,
+                mediaUrl: signature.key,
+                mimeType,
+                fileSizeBytes: selectedFile.size || fileBlob.size || 1
+              }
+            });
+          })()
+        );
       }
       if (selectedProductId) {
-        await attachProductToPost(post.id, selectedProductId);
-        void trackClientExperimentEvent({
-          eventName: "offer_attached_to_post",
-          persona,
-          source: "mobile",
-          surface: "create_post",
-          experimentId: growthExperiments.financialPrompt,
-          variantId: financialVariant,
-          properties: { postId: post.id, selectedProductId }
-        });
+        postFinalizeTasks.push(
+          (async () => {
+            await attachProductToPost(post.id, selectedProductId);
+            void trackClientExperimentEvent({
+              eventName: "offer_attached_to_post",
+              persona,
+              source: "mobile",
+              surface: "create_post",
+              experimentId: growthExperiments.financialPrompt,
+              variantId: financialVariant,
+              properties: { postId: post.id, selectedProductId }
+            });
+          })()
+        );
+      }
+      await Promise.all(postFinalizeTasks);
+
+      if (crossPostToInstagram && selectedFile) {
+        void requestInstagramCrossPost(post.id).catch(() => undefined);
       }
 
-      await queryClient.invalidateQueries({ queryKey: ["mobile-feed"] });
-      await queryClient.invalidateQueries({ queryKey: ["mobile-feed-reels"] });
-      await queryClient.invalidateQueries({ queryKey: ["mobile-creator-products"] });
-      await queryClient.invalidateQueries({ queryKey: ["mobile-creator-catalog"] });
+      const backgroundRefreshTasks: Promise<unknown>[] = [
+        queryClient.invalidateQueries({ queryKey: ["mobile-feed"] }),
+        queryClient.invalidateQueries({ queryKey: ["mobile-feed-reels"] })
+      ];
       const meId = sessionQuery.data?.id;
       if (meId) {
-        await queryClient.invalidateQueries({ queryKey: ["mobile-user-posts", meId] });
-        await queryClient.invalidateQueries({ queryKey: ["mobile-account-posts", meId] });
+        backgroundRefreshTasks.push(
+          queryClient.invalidateQueries({ queryKey: ["mobile-user-posts", meId] }),
+          queryClient.invalidateQueries({ queryKey: ["mobile-account-posts", meId] })
+        );
       }
+      if (shouldRefreshCreatorCatalog) {
+        backgroundRefreshTasks.push(
+          queryClient.invalidateQueries({ queryKey: ["mobile-creator-products"] }),
+          queryClient.invalidateQueries({ queryKey: ["mobile-creator-catalog"] }),
+          queryClient.invalidateQueries({ queryKey: ["mobile-create-my-products"] })
+        );
+      }
+      void Promise.allSettled(backgroundRefreshTasks);
+      void queryClient
+        .prefetchQuery({
+          queryKey: ["mobile-post-detail", post.id],
+          queryFn: () => apiRequest(`/posts/${post.id}`)
+        })
+        .catch(() => undefined);
 
       setContent("");
       setTagsInput("");
