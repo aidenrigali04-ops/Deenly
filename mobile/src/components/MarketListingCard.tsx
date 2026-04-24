@@ -7,7 +7,7 @@ import {
   View,
   useWindowDimensions
 } from "react-native";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { AppVideoView } from "./AppVideoView";
@@ -71,13 +71,14 @@ export function MarketListingCard({
   onSave?: () => void;
   onToggleFollow?: (authorId: number, currentlyFollowing: boolean) => void;
   followBusy?: boolean;
-  onLike?: () => void;
+  onLike?: (nextLiked: boolean, trigger?: "button" | "double_tap") => void;
   liking?: boolean;
   mediaPlaybackActive?: boolean;
 }) {
   const { height: viewportHeight } = useWindowDimensions();
   const compact = viewportHeight <= 700;
   const [mediaFailed, setMediaFailed] = useState(false);
+  const lastMediaTapAtRef = useRef(0);
 
   useEffect(() => {
     setMediaFailed(false);
@@ -113,7 +114,20 @@ export function MarketListingCard({
 
   const onHeart = () => {
     if (!onLike) return;
-    onLike();
+    onLike(!liked, "button");
+  };
+
+  const onMediaTap = () => {
+    if (!onLike || liked || liking) {
+      return;
+    }
+    const now = Date.now();
+    if (now - lastMediaTapAtRef.current <= 280) {
+      onLike(true, "double_tap");
+      lastMediaTapAtRef.current = 0;
+      return;
+    }
+    lastMediaTapAtRef.current = now;
   };
 
   const { figma: fm, figmaHome: fmh } = useAppChrome();
@@ -164,7 +178,7 @@ export function MarketListingCard({
 
       {/* ── Media hero — dual scrim (parity with home PostCard) ── */}
       {canRenderMedia ? (
-        <View style={[styles.mediaHero, { backgroundColor: fm.mediaSurface }]}>
+        <Pressable onPress={onMediaTap} style={[styles.mediaHero, { backgroundColor: fm.mediaSurface }]}>
           {isImageMedia(item) ? (
             <Image
               source={{ uri: mediaUri }}
@@ -198,7 +212,7 @@ export function MarketListingCard({
             style={styles.mediaScrimBottom}
             pointerEvents="none"
           />
-        </View>
+        </Pressable>
       ) : (
         <View style={[styles.mediaHero, { backgroundColor: fm.mediaSurface }]}>
           <LinearGradient

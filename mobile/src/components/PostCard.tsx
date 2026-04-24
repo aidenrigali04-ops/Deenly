@@ -8,7 +8,7 @@ import {
   View,
   useWindowDimensions
 } from "react-native";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { AppVideoView } from "./AppVideoView";
@@ -91,7 +91,7 @@ export function PostCard({
   onPostMenu
 }: {
   item: FeedItem;
-  onLike?: () => void;
+  onLike?: (nextLiked: boolean, trigger?: "button" | "double_tap") => void;
   onViewOffer?: (productId: number) => void;
   onBuyNow?: (productId: number) => void;
   buyBusy?: boolean;
@@ -123,11 +123,28 @@ export function PostCard({
   const authorAvatarUri = resolveMediaUrl(item.author_avatar_url) || undefined;
   const [liked, setLiked] = useState(Boolean(item.liked_by_viewer));
   const [benefitedCount, setBenefitedCount] = useState(Number(item.benefited_count || 0));
+  const lastMediaTapAtRef = useRef(0);
   const isFollowing = Boolean(item.is_following_author);
   useEffect(() => {
     setLiked(Boolean(item.liked_by_viewer));
     setBenefitedCount(Number(item.benefited_count || 0));
+    lastMediaTapAtRef.current = 0;
   }, [item.liked_by_viewer, item.benefited_count]);
+
+  const applyLike = (nextLiked: boolean, trigger: "button" | "double_tap") => {
+    setLiked(nextLiked);
+    setBenefitedCount((value) => Math.max(0, value + (nextLiked ? 1 : -1)));
+    onLike?.(nextLiked, trigger);
+  };
+
+  const onMediaTap = () => {
+    const now = Date.now();
+    const delta = now - lastMediaTapAtRef.current;
+    lastMediaTapAtRef.current = now;
+    if (delta > 0 && delta < 280 && !liked) {
+      applyLike(true, "double_tap");
+    }
+  };
 
   const { figma: fm, figmaHome: fmh } = useAppChrome();
   const styles = useMemo(() => buildPostCardStyles(fm, fmh), [fm, fmh]);
@@ -188,25 +205,27 @@ export function PostCard({
           </View>
 
           {canRenderMedia ? (
-            isImageMedia(item) ? (
-              <Image
-                source={{ uri: mediaUri }}
-                style={styles.homeMedia}
-                resizeMode="cover"
-                onError={() => setMediaFailed(true)}
-              />
-            ) : (
-              <AppVideoView
-                uri={mediaUri!}
-                style={styles.homeMedia}
-                contentFit="cover"
-                nativeControls
-                loop={false}
-                play={mediaPlaybackActive}
-                muted={!mediaPlaybackActive}
-                onError={() => setMediaFailed(true)}
-              />
-            )
+            <Pressable onPress={onMediaTap}>
+              {isImageMedia(item) ? (
+                <Image
+                  source={{ uri: mediaUri }}
+                  style={styles.homeMedia}
+                  resizeMode="cover"
+                  onError={() => setMediaFailed(true)}
+                />
+              ) : (
+                <AppVideoView
+                  uri={mediaUri!}
+                  style={styles.homeMedia}
+                  contentFit="cover"
+                  nativeControls
+                  loop={false}
+                  play={mediaPlaybackActive}
+                  muted={!mediaPlaybackActive}
+                  onError={() => setMediaFailed(true)}
+                />
+              )}
+            </Pressable>
           ) : (
             <View style={styles.homeMediaPlaceholder}>
               <Text style={styles.homeMediaPlaceholderText}>
@@ -283,10 +302,7 @@ export function PostCard({
             <Pressable
               style={styles.engageIconBtn}
               onPress={() => {
-                const next = !liked;
-                setLiked(next);
-                setBenefitedCount((value) => Math.max(0, value + (next ? 1 : -1)));
-                onLike?.();
+                applyLike(!liked, "button");
               }}
               disabled={liking}
               accessibilityRole="button"
@@ -336,25 +352,27 @@ export function PostCard({
       </View>
       <Text style={styles.type}>{item.post_type}</Text>
       {canRenderMedia ? (
-        isImageMedia(item) ? (
-          <Image
-            source={{ uri: mediaUri }}
-            style={styles.video}
-            resizeMode="contain"
-            onError={() => setMediaFailed(true)}
-          />
-        ) : (
-          <AppVideoView
-            uri={mediaUri!}
-            style={styles.video}
-            contentFit="contain"
-            nativeControls
-            loop={false}
-            play={mediaPlaybackActive}
-            muted={!mediaPlaybackActive}
-            onError={() => setMediaFailed(true)}
-          />
-        )
+        <Pressable onPress={onMediaTap}>
+          {isImageMedia(item) ? (
+            <Image
+              source={{ uri: mediaUri }}
+              style={styles.video}
+              resizeMode="contain"
+              onError={() => setMediaFailed(true)}
+            />
+          ) : (
+            <AppVideoView
+              uri={mediaUri!}
+              style={styles.video}
+              contentFit="contain"
+              nativeControls
+              loop={false}
+              play={mediaPlaybackActive}
+              muted={!mediaPlaybackActive}
+              onError={() => setMediaFailed(true)}
+            />
+          )}
+        </Pressable>
       ) : item.media_url ? (
         <Text style={styles.muted}>Media unavailable right now.</Text>
       ) : null}

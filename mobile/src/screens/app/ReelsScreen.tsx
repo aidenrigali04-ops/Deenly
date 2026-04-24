@@ -168,6 +168,7 @@ function ReelRow({
   followBusy,
   muted,
   onToggleMute,
+  onDoubleTapLike,
   rx,
   fm
 }: {
@@ -183,6 +184,7 @@ function ReelRow({
   followBusy: boolean;
   muted: boolean;
   onToggleMute: () => void;
+  onDoubleTapLike?: () => void;
   rx: ReturnType<typeof buildReelsStyles>;
   fm: ReturnType<typeof resolveFigmaMobile>;
 }) {
@@ -190,23 +192,44 @@ function ReelRow({
   const following = Boolean(item.is_following_author);
   const liked = Boolean(item.liked_by_viewer);
   const scrimH = Math.max(160, height * SCRIM_HEIGHT_RATIO);
+  const lastTapTsRef = useRef(0);
+
+  const handleSurfaceTap = useCallback(() => {
+    if (!onDoubleTapLike) {
+      return;
+    }
+    const now = Date.now();
+    if (now - lastTapTsRef.current <= 280) {
+      onDoubleTapLike?.();
+      lastTapTsRef.current = 0;
+      return;
+    }
+    lastTapTsRef.current = now;
+  }, [onDoubleTapLike]);
 
   return (
     <View style={[rx.slide, { height }]}>
-      {uri ? (
-        <AppVideoView
-          uri={uri}
-          style={StyleSheet.absoluteFillObject}
-          contentFit="cover"
-          loop
-          play={active}
-          muted={muted}
-        />
-      ) : (
-        <View style={rx.noVideo}>
-          <Text style={rx.noVideoText}>No video</Text>
-        </View>
-      )}
+      <Pressable
+        onPress={handleSurfaceTap}
+        style={StyleSheet.absoluteFillObject}
+        accessibilityRole="button"
+        accessibilityLabel="Reel media"
+      >
+        {uri ? (
+          <AppVideoView
+            uri={uri}
+            style={StyleSheet.absoluteFillObject}
+            contentFit="cover"
+            loop
+            play={active}
+            muted={muted}
+          />
+        ) : (
+          <View style={rx.noVideo}>
+            <Text style={rx.noVideoText}>No video</Text>
+          </View>
+        )}
+      </Pressable>
       <LinearGradient
         pointerEvents="none"
         colors={["transparent", fm.gradientBottom]}
@@ -423,6 +446,11 @@ export function ReelsScreen({ navigation }: Props) {
         muted={muted}
         onToggleMute={() => setMuted((m) => !m)}
         onLike={() => likeMutation.mutate({ postId: item.id, nextLiked: !item.liked_by_viewer })}
+        onDoubleTapLike={() => {
+          if (!item.liked_by_viewer) {
+            likeMutation.mutate({ postId: item.id, nextLiked: true });
+          }
+        }}
         onComment={() => commentMutation.mutate({ postId: item.id })}
         onFollow={() =>
           followMutation.mutate({

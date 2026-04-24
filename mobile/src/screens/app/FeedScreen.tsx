@@ -399,9 +399,7 @@ export function FeedScreen({ navigation }: Props) {
               followBusy={
                 followMutation.isPending && followMutation.variables?.authorId === post.author_id
               }
-              onLike={() =>
-                likeMutation.mutate({ postId: post.id, nextLiked: !post.liked_by_viewer })
-              }
+              onLike={(nextLiked) => likeMutation.mutate({ postId: post.id, nextLiked })}
               liking={likeMutation.isPending && likeMutation.variables?.postId === post.id}
             />
           </View>
@@ -418,7 +416,7 @@ export function FeedScreen({ navigation }: Props) {
             onBuyNow={(productId) => buyProductMutation.mutate(productId)}
             buyBusy={buyProductMutation.isPending}
             buyHandoffProductId={buyHandoffProductId}
-            onLike={() => likeMutation.mutate({ postId: post.id, nextLiked: !post.liked_by_viewer })}
+            onLike={(nextLiked) => likeMutation.mutate({ postId: post.id, nextLiked })}
             liking={likeMutation.isPending}
             onToggleFollow={(authorId, currentlyFollowing) =>
               followMutation.mutate({ authorId, currentlyFollowing })
