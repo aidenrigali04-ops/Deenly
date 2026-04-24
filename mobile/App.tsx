@@ -12,30 +12,16 @@ import {
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 import { ReliabilityBanner } from "./src/components/ReliabilityBanner";
 import { flushQueuedMutations, getQueuedMutationCount } from "./src/lib/mutation-queue";
 import { applyUrbanistTextDefaults } from "./src/lib/urbanist-defaults";
 import { useAppearanceStore } from "./src/store/appearance-store";
 import { PointsRewardToast } from "./src/features/points/components/PointsRewardToast";
+import { queryClient } from "./src/lib/query-client";
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      // Keep recent data warm while users move across tabs/screens.
-      staleTime: 30_000,
-      gcTime: 5 * 60_000,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: true
-    },
-    mutations: {
-      retry: 1
-    }
-  }
-});
 
 function App() {
   const [fontsLoaded, fontError] = useFonts({

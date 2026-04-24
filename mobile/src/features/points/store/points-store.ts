@@ -11,6 +11,11 @@ import {
   loadRemotePointsState
 } from "../services/points-remote-service";
 import { usePointsRewardToastStore } from "./points-reward-toast-store";
+import { queryClient } from "../../../lib/query-client";
+import {
+  rewardsLedgerInfiniteQueryKey,
+  rewardsWalletQueryKey
+} from "../../../hooks/use-rewards-wallet";
 
 type PointsDataSource = "remote" | "local";
 
@@ -33,6 +38,12 @@ export const usePointsStore = create<PointsStoreState>((set, get) => ({
   userId: null,
   source: null,
   hydrate: async (userId) => {
+    const refreshRewardsQueries = async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: rewardsWalletQueryKey }),
+        queryClient.invalidateQueries({ queryKey: rewardsLedgerInfiniteQueryKey })
+      ]);
+    };
     set({ loading: true, userId, source: null });
     try {
       const state = await loadRemotePointsState(userId);
@@ -40,6 +51,7 @@ export const usePointsStore = create<PointsStoreState>((set, get) => ({
         return;
       }
       set({ state, loading: false, userId, source: "remote" });
+      await refreshRewardsQueries();
     } catch {
       try {
         const state = await getPointsState(userId);
@@ -53,6 +65,7 @@ export const usePointsStore = create<PointsStoreState>((set, get) => ({
         }
         set({ loading: false, userId, source: null });
       }
+      await refreshRewardsQueries();
     }
   },
   clear: () => set({ state: null, userId: null, source: null, loading: false }),
@@ -81,6 +94,10 @@ export const usePointsStore = create<PointsStoreState>((set, get) => ({
         levelUp: previousLevel != null ? result.wallet.level > previousLevel : false,
         createdAt: result.transaction.createdAt
       });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: rewardsWalletQueryKey }),
+        queryClient.invalidateQueries({ queryKey: rewardsLedgerInfiniteQueryKey })
+      ]);
     }
     return result;
   },
@@ -96,6 +113,12 @@ export const usePointsStore = create<PointsStoreState>((set, get) => ({
     const awarded = await syncCompletedOrdersToPoints(activeUserId, orders);
     const nextState = await getPointsState(activeUserId);
     set({ state: nextState, source: "local" });
+    if (awarded > 0) {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: rewardsWalletQueryKey }),
+        queryClient.invalidateQueries({ queryKey: rewardsLedgerInfiniteQueryKey })
+      ]);
+    }
     return awarded;
   }
 }));

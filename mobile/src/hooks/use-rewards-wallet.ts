@@ -4,6 +4,7 @@ import { fetchRewardsLedgerPage, fetchRewardsWalletMe } from "../lib/rewards-api
 const LEDGER_PAGE_SIZE = 25;
 
 export const rewardsWalletQueryKey = ["rewards", "me"] as const;
+export const rewardsLedgerInfiniteQueryKey = ["rewards", "ledger", "infinite"] as const;
 
 export function useRewardsWalletMeQuery(enabled = true) {
   return useQuery({
@@ -15,7 +16,7 @@ export function useRewardsWalletMeQuery(enabled = true) {
 
 export function useRewardsLedgerInfiniteQuery(enabled = true) {
   return useInfiniteQuery({
-    queryKey: ["rewards", "ledger", "infinite"] as const,
+    queryKey: rewardsLedgerInfiniteQueryKey,
     initialPageParam: null as string | null,
     queryFn: ({ pageParam }) =>
       fetchRewardsLedgerPage({ cursor: pageParam ?? undefined, limit: LEDGER_PAGE_SIZE }),

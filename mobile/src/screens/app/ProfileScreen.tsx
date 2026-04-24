@@ -597,6 +597,11 @@ export function ProfileScreen({ navigation }: Props) {
   });
   const walletQuery = useRewardsWalletMeQuery(Boolean(sessionQuery.data?.id));
   const points = usePoints();
+  const localWallet = points.state?.wallet ?? null;
+  const walletBalanceRaw = walletQuery.data?.balancePoints ?? (localWallet ? String(localWallet.totalPoints) : null);
+  const walletCurrencyCode = walletQuery.data?.currencyCode ?? "PTS";
+  const walletLastRedemptionAt = walletQuery.data?.lastCatalogCheckoutRedemptionAt ?? null;
+  const walletShowingLocalFallback = !walletQuery.data && Boolean(localWallet);
 
   const items = postsQuery.data?.items || [];
   const productItems = productsQuery.data?.items || [];
@@ -858,21 +863,26 @@ export function ProfileScreen({ navigation }: Props) {
             <View style={[styles.walletCard, compact && styles.walletCardCompact]}>
               <View style={styles.walletHeader}>
                 <Text style={styles.walletSectionTitle}>Wallet</Text>
-                {walletQuery.isLoading ? (
+                {walletQuery.isLoading && !walletShowingLocalFallback ? (
                   <View style={styles.walletLoader}>
                     <ActivityIndicator color={figma.accentGold} size="small" />
                   </View>
                 ) : null}
               </View>
-              {walletQuery.error instanceof ApiError && walletQuery.error.status === 404 ? (
+              {walletQuery.error instanceof ApiError && walletQuery.error.status === 404 && !walletShowingLocalFallback ? (
                 <Text style={styles.walletMuted}>Rewards wallet is not available on this server yet.</Text>
               ) : null}
-              {walletQuery.isError && !(walletQuery.error instanceof ApiError && walletQuery.error.status === 404) ? (
+              {walletShowingLocalFallback ? (
+                <Text style={styles.walletMuted}>Showing latest points from this device while wallet sync completes.</Text>
+              ) : null}
+              {walletQuery.isError &&
+              !(walletQuery.error instanceof ApiError && walletQuery.error.status === 404) &&
+              !walletShowingLocalFallback ? (
                 <Text style={styles.walletError}>
                   {(walletQuery.error as Error)?.message || "Could not load wallet."}
                 </Text>
               ) : null}
-              {walletQuery.data ? (
+              {walletBalanceRaw ? (
                 <>
                   <Pressable
                     onPress={() => navigation.navigate("RewardsWallet")}
@@ -881,13 +891,21 @@ export function ProfileScreen({ navigation }: Props) {
                     accessibilityLabel="Open rewards wallet"
                   >
                     <View style={styles.walletBalanceRow}>
-                      <Text style={styles.walletBalance}>{formatWalletPointsDisplay(walletQuery.data.balancePoints)}</Text>
-                      <Text style={styles.walletCurrency}>{walletQuery.data.currencyCode}</Text>
+                      <Text style={styles.walletBalance}>{formatWalletPointsDisplay(walletBalanceRaw)}</Text>
+                      <Text style={styles.walletCurrency}>{walletCurrencyCode}</Text>
                     </View>
-                    <Text style={styles.walletHint}>Points balance · tap for history and redemptions</Text>
-                    {walletQuery.data.lastCatalogCheckoutRedemptionAt ? (
+                    <Text style={styles.walletHint}>
+                      {walletShowingLocalFallback
+                        ? "Points balance · local activity synced on this device"
+                        : "Points balance · tap for history and redemptions"}
+                    </Text>
+                    {walletLastRedemptionAt ? (
                       <Text style={styles.walletMeta}>
-                        Last redemption {formatWalletWhen(walletQuery.data.lastCatalogCheckoutRedemptionAt)}
+                        Last redemption {formatWalletWhen(walletLastRedemptionAt)}
+                      </Text>
+                    ) : walletShowingLocalFallback && localWallet ? (
+                      <Text style={styles.walletMeta}>
+                        Local balance updated {formatWalletWhen(localWallet.lastUpdated)}
                       </Text>
                     ) : (
                       <Text style={styles.walletMeta}>No catalog redemptions yet.</Text>

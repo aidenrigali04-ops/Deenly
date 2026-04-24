@@ -1,21 +1,20 @@
 import { useMemo } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useQuery } from "@tanstack/react-query";
-import { fetchRewardsWalletMe } from "../../lib/rewards-api";
 import { ApiError } from "../../lib/api";
 import { colors, radii, shadows, spacing } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import type { RewardsLedgerEntryDto } from "@deenly/rewards";
 import { useRewardsLedgerInfiniteQuery, useRewardsWalletMeQuery } from "../../hooks/use-rewards-wallet";
+import { usePoints } from "../../features/points";
 
 type Props = NativeStackScreenProps<RootStackParamList, "RewardsWallet">;
 
-function formatPointsDisplay(raw: string): string {
+function formatPointsDisplay(raw: string | number): string {
   try {
-    return BigInt(raw).toLocaleString("en-US");
+    return BigInt(String(raw)).toLocaleString("en-US");
   } catch {
-    return raw;
+    return String(raw);
   }
 }
 
@@ -59,15 +58,22 @@ function LedgerBlock({ row }: { row: RewardsLedgerEntryDto }) {
 }
 
 export function RewardsWalletScreen({ navigation }: Props) {
+  const points = usePoints();
   const walletQuery = useRewardsWalletMeQuery(true);
-  const ledgerInfinite = useRewardsLedgerInfiniteQuery(!walletQuery.isLoading && !walletQuery.error);
+  const ledgerInfinite = useRewardsLedgerInfiniteQuery(Boolean(walletQuery.data));
+  const localWallet = points.state?.wallet ?? null;
+  const walletBalanceRaw = walletQuery.data?.balancePoints ?? (localWallet ? String(localWallet.totalPoints) : null);
+  const walletCurrencyCode = walletQuery.data?.currencyCode ?? "PTS";
+  const walletLastRedemptionAt = walletQuery.data?.lastCatalogCheckoutRedemptionAt ?? null;
+  const walletShowingLocalFallback = !walletQuery.data && Boolean(localWallet);
 
   const ledgerRows = useMemo(
     () => ledgerInfinite.data?.pages.flatMap((p) => [...p.items]) ?? [],
     [ledgerInfinite.data?.pages]
   );
+  const localTransactions = useMemo(() => points.state?.transactions.slice(0, 40) ?? [], [points.state?.transactions]);
 
-  if (walletQuery.isLoading) {
+  if (walletQuery.isLoading && !walletShowingLocalFallback) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator color={colors.accent} />
@@ -75,7 +81,7 @@ export function RewardsWalletScreen({ navigation }: Props) {
     );
   }
 
-  if (walletQuery.error instanceof ApiError && walletQuery.error.status === 404) {
+  if (walletQuery.error instanceof ApiError && walletQuery.error.status === 404 && !walletShowingLocalFallback) {
     return (
       <ScrollView style={styles.root} contentContainerStyle={styles.content}>
         <Text style={styles.error}>Rewards are not available on this server yet.</Text>
@@ -83,7 +89,7 @@ export function RewardsWalletScreen({ navigation }: Props) {
     );
   }
 
-  if (walletQuery.isError || !walletQuery.data) {
+  if (walletQuery.isError && !walletShowingLocalFallback) {
     return (
       <ScrollView style={styles.root} contentContainerStyle={styles.content}>
         <Text style={styles.error}>{(walletQuery.error as Error)?.message || "Could not load rewards."}</Text>
@@ -91,7 +97,14 @@ export function RewardsWalletScreen({ navigation }: Props) {
     );
   }
 
-  const w = walletQuery.data;
+  if (!walletBalanceRaw) {
+    return (
+      <ScrollView style={styles.root} contentContainerStyle={styles.content}>
+        <Text style={styles.error}>Could not load rewards.</Text>
+      </ScrollView>
+    );
+  }
+
   const ledger404 = ledgerInfinite.error instanceof ApiError && ledgerInfinite.error.status === 404;
 
   return (
@@ -106,36 +119,58 @@ export function RewardsWalletScreen({ navigation }: Props) {
       <View style={[styles.card, shadows.card]}>
         <Text style={styles.cardLabel}>Balance</Text>
         <Text style={styles.balance}>
-          {formatPointsDisplay(w.balancePoints)} <Text style={styles.currency}>{w.currencyCode}</Text>
+          {formatPointsDisplay(walletBalanceRaw)} <Text style={styles.currency}>{walletCurrencyCode}</Text>
         </Text>
-        {w.lastCatalogCheckoutRedemptionAt ? (
-          <Text style={styles.mutedSmall}>Last redemption: {formatWhen(w.lastCatalogCheckoutRedemptionAt)}</Text>
+        {walletLastRedemptionAt ? (
+          <Text style={styles.mutedSmall}>Last redemption: {formatWhen(walletLastRedemptionAt)}</Text>
+        ) : walletShowingLocalFallback && localWallet ? (
+          <Text style={styles.mutedSmall}>Local balance updated: {formatWhen(localWallet.lastUpdated)}</Text>
         ) : (
           <Text style={styles.mutedSmall}>No catalog redemptions yet.</Text>
         )}
+        {walletShowingLocalFallback ? (
+          <Text style={styles.mutedSmall}>Showing latest points from this device while wallet sync completes.</Text>
+        ) : null}
       </View>
 
       <Text style={styles.sectionTitle}>History</Text>
-      {ledgerInfinite.isLoading ? <ActivityIndicator color={colors.accent} style={{ marginVertical: 12 }} /> : null}
-      {ledger404 ? <Text style={styles.muted}>History is not available on this server.</Text> : null}
-      {!ledger404 && ledgerInfinite.isError ? (
-        <Text style={styles.error}>{(ledgerInfinite.error as Error).message}</Text>
-      ) : null}
-      {!ledger404 && !ledgerInfinite.isLoading && ledgerRows.length === 0 ? (
-        <Text style={styles.muted}>No ledger entries yet.</Text>
-      ) : null}
-      {ledgerRows.map((row) => (
-        <LedgerBlock key={row.id} row={row} />
-      ))}
-      {ledgerInfinite.hasNextPage ? (
-        <Pressable
-          style={styles.loadMore}
-          disabled={ledgerInfinite.isFetchingNextPage}
-          onPress={() => void ledgerInfinite.fetchNextPage()}
-        >
-          <Text style={styles.loadMoreText}>{ledgerInfinite.isFetchingNextPage ? "Loading…" : "Load more"}</Text>
-        </Pressable>
-      ) : null}
+      {walletShowingLocalFallback ? (
+        <>
+          {localTransactions.length === 0 ? <Text style={styles.muted}>No local points activity yet.</Text> : null}
+          {localTransactions.map((tx) => (
+            <View key={tx.id} style={styles.ledgerRow}>
+              <Text style={[styles.ledgerDelta, { color: tx.points > 0 ? colors.success : colors.text }]}>
+                +{formatPointsDisplay(tx.points)}
+              </Text>
+              <Text style={styles.ledgerMeta}>{tx.action}</Text>
+              <Text style={styles.ledgerDate}>{formatWhen(tx.createdAt)}</Text>
+            </View>
+          ))}
+        </>
+      ) : (
+        <>
+          {ledgerInfinite.isLoading ? <ActivityIndicator color={colors.accent} style={{ marginVertical: 12 }} /> : null}
+          {ledger404 ? <Text style={styles.muted}>History is not available on this server.</Text> : null}
+          {!ledger404 && ledgerInfinite.isError ? (
+            <Text style={styles.error}>{(ledgerInfinite.error as Error).message}</Text>
+          ) : null}
+          {!ledger404 && !ledgerInfinite.isLoading && ledgerRows.length === 0 ? (
+            <Text style={styles.muted}>No ledger entries yet.</Text>
+          ) : null}
+          {ledgerRows.map((row) => (
+            <LedgerBlock key={row.id} row={row} />
+          ))}
+          {ledgerInfinite.hasNextPage ? (
+            <Pressable
+              style={styles.loadMore}
+              disabled={ledgerInfinite.isFetchingNextPage}
+              onPress={() => void ledgerInfinite.fetchNextPage()}
+            >
+              <Text style={styles.loadMoreText}>{ledgerInfinite.isFetchingNextPage ? "Loading…" : "Load more"}</Text>
+            </Pressable>
+          ) : null}
+        </>
+      )}
     </ScrollView>
   );
 }
