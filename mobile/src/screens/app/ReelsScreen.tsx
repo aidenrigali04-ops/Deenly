@@ -16,6 +16,7 @@ import type { CompositeScreenProps } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppVideoView } from "../../components/AppVideoView";
+import { LikeBurst } from "../../components/LikeBurst";
 import { apiRequest } from "../../lib/api";
 import { followUser, unfollowUser } from "../../lib/follows";
 import { resolveMediaUrl } from "../../lib/media-url";
@@ -25,6 +26,7 @@ import { useAppChrome } from "../../lib/use-app-chrome";
 import type { FeedItem } from "../../types";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
 import { usePoints, useReelWatchPoints } from "../../features/points";
+import { REELS_MAX_TO_RENDER_PER_BATCH, REELS_WINDOW_SIZE } from "../../lib/feed-performance";
 
 type FeedResponse = {
   items: FeedItem[];
@@ -40,6 +42,7 @@ type Props = CompositeScreenProps<
 const ICON = 22;
 const RAIL_ICON = 26;
 const SCRIM_HEIGHT_RATIO = 0.42;
+const HEART_BURST_MS = 680;
 
 function buildReelsStyles(fig: ReturnType<typeof resolveFigmaMobile>) {
   return StyleSheet.create({
@@ -193,6 +196,28 @@ function ReelRow({
   const liked = Boolean(item.liked_by_viewer);
   const scrimH = Math.max(160, height * SCRIM_HEIGHT_RATIO);
   const lastTapTsRef = useRef(0);
+  const [heartBurstVisible, setHeartBurstVisible] = useState(false);
+  const heartBurstTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const triggerHeartBurst = useCallback(() => {
+    if (heartBurstTimerRef.current) {
+      clearTimeout(heartBurstTimerRef.current);
+    }
+    setHeartBurstVisible(true);
+    heartBurstTimerRef.current = setTimeout(() => {
+      setHeartBurstVisible(false);
+      heartBurstTimerRef.current = null;
+    }, HEART_BURST_MS);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (heartBurstTimerRef.current) {
+        clearTimeout(heartBurstTimerRef.current);
+        heartBurstTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const handleSurfaceTap = useCallback(() => {
     if (!onDoubleTapLike) {
@@ -200,12 +225,13 @@ function ReelRow({
     }
     const now = Date.now();
     if (now - lastTapTsRef.current <= 280) {
+      triggerHeartBurst();
       onDoubleTapLike?.();
       lastTapTsRef.current = 0;
       return;
     }
     lastTapTsRef.current = now;
-  }, [onDoubleTapLike]);
+  }, [onDoubleTapLike, triggerHeartBurst]);
 
   return (
     <View style={[rx.slide, { height }]}>
@@ -236,6 +262,7 @@ function ReelRow({
         locations={[0.15, 1]}
         style={[rx.bottomScrim, { height: scrimH }]}
       />
+      <LikeBurst visible={heartBurstVisible} />
       <View style={[rx.overlay, { paddingBottom: bottomPad + spacing.tight }]} pointerEvents="box-none">
         <View style={rx.overlayRow}>
           <View style={rx.captionBlock}>
@@ -533,6 +560,11 @@ export function ReelsScreen({ navigation }: Props) {
           data={items}
           keyExtractor={(it) => String(it.id)}
           renderItem={renderItem}
+          removeClippedSubviews
+          initialNumToRender={2}
+          maxToRenderPerBatch={REELS_MAX_TO_RENDER_PER_BATCH}
+          updateCellsBatchingPeriod={40}
+          windowSize={REELS_WINDOW_SIZE}
           pagingEnabled
           decelerationRate="fast"
           showsVerticalScrollIndicator={false}

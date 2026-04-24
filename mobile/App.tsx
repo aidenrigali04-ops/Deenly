@@ -22,7 +22,20 @@ import { PointsRewardToast } from "./src/features/points/components/PointsReward
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Keep recent data warm while users move across tabs/screens.
+      staleTime: 30_000,
+      gcTime: 5 * 60_000,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true
+    },
+    mutations: {
+      retry: 1
+    }
+  }
+});
 
 function App() {
   const [fontsLoaded, fontError] = useFonts({

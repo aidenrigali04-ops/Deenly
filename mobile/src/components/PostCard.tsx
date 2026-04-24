@@ -8,10 +8,11 @@ import {
   View,
   useWindowDimensions
 } from "react-native";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { AppVideoView } from "./AppVideoView";
+import { LikeBurst } from "./LikeBurst";
 import { colors, primaryButtonOutline, radii, resolveFigmaMobile, resolveFigmaMobileHome } from "../theme";
 import { useAppChrome } from "../lib/use-app-chrome";
 import { resolveMediaUrl } from "../lib/media-url";
@@ -74,7 +75,7 @@ export function formatEngagementCount(n: number): string {
   return String(abs);
 }
 
-export function PostCard({
+function PostCardComponent({
   item,
   onLike,
   onViewOffer,
@@ -137,11 +138,19 @@ export function PostCard({
     onLike?.(nextLiked, trigger);
   };
 
+  const [burstVisible, setBurstVisible] = useState(false);
+
+  const triggerBurst = () => {
+    setBurstVisible(false);
+    requestAnimationFrame(() => setBurstVisible(true));
+  };
+
   const onMediaTap = () => {
     const now = Date.now();
     const delta = now - lastMediaTapAtRef.current;
     lastMediaTapAtRef.current = now;
     if (delta > 0 && delta < 280 && !liked) {
+      triggerBurst();
       applyLike(true, "double_tap");
     }
   };
@@ -225,6 +234,7 @@ export function PostCard({
                   onError={() => setMediaFailed(true)}
                 />
               )}
+              <LikeBurst visible={burstVisible} />
             </Pressable>
           ) : (
             <View style={styles.homeMediaPlaceholder}>
@@ -372,6 +382,7 @@ export function PostCard({
               onError={() => setMediaFailed(true)}
             />
           )}
+          <LikeBurst visible={burstVisible} />
         </Pressable>
       ) : item.media_url ? (
         <Text style={styles.muted}>Media unavailable right now.</Text>
@@ -427,6 +438,8 @@ export function PostCard({
     </View>
   );
 }
+
+export const PostCard = memo(PostCardComponent);
 
 function buildPostCardStyles(fm: ReturnType<typeof resolveFigmaMobile>, fmh: ReturnType<typeof resolveFigmaMobileHome>) {
   return StyleSheet.create({

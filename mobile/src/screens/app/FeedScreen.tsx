@@ -38,6 +38,7 @@ import { createGuestProductCheckout, createProductCheckout } from "../../lib/mon
 import { hapticSuccess } from "../../lib/haptics";
 import { useSessionStore } from "../../store/session-store";
 import { usePoints } from "../../features/points";
+import { estimateFeedRowHeight, useFeedImpressionTracker } from "../../lib/feed-performance";
 
 type FeedResponse = {
   items: FeedListItem[];
@@ -75,6 +76,7 @@ export function FeedScreen({ navigation }: Props) {
     [followingOnly, feedTab]
   );
   const queryClient = useQueryClient();
+  const { markAndShouldSend } = useFeedImpressionTracker();
 
   const profileQuery = useQuery({
     queryKey: ["mobile-feed-profile-me"],
@@ -196,7 +198,8 @@ export function FeedScreen({ navigation }: Props) {
     const sponsoredCampaignIds = items
       .filter((item) => Boolean(item.sponsored && item.ad_campaign_id))
       .map((item) => Number(item.ad_campaign_id))
-      .filter((id) => Number.isFinite(id));
+      .filter((id) => Number.isFinite(id))
+      .filter((id) => markAndShouldSend(id));
     sponsoredCampaignIds.forEach((campaignId) => {
       apiRequest("/ads/events/impression", {
         method: "POST",
@@ -204,7 +207,7 @@ export function FeedScreen({ navigation }: Props) {
         body: { campaignId }
       }).catch(() => null);
     });
-  }, [items]);
+  }, [items, markAndShouldSend]);
 
   const likeMutation = useMutation({
     mutationFn: ({ postId, nextLiked }: { postId: number; nextLiked: boolean }) =>
@@ -471,6 +474,22 @@ export function FeedScreen({ navigation }: Props) {
       void feedQuery.fetchNextPage();
     }
   }, [feedQuery]);
+  const getItemLayout = useCallback(
+    (_: ArrayLike<FeedListItem> | null | undefined, index: number) => {
+      const row = items[index];
+      const length = estimateFeedRowHeight(row);
+      let offset = 0;
+      for (let i = 0; i < index; i += 1) {
+        offset += estimateFeedRowHeight(items[i]);
+      }
+      return {
+        length,
+        offset,
+        index
+      };
+    },
+    [items]
+  );
 
   const listFooter = useMemo(() => {
     if (!feedQuery.hasNextPage) {
@@ -551,6 +570,12 @@ export function FeedScreen({ navigation }: Props) {
         keyboardShouldPersistTaps="handled"
         onViewableItemsChanged={onViewableItemsChanged.current}
         viewabilityConfig={viewabilityConfig}
+        removeClippedSubviews
+        initialNumToRender={4}
+        maxToRenderPerBatch={4}
+        windowSize={7}
+        updateCellsBatchingPeriod={80}
+        getItemLayout={getItemLayout}
       />
     </View>
   );

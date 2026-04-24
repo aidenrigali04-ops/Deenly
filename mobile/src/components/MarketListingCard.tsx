@@ -18,6 +18,7 @@ import { formatMinorCurrency } from "../lib/monetization";
 import { hapticTap } from "../lib/haptics";
 import { colors, resolveFigmaMobileHome } from "../theme";
 import { useAppChrome } from "../lib/use-app-chrome";
+import { LikeBurst } from "./LikeBurst";
 
 function listingTitle(item: FeedItem) {
   if (item.attached_product_title?.trim()) {
@@ -79,10 +80,19 @@ export function MarketListingCard({
   const compact = viewportHeight <= 700;
   const [mediaFailed, setMediaFailed] = useState(false);
   const lastMediaTapAtRef = useRef(0);
+  const [showLikeBurst, setShowLikeBurst] = useState(false);
+  const likeBurstTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setMediaFailed(false);
   }, [item.id, item.media_url]);
+  useEffect(() => {
+    return () => {
+      if (likeBurstTimerRef.current) {
+        clearTimeout(likeBurstTimerRef.current);
+      }
+    };
+  }, []);
 
   const liked = Boolean(item.liked_by_viewer);
   const benefitedCount = Number(item.benefited_count || 0);
@@ -124,6 +134,13 @@ export function MarketListingCard({
     const now = Date.now();
     if (now - lastMediaTapAtRef.current <= 280) {
       onLike(true, "double_tap");
+      setShowLikeBurst(true);
+      if (likeBurstTimerRef.current) {
+        clearTimeout(likeBurstTimerRef.current);
+      }
+      likeBurstTimerRef.current = setTimeout(() => {
+        setShowLikeBurst(false);
+      }, 520);
       lastMediaTapAtRef.current = 0;
       return;
     }
@@ -212,6 +229,7 @@ export function MarketListingCard({
             style={styles.mediaScrimBottom}
             pointerEvents="none"
           />
+          <LikeBurst visible={showLikeBurst} />
         </Pressable>
       ) : (
         <View style={[styles.mediaHero, { backgroundColor: fm.mediaSurface }]}>
