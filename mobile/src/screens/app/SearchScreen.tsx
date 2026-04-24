@@ -8,6 +8,7 @@ import type { RouteProp } from "@react-navigation/native";
 import { useRoute } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { apiRequest } from "../../lib/api";
+import type { FeedItem, FeedListItem } from "../../types";
 import { fetchBusinessesNear } from "../../lib/businesses";
 import { fetchEventsNear } from "../../lib/events";
 import { NearMeMap, type NearMapSelection } from "../../components/NearMeMap";
@@ -34,6 +35,7 @@ type PostItem = {
 type Props = NativeStackScreenProps<RootStackParamList, "Discover">;
 
 type Mode = "search" | "near";
+type DiscoverTab = "discover" | "market";
 type NearKind = "all" | "businesses" | "events";
 type NearTimeWindow = "upcoming" | "today" | "this_week";
 type EventCluster = {
@@ -65,11 +67,56 @@ function clusterNearbyEvents(
 
 const FALLBACK = { lat: 40.7128, lng: -74.006 };
 
+function isFeedPostItem(item: FeedListItem): item is FeedItem {
+  return typeof item.id === "number";
+}
+
+function toTitleCaseCategory(raw: string): string {
+  return raw
+    .replace(/_/g, " ")
+    .split(" ")
+    .map((part) => (part ? part[0].toUpperCase() + part.slice(1).toLowerCase() : part))
+    .join(" ");
+}
+
+function resolveMarketCategory(item: FeedItem): string {
+  const businessCategory = String(item.business_category || "").trim();
+  if (businessCategory) {
+    return toTitleCaseCategory(businessCategory);
+  }
+  if (item.attached_product_type === "service") {
+    return "Services";
+  }
+  if (item.attached_product_type === "digital") {
+    return "Digital Products";
+  }
+  if (item.attached_product_type === "subscription") {
+    return "Subscriptions";
+  }
+  if (item.post_type === "marketplace") {
+    return "Marketplace";
+  }
+  return "General";
+}
+
+function marketPostTitle(item: FeedItem): string {
+  const title = String(item.attached_product_title || "").trim();
+  if (title) {
+    return title;
+  }
+  const content = String(item.content || "").trim();
+  if (content) {
+    return content;
+  }
+  return "Marketplace post";
+}
+
 export function SearchScreen({ navigation }: Props) {
   const route = useRoute<RouteProp<RootStackParamList, "Discover">>();
   const insets = useSafeAreaInsets();
   const searchInputRef = useRef<TextInput>(null);
   const bottomPad = insets.bottom + 24;
+  const [discoverTab, setDiscoverTab] = useState<DiscoverTab>("discover");
   const [mode, setMode] = useState<Mode>("search");
   const [q, setQ] = useState("");
   const [submittedQ, setSubmittedQ] = useState("");
@@ -84,6 +131,7 @@ export function SearchScreen({ navigation }: Props) {
   const styles = useMemo(() => buildSearchStyles(figma, nav), [figma, nav]);
 
   const activateSearch = useCallback(() => {
+    setDiscoverTab("discover");
     setMode("search");
     requestAnimationFrame(() => {
       searchInputRef.current?.focus();
@@ -147,6 +195,14 @@ export function SearchScreen({ navigation }: Props) {
       apiRequest<{ items: PostItem[] }>(`/search/posts?q=${encodeURIComponent(submittedQ)}&limit=10`),
     enabled: mode === "search" && submittedQ.length > 0
   });
+  const marketFeedQuery = useQuery({
+    queryKey: ["mobile-discover-market-feed"],
+    queryFn: () =>
+      apiRequest<{ items: FeedListItem[] }>("/feed?feedTab=marketplace&limit=60", {
+        auth: true
+      }),
+    enabled: discoverTab === "market"
+  });
 
   const nearQuery = useQuery({
     queryKey: ["mobile-businesses-near", geo?.lat, geo?.lng],
@@ -170,6 +226,24 @@ export function SearchScreen({ navigation }: Props) {
   const canUseBusinessDirectoryTools = Boolean(profileQuery.data?.persona_capabilities?.can_use_business_directory_tools);
   const clusterPrecision = nearTimeWindow === "today" ? 2 : 1;
   const eventClusters = clusterNearbyEvents(nearEventsQuery.data?.items || [], clusterPrecision);
+  const marketCategoryGroups = useMemo(() => {
+    const grouped = new Map<string, FeedItem[]>();
+    for (const row of marketFeedQuery.data?.items || []) {
+      if (!isFeedPostItem(row)) {
+        continue;
+      }
+      const category = resolveMarketCategory(row);
+      const existing = grouped.get(category);
+      if (existing) {
+        existing.push(row);
+      } else {
+        grouped.set(category, [row]);
+      }
+    }
+    return Array.from(grouped.entries())
+      .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
+      .map(([category, posts]) => ({ category, posts }));
+  }, [marketFeedQuery.data?.items]);
   const visibleEvents =
     selectedCluster && nearKind !== "businesses"
       ? (nearEventsQuery.data?.items || []).filter((event) => {
@@ -242,64 +316,97 @@ export function SearchScreen({ navigation }: Props) {
         />
 
         <View style={styles.discoverMarketRow} accessibilityRole="tablist">
-          <View
-            style={[styles.discoverMarketPill, styles.discoverMarketPillOn]}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: true }}
-          >
-            <Text style={[styles.discoverMarketPillText, styles.discoverMarketPillTextOn]}>Discover</Text>
-          </View>
           <Pressable
-            style={styles.discoverMarketPill}
-            onPress={() =>
-              navigation.navigate("AppTabs", {
-                screen: "HomeTab",
-                params: { openMarketplace: true }
-              })
-            }
+            style={[styles.discoverMarketPill, discoverTab === "discover" ? styles.discoverMarketPillOn : null]}
+            onPress={() => setDiscoverTab("discover")}
             accessibilityRole="tab"
-            accessibilityLabel="Open marketplace on Home"
+            accessibilityState={{ selected: discoverTab === "discover" }}
           >
-            <Text style={styles.discoverMarketPillText}>Market</Text>
+            <Text style={[styles.discoverMarketPillText, discoverTab === "discover" ? styles.discoverMarketPillTextOn : null]}>
+              Discover
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.discoverMarketPill, discoverTab === "market" ? styles.discoverMarketPillOn : null]}
+            onPress={() => setDiscoverTab("market")}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: discoverTab === "market" }}
+          >
+            <Text style={[styles.discoverMarketPillText, discoverTab === "market" ? styles.discoverMarketPillTextOn : null]}>
+              Market
+            </Text>
           </Pressable>
         </View>
 
-        <DiscoverFigmaChrome />
+        {discoverTab === "discover" ? <DiscoverFigmaChrome /> : null}
 
-        <View style={styles.discoverToolsRow}>
-          <View style={styles.modePillRow}>
-            <Pressable
-              style={[styles.modePill, mode === "search" ? styles.modePillOn : null]}
-              onPress={() => setMode("search")}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: mode === "search" }}
-            >
-              <Text style={[styles.modePillText, mode === "search" ? styles.modePillTextOn : null]}>Search</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.modePill, mode === "near" ? styles.modePillOn : null]}
-              onPress={() => setMode("near")}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: mode === "near" }}
-            >
-              <Text style={[styles.modePillText, mode === "near" ? styles.modePillTextOn : null]}>Near me</Text>
-            </Pressable>
+        {discoverTab === "discover" ? (
+          <View style={styles.discoverToolsRow}>
+            <View style={styles.modePillRow}>
+              <Pressable
+                style={[styles.modePill, mode === "search" ? styles.modePillOn : null]}
+                onPress={() => setMode("search")}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: mode === "search" }}
+              >
+                <Text style={[styles.modePillText, mode === "search" ? styles.modePillTextOn : null]}>Search</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modePill, mode === "near" ? styles.modePillOn : null]}
+                onPress={() => setMode("near")}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: mode === "near" }}
+              >
+                <Text style={[styles.modePillText, mode === "near" ? styles.modePillTextOn : null]}>Near me</Text>
+              </Pressable>
+            </View>
+            {canUseBusinessDirectoryTools ? (
+              <Pressable style={styles.addBusinessTab} onPress={() => navigation.navigate("AddBusiness")}>
+                <Text style={styles.addBusinessTabText}>Add business</Text>
+              </Pressable>
+            ) : null}
           </View>
-          {canUseBusinessDirectoryTools ? (
-            <Pressable style={styles.addBusinessTab} onPress={() => navigation.navigate("AddBusiness")}>
-              <Text style={styles.addBusinessTabText}>Add business</Text>
-            </Pressable>
-          ) : null}
-        </View>
+        ) : null}
 
-        {mode === "search" && !submittedQ ? (
+        {discoverTab === "discover" && mode === "search" && !submittedQ ? (
           <Text style={styles.discoverHint}>
             Use Search for people and posts, or Near me for businesses and events on the map. Tap the search icon above to
             type a query.
           </Text>
         ) : null}
 
-        {mode === "search" ? (
+        {discoverTab === "market" ? (
+          <>
+            <Text style={styles.discoverHint}>Market categories and listings are shown here without leaving Discover.</Text>
+            {marketFeedQuery.isLoading ? <LoadingState label="Loading market categories..." surface="dark" /> : null}
+            {marketFeedQuery.error ? <ErrorState message={(marketFeedQuery.error as Error).message} surface="dark" /> : null}
+            {!marketFeedQuery.isLoading && !marketFeedQuery.error && marketCategoryGroups.length === 0 ? (
+              <EmptyState title="No market posts yet" subtitle="Listings will appear here by category." surface="dark" />
+            ) : null}
+            {marketCategoryGroups.map((group) => (
+              <SectionCard key={group.category} title={group.category}>
+                {group.posts.map((post) => (
+                  <Pressable
+                    key={post.id}
+                    style={styles.resultRow}
+                    onPress={() => navigation.navigate("PostDetail", { id: post.id })}
+                  >
+                    <View style={styles.flex1}>
+                      <Text style={styles.postTypeTag}>{post.post_type === "marketplace" ? "listing" : "post"}</Text>
+                      <Text style={styles.item} numberOfLines={2}>
+                        {marketPostTitle(post)}
+                      </Text>
+                      <Text style={styles.muted}>by {post.author_display_name}</Text>
+                    </View>
+                    <Text style={styles.chevron}>›</Text>
+                  </Pressable>
+                ))}
+              </SectionCard>
+            ))}
+          </>
+        ) : null}
+
+        {discoverTab === "discover" && mode === "search" ? (
           <>
             {usersQuery.isLoading || postsQuery.isLoading ? <LoadingState label="Searching..." surface="dark" /> : null}
             {usersQuery.error ? <ErrorState message={(usersQuery.error as Error).message} surface="dark" /> : null}
@@ -351,7 +458,7 @@ export function SearchScreen({ navigation }: Props) {
           </>
         ) : null}
 
-        {mode === "near" ? (
+        {discoverTab === "discover" && mode === "near" ? (
           <View style={styles.nearSection}>
             {geoNote ? <Text style={styles.note}>{geoNote}</Text> : null}
             {geoLoading ? <LoadingState label="Finding your area…" surface="dark" /> : null}
