@@ -232,6 +232,13 @@ export function SearchScreen({ navigation }: Props) {
       if (!isFeedPostItem(row)) {
         continue;
       }
+      const isRelevantMarketPost =
+        row.post_type === "marketplace" ||
+        row.attached_product_id != null ||
+        String(row.business_category || "").trim().length > 0;
+      if (!isRelevantMarketPost) {
+        continue;
+      }
       const category = resolveMarketCategory(row);
       const existing = grouped.get(category);
       if (existing) {
@@ -389,7 +396,11 @@ export function SearchScreen({ navigation }: Props) {
                   <Pressable
                     key={post.id}
                     style={styles.resultRow}
-                    onPress={() => navigation.navigate("PostDetail", { id: post.id })}
+                    onPress={() =>
+                      post.attached_product_id
+                        ? navigation.navigate("ProductDetail", { productId: post.attached_product_id })
+                        : navigation.navigate("PostDetail", { id: post.id })
+                    }
                   >
                     <View style={styles.flex1}>
                       <Text style={styles.postTypeTag}>{post.post_type === "marketplace" ? "listing" : "post"}</Text>
