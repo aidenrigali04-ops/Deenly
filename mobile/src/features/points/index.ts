@@ -5,3 +5,4 @@ export * from "./services/points-local-service";
 export * from "./store/points-store";
 export * from "./hooks/use-points";
 export * from "./hooks/use-scroll-points";
+export * from "./hooks/use-reel-watch-points";

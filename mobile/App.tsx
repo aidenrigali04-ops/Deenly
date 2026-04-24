@@ -18,6 +18,7 @@ import { ReliabilityBanner } from "./src/components/ReliabilityBanner";
 import { flushQueuedMutations, getQueuedMutationCount } from "./src/lib/mutation-queue";
 import { applyUrbanistTextDefaults } from "./src/lib/urbanist-defaults";
 import { useAppearanceStore } from "./src/store/appearance-store";
+import { PointsRewardToast } from "./src/features/points/components/PointsRewardToast";
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
@@ -85,6 +86,7 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <ReliabilityBanner isOffline={isOffline} queuedMutations={queuedMutations} />
         <AppNavigator />
+        <PointsRewardToast />
         <StatusBar style="dark" />
       </QueryClientProvider>
     </SafeAreaProvider>

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FlatList,
   ListRenderItem,
@@ -24,7 +24,7 @@ import { radii, resolveFigmaMobile, spacing } from "../../theme";
 import { useAppChrome } from "../../lib/use-app-chrome";
 import type { FeedItem } from "../../types";
 import type { AppTabParamList, RootStackParamList } from "../../navigation/AppNavigator";
-import { usePoints, useScrollPoints } from "../../features/points";
+import { usePoints, useReelWatchPoints } from "../../features/points";
 
 type FeedResponse = {
   items: FeedItem[];
@@ -291,8 +291,10 @@ export function ReelsScreen({ navigation }: Props) {
   const [muted, setMuted] = useState(true);
   const queryClient = useQueryClient();
   const points = usePoints();
-  const awardScroll = useScrollPoints();
+  const { onWatchProgress, onReelBecameInactive } = useReelWatchPoints();
   const feedQueryKey = ["mobile-feed-reels"] as const;
+  const activeReelIdRef = useRef<number | null>(null);
+  const watchTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const feedQuery = useInfiniteQuery({
     queryKey: feedQueryKey,
@@ -370,6 +372,41 @@ export function ReelsScreen({ navigation }: Props) {
 
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 75 }).current;
 
+  useEffect(() => {
+    const active = items[activeIndex];
+    if (!active) {
+      if (watchTickRef.current) {
+        clearInterval(watchTickRef.current);
+        watchTickRef.current = null;
+      }
+      if (activeReelIdRef.current != null) {
+        onReelBecameInactive(activeReelIdRef.current);
+        activeReelIdRef.current = null;
+      }
+      return;
+    }
+
+    const prev = activeReelIdRef.current;
+    if (prev != null && prev !== active.id) {
+      onReelBecameInactive(prev);
+    }
+    activeReelIdRef.current = active.id;
+
+    if (watchTickRef.current) {
+      clearInterval(watchTickRef.current);
+    }
+    watchTickRef.current = setInterval(() => {
+      onWatchProgress(active.id, 1000);
+    }, 1000);
+
+    return () => {
+      if (watchTickRef.current) {
+        clearInterval(watchTickRef.current);
+        watchTickRef.current = null;
+      }
+    };
+  }, [activeIndex, items, onReelBecameInactive, onWatchProgress]);
+
   const onEndReached = useCallback(() => {
     if (feedQuery.hasNextPage && !feedQuery.isFetchingNextPage) {
       void feedQuery.fetchNextPage();
@@ -402,6 +439,19 @@ export function ReelsScreen({ navigation }: Props) {
     ),
     [activeIndex, height, insets.bottom, muted, likeMutation, commentMutation, followMutation, rx, fm]
   );
+
+  useEffect(() => {
+    return () => {
+      if (watchTickRef.current) {
+        clearInterval(watchTickRef.current);
+        watchTickRef.current = null;
+      }
+      if (activeReelIdRef.current != null) {
+        onReelBecameInactive(activeReelIdRef.current);
+        activeReelIdRef.current = null;
+      }
+    };
+  }, [onReelBecameInactive]);
 
   return (
     <View style={rx.root}>
@@ -469,10 +519,6 @@ export function ReelsScreen({ navigation }: Props) {
             offset: height * index,
             index
           })}
-          onScroll={(event) => {
-            awardScroll(event.nativeEvent.contentOffset.y);
-          }}
-          scrollEventThrottle={120}
         />
       ) : null}
     </View>

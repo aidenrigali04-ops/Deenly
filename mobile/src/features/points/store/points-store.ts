@@ -10,6 +10,7 @@ import {
   isRemoteTrackedAction,
   loadRemotePointsState
 } from "../services/points-remote-service";
+import { usePointsRewardToastStore } from "./points-reward-toast-store";
 
 type PointsDataSource = "remote" | "local";
 
@@ -60,6 +61,7 @@ export const usePointsStore = create<PointsStoreState>((set, get) => ({
     if (!activeUserId) {
       return null;
     }
+    const previousLevel = get().state?.wallet.level ?? null;
     if (get().source === "remote") {
       if (isRemoteTrackedAction(action)) {
         await get().hydrate(activeUserId);
@@ -69,6 +71,17 @@ export const usePointsStore = create<PointsStoreState>((set, get) => ({
     const result = await awardPointsForAction(activeUserId, action, options);
     const nextState = await getPointsState(activeUserId);
     set({ state: nextState, source: "local" });
+    if (result.awarded) {
+      usePointsRewardToastStore.getState().enqueue({
+        id: `toast_${Date.now()}_${Math.floor(Math.random() * 1_000_000)}`,
+        action,
+        points: result.points,
+        totalPoints: result.wallet.totalPoints,
+        level: result.wallet.level,
+        levelUp: previousLevel != null ? result.wallet.level > previousLevel : false,
+        createdAt: result.transaction.createdAt
+      });
+    }
     return result;
   },
   syncCompletedOrders: async (orders) => {

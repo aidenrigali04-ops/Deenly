@@ -46,6 +46,9 @@ export function usePoints() {
       if (!canSurfaceAwardAction(surface, action)) {
         return null;
       }
+      if (source === "remote" && action === "scroll") {
+        return null;
+      }
       let dedupeKey = options.dedupeKey;
       if (!dedupeKey) {
         if (action === "like" && options.postId != null) {
@@ -60,7 +63,7 @@ export function usePoints() {
       }
       return awardInternal(action, dedupeKey ? { dedupeKey } : undefined);
     },
-    [awardInternal]
+    [awardInternal, source]
   );
 
   const syncCompletedOrders = useCallback(
