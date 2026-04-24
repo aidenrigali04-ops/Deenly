@@ -320,12 +320,12 @@ function buildProfileStyles(fig: ReturnType<typeof resolveFigmaMobile>, fp: Retu
       borderRadius: fp.avatarRadius,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: fp.pillBorder,
-      backgroundColor: "#FFFFFF"
+      backgroundColor: fig.card
     },
     avatarPlaceholder: {
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: "#FFFFFF"
+      backgroundColor: fig.card
     },
     avatarLetter: {
       fontSize: 36,

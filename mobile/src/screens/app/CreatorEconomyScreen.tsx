@@ -328,10 +328,10 @@ const styles = StyleSheet.create({
     gap: 10
   },
   guideCard: {
-    borderColor: "#bfdbfe",
+    borderColor: colors.borderSubtle,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.control,
-    backgroundColor: "#f0f9ff",
+    backgroundColor: colors.surfaceTinted,
     paddingHorizontal: 12,
     paddingVertical: 10,
     gap: 6

@@ -117,7 +117,7 @@ export function PlaidLinkScreen({ navigation }: Props) {
     <View style={styles.flex}>
       {phase === "exchanging" ? (
         <View style={styles.overlay}>
-          <ActivityIndicator color="#fff" size="large" />
+          <ActivityIndicator color={colors.textInverse} size="large" />
           <Text style={styles.overlayText}>Finishing bank link…</Text>
         </View>
       ) : null}
@@ -162,5 +162,5 @@ const styles = StyleSheet.create({
     zIndex: 2,
     gap: 12
   },
-  overlayText: { color: "#fff", fontSize: 15, fontWeight: "600" }
+  overlayText: { color: colors.textInverse, fontSize: 15, fontWeight: "600" }
 });

@@ -49,7 +49,7 @@ function buildLayoutStyles(fh: ReturnType<typeof resolveFigmaMobileHome>) {
       width: avatar,
       height: avatar,
       borderRadius: avatar / 2,
-      backgroundColor: "#FFFFFF",
+      backgroundColor: fh.feedCardBg,
       borderWidth: 0,
       alignItems: "center",
       justifyContent: "center",

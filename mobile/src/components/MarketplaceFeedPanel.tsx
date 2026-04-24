@@ -1,6 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-
-const INK = "#0A0A0A";
+import { colors, radii } from "../theme";
 
 type Props = {
   onPressSearch: () => void;
@@ -58,18 +57,18 @@ export function MarketplaceFeedPanel({
 
 const styles = StyleSheet.create({
   panel: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 22,
-    borderWidth: StyleSheet.hairlineWidth * 2,
-    borderColor: INK,
+    backgroundColor: colors.card,
+    borderRadius: radii.feedCard,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderSubtle,
     padding: 16,
     gap: 14
   },
   searchBar: {
-    backgroundColor: "#F5F4F2",
+    backgroundColor: colors.surfaceField,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#EBEBEB",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderSubtle,
     height: 48,
     paddingHorizontal: 18,
     justifyContent: "center",
@@ -77,7 +76,7 @@ const styles = StyleSheet.create({
   },
   searchPlaceholder: {
     fontSize: 15,
-    color: "#8A8480",
+    color: colors.muted,
     fontWeight: "500"
   },
   chipRow: {
@@ -88,21 +87,21 @@ const styles = StyleSheet.create({
   chip: {
     paddingHorizontal: 16,
     paddingVertical: 9,
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth * 2,
-    borderColor: INK,
-    backgroundColor: "#FFFFFF"
+    borderRadius: radii.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.surface
   },
   chipSelected: {
-    backgroundColor: INK,
-    borderColor: INK
+    backgroundColor: colors.accent,
+    borderColor: colors.accent
   },
   chipText: {
     fontSize: 13,
     fontWeight: "600",
-    color: INK
+    color: colors.text
   },
   chipTextOnDark: {
-    color: "#FFFFFF"
+    color: colors.onAccent
   },
 });

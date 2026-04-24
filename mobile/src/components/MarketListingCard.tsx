@@ -480,7 +480,7 @@ function buildMarketListingStyles(fmh: ReturnType<typeof resolveFigmaMobileHome>
     justifyContent: "center"
   },
   viewOfferBtnText: {
-    color: "#FFFFFF",
+    color: colors.onAccent,
     fontSize: 13,
     fontWeight: "600"
   },

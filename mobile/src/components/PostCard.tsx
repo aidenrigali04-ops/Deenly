@@ -535,7 +535,7 @@ function buildPostCardStyles(fm: ReturnType<typeof resolveFigmaMobile>, fmh: Ret
     height: fmh.authorAvatarSize,
     borderRadius: fmh.authorAvatarSize / 2,
     borderWidth: 0,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: fm.card,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden"

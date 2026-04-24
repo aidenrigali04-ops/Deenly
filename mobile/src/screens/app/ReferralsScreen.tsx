@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.control,
     marginTop: 6
   },
-  primaryBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  primaryBtnText: { color: colors.onAccent, fontWeight: "700", fontSize: 15 },
   body: { fontSize: 15, color: colors.text, lineHeight: 22 },
   muted: { fontSize: 14, color: colors.muted },
   mutedSmall: { fontSize: 12, color: colors.muted },
