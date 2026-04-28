@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -15,13 +15,16 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ApiError } from "../../lib/api";
 import { fetchSessionMe, signup } from "../../lib/auth";
 import { useSessionStore } from "../../store/session-store";
-import { authTheme, fonts, primaryButtonOutline, radii } from "../../theme";
+import { fonts, primaryButtonOutline, radii } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { ReferralSignupCallout } from "../../components/ReferralSignupCallout";
+import { useAppChrome } from "../../lib/use-app-chrome";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Signup">;
 
 export function SignupScreen({ navigation, route }: Props) {
+  const { figma, figmaHome, mode } = useAppChrome();
+  const styles = useMemo(() => buildStyles(figma, figmaHome), [figma, figmaHome]);
   const setUser = useSessionStore((state) => state.setUser);
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
@@ -54,12 +57,15 @@ export function SignupScreen({ navigation, route }: Props) {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-      <StatusBar style="dark" />
+      <StatusBar style={mode === "light" ? "dark" : "light"} />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
       >
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          <View style={styles.backgroundOrb} />
+        </View>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
@@ -82,7 +88,7 @@ export function SignupScreen({ navigation, route }: Props) {
                 autoComplete="email"
                 textContentType="emailAddress"
                 placeholder="you@example.com"
-                placeholderTextColor={authTheme.muted}
+                placeholderTextColor={figma.textMuted}
                 value={email}
                 onChangeText={setEmail}
                 accessibilityLabel="Email"
@@ -97,7 +103,7 @@ export function SignupScreen({ navigation, route }: Props) {
                 autoComplete="username"
                 textContentType="username"
                 placeholder="Choose a username"
-                placeholderTextColor={authTheme.muted}
+                placeholderTextColor={figma.textMuted}
                 value={username}
                 onChangeText={setUsername}
                 accessibilityLabel="Username"
@@ -109,7 +115,7 @@ export function SignupScreen({ navigation, route }: Props) {
               <TextInput
                 style={styles.input}
                 placeholder="How you appear to others"
-                placeholderTextColor={authTheme.muted}
+                placeholderTextColor={figma.textMuted}
                 value={displayName}
                 onChangeText={setDisplayName}
                 accessibilityLabel="Display name"
@@ -124,7 +130,7 @@ export function SignupScreen({ navigation, route }: Props) {
                 autoComplete="new-password"
                 textContentType="newPassword"
                 placeholder="At least 8 characters"
-                placeholderTextColor={authTheme.muted}
+                placeholderTextColor={figma.textMuted}
                 value={password}
                 onChangeText={setPassword}
                 accessibilityLabel="Password"
@@ -165,142 +171,156 @@ export function SignupScreen({ navigation, route }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: authTheme.pageBg
-  },
-  flex: {
-    flex: 1
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 24
-  },
-  panel: {
-    maxWidth: 420,
-    width: "100%",
-    alignSelf: "center",
-    backgroundColor: authTheme.card,
-    borderRadius: authTheme.radiusPanel,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: authTheme.border,
-    paddingHorizontal: 20,
-    paddingVertical: 28,
-    ...Platform.select({
-      ios: {
-        shadowColor: authTheme.shadow,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 1,
-        shadowRadius: 24
-      },
-      android: { elevation: 4 }
-    })
-  },
-  headerBlock: {
-    alignItems: "center",
-    marginBottom: 8
-  },
-  heading: {
-    color: authTheme.text,
-    fontFamily: fonts.semiBold,
-    fontSize: 28,
-    fontWeight: "600",
-    textAlign: "center",
-    letterSpacing: -0.4,
-    lineHeight: 34
-  },
-  subheading: {
-    marginTop: 10,
-    color: authTheme.muted,
-    fontFamily: fonts.regular,
-    fontSize: 15,
-    textAlign: "center",
-    lineHeight: 22,
-    paddingHorizontal: 6
-  },
-  fieldGroup: {
-    marginBottom: 18
-  },
-  label: {
-    color: authTheme.text,
-    fontFamily: fonts.medium,
-    fontSize: 14,
-    fontWeight: "500",
-    marginBottom: 8
-  },
-  input: {
-    height: 48,
-    borderRadius: authTheme.radiusControl,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: authTheme.border,
-    backgroundColor: authTheme.inputSurface,
-    paddingHorizontal: 16,
-    fontSize: 14,
-    fontFamily: fonts.regular,
-    color: authTheme.text
-  },
-  helper: {
-    marginTop: 8,
-    color: authTheme.muted,
-    fontFamily: fonts.regular,
-    fontSize: 14
-  },
-  errorBox: {
-    marginBottom: 16,
-    borderRadius: authTheme.radiusControl,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: authTheme.errorBorder,
-    backgroundColor: authTheme.errorBg,
-    paddingHorizontal: 12,
-    paddingVertical: 10
-  },
-  errorText: {
-    color: authTheme.errorText,
-    fontFamily: fonts.regular,
-    fontSize: 14,
-    lineHeight: 20
-  },
-  submit: {
-    marginTop: 8,
-    minHeight: 50,
-    borderRadius: radii.button,
-    ...primaryButtonOutline,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  submitPressed: {
-    opacity: 0.92
-  },
-  submitDisabled: {
-    opacity: 0.6
-  },
-  submitText: {
-    color: authTheme.submitText,
-    fontFamily: fonts.semiBold,
-    fontSize: 15,
-    fontWeight: "600"
-  },
-  footerRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    marginTop: 22,
-    alignItems: "center"
-  },
-  footerMuted: {
-    color: authTheme.muted,
-    fontFamily: fonts.regular,
-    fontSize: 14,
-    textAlign: "center"
-  },
-  footerLink: {
-    color: authTheme.text,
-    fontFamily: fonts.medium,
-    fontSize: 14,
-    fontWeight: "500",
-    textDecorationLine: "underline"
-  }
-});
+function buildStyles(
+  figma: ReturnType<typeof useAppChrome>["figma"],
+  figmaHome: ReturnType<typeof useAppChrome>["figmaHome"]
+) {
+  return StyleSheet.create({
+    safe: {
+      flex: 1,
+      backgroundColor: figma.canvas
+    },
+    backgroundOrb: {
+      position: "absolute",
+      width: figmaHome.accentOrbSize,
+      height: figmaHome.accentOrbSize,
+      borderRadius: figmaHome.accentOrbSize / 2,
+      backgroundColor: figmaHome.accentOrb,
+      top: figmaHome.accentOrbTop,
+      left: figmaHome.accentOrbLeft
+    },
+    flex: {
+      flex: 1
+    },
+    scrollContent: {
+      flexGrow: 1,
+      justifyContent: "center",
+      paddingHorizontal: 16,
+      paddingVertical: 24
+    },
+    panel: {
+      maxWidth: 420,
+      width: "100%",
+      alignSelf: "center",
+      backgroundColor: figma.card,
+      borderRadius: radii.panel,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: figma.glassBorder,
+      paddingHorizontal: 20,
+      paddingVertical: 28,
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.2,
+          shadowRadius: 24
+        },
+        android: { elevation: 4 }
+      })
+    },
+    headerBlock: {
+      alignItems: "center",
+      marginBottom: 8
+    },
+    heading: {
+      color: figma.text,
+      fontFamily: fonts.semiBold,
+      fontSize: 28,
+      fontWeight: "600",
+      textAlign: "center",
+      letterSpacing: -0.4,
+      lineHeight: 34
+    },
+    subheading: {
+      marginTop: 10,
+      color: figma.textMuted,
+      fontFamily: fonts.regular,
+      fontSize: 15,
+      textAlign: "center",
+      lineHeight: 22,
+      paddingHorizontal: 6
+    },
+    fieldGroup: {
+      marginBottom: 18
+    },
+    label: {
+      color: figma.text,
+      fontFamily: fonts.medium,
+      fontSize: 14,
+      fontWeight: "500",
+      marginBottom: 8
+    },
+    input: {
+      height: 48,
+      borderRadius: radii.control,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: figma.glassBorder,
+      backgroundColor: figma.glassSoft,
+      paddingHorizontal: 16,
+      fontSize: 14,
+      fontFamily: fonts.regular,
+      color: figma.text
+    },
+    helper: {
+      marginTop: 8,
+      color: figma.textMuted,
+      fontFamily: fonts.regular,
+      fontSize: 14
+    },
+    errorBox: {
+      marginBottom: 16,
+      borderRadius: radii.control,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: figma.glassBorder,
+      backgroundColor: "rgba(255, 96, 96, 0.12)",
+      paddingHorizontal: 12,
+      paddingVertical: 10
+    },
+    errorText: {
+      color: figma.text,
+      fontFamily: fonts.regular,
+      fontSize: 14,
+      lineHeight: 20
+    },
+    submit: {
+      marginTop: 8,
+      minHeight: 50,
+      borderRadius: radii.button,
+      ...primaryButtonOutline,
+      alignItems: "center",
+      justifyContent: "center"
+    },
+    submitPressed: {
+      opacity: 0.92
+    },
+    submitDisabled: {
+      opacity: 0.6
+    },
+    submitText: {
+      color: figma.text,
+      fontFamily: fonts.semiBold,
+      fontSize: 15,
+      fontWeight: "600"
+    },
+    footerRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "center",
+      marginTop: 22,
+      alignItems: "center"
+    },
+    footerMuted: {
+      color: figma.textMuted,
+      fontFamily: fonts.regular,
+      fontSize: 14,
+      textAlign: "center"
+    },
+    footerLink: {
+      color: figma.text,
+      fontFamily: fonts.medium,
+      fontSize: 14,
+      fontWeight: "500",
+      textDecorationLine: "underline"
+    }
+  });
+}

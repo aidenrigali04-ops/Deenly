@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.panel,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.borderSubtle,
-    backgroundColor: colors.card,
+    backgroundColor: "rgba(255,255,255,0.08)",
     padding: 14,
     gap: 4
   },

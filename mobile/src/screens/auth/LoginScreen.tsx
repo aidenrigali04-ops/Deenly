@@ -17,8 +17,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ApiError } from "../../lib/api";
 import { fetchSessionMe, login } from "../../lib/auth";
 import { useSessionStore } from "../../store/session-store";
-import { authTheme, fonts, primaryButtonOutline, radii } from "../../theme";
+import { fonts, primaryButtonOutline, radii } from "../../theme";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
+import { useAppChrome } from "../../lib/use-app-chrome";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Login">;
 
@@ -46,6 +47,8 @@ function GoogleMark({ size = 18 }: { size?: number }) {
 }
 
 export function LoginScreen({ navigation }: Props) {
+  const { figma, figmaHome, mode } = useAppChrome();
+  const styles = useState(() => buildStyles(figma, figmaHome))[0];
   const setUser = useSessionStore((state) => state.setUser);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -82,7 +85,10 @@ export function LoginScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-      <StatusBar style="dark" />
+      <StatusBar style={mode === "light" ? "dark" : "light"} />
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <View style={styles.backgroundOrb} />
+      </View>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -124,7 +130,7 @@ export function LoginScreen({ navigation }: Props) {
                 autoComplete="email"
                 textContentType="emailAddress"
                 placeholder="eg. johnfrans@gmail.com"
-                placeholderTextColor={authTheme.muted}
+                placeholderTextColor={figma.textMuted}
                 value={email}
                 onChangeText={setEmail}
                 accessibilityLabel="Email"
@@ -139,7 +145,7 @@ export function LoginScreen({ navigation }: Props) {
                 autoComplete="password"
                 textContentType="password"
                 placeholder="Enter your password"
-                placeholderTextColor={authTheme.muted}
+                placeholderTextColor={figma.textMuted}
                 value={password}
                 onChangeText={setPassword}
                 accessibilityLabel="Password"
@@ -180,171 +186,185 @@ export function LoginScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: authTheme.pageBg
-  },
-  flex: {
-    flex: 1
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 24
-  },
-  panel: {
-    maxWidth: 420,
-    width: "100%",
-    alignSelf: "center",
-    backgroundColor: authTheme.card,
-    borderRadius: authTheme.radiusPanel,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: authTheme.border,
-    paddingHorizontal: 20,
-    paddingVertical: 28,
-    ...Platform.select({
-      ios: {
-        shadowColor: authTheme.shadow,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 1,
-        shadowRadius: 24
-      },
-      android: { elevation: 4 }
-    })
-  },
-  headerBlock: {
-    alignItems: "center"
-  },
-  heading: {
-    color: authTheme.text,
-    fontFamily: fonts.semiBold,
-    fontSize: 34,
-    fontWeight: "600",
-    textAlign: "center",
-    letterSpacing: -0.5,
-    lineHeight: 40
-  },
-  subheading: {
-    marginTop: 12,
-    color: authTheme.muted,
-    fontFamily: fonts.regular,
-    fontSize: 16,
-    textAlign: "center",
-    lineHeight: 22,
-    paddingHorizontal: 8
-  },
-  googleBtn: {
-    marginTop: 28,
-    height: 48,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-    borderRadius: authTheme.radiusControl,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: authTheme.border,
-    backgroundColor: authTheme.card
-  },
-  googleBtnPressed: {
-    backgroundColor: "rgba(0, 0, 0, 0.03)"
-  },
-  googleBtnText: {
-    color: authTheme.text,
-    fontFamily: fonts.medium,
-    fontSize: 14,
-    fontWeight: "500"
-  },
-  dividerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-    marginVertical: 24
-  },
-  dividerLine: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: authTheme.border
-  },
-  dividerText: {
-    color: authTheme.muted,
-    fontSize: 14
-  },
-  fieldGroup: {
-    marginBottom: 20
-  },
-  label: {
-    color: authTheme.text,
-    fontFamily: fonts.medium,
-    fontSize: 14,
-    fontWeight: "500",
-    marginBottom: 8
-  },
-  input: {
-    height: 48,
-    borderRadius: authTheme.radiusControl,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: authTheme.border,
-    backgroundColor: authTheme.inputSurface,
-    paddingHorizontal: 16,
-    fontSize: 14,
-    fontFamily: fonts.regular,
-    color: authTheme.text
-  },
-  helper: {
-    marginTop: 8,
-    color: authTheme.muted,
-    fontSize: 14
-  },
-  errorBox: {
-    marginBottom: 16,
-    borderRadius: authTheme.radiusControl,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: authTheme.errorBorder,
-    backgroundColor: authTheme.errorBg,
-    paddingHorizontal: 12,
-    paddingVertical: 10
-  },
-  errorText: {
-    color: authTheme.errorText,
-    fontSize: 14,
-    lineHeight: 20
-  },
-  submit: {
-    marginTop: 12,
-    minHeight: 50,
-    borderRadius: radii.button,
-    ...primaryButtonOutline
-  },
-  submitPressed: {
-    opacity: 0.92
-  },
-  submitDisabled: {
-    opacity: 0.6
-  },
-  submitText: {
-    color: authTheme.submitText,
-    fontFamily: fonts.semiBold,
-    fontSize: 15,
-    fontWeight: "600"
-  },
-  footerRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    marginTop: 24,
-    alignItems: "center"
-  },
-  footerMuted: {
-    color: authTheme.muted,
-    fontSize: 14,
-    textAlign: "center"
-  },
-  footerLink: {
-    color: authTheme.text,
-    fontSize: 14,
-    fontWeight: "500",
-    textDecorationLine: "underline"
-  }
-});
+function buildStyles(
+  figma: ReturnType<typeof useAppChrome>["figma"],
+  figmaHome: ReturnType<typeof useAppChrome>["figmaHome"]
+) {
+  return StyleSheet.create({
+    safe: {
+      flex: 1,
+      backgroundColor: figma.canvas
+    },
+    backgroundOrb: {
+      position: "absolute",
+      width: figmaHome.accentOrbSize,
+      height: figmaHome.accentOrbSize,
+      borderRadius: figmaHome.accentOrbSize / 2,
+      backgroundColor: figmaHome.accentOrb,
+      top: figmaHome.accentOrbTop,
+      left: figmaHome.accentOrbLeft
+    },
+    flex: {
+      flex: 1
+    },
+    scrollContent: {
+      flexGrow: 1,
+      justifyContent: "center",
+      paddingHorizontal: 16,
+      paddingVertical: 24
+    },
+    panel: {
+      maxWidth: 420,
+      width: "100%",
+      alignSelf: "center",
+      backgroundColor: figma.card,
+      borderRadius: radii.panel,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: figma.glassBorder,
+      paddingHorizontal: 20,
+      paddingVertical: 28,
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.18,
+          shadowRadius: 24
+        },
+        android: { elevation: 4 }
+      })
+    },
+    headerBlock: {
+      alignItems: "center"
+    },
+    heading: {
+      color: figma.text,
+      fontFamily: fonts.semiBold,
+      fontSize: 34,
+      fontWeight: "600",
+      textAlign: "center",
+      letterSpacing: -0.5,
+      lineHeight: 40
+    },
+    subheading: {
+      marginTop: 12,
+      color: figma.textMuted,
+      fontFamily: fonts.regular,
+      fontSize: 16,
+      textAlign: "center",
+      lineHeight: 22,
+      paddingHorizontal: 8
+    },
+    googleBtn: {
+      marginTop: 28,
+      height: 48,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 12,
+      borderRadius: radii.control,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: figma.glassBorder,
+      backgroundColor: figma.glassSoft
+    },
+    googleBtnPressed: {
+      opacity: 0.9
+    },
+    googleBtnText: {
+      color: figma.text,
+      fontFamily: fonts.medium,
+      fontSize: 14,
+      fontWeight: "500"
+    },
+    dividerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 16,
+      marginVertical: 24
+    },
+    dividerLine: {
+      flex: 1,
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: figma.glassBorder
+    },
+    dividerText: {
+      color: figma.textMuted,
+      fontSize: 14
+    },
+    fieldGroup: {
+      marginBottom: 20
+    },
+    label: {
+      color: figma.text,
+      fontFamily: fonts.medium,
+      fontSize: 14,
+      fontWeight: "500",
+      marginBottom: 8
+    },
+    input: {
+      height: 48,
+      borderRadius: radii.control,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: figma.glassBorder,
+      backgroundColor: figma.glassSoft,
+      paddingHorizontal: 16,
+      fontSize: 14,
+      fontFamily: fonts.regular,
+      color: figma.text
+    },
+    helper: {
+      marginTop: 8,
+      color: figma.textMuted,
+      fontSize: 14
+    },
+    errorBox: {
+      marginBottom: 16,
+      borderRadius: radii.control,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: figma.glassBorder,
+      backgroundColor: figma.glassSoft,
+      paddingHorizontal: 12,
+      paddingVertical: 10
+    },
+    errorText: {
+      color: figma.text,
+      fontSize: 14,
+      lineHeight: 20
+    },
+    submit: {
+      marginTop: 12,
+      minHeight: 50,
+      borderRadius: radii.button,
+      ...primaryButtonOutline
+    },
+    submitPressed: {
+      opacity: 0.92
+    },
+    submitDisabled: {
+      opacity: 0.6
+    },
+    submitText: {
+      color: figma.text,
+      fontFamily: fonts.semiBold,
+      fontSize: 15,
+      fontWeight: "600"
+    },
+    footerRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "center",
+      marginTop: 24,
+      alignItems: "center"
+    },
+    footerMuted: {
+      color: figma.textMuted,
+      fontSize: 14,
+      textAlign: "center"
+    },
+    footerLink: {
+      color: figma.text,
+      fontSize: 14,
+      fontWeight: "500",
+      textDecorationLine: "underline"
+    }
+  });
+}
