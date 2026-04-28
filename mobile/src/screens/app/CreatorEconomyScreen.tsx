@@ -1,4 +1,5 @@
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -87,6 +88,25 @@ export function CreatorEconomyScreen() {
     mutationFn: () => createAffiliateCode(),
     onSuccess: () => affiliateCodesQuery.refetch()
   });
+  const [connectingAndOpening, setConnectingAndOpening] = useState(false);
+  const startGettingPaid = async () => {
+    if (connectingAndOpening || onboardingMutation.isPending) {
+      return;
+    }
+    setConnectingAndOpening(true);
+    try {
+      await connectAccountMutation.mutateAsync();
+      await connectStatusQuery.refetch();
+      const onboarding = await onboardingMutation.mutateAsync();
+      if (!onboarding?.url) {
+        throw new Error("Stripe onboarding link was not returned. Please try again.");
+      }
+    } catch (error) {
+      Alert.alert("Stripe setup", error instanceof Error ? error.message : "Could not start Stripe setup.");
+    } finally {
+      setConnectingAndOpening(false);
+    }
+  };
 
   if (connectStatusQuery.isLoading) {
     return <LoadingState label="Loading creator hub..." />;
@@ -162,11 +182,15 @@ export function CreatorEconomyScreen() {
           {!connected ? (
             <Pressable
               style={styles.buttonSecondary}
-              onPress={() => connectAccountMutation.mutate()}
-              disabled={connectAccountMutation.isPending}
+              onPress={() => {
+                void startGettingPaid();
+              }}
+              disabled={connectingAndOpening || connectAccountMutation.isPending || onboardingMutation.isPending}
             >
               <Text style={styles.buttonText}>
-                {connectAccountMutation.isPending ? "Starting…" : "Start getting paid"}
+                {connectingAndOpening || connectAccountMutation.isPending || onboardingMutation.isPending
+                  ? "Opening Stripe…"
+                  : "Start getting paid"}
               </Text>
             </Pressable>
           ) : null}
