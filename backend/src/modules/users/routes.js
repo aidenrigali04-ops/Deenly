@@ -90,10 +90,21 @@ const PROFILE_BASE_SELECT = `SELECT p.user_id, u.username, p.display_name, p.bio
          FROM profiles p
          JOIN users u ON u.id = p.user_id`;
 
-function createUsersRouter({ db, config, analytics }) {
+function createUsersRouter({ db, config, analytics, mediaStorage = null }) {
   const router = express.Router();
   const authMiddleware = authenticate({ config, db });
   const optionalAuthMiddleware = authenticateOptional({ config, db });
+
+  function resolveAvatarUrl(value) {
+    if (!mediaStorage?.resolveMediaUrl) {
+      return value || null;
+    }
+    const resolved = mediaStorage.resolveMediaUrl({
+      mediaKey: value,
+      mediaUrl: value
+    });
+    return resolved || null;
+  }
 
   function buildAnonymousMePayload() {
     const profile = {
@@ -203,8 +214,10 @@ function createUsersRouter({ db, config, analytics }) {
   async function buildMePayload(userId) {
     const profile = await getMeProfileRow(userId);
     const stats = await getProfileStats({ userId, viewerId: userId });
+    const avatarUrl = resolveAvatarUrl(profile.avatar_url);
     return {
       ...profile,
+      avatar_url: avatarUrl,
       persona_capabilities: resolvePersonaCapabilities(profile),
       ...stats
     };
@@ -716,6 +729,7 @@ function createUsersRouter({ db, config, analytics }) {
       const stats = await getProfileStats({ userId, viewerId });
       const row = result.rows[0];
       const payload = { ...row };
+      payload.avatar_url = resolveAvatarUrl(payload.avatar_url);
       delete payload.show_business_on_profile;
       if (viewerId !== userId && !row.show_business_on_profile) {
         payload.business_offering = null;
@@ -751,7 +765,10 @@ function createUsersRouter({ db, config, analytics }) {
       res.status(200).json({
         limit,
         offset,
-        items: result.rows
+        items: result.rows.map((row) => ({
+          ...row,
+          avatar_url: resolveAvatarUrl(row.avatar_url)
+        }))
       });
     })
   );
