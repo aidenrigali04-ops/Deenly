@@ -260,7 +260,15 @@ function createApp({
     "/auth",
     createAuthRouter({ config, db, analytics: app.locals.analytics, referralService })
   );
-  apiRouter.use("/users", createUsersRouter({ db, config, analytics: app.locals.analytics }));
+  apiRouter.use(
+    "/users",
+    createUsersRouter({
+      db,
+      config,
+      analytics: app.locals.analytics,
+      mediaStorage: app.locals.mediaStorage
+    })
+  );
   apiRouter.use("/profiles", createProfileRouter({ db, config }));
   apiRouter.use(
     "/posts",
