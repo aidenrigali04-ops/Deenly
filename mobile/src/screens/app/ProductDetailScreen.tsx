@@ -552,13 +552,13 @@ export function ProductDetailScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   screenRoot: { flex: 1 },
   root: { flex: 1 },
-  content: { padding: 16, paddingBottom: 32 },
+  content: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 34 },
   card: {
     borderRadius: radii.feedCard,
     borderWidth: StyleSheet.hairlineWidth,
     padding: 16,
-    gap: 10,
-    marginBottom: 12,
+    gap: 12,
+    marginBottom: 14,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 16,
@@ -568,7 +568,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingBottom: 4
+    paddingBottom: 2
   },
   creatorAvatar: {
     width: 36,
@@ -587,28 +587,28 @@ const styles = StyleSheet.create({
   creatorName: { fontSize: 14, fontWeight: "600" },
   creatorHandle: { fontSize: 12 },
   creatorLink: { fontSize: 12, fontWeight: "600" },
-  title: { fontSize: 22, fontWeight: "700", letterSpacing: -0.4 },
-  price: { fontSize: 32, fontWeight: "700", letterSpacing: -0.5 },
+  title: { fontSize: 24, fontWeight: "700", letterSpacing: -0.42, lineHeight: 30 },
+  price: { fontSize: 34, fontWeight: "700", letterSpacing: -0.56, lineHeight: 40 },
   meta: { fontSize: 13, fontWeight: "500" },
   summaryLine: { fontSize: 15, fontWeight: "600", lineHeight: 22 },
-  teaserMuted: { fontSize: 13, lineHeight: 20 },
+  teaserMuted: { fontSize: 14, lineHeight: 21 },
   sectionHeading: { fontSize: 17, fontWeight: "700", letterSpacing: -0.25 },
   body: { fontSize: 15, lineHeight: 22 },
   label: { fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.6 },
   block: { gap: 4 },
   muted: { fontSize: 14 },
-  ctaRow: { flexDirection: "row", gap: 10, marginTop: 8 },
+  ctaRow: { flexDirection: "row", gap: 12, marginTop: 10 },
   buyHint: { fontSize: 12, marginTop: 2, lineHeight: 18 },
   ctaHalf: { flex: 1, minWidth: 0 },
   button: {
     borderRadius: radii.button,
-    paddingVertical: 12,
+    paddingVertical: 13,
     alignItems: "center",
     backgroundColor: colors.accent
   },
   buttonOutline: {
     borderRadius: radii.button,
-    paddingVertical: 12,
+    paddingVertical: 13,
     alignItems: "center",
     borderWidth: StyleSheet.hairlineWidth
   },
@@ -616,8 +616,8 @@ const styles = StyleSheet.create({
   buttonPressed: { transform: [{ scale: 0.99 }] },
   buttonDisabled: { opacity: 0.45 },
   buttonText: { color: colors.onAccent, fontWeight: "600", fontSize: 15 },
-  linkBtn: { paddingVertical: 4 },
-  linkText: { fontWeight: "600", fontSize: 15, letterSpacing: -0.15 },
+  linkBtn: { paddingVertical: 6 },
+  linkText: { fontWeight: "700", fontSize: 18, letterSpacing: -0.24, lineHeight: 24 },
   hint: { fontSize: 13, fontStyle: "italic" },
   ownerActions: { gap: 8, marginTop: 4 },
   archiveBtn: {
@@ -627,7 +627,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth
   },
   archiveBtnText: { color: colors.danger, fontWeight: "700", fontSize: 15 },
-  aiToggle: { fontSize: 15, fontWeight: "700", letterSpacing: -0.15 },
+  aiToggle: { fontSize: 19, fontWeight: "700", letterSpacing: -0.28, lineHeight: 24 },
   aiBody: { marginTop: 10, gap: 8 },
   aiSummary: { fontSize: 14, lineHeight: 22 },
   aiDisclaimer: { fontSize: 11, lineHeight: 16 },

@@ -216,10 +216,10 @@ function buildProductCheckoutSheetStyles(figma: AppChromeFigma) {
       borderTopRightRadius: radii.feedCard,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: figma.glassBorder,
-      paddingHorizontal: 18,
-      paddingTop: 18,
-      paddingBottom: 24,
-      gap: 8
+      paddingHorizontal: 20,
+      paddingTop: 20,
+      paddingBottom: 26,
+      gap: 10
     },
     handle: {
       width: 40,
@@ -227,7 +227,7 @@ function buildProductCheckoutSheetStyles(figma: AppChromeFigma) {
       borderRadius: 2,
       backgroundColor: figma.glassBorder,
       alignSelf: "center",
-      marginBottom: 4
+      marginBottom: 6
     },
     heading: {
       fontSize: 12,
@@ -236,16 +236,16 @@ function buildProductCheckoutSheetStyles(figma: AppChromeFigma) {
       textTransform: "uppercase",
       letterSpacing: 1
     },
-    title: { fontSize: 18, fontWeight: "600", color: figma.text, letterSpacing: -0.2 },
-    price: { fontSize: 16, fontWeight: "700", color: figma.accentGold },
+    title: { fontSize: 20, fontWeight: "700", color: figma.text, letterSpacing: -0.25, lineHeight: 25 },
+    price: { fontSize: 19, fontWeight: "700", color: figma.accentGold, letterSpacing: -0.2 },
     finalPrice: { fontSize: 13, color: figma.text, fontWeight: "600", marginTop: 2 },
     discountLine: { fontSize: 12, color: figma.accentGold, fontWeight: "600", marginTop: 1 },
     discountMeta: { fontSize: 11, color: figma.textMuted, marginTop: 1 },
     stepsRow: {
       flexDirection: "row",
       alignItems: "stretch",
-      marginTop: 4,
-      marginBottom: 4,
+      marginTop: 6,
+      marginBottom: 6,
       borderRadius: radii.control,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: figma.glassBorder,
@@ -257,7 +257,7 @@ function buildProductCheckoutSheetStyles(figma: AppChromeFigma) {
       alignItems: "center",
       justifyContent: "center",
       gap: 4,
-      paddingVertical: 8,
+      paddingVertical: 9,
       paddingHorizontal: 4,
       backgroundColor: figma.glassSoft
     },
@@ -265,34 +265,34 @@ function buildProductCheckoutSheetStyles(figma: AppChromeFigma) {
       borderRightWidth: StyleSheet.hairlineWidth,
       borderRightColor: figma.glassBorder
     },
-    stepNum: { fontSize: 11, fontWeight: "700", color: figma.textMuted },
-    stepLabel: { fontSize: 11, fontWeight: "600", color: figma.text },
+    stepNum: { fontSize: 12, fontWeight: "700", color: figma.textMuted },
+    stepLabel: { fontSize: 12, fontWeight: "600", color: figma.text },
     pointRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
     pointDot: { color: figma.textMuted, fontSize: 15, lineHeight: 20 },
-    copy: { fontSize: 14, color: figma.textMuted, lineHeight: 20, letterSpacing: -0.1 },
-    pointsWrap: { marginTop: 8, gap: 5 },
+    copy: { fontSize: 14, color: figma.textMuted, lineHeight: 21, letterSpacing: -0.1 },
+    pointsWrap: { marginTop: 10, gap: 6 },
     pointsToggleBtn: {
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: figma.glassBorder,
       borderRadius: radii.control,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
+      paddingHorizontal: 13,
+      paddingVertical: 11,
       backgroundColor: figma.glassSoft
     },
     pointsToggleBtnOn: {
       backgroundColor: figma.brandTeal,
       borderColor: figma.brandTeal
     },
-    pointsToggleText: { color: figma.text, fontWeight: "600", fontSize: 13 },
+    pointsToggleText: { color: figma.text, fontWeight: "600", fontSize: 14 },
     pointsToggleTextOn: { color: colors.onAccent },
-    guestWrap: { marginTop: 6, gap: 6 },
+    guestWrap: { marginTop: 8, gap: 7 },
     label: { fontSize: 12, fontWeight: "600", color: figma.textMuted },
     input: {
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: figma.glassBorder,
       borderRadius: radii.control,
       paddingHorizontal: 12,
-      paddingVertical: 10,
+      paddingVertical: 11,
       color: figma.text,
       backgroundColor: figma.glassSoft
     },
@@ -302,11 +302,11 @@ function buildProductCheckoutSheetStyles(figma: AppChromeFigma) {
     helperText: { color: figma.textMuted, fontSize: 12, lineHeight: 16 },
     helperTextError: { color: colors.danger },
     error: { color: colors.danger, fontSize: 13, marginTop: 4 },
-    row: { flexDirection: "row", gap: 10, marginTop: 10 },
+    row: { flexDirection: "row", gap: 10, marginTop: 12 },
     btn: {
       flex: 1,
       borderRadius: radii.control,
-      paddingVertical: 12,
+      paddingVertical: 13,
       alignItems: "center",
       justifyContent: "center"
     },
