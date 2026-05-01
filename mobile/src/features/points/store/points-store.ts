@@ -75,6 +75,7 @@ export const usePointsStore = create<PointsStoreState>((set, get) => ({
       return null;
     }
     const previousLevel = get().state?.wallet.level ?? null;
+    const previousStreak = get().state?.wallet.streak ?? 0;
     if (get().source === "remote") {
       if (isRemoteTrackedAction(action)) {
         await get().hydrate(activeUserId);
@@ -85,13 +86,28 @@ export const usePointsStore = create<PointsStoreState>((set, get) => ({
     const nextState = await getPointsState(activeUserId);
     set({ state: nextState, source: "local" });
     if (result.awarded) {
+      const justLeveled = previousLevel != null ? result.wallet.level > previousLevel : false;
+      const streakImproved = result.wallet.streak > previousStreak && result.wallet.streak >= 3;
+      const milestonePoints =
+        result.wallet.totalPoints > 0 && result.wallet.totalPoints % 100 === 0 ? result.wallet.totalPoints : undefined;
+      const celebration: "standard" | "level_up" | "milestone" | "streak" = justLeveled
+        ? "level_up"
+        : streakImproved
+          ? "streak"
+          : milestonePoints
+            ? "milestone"
+            : "standard";
       usePointsRewardToastStore.getState().enqueue({
         id: `toast_${Date.now()}_${Math.floor(Math.random() * 1_000_000)}`,
         action,
         points: result.points,
         totalPoints: result.wallet.totalPoints,
+        dailyPoints: result.wallet.todayPoints,
         level: result.wallet.level,
-        levelUp: previousLevel != null ? result.wallet.level > previousLevel : false,
+        streak: result.wallet.streak,
+        levelUp: justLeveled,
+        celebration,
+        milestonePoints,
         createdAt: result.transaction.createdAt
       });
       await Promise.all([

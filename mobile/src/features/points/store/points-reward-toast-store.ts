@@ -6,8 +6,12 @@ export type PointsRewardToastPayload = {
   action: PointAction;
   points: number;
   totalPoints: number;
+  dailyPoints: number;
   level: number;
+  streak: number;
   levelUp: boolean;
+  celebration: "standard" | "level_up" | "milestone" | "streak";
+  milestonePoints?: number;
   createdAt: string;
 };
 
