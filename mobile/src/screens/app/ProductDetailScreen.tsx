@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { Alert, Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, apiRequest } from "../../lib/api";
@@ -15,7 +16,8 @@ import { ProductCheckoutSheet } from "../../components/ProductCheckoutSheet";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { hapticPrimary, hapticSuccess, hapticTap } from "../../lib/haptics";
 import { resolveMediaUrl } from "../../lib/media-url";
-import { colors, primaryButtonOutline, radii, shadows } from "../../theme";
+import { colors, radii } from "../../theme";
+import { useAppChrome } from "../../lib/use-app-chrome";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { useSessionStore } from "../../store/session-store";
 
@@ -62,6 +64,7 @@ export function ProductDetailScreen({ route, navigation }: Props) {
   const { productId } = route.params;
   const checkoutVariant = resolveCheckoutVariant(productId);
   const sessionUser = useSessionStore((s) => s.user);
+  const { figma, mode } = useAppChrome();
   const queryClient = useQueryClient();
   const [aiOpen, setAiOpen] = useState(false);
   const [archiveError, setArchiveError] = useState("");
@@ -71,6 +74,7 @@ export function ProductDetailScreen({ route, navigation }: Props) {
   const [guestEmail, setGuestEmail] = useState("");
   const scrollRef = useRef<ScrollView>(null);
   const [offerSectionY, setOfferSectionY] = useState(0);
+  const statusBarStyle = mode === "light" ? "dark" : "light";
 
   const productQuery = useQuery({
     queryKey: ["mobile-product-detail", productId, sessionUser ? "auth" : "catalog"],
@@ -157,19 +161,33 @@ export function ProductDetailScreen({ route, navigation }: Props) {
   };
 
   if (productQuery.isLoading) {
-    return <LoadingState label="Loading product..." />;
+    return (
+      <View style={[styles.screenRoot, { backgroundColor: figma.canvas }]}>
+        <StatusBar style={statusBarStyle} />
+        <LoadingState label="Loading product..." surface="dark" />
+      </View>
+    );
   }
   if (productQuery.error) {
     return (
-      <ErrorState
-        message={(productQuery.error as Error).message}
-        onRetry={() => productQuery.refetch()}
-      />
+      <View style={[styles.screenRoot, { backgroundColor: figma.canvas }]}>
+        <StatusBar style={statusBarStyle} />
+        <ErrorState
+          message={(productQuery.error as Error).message}
+          onRetry={() => productQuery.refetch()}
+          surface="dark"
+        />
+      </View>
     );
   }
   const product = productQuery.data;
   if (!product) {
-    return <EmptyState title="Product not found" />;
+    return (
+      <View style={[styles.screenRoot, { backgroundColor: figma.canvas }]}>
+        <StatusBar style={statusBarStyle} />
+        <EmptyState title="Product not found" surface="dark" />
+      </View>
+    );
   }
 
   const isOwner = sessionUser?.id === product.creator_user_id;
@@ -223,6 +241,7 @@ export function ProductDetailScreen({ route, navigation }: Props) {
 
   return (
     <>
+      <StatusBar style={statusBarStyle} />
       <ProductCheckoutSheet
         visible={checkoutOpen}
         title={product.title}
@@ -273,47 +292,64 @@ export function ProductDetailScreen({ route, navigation }: Props) {
       />
       <ScrollView
         ref={scrollRef}
-        style={styles.root}
+        style={[styles.root, { backgroundColor: figma.canvas }]}
         contentContainerStyle={styles.content}
       >
-        <View style={[styles.card, shadows.card]}>
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: figma.card,
+              borderColor: figma.glassBorder,
+              shadowColor: colors.shadow
+            }
+          ]}
+        >
           {product.creator_user_id ? (
             <Pressable
               style={styles.creatorRow}
               onPress={() => navigation.navigate("UserProfile", { id: product.creator_user_id })}
             >
               {creatorAvatarUri ? (
-                <Image source={{ uri: creatorAvatarUri }} style={styles.creatorAvatar} />
+                <Image source={{ uri: creatorAvatarUri }} style={[styles.creatorAvatar, { borderColor: figma.glassBorder }]} />
               ) : (
-                <View style={[styles.creatorAvatar, styles.creatorAvatarFallback]}>
-                  <Text style={styles.creatorAvatarLetter}>{creatorName.slice(0, 1).toUpperCase()}</Text>
+                <View
+                  style={[
+                    styles.creatorAvatar,
+                    styles.creatorAvatarFallback,
+                    { borderColor: figma.glassBorder, backgroundColor: figma.glassSoft }
+                  ]}
+                >
+                  <Text style={[styles.creatorAvatarLetter, { color: figma.text }]}>
+                    {creatorName.slice(0, 1).toUpperCase()}
+                  </Text>
                 </View>
               )}
               <View style={styles.creatorTextWrap}>
-                <Text style={styles.creatorName} numberOfLines={1}>
+                <Text style={[styles.creatorName, { color: figma.text }]} numberOfLines={1}>
                   {creatorName}
                 </Text>
                 {creatorHandle ? (
-                  <Text style={styles.creatorHandle} numberOfLines={1}>
+                  <Text style={[styles.creatorHandle, { color: figma.textMuted }]} numberOfLines={1}>
                     {creatorHandle}
                   </Text>
                 ) : null}
               </View>
-              <Text style={styles.creatorLink}>View profile</Text>
+              <Text style={[styles.creatorLink, { color: figma.accentGold }]}>View profile</Text>
             </Pressable>
           ) : null}
 
-        <Text style={styles.title}>{product.title}</Text>
-        <Text style={styles.price}>{priceLabel}</Text>
-        <Text style={styles.meta}>
+        <Text style={[styles.title, { color: figma.text }]}>{product.title}</Text>
+        <Text style={[styles.price, { color: figma.accentGold }]}>{priceLabel}</Text>
+        <Text style={[styles.meta, { color: figma.textMuted }]}>
           {productTypeLabel(product.product_type)}
           {product.business_category ? ` · ${product.business_category.replace(/_/g, " ")}` : ""}
           {!isPublished ? ` · ${product.status}` : ""}
         </Text>
-        <Text style={styles.summaryLine}>{productTypeSummary(product.product_type)}</Text>
+        <Text style={[styles.summaryLine, { color: figma.text }]}>{productTypeSummary(product.product_type)}</Text>
 
         {showViewOffer ? (
-          <Text style={styles.teaserMuted}>
+          <Text style={[styles.teaserMuted, { color: figma.textMuted }]}>
             Open full details for description, delivery, and exactly what buyers receive.
           </Text>
         ) : null}
@@ -321,13 +357,21 @@ export function ProductDetailScreen({ route, navigation }: Props) {
         <View style={styles.ctaRow}>
           {showViewOffer ? (
             <Pressable
-              style={({ pressed }) => [styles.buttonOutline, styles.ctaHalf, pressed && styles.buttonPressed]}
+              style={({ pressed }) => [
+                styles.buttonOutline,
+                styles.ctaHalf,
+                {
+                  backgroundColor: figma.glassSoft,
+                  borderColor: figma.glassBorder
+                },
+                pressed && styles.buttonPressed
+              ]}
               onPress={() => {
                 void hapticTap();
                 scrollToFullOffer();
               }}
             >
-              <Text style={styles.buttonOutlineText}>View offer</Text>
+              <Text style={[styles.buttonOutlineText, { color: figma.accentGold }]}>View offer</Text>
             </Pressable>
           ) : (
             <View style={styles.ctaHalf} />
@@ -351,7 +395,7 @@ export function ProductDetailScreen({ route, navigation }: Props) {
           </Pressable>
         </View>
         {canBuy ? (
-          <Text style={styles.buyHint}>
+          <Text style={[styles.buyHint, { color: figma.textMuted }]}>
             Secure Stripe Checkout in your browser — Apple Pay or Google Pay appears when your device and Stripe
             settings support it.
           </Text>
@@ -362,7 +406,7 @@ export function ProductDetailScreen({ route, navigation }: Props) {
             style={styles.linkBtn}
             onPress={() => Linking.openURL(product.website_url!)}
           >
-            <Text style={styles.linkText}>Visit website</Text>
+            <Text style={[styles.linkText, { color: figma.accentGold }]}>Visit website</Text>
           </Pressable>
         ) : null}
 
@@ -371,17 +415,24 @@ export function ProductDetailScreen({ route, navigation }: Props) {
             style={styles.linkBtn}
             onPress={() => navigation.navigate("UserProfile", { id: product.creator_user_id })}
           >
-            <Text style={styles.linkText}>View creator profile</Text>
+            <Text style={[styles.linkText, { color: figma.accentGold }]}>View creator profile</Text>
           </Pressable>
         ) : null}
 
         {isOwner && !isPublished ? (
-          <Text style={styles.hint}>Publish this product from Creator hub so others can buy it.</Text>
+          <Text style={[styles.hint, { color: figma.textMuted }]}>Publish this product from Creator hub so others can buy it.</Text>
         ) : null}
         {isOwner && isPublished ? (
           <View style={styles.ownerActions}>
             <Pressable
-              style={[styles.archiveBtn, archiveProductMutation.isPending && styles.buttonDisabled]}
+              style={[
+                styles.archiveBtn,
+                {
+                  backgroundColor: figma.glassSoft,
+                  borderColor: colors.danger
+                },
+                archiveProductMutation.isPending && styles.buttonDisabled
+              ]}
               disabled={archiveProductMutation.isPending}
               onPress={() => {
                 Alert.alert(
@@ -408,34 +459,50 @@ export function ProductDetailScreen({ route, navigation }: Props) {
         </View>
 
         <View
-          style={[styles.card, shadows.card]}
+          style={[
+            styles.card,
+            {
+              backgroundColor: figma.card,
+              borderColor: figma.glassBorder,
+              shadowColor: colors.shadow
+            }
+          ]}
           onLayout={(e) => setOfferSectionY(e.nativeEvent.layout.y)}
         >
-          <Text style={styles.sectionHeading}>Full offer</Text>
+          <Text style={[styles.sectionHeading, { color: figma.text }]}>Full offer</Text>
           {product.description ? (
             <View style={styles.block}>
-              <Text style={styles.label}>Description</Text>
-              <Text style={styles.body}>{product.description}</Text>
+              <Text style={[styles.label, { color: figma.textMuted }]}>Description</Text>
+              <Text style={[styles.body, { color: figma.text }]}>{product.description}</Text>
             </View>
           ) : (
-            <Text style={styles.muted}>No short description provided.</Text>
+            <Text style={[styles.muted, { color: figma.textMuted }]}>No short description provided.</Text>
           )}
           {product.service_details ? (
             <View style={styles.block}>
-              <Text style={styles.label}>What you get</Text>
-              <Text style={styles.body}>{product.service_details}</Text>
+              <Text style={[styles.label, { color: figma.textMuted }]}>What you get</Text>
+              <Text style={[styles.body, { color: figma.text }]}>{product.service_details}</Text>
             </View>
           ) : null}
           <View style={styles.block}>
-            <Text style={styles.label}>Delivery</Text>
-            <Text style={styles.body}>
+            <Text style={[styles.label, { color: figma.textMuted }]}>Delivery</Text>
+            <Text style={[styles.body, { color: figma.text }]}>
               {product.delivery_method?.trim() || "Confirmed after checkout where applicable."}
             </Text>
           </View>
         </View>
 
         {isPublished || isOwner ? (
-          <View style={[styles.card, shadows.card]}>
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: figma.card,
+                borderColor: figma.glassBorder,
+                shadowColor: colors.shadow
+              }
+            ]}
+          >
             <Pressable
               onPress={() => {
                 const next = !aiOpen;
@@ -450,23 +517,27 @@ export function ProductDetailScreen({ route, navigation }: Props) {
                 }
               }}
             >
-              <Text style={styles.aiToggle}>{aiOpen ? "Hide quick summary" : "Quick summary"}</Text>
+              <Text style={[styles.aiToggle, { color: figma.accentGold }]}>
+                {aiOpen ? "Hide quick summary" : "Quick summary"}
+              </Text>
             </Pressable>
             {aiOpen ? (
               <View style={styles.aiBody}>
                 {overviewMutation.isPending ? (
-                  <Text style={styles.muted}>Generating quick summary…</Text>
+                  <Text style={[styles.muted, { color: figma.textMuted }]}>Generating quick summary…</Text>
                 ) : overviewMutation.isError ? (
                   <View>
                     <Text style={styles.errorText}>{(overviewMutation.error as Error).message}</Text>
                     <Pressable style={styles.retry} onPress={() => overviewMutation.mutate()}>
-                      <Text style={styles.retryText}>Try again</Text>
+                      <Text style={[styles.retryText, { color: figma.accentGold }]}>Try again</Text>
                     </Pressable>
                   </View>
                 ) : overviewMutation.data ? (
                   <>
-                    <Text style={styles.aiSummary}>{overviewMutation.data.summary}</Text>
-                    <Text style={styles.aiDisclaimer}>AI-generated from listing facts only. Keep this as a quick guide.</Text>
+                    <Text style={[styles.aiSummary, { color: figma.text }]}>{overviewMutation.data.summary}</Text>
+                    <Text style={[styles.aiDisclaimer, { color: figma.textMuted }]}>
+                      AI-generated from listing facts only. Keep this as a quick guide.
+                    </Text>
                   </>
                 ) : null}
               </View>
@@ -479,87 +550,88 @@ export function ProductDetailScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
-  content: { padding: 16, paddingBottom: 32 },
+  screenRoot: { flex: 1 },
+  root: { flex: 1 },
+  content: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 34 },
   card: {
-    backgroundColor: colors.card,
-    borderRadius: radii.panel,
+    borderRadius: radii.feedCard,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle,
     padding: 16,
-    gap: 10,
-    marginBottom: 12
+    gap: 12,
+    marginBottom: 14,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 2
   },
   creatorRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingBottom: 4
+    paddingBottom: 2
   },
   creatorAvatar: {
     width: 36,
     height: 36,
     borderRadius: 18,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle,
-    backgroundColor: colors.surface
+    borderColor: "rgba(255,255,255,0.1)"
   },
   creatorAvatarFallback: {
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.subtleFill
+    backgroundColor: "rgba(255,255,255,0.12)"
   },
-  creatorAvatarLetter: { fontSize: 16, fontWeight: "600", color: colors.text },
+  creatorAvatarLetter: { fontSize: 16, fontWeight: "700", color: "#FFFFFF" },
   creatorTextWrap: { flex: 1, minWidth: 0 },
-  creatorName: { fontSize: 14, fontWeight: "600", color: colors.text },
-  creatorHandle: { fontSize: 12, color: colors.muted },
-  creatorLink: { fontSize: 12, color: colors.accent, fontWeight: "600" },
-  title: { fontSize: 22, fontWeight: "700", color: colors.text },
-  price: { fontSize: 18, fontWeight: "700", color: colors.accent },
-  meta: { fontSize: 13, color: colors.muted },
-  summaryLine: { fontSize: 14, color: colors.text, fontWeight: "500" },
-  teaserMuted: { fontSize: 13, color: colors.muted, lineHeight: 18 },
-  sectionHeading: { fontSize: 17, fontWeight: "700", color: colors.text },
-  body: { fontSize: 15, color: colors.text, lineHeight: 22 },
-  label: { fontSize: 12, fontWeight: "700", color: colors.muted, textTransform: "uppercase" },
+  creatorName: { fontSize: 14, fontWeight: "600" },
+  creatorHandle: { fontSize: 12 },
+  creatorLink: { fontSize: 12, fontWeight: "600" },
+  title: { fontSize: 24, fontWeight: "700", letterSpacing: -0.42, lineHeight: 30 },
+  price: { fontSize: 34, fontWeight: "700", letterSpacing: -0.56, lineHeight: 40 },
+  meta: { fontSize: 13, fontWeight: "500" },
+  summaryLine: { fontSize: 15, fontWeight: "600", lineHeight: 22 },
+  teaserMuted: { fontSize: 14, lineHeight: 21 },
+  sectionHeading: { fontSize: 17, fontWeight: "700", letterSpacing: -0.25 },
+  body: { fontSize: 15, lineHeight: 22 },
+  label: { fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.6 },
   block: { gap: 4 },
-  muted: { fontSize: 14, color: colors.muted },
-  ctaRow: { flexDirection: "row", gap: 10, marginTop: 8 },
-  buyHint: { fontSize: 12, color: colors.muted, marginTop: 2 },
+  muted: { fontSize: 14 },
+  ctaRow: { flexDirection: "row", gap: 12, marginTop: 10 },
+  buyHint: { fontSize: 12, marginTop: 2, lineHeight: 18 },
   ctaHalf: { flex: 1, minWidth: 0 },
   button: {
     borderRadius: radii.button,
-    paddingVertical: 12,
-    ...primaryButtonOutline
+    paddingVertical: 13,
+    alignItems: "center",
+    backgroundColor: colors.accent
   },
   buttonOutline: {
     borderRadius: radii.button,
-    paddingVertical: 12,
+    paddingVertical: 13,
     alignItems: "center",
-    backgroundColor: colors.accentTint
+    borderWidth: StyleSheet.hairlineWidth
   },
-  buttonOutlineText: { color: colors.accentTextOnTint, fontWeight: "600", fontSize: 15 },
+  buttonOutlineText: { fontWeight: "600", fontSize: 15 },
   buttonPressed: { transform: [{ scale: 0.99 }] },
   buttonDisabled: { opacity: 0.45 },
   buttonText: { color: colors.onAccent, fontWeight: "600", fontSize: 15 },
-  linkBtn: { paddingVertical: 4 },
-  linkText: { color: colors.accent, fontWeight: "600", fontSize: 15 },
-  hint: { fontSize: 13, color: colors.muted, fontStyle: "italic" },
+  linkBtn: { paddingVertical: 6 },
+  linkText: { fontWeight: "700", fontSize: 18, letterSpacing: -0.24, lineHeight: 24 },
+  hint: { fontSize: 13, fontStyle: "italic" },
   ownerActions: { gap: 8, marginTop: 4 },
   archiveBtn: {
     borderRadius: radii.control,
     paddingVertical: 12,
     alignItems: "center",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.danger,
-    backgroundColor: colors.surface
+    borderWidth: StyleSheet.hairlineWidth
   },
   archiveBtnText: { color: colors.danger, fontWeight: "700", fontSize: 15 },
-  aiToggle: { fontSize: 15, fontWeight: "700", color: colors.accent },
+  aiToggle: { fontSize: 19, fontWeight: "700", letterSpacing: -0.28, lineHeight: 24 },
   aiBody: { marginTop: 10, gap: 8 },
-  aiSummary: { fontSize: 14, color: colors.text, lineHeight: 22 },
-  aiDisclaimer: { fontSize: 11, color: colors.muted },
+  aiSummary: { fontSize: 14, lineHeight: 22 },
+  aiDisclaimer: { fontSize: 11, lineHeight: 16 },
   errorText: { color: colors.danger, fontSize: 14 },
   retry: { marginTop: 8 },
-  retryText: { color: colors.accent, fontWeight: "600" }
+  retryText: { fontWeight: "600" }
 });

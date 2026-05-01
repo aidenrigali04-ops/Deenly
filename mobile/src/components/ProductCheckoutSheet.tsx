@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Animated, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { colors, primaryButtonOutline, radii } from "../theme";
+import { colors, radii } from "../theme";
 import { hapticPrimary, hapticTap } from "../lib/haptics";
+import { useAppChrome } from "../lib/use-app-chrome";
 
 type Props = {
   visible: boolean;
@@ -26,6 +27,8 @@ type Props = {
   onConfirm: () => void;
 };
 
+type AppChromeFigma = ReturnType<typeof useAppChrome>["figma"];
+
 export function ProductCheckoutSheet({
   visible,
   title,
@@ -48,6 +51,8 @@ export function ProductCheckoutSheet({
   onClose,
   onConfirm
 }: Props) {
+  const { figma } = useAppChrome();
+  const styles = useMemo(() => buildProductCheckoutSheetStyles(figma), [figma]);
   const translateY = useRef(new Animated.Value(24)).current;
   const fade = useRef(new Animated.Value(0)).current;
 
@@ -198,122 +203,124 @@ export function ProductCheckoutSheet({
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    justifyContent: "flex-end"
-  },
-  sheet: {
-    backgroundColor: colors.card,
-    borderTopLeftRadius: radii.panel,
-    borderTopRightRadius: radii.panel,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle,
-    paddingHorizontal: 18,
-    paddingTop: 18,
-    paddingBottom: 24,
-    gap: 8
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.borderSubtle,
-    alignSelf: "center",
-    marginBottom: 4
-  },
-  heading: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: colors.muted,
-    textTransform: "uppercase",
-    letterSpacing: 1
-  },
-  title: { fontSize: 18, fontWeight: "600", color: colors.text, letterSpacing: -0.2 },
-  price: { fontSize: 16, fontWeight: "600", color: colors.text },
-  finalPrice: { fontSize: 13, color: colors.text, fontWeight: "600", marginTop: 2 },
-  discountLine: { fontSize: 12, color: colors.accent, fontWeight: "600", marginTop: 1 },
-  discountMeta: { fontSize: 11, color: colors.muted, marginTop: 1 },
-  stepsRow: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    marginTop: 4,
-    marginBottom: 4,
-    borderRadius: radii.control,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle,
-    overflow: "hidden"
-  },
-  stepChip: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    backgroundColor: colors.surface
-  },
-  stepChipDivider: {
-    borderRightWidth: StyleSheet.hairlineWidth,
-    borderRightColor: colors.borderSubtle
-  },
-  stepNum: { fontSize: 11, fontWeight: "700", color: colors.muted },
-  stepLabel: { fontSize: 11, fontWeight: "600", color: colors.text },
-  pointRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
-  pointDot: { color: colors.muted, fontSize: 15, lineHeight: 20 },
-  copy: { fontSize: 14, color: colors.muted, lineHeight: 20, letterSpacing: -0.1 },
-  pointsWrap: { marginTop: 8, gap: 5 },
-  pointsToggleBtn: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    borderRadius: radii.control,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: colors.surface
-  },
-  pointsToggleBtnOn: {
-    backgroundColor: colors.accentTint,
-    borderColor: colors.accent
-  },
-  pointsToggleText: { color: colors.text, fontWeight: "600", fontSize: 13 },
-  pointsToggleTextOn: { color: colors.accentTextOnTint },
-  guestWrap: { marginTop: 6, gap: 6 },
-  label: { fontSize: 12, fontWeight: "600", color: colors.muted },
-  input: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle,
-    borderRadius: radii.control,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    color: colors.text,
-    backgroundColor: colors.surface
-  },
-  inputInvalid: {
-    borderColor: colors.danger
-  },
-  helperText: { color: colors.muted, fontSize: 12, lineHeight: 16 },
-  helperTextError: { color: colors.danger },
-  error: { color: colors.danger, fontSize: 13, marginTop: 4 },
-  row: { flexDirection: "row", gap: 10, marginTop: 10 },
-  btn: {
-    flex: 1,
-    borderRadius: radii.control,
-    paddingVertical: 12,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  btnGhost: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle,
-    backgroundColor: colors.surface
-  },
-  btnGhostText: { color: colors.text, fontSize: 15, fontWeight: "600" },
-  btnPrimary: {
-    ...primaryButtonOutline
-  },
-  btnPrimaryText: { color: colors.onAccent, fontSize: 15, fontWeight: "600" },
-  btnPressed: { opacity: 0.82, transform: [{ scale: 0.99 }] },
-  disabled: { opacity: 0.55 }
-});
+function buildProductCheckoutSheetStyles(figma: AppChromeFigma) {
+  return StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.56)",
+      justifyContent: "flex-end"
+    },
+    sheet: {
+      backgroundColor: figma.card,
+      borderTopLeftRadius: radii.feedCard,
+      borderTopRightRadius: radii.feedCard,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: figma.glassBorder,
+      paddingHorizontal: 20,
+      paddingTop: 20,
+      paddingBottom: 26,
+      gap: 10
+    },
+    handle: {
+      width: 40,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: figma.glassBorder,
+      alignSelf: "center",
+      marginBottom: 6
+    },
+    heading: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: figma.textMuted,
+      textTransform: "uppercase",
+      letterSpacing: 1
+    },
+    title: { fontSize: 20, fontWeight: "700", color: figma.text, letterSpacing: -0.25, lineHeight: 25 },
+    price: { fontSize: 19, fontWeight: "700", color: figma.accentGold, letterSpacing: -0.2 },
+    finalPrice: { fontSize: 13, color: figma.text, fontWeight: "600", marginTop: 2 },
+    discountLine: { fontSize: 12, color: figma.accentGold, fontWeight: "600", marginTop: 1 },
+    discountMeta: { fontSize: 11, color: figma.textMuted, marginTop: 1 },
+    stepsRow: {
+      flexDirection: "row",
+      alignItems: "stretch",
+      marginTop: 6,
+      marginBottom: 6,
+      borderRadius: radii.control,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: figma.glassBorder,
+      overflow: "hidden"
+    },
+    stepChip: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 4,
+      paddingVertical: 9,
+      paddingHorizontal: 4,
+      backgroundColor: figma.glassSoft
+    },
+    stepChipDivider: {
+      borderRightWidth: StyleSheet.hairlineWidth,
+      borderRightColor: figma.glassBorder
+    },
+    stepNum: { fontSize: 12, fontWeight: "700", color: figma.textMuted },
+    stepLabel: { fontSize: 12, fontWeight: "600", color: figma.text },
+    pointRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
+    pointDot: { color: figma.textMuted, fontSize: 15, lineHeight: 20 },
+    copy: { fontSize: 14, color: figma.textMuted, lineHeight: 21, letterSpacing: -0.1 },
+    pointsWrap: { marginTop: 10, gap: 6 },
+    pointsToggleBtn: {
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: figma.glassBorder,
+      borderRadius: radii.control,
+      paddingHorizontal: 13,
+      paddingVertical: 11,
+      backgroundColor: figma.glassSoft
+    },
+    pointsToggleBtnOn: {
+      backgroundColor: figma.brandTeal,
+      borderColor: figma.brandTeal
+    },
+    pointsToggleText: { color: figma.text, fontWeight: "600", fontSize: 14 },
+    pointsToggleTextOn: { color: colors.onAccent },
+    guestWrap: { marginTop: 8, gap: 7 },
+    label: { fontSize: 12, fontWeight: "600", color: figma.textMuted },
+    input: {
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: figma.glassBorder,
+      borderRadius: radii.control,
+      paddingHorizontal: 12,
+      paddingVertical: 11,
+      color: figma.text,
+      backgroundColor: figma.glassSoft
+    },
+    inputInvalid: {
+      borderColor: colors.danger
+    },
+    helperText: { color: figma.textMuted, fontSize: 12, lineHeight: 16 },
+    helperTextError: { color: colors.danger },
+    error: { color: colors.danger, fontSize: 13, marginTop: 4 },
+    row: { flexDirection: "row", gap: 10, marginTop: 12 },
+    btn: {
+      flex: 1,
+      borderRadius: radii.control,
+      paddingVertical: 13,
+      alignItems: "center",
+      justifyContent: "center"
+    },
+    btnGhost: {
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: figma.glassBorder,
+      backgroundColor: figma.glassSoft
+    },
+    btnGhostText: { color: figma.text, fontSize: 15, fontWeight: "600" },
+    btnPrimary: {
+      backgroundColor: figma.brandTeal
+    },
+    btnPrimaryText: { color: colors.onAccent, fontSize: 15, fontWeight: "600" },
+    btnPressed: { opacity: 0.82, transform: [{ scale: 0.99 }] },
+    disabled: { opacity: 0.55 }
+  });
+}
